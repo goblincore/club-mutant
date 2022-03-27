@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useRef, useEffect, useState } from 'react'
 import ReactPlayer from 'react-player/youtube'
 import styled from 'styled-components'
@@ -36,17 +37,32 @@ export default function YoutubePlayer() {
   const dispatch = useAppDispatch()
   const link = useAppSelector((state) => state.musicStream.link)
   const startTime = useAppSelector((state) => state.musicStream.startTime)
+  const [isBuffering, setIsBuffering] = useState(true) 
 
   const currentTime: number = new Date().getTime()
-  const syncTime = (currentTime - startTime) / 1000;
+      const syncTime = (currentTime - startTime) / 1000;
+      const url = 'http://www.youtube.com/watch?v=' + link + '#t=' + syncTime + 's'
 
   const playerRef = useRef<any>();
 
-  const url = 'http://www.youtube.com/watch?v=' + link + '#t=' + syncTime + 's'
+
 
   const handleReady = e => {
-    playerRef.current.seekTo(syncTime ,'seconds')
+    console.log('playerReady');
+    if(!isBuffering){
+    const currentTime: number = new Date().getTime()
+      const syncTime = (currentTime - startTime) / 1000;
+     playerRef.current.seekTo(syncTime ,'seconds')
+    }
   }
+
+  const handleOnBufferEnd = () => {
+     if(isBuffering){
+       setIsBuffering(false);
+     }
+  }
+
+
 
   const game = phaserGame.scene.keys.game as Game
   return (
@@ -57,6 +73,7 @@ export default function YoutubePlayer() {
           <ReactPlayer
             ref={playerRef}
             onReady={handleReady}
+            onBufferEnd={handleOnBufferEnd}
             width={'200px'}
             height={'130px'}
             playing
