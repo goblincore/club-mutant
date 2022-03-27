@@ -1,0 +1,3296 @@
+{
+	"textures": [
+		{
+			"image": "MutantWalk.png",
+			"format": "RGBA8888",
+			"size": {
+				"w": 507,
+				"h": 1394
+			},
+			"scale": 2,
+			"frames": [
+				{
+					"filename": "mutant-walk-39.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 24,
+						"w": 52,
+						"h": 70
+					},
+					"frame": {
+						"x": 1,
+						"y": 1,
+						"w": 52,
+						"h": 70
+					}
+				},
+				{
+					"filename": "mutant-idle-59.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 19,
+						"w": 49,
+						"h": 74
+					},
+					"frame": {
+						"x": 55,
+						"y": 1,
+						"w": 49,
+						"h": 74
+					}
+				},
+				{
+					"filename": "mutant-idle-60.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 19,
+						"w": 48,
+						"h": 74
+					},
+					"frame": {
+						"x": 106,
+						"y": 1,
+						"w": 48,
+						"h": 74
+					}
+				},
+				{
+					"filename": "mutant-idle-61.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 19,
+						"w": 48,
+						"h": 74
+					},
+					"frame": {
+						"x": 156,
+						"y": 1,
+						"w": 48,
+						"h": 74
+					}
+				},
+				{
+					"filename": "mutant-idle-62.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 19,
+						"w": 49,
+						"h": 74
+					},
+					"frame": {
+						"x": 206,
+						"y": 1,
+						"w": 49,
+						"h": 74
+					}
+				},
+				{
+					"filename": "mutant-idle-63.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 19,
+						"w": 48,
+						"h": 74
+					},
+					"frame": {
+						"x": 257,
+						"y": 1,
+						"w": 48,
+						"h": 74
+					}
+				},
+				{
+					"filename": "mutant-walk-34.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 20,
+						"w": 51,
+						"h": 74
+					},
+					"frame": {
+						"x": 307,
+						"y": 1,
+						"w": 51,
+						"h": 74
+					}
+				},
+				{
+					"filename": "mutant-walk-35.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 20,
+						"w": 51,
+						"h": 74
+					},
+					"frame": {
+						"x": 360,
+						"y": 1,
+						"w": 51,
+						"h": 74
+					}
+				},
+				{
+					"filename": "mutant-walk-38.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 12,
+						"y": 20,
+						"w": 42,
+						"h": 74
+					},
+					"frame": {
+						"x": 413,
+						"y": 1,
+						"w": 42,
+						"h": 74
+					}
+				},
+				{
+					"filename": "mutant-idle-48.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 18,
+						"w": 48,
+						"h": 75
+					},
+					"frame": {
+						"x": 457,
+						"y": 1,
+						"w": 48,
+						"h": 75
+					}
+				},
+				{
+					"filename": "mutant-walk-26.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 8,
+						"y": 19,
+						"w": 49,
+						"h": 75
+					},
+					"frame": {
+						"x": 1,
+						"y": 73,
+						"w": 49,
+						"h": 75
+					}
+				},
+				{
+					"filename": "mutant-walk-48.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 20,
+						"w": 56,
+						"h": 74
+					},
+					"frame": {
+						"x": 52,
+						"y": 77,
+						"w": 56,
+						"h": 74
+					}
+				},
+				{
+					"filename": "mutant-walk-28.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 6,
+						"y": 19,
+						"w": 53,
+						"h": 75
+					},
+					"frame": {
+						"x": 110,
+						"y": 77,
+						"w": 53,
+						"h": 75
+					}
+				},
+				{
+					"filename": "mutant-walk-30.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 8,
+						"y": 19,
+						"w": 50,
+						"h": 75
+					},
+					"frame": {
+						"x": 165,
+						"y": 77,
+						"w": 50,
+						"h": 75
+					}
+				},
+				{
+					"filename": "mutant-walk-31.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 9,
+						"y": 19,
+						"w": 47,
+						"h": 75
+					},
+					"frame": {
+						"x": 217,
+						"y": 77,
+						"w": 47,
+						"h": 75
+					}
+				},
+				{
+					"filename": "mutant-walk-18.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 18,
+						"w": 57,
+						"h": 76
+					},
+					"frame": {
+						"x": 266,
+						"y": 77,
+						"w": 57,
+						"h": 76
+					}
+				},
+				{
+					"filename": "mutant-walk-29.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 8,
+						"y": 18,
+						"w": 50,
+						"h": 76
+					},
+					"frame": {
+						"x": 325,
+						"y": 77,
+						"w": 50,
+						"h": 76
+					}
+				},
+				{
+					"filename": "mutant-walk-33.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 18,
+						"w": 51,
+						"h": 76
+					},
+					"frame": {
+						"x": 377,
+						"y": 77,
+						"w": 51,
+						"h": 76
+					}
+				},
+				{
+					"filename": "mutant-walk-43.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 6,
+						"y": 18,
+						"w": 54,
+						"h": 76
+					},
+					"frame": {
+						"x": 430,
+						"y": 78,
+						"w": 54,
+						"h": 76
+					}
+				},
+				{
+					"filename": "mutant-walk-36.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 11,
+						"y": 17,
+						"w": 44,
+						"h": 77
+					},
+					"frame": {
+						"x": 1,
+						"y": 150,
+						"w": 44,
+						"h": 77
+					}
+				},
+				{
+					"filename": "mutant-walk-49.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 2,
+						"y": 18,
+						"w": 61,
+						"h": 76
+					},
+					"frame": {
+						"x": 47,
+						"y": 153,
+						"w": 61,
+						"h": 76
+					}
+				},
+				{
+					"filename": "mutant-idle-58.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 16,
+						"w": 50,
+						"h": 77
+					},
+					"frame": {
+						"x": 110,
+						"y": 154,
+						"w": 50,
+						"h": 77
+					}
+				},
+				{
+					"filename": "mutant-walk-19.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 17,
+						"w": 60,
+						"h": 77
+					},
+					"frame": {
+						"x": 162,
+						"y": 154,
+						"w": 60,
+						"h": 77
+					}
+				},
+				{
+					"filename": "mutant-walk-24.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 17,
+						"w": 51,
+						"h": 77
+					},
+					"frame": {
+						"x": 224,
+						"y": 155,
+						"w": 51,
+						"h": 77
+					}
+				},
+				{
+					"filename": "mutant-walk-13.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 6,
+						"y": 16,
+						"w": 54,
+						"h": 78
+					},
+					"frame": {
+						"x": 277,
+						"y": 155,
+						"w": 54,
+						"h": 78
+					}
+				},
+				{
+					"filename": "mutant-walk-25.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 8,
+						"y": 16,
+						"w": 50,
+						"h": 78
+					},
+					"frame": {
+						"x": 333,
+						"y": 155,
+						"w": 50,
+						"h": 78
+					}
+				},
+				{
+					"filename": "mutant-walk-23.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 12,
+						"y": 15,
+						"w": 41,
+						"h": 79
+					},
+					"frame": {
+						"x": 385,
+						"y": 155,
+						"w": 41,
+						"h": 79
+					}
+				},
+				{
+					"filename": "mutant-walk-44.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 16,
+						"w": 64,
+						"h": 78
+					},
+					"frame": {
+						"x": 428,
+						"y": 156,
+						"w": 64,
+						"h": 78
+					}
+				},
+				{
+					"filename": "mutant-walk-37.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 12,
+						"y": 15,
+						"w": 42,
+						"h": 79
+					},
+					"frame": {
+						"x": 1,
+						"y": 229,
+						"w": 42,
+						"h": 79
+					}
+				},
+				{
+					"filename": "mutant-walk-20.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 8,
+						"y": 15,
+						"w": 50,
+						"h": 79
+					},
+					"frame": {
+						"x": 45,
+						"y": 231,
+						"w": 50,
+						"h": 79
+					}
+				},
+				{
+					"filename": "mutant-idle-49.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 13,
+						"w": 49,
+						"h": 80
+					},
+					"frame": {
+						"x": 97,
+						"y": 233,
+						"w": 49,
+						"h": 80
+					}
+				},
+				{
+					"filename": "mutant-walk-27.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 9,
+						"y": 14,
+						"w": 48,
+						"h": 80
+					},
+					"frame": {
+						"x": 148,
+						"y": 233,
+						"w": 48,
+						"h": 80
+					}
+				},
+				{
+					"filename": "mutant-walk-45.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 14,
+						"w": 59,
+						"h": 80
+					},
+					"frame": {
+						"x": 198,
+						"y": 234,
+						"w": 59,
+						"h": 80
+					}
+				},
+				{
+					"filename": "mutant-idle-75.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 12,
+						"w": 48,
+						"h": 81
+					},
+					"frame": {
+						"x": 259,
+						"y": 235,
+						"w": 48,
+						"h": 81
+					}
+				},
+				{
+					"filename": "mutant-idle-76.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 12,
+						"w": 45,
+						"h": 81
+					},
+					"frame": {
+						"x": 309,
+						"y": 235,
+						"w": 45,
+						"h": 81
+					}
+				},
+				{
+					"filename": "mutant-idle-77.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 12,
+						"w": 45,
+						"h": 81
+					},
+					"frame": {
+						"x": 356,
+						"y": 236,
+						"w": 45,
+						"h": 81
+					}
+				},
+				{
+					"filename": "mutant-walk-14.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 1,
+						"y": 13,
+						"w": 63,
+						"h": 81
+					},
+					"frame": {
+						"x": 403,
+						"y": 236,
+						"w": 63,
+						"h": 81
+					}
+				},
+				{
+					"filename": "mutant-walk-46.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 12,
+						"y": 13,
+						"w": 41,
+						"h": 81
+					},
+					"frame": {
+						"x": 1,
+						"y": 310,
+						"w": 41,
+						"h": 81
+					}
+				},
+				{
+					"filename": "mutant-walk-17.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 13,
+						"w": 51,
+						"h": 81
+					},
+					"frame": {
+						"x": 44,
+						"y": 312,
+						"w": 51,
+						"h": 81
+					}
+				},
+				{
+					"filename": "mutant-walk-21.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 11,
+						"y": 13,
+						"w": 44,
+						"h": 81
+					},
+					"frame": {
+						"x": 97,
+						"y": 315,
+						"w": 44,
+						"h": 81
+					}
+				},
+				{
+					"filename": "mutant-walk-32.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 9,
+						"y": 13,
+						"w": 48,
+						"h": 81
+					},
+					"frame": {
+						"x": 143,
+						"y": 315,
+						"w": 48,
+						"h": 81
+					}
+				},
+				{
+					"filename": "mutant-idle-11.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 11,
+						"w": 49,
+						"h": 82
+					},
+					"frame": {
+						"x": 193,
+						"y": 316,
+						"w": 49,
+						"h": 82
+					}
+				},
+				{
+					"filename": "mutant-idle-13.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 11,
+						"w": 49,
+						"h": 82
+					},
+					"frame": {
+						"x": 244,
+						"y": 318,
+						"w": 49,
+						"h": 82
+					}
+				},
+				{
+					"filename": "mutant-idle-32.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 11,
+						"w": 46,
+						"h": 82
+					},
+					"frame": {
+						"x": 295,
+						"y": 318,
+						"w": 46,
+						"h": 82
+					}
+				},
+				{
+					"filename": "mutant-idle-47.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 11,
+						"w": 45,
+						"h": 82
+					},
+					"frame": {
+						"x": 343,
+						"y": 319,
+						"w": 45,
+						"h": 82
+					}
+				},
+				{
+					"filename": "mutant-idle-57.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 11,
+						"w": 49,
+						"h": 82
+					},
+					"frame": {
+						"x": 390,
+						"y": 319,
+						"w": 49,
+						"h": 82
+					}
+				},
+				{
+					"filename": "mutant-idle-64.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 6,
+						"y": 11,
+						"w": 43,
+						"h": 82
+					},
+					"frame": {
+						"x": 441,
+						"y": 319,
+						"w": 43,
+						"h": 82
+					}
+				},
+				{
+					"filename": "mutant-walk-16.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 12,
+						"y": 12,
+						"w": 41,
+						"h": 82
+					},
+					"frame": {
+						"x": 1,
+						"y": 393,
+						"w": 41,
+						"h": 82
+					}
+				},
+				{
+					"filename": "mutant-idle-78.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 11,
+						"w": 45,
+						"h": 82
+					},
+					"frame": {
+						"x": 44,
+						"y": 395,
+						"w": 45,
+						"h": 82
+					}
+				},
+				{
+					"filename": "mutant-idle-79.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 11,
+						"w": 48,
+						"h": 82
+					},
+					"frame": {
+						"x": 91,
+						"y": 398,
+						"w": 48,
+						"h": 82
+					}
+				},
+				{
+					"filename": "mutant-walk-22.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 12,
+						"y": 12,
+						"w": 42,
+						"h": 82
+					},
+					"frame": {
+						"x": 141,
+						"y": 398,
+						"w": 42,
+						"h": 82
+					}
+				},
+				{
+					"filename": "mutant-walk-40.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 6,
+						"y": 12,
+						"w": 54,
+						"h": 82
+					},
+					"frame": {
+						"x": 185,
+						"y": 400,
+						"w": 54,
+						"h": 82
+					}
+				},
+				{
+					"filename": "mutant-walk-15.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 12,
+						"w": 59,
+						"h": 82
+					},
+					"frame": {
+						"x": 241,
+						"y": 402,
+						"w": 59,
+						"h": 82
+					}
+				},
+				{
+					"filename": "mutant-walk-41.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 11,
+						"y": 12,
+						"w": 43,
+						"h": 82
+					},
+					"frame": {
+						"x": 302,
+						"y": 403,
+						"w": 43,
+						"h": 82
+					}
+				},
+				{
+					"filename": "mutant-walk-42.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 12,
+						"w": 51,
+						"h": 82
+					},
+					"frame": {
+						"x": 347,
+						"y": 403,
+						"w": 51,
+						"h": 82
+					}
+				},
+				{
+					"filename": "mutant-idle-12.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 10,
+						"w": 49,
+						"h": 83
+					},
+					"frame": {
+						"x": 400,
+						"y": 403,
+						"w": 49,
+						"h": 83
+					}
+				},
+				{
+					"filename": "mutant-idle-15.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 10,
+						"w": 49,
+						"h": 83
+					},
+					"frame": {
+						"x": 451,
+						"y": 403,
+						"w": 49,
+						"h": 83
+					}
+				},
+				{
+					"filename": "mutant-idle-43.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 10,
+						"w": 45,
+						"h": 83
+					},
+					"frame": {
+						"x": 1,
+						"y": 479,
+						"w": 45,
+						"h": 83
+					}
+				},
+				{
+					"filename": "mutant-walk-53.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 12,
+						"y": 9,
+						"w": 41,
+						"h": 85
+					},
+					"frame": {
+						"x": 48,
+						"y": 479,
+						"w": 41,
+						"h": 85
+					}
+				},
+				{
+					"filename": "mutant-idle-44.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 10,
+						"w": 45,
+						"h": 83
+					},
+					"frame": {
+						"x": 91,
+						"y": 482,
+						"w": 45,
+						"h": 83
+					}
+				},
+				{
+					"filename": "mutant-idle-45.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 10,
+						"w": 45,
+						"h": 83
+					},
+					"frame": {
+						"x": 138,
+						"y": 482,
+						"w": 45,
+						"h": 83
+					}
+				},
+				{
+					"filename": "mutant-idle-46.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 10,
+						"w": 45,
+						"h": 83
+					},
+					"frame": {
+						"x": 185,
+						"y": 484,
+						"w": 45,
+						"h": 83
+					}
+				},
+				{
+					"filename": "mutant-walk-12.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 11,
+						"w": 51,
+						"h": 83
+					},
+					"frame": {
+						"x": 232,
+						"y": 486,
+						"w": 51,
+						"h": 83
+					}
+				},
+				{
+					"filename": "mutant-walk-47.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 11,
+						"w": 51,
+						"h": 83
+					},
+					"frame": {
+						"x": 285,
+						"y": 487,
+						"w": 51,
+						"h": 83
+					}
+				},
+				{
+					"filename": "mutant-walk-8.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 12,
+						"y": 11,
+						"w": 42,
+						"h": 83
+					},
+					"frame": {
+						"x": 338,
+						"y": 487,
+						"w": 42,
+						"h": 83
+					}
+				},
+				{
+					"filename": "mutant-idle-14.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 9,
+						"w": 49,
+						"h": 84
+					},
+					"frame": {
+						"x": 382,
+						"y": 488,
+						"w": 49,
+						"h": 84
+					}
+				},
+				{
+					"filename": "mutant-idle-50.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 2,
+						"y": 9,
+						"w": 51,
+						"h": 84
+					},
+					"frame": {
+						"x": 433,
+						"y": 488,
+						"w": 51,
+						"h": 84
+					}
+				},
+				{
+					"filename": "mutant-walk-11.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 12,
+						"y": 10,
+						"w": 42,
+						"h": 84
+					},
+					"frame": {
+						"x": 1,
+						"y": 564,
+						"w": 42,
+						"h": 84
+					}
+				},
+				{
+					"filename": "mutant-idle-74.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 6,
+						"y": 8,
+						"w": 43,
+						"h": 85
+					},
+					"frame": {
+						"x": 45,
+						"y": 566,
+						"w": 43,
+						"h": 85
+					}
+				},
+				{
+					"filename": "mutant-idle-0.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 8,
+						"w": 49,
+						"h": 85
+					},
+					"frame": {
+						"x": 90,
+						"y": 567,
+						"w": 49,
+						"h": 85
+					}
+				},
+				{
+					"filename": "mutant-idle-10.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 8,
+						"w": 49,
+						"h": 85
+					},
+					"frame": {
+						"x": 141,
+						"y": 569,
+						"w": 49,
+						"h": 85
+					}
+				},
+				{
+					"filename": "mutant-idle-42.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 2,
+						"y": 8,
+						"w": 51,
+						"h": 85
+					},
+					"frame": {
+						"x": 192,
+						"y": 571,
+						"w": 51,
+						"h": 85
+					}
+				},
+				{
+					"filename": "mutant-idle-51.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 8,
+						"w": 49,
+						"h": 85
+					},
+					"frame": {
+						"x": 245,
+						"y": 572,
+						"w": 49,
+						"h": 85
+					}
+				},
+				{
+					"filename": "mutant-idle-91.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 8,
+						"w": 45,
+						"h": 85
+					},
+					"frame": {
+						"x": 296,
+						"y": 572,
+						"w": 45,
+						"h": 85
+					}
+				},
+				{
+					"filename": "mutant-walk-10.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 6,
+						"y": 9,
+						"w": 54,
+						"h": 85
+					},
+					"frame": {
+						"x": 343,
+						"y": 574,
+						"w": 54,
+						"h": 85
+					}
+				},
+				{
+					"filename": "mutant-walk-3.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 9,
+						"w": 51,
+						"h": 85
+					},
+					"frame": {
+						"x": 399,
+						"y": 574,
+						"w": 51,
+						"h": 85
+					}
+				},
+				{
+					"filename": "mutant-walk-58.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 6,
+						"y": 9,
+						"w": 53,
+						"h": 85
+					},
+					"frame": {
+						"x": 452,
+						"y": 574,
+						"w": 53,
+						"h": 85
+					}
+				},
+				{
+					"filename": "mutant-idle-65.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 5,
+						"w": 41,
+						"h": 88
+					},
+					"frame": {
+						"x": 1,
+						"y": 650,
+						"w": 41,
+						"h": 88
+					}
+				},
+				{
+					"filename": "mutant-idle-16.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 6,
+						"y": 7,
+						"w": 43,
+						"h": 86
+					},
+					"frame": {
+						"x": 44,
+						"y": 653,
+						"w": 43,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-idle-27.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 7,
+						"w": 48,
+						"h": 86
+					},
+					"frame": {
+						"x": 89,
+						"y": 654,
+						"w": 48,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-idle-28.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 7,
+						"w": 46,
+						"h": 86
+					},
+					"frame": {
+						"x": 139,
+						"y": 656,
+						"w": 46,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-idle-29.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 7,
+						"w": 46,
+						"h": 86
+					},
+					"frame": {
+						"x": 187,
+						"y": 658,
+						"w": 46,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-idle-30.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 7,
+						"w": 46,
+						"h": 86
+					},
+					"frame": {
+						"x": 235,
+						"y": 659,
+						"w": 46,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-idle-31.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 7,
+						"w": 48,
+						"h": 86
+					},
+					"frame": {
+						"x": 283,
+						"y": 659,
+						"w": 48,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-idle-33.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 7,
+						"w": 56,
+						"h": 86
+					},
+					"frame": {
+						"x": 333,
+						"y": 661,
+						"w": 56,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-idle-52.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 7,
+						"w": 48,
+						"h": 86
+					},
+					"frame": {
+						"x": 391,
+						"y": 661,
+						"w": 48,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-idle-53.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 7,
+						"w": 48,
+						"h": 86
+					},
+					"frame": {
+						"x": 441,
+						"y": 661,
+						"w": 48,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-idle-54.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 7,
+						"w": 48,
+						"h": 86
+					},
+					"frame": {
+						"x": 1,
+						"y": 741,
+						"w": 48,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-idle-55.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 7,
+						"w": 49,
+						"h": 86
+					},
+					"frame": {
+						"x": 51,
+						"y": 742,
+						"w": 49,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-idle-56.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 7,
+						"w": 48,
+						"h": 86
+					},
+					"frame": {
+						"x": 102,
+						"y": 744,
+						"w": 48,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-idle-92.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 7,
+						"w": 45,
+						"h": 86
+					},
+					"frame": {
+						"x": 152,
+						"y": 746,
+						"w": 45,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-idle-93.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 7,
+						"w": 45,
+						"h": 86
+					},
+					"frame": {
+						"x": 199,
+						"y": 747,
+						"w": 45,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-idle-94.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 7,
+						"w": 45,
+						"h": 86
+					},
+					"frame": {
+						"x": 246,
+						"y": 747,
+						"w": 45,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-walk-9.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 8,
+						"w": 51,
+						"h": 86
+					},
+					"frame": {
+						"x": 293,
+						"y": 749,
+						"w": 51,
+						"h": 86
+					}
+				},
+				{
+					"filename": "mutant-idle-1.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 6,
+						"w": 49,
+						"h": 87
+					},
+					"frame": {
+						"x": 346,
+						"y": 749,
+						"w": 49,
+						"h": 87
+					}
+				},
+				{
+					"filename": "mutant-idle-2.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 2,
+						"y": 6,
+						"w": 51,
+						"h": 87
+					},
+					"frame": {
+						"x": 397,
+						"y": 749,
+						"w": 51,
+						"h": 87
+					}
+				},
+				{
+					"filename": "mutant-idle-3.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 6,
+						"w": 50,
+						"h": 87
+					},
+					"frame": {
+						"x": 450,
+						"y": 749,
+						"w": 50,
+						"h": 87
+					}
+				},
+				{
+					"filename": "mutant-idle-80.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 6,
+						"w": 46,
+						"h": 87
+					},
+					"frame": {
+						"x": 1,
+						"y": 829,
+						"w": 46,
+						"h": 87
+					}
+				},
+				{
+					"filename": "mutant-idle-5.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 6,
+						"w": 49,
+						"h": 87
+					},
+					"frame": {
+						"x": 49,
+						"y": 830,
+						"w": 49,
+						"h": 87
+					}
+				},
+				{
+					"filename": "mutant-idle-7.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 6,
+						"w": 49,
+						"h": 87
+					},
+					"frame": {
+						"x": 100,
+						"y": 832,
+						"w": 49,
+						"h": 87
+					}
+				},
+				{
+					"filename": "mutant-idle-95.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 6,
+						"w": 45,
+						"h": 87
+					},
+					"frame": {
+						"x": 151,
+						"y": 834,
+						"w": 45,
+						"h": 87
+					}
+				},
+				{
+					"filename": "mutant-idle-41.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 6,
+						"w": 56,
+						"h": 87
+					},
+					"frame": {
+						"x": 198,
+						"y": 835,
+						"w": 56,
+						"h": 87
+					}
+				},
+				{
+					"filename": "mutant-idle-9.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 6,
+						"w": 49,
+						"h": 87
+					},
+					"frame": {
+						"x": 256,
+						"y": 837,
+						"w": 49,
+						"h": 87
+					}
+				},
+				{
+					"filename": "mutant-idle-26.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 6,
+						"y": 5,
+						"w": 44,
+						"h": 88
+					},
+					"frame": {
+						"x": 307,
+						"y": 838,
+						"w": 44,
+						"h": 88
+					}
+				},
+				{
+					"filename": "mutant-idle-35.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 5,
+						"w": 56,
+						"h": 88
+					},
+					"frame": {
+						"x": 353,
+						"y": 838,
+						"w": 56,
+						"h": 88
+					}
+				},
+				{
+					"filename": "mutant-idle-38.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 1,
+						"y": 5,
+						"w": 53,
+						"h": 88
+					},
+					"frame": {
+						"x": 411,
+						"y": 838,
+						"w": 53,
+						"h": 88
+					}
+				},
+				{
+					"filename": "mutant-idle-18.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 8,
+						"y": 3,
+						"w": 40,
+						"h": 90
+					},
+					"frame": {
+						"x": 466,
+						"y": 838,
+						"w": 40,
+						"h": 90
+					}
+				},
+				{
+					"filename": "mutant-walk-6.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 11,
+						"y": 6,
+						"w": 44,
+						"h": 88
+					},
+					"frame": {
+						"x": 1,
+						"y": 918,
+						"w": 44,
+						"h": 88
+					}
+				},
+				{
+					"filename": "mutant-idle-4.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 5,
+						"w": 49,
+						"h": 88
+					},
+					"frame": {
+						"x": 47,
+						"y": 919,
+						"w": 49,
+						"h": 88
+					}
+				},
+				{
+					"filename": "mutant-idle-6.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 5,
+						"w": 49,
+						"h": 88
+					},
+					"frame": {
+						"x": 98,
+						"y": 921,
+						"w": 49,
+						"h": 88
+					}
+				},
+				{
+					"filename": "mutant-walk-1.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 9,
+						"y": 6,
+						"w": 47,
+						"h": 88
+					},
+					"frame": {
+						"x": 149,
+						"y": 923,
+						"w": 47,
+						"h": 88
+					}
+				},
+				{
+					"filename": "mutant-idle-8.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 5,
+						"w": 49,
+						"h": 88
+					},
+					"frame": {
+						"x": 198,
+						"y": 924,
+						"w": 49,
+						"h": 88
+					}
+				},
+				{
+					"filename": "mutant-walk-0.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 6,
+						"w": 51,
+						"h": 88
+					},
+					"frame": {
+						"x": 249,
+						"y": 926,
+						"w": 51,
+						"h": 88
+					}
+				},
+				{
+					"filename": "mutant-idle-17.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 4,
+						"w": 41,
+						"h": 89
+					},
+					"frame": {
+						"x": 302,
+						"y": 928,
+						"w": 41,
+						"h": 89
+					}
+				},
+				{
+					"filename": "mutant-idle-25.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 4,
+						"w": 47,
+						"h": 89
+					},
+					"frame": {
+						"x": 345,
+						"y": 928,
+						"w": 47,
+						"h": 89
+					}
+				},
+				{
+					"filename": "mutant-idle-34.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 4,
+						"w": 56,
+						"h": 89
+					},
+					"frame": {
+						"x": 394,
+						"y": 928,
+						"w": 56,
+						"h": 89
+					}
+				},
+				{
+					"filename": "mutant-idle-37.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 1,
+						"y": 4,
+						"w": 54,
+						"h": 89
+					},
+					"frame": {
+						"x": 452,
+						"y": 930,
+						"w": 54,
+						"h": 89
+					}
+				},
+				{
+					"filename": "mutant-idle-19.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 6,
+						"y": 3,
+						"w": 43,
+						"h": 90
+					},
+					"frame": {
+						"x": 1,
+						"y": 1008,
+						"w": 43,
+						"h": 90
+					}
+				},
+				{
+					"filename": "mutant-idle-73.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 5,
+						"y": 4,
+						"w": 46,
+						"h": 89
+					},
+					"frame": {
+						"x": 46,
+						"y": 1009,
+						"w": 46,
+						"h": 89
+					}
+				},
+				{
+					"filename": "mutant-idle-39.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 2,
+						"y": 4,
+						"w": 52,
+						"h": 89
+					},
+					"frame": {
+						"x": 94,
+						"y": 1011,
+						"w": 52,
+						"h": 89
+					}
+				},
+				{
+					"filename": "mutant-walk-56.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 9,
+						"y": 5,
+						"w": 48,
+						"h": 89
+					},
+					"frame": {
+						"x": 148,
+						"y": 1013,
+						"w": 48,
+						"h": 89
+					}
+				},
+				{
+					"filename": "mutant-idle-20.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 6,
+						"y": 3,
+						"w": 44,
+						"h": 90
+					},
+					"frame": {
+						"x": 198,
+						"y": 1014,
+						"w": 44,
+						"h": 90
+					}
+				},
+				{
+					"filename": "mutant-idle-36.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 4,
+						"w": 55,
+						"h": 89
+					},
+					"frame": {
+						"x": 244,
+						"y": 1016,
+						"w": 55,
+						"h": 89
+					}
+				},
+				{
+					"filename": "mutant-idle-40.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 2,
+						"y": 4,
+						"w": 51,
+						"h": 89
+					},
+					"frame": {
+						"x": 301,
+						"y": 1019,
+						"w": 51,
+						"h": 89
+					}
+				},
+				{
+					"filename": "mutant-idle-90.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 2,
+						"y": 4,
+						"w": 51,
+						"h": 89
+					},
+					"frame": {
+						"x": 354,
+						"y": 1019,
+						"w": 51,
+						"h": 89
+					}
+				},
+				{
+					"filename": "mutant-walk-7.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 12,
+						"y": 4,
+						"w": 41,
+						"h": 90
+					},
+					"frame": {
+						"x": 407,
+						"y": 1019,
+						"w": 41,
+						"h": 90
+					}
+				},
+				{
+					"filename": "mutant-walk-55.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 5,
+						"w": 51,
+						"h": 89
+					},
+					"frame": {
+						"x": 450,
+						"y": 1021,
+						"w": 51,
+						"h": 89
+					}
+				},
+				{
+					"filename": "mutant-idle-21.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 3,
+						"w": 47,
+						"h": 90
+					},
+					"frame": {
+						"x": 1,
+						"y": 1100,
+						"w": 47,
+						"h": 90
+					}
+				},
+				{
+					"filename": "mutant-idle-67.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 2,
+						"w": 42,
+						"h": 91
+					},
+					"frame": {
+						"x": 50,
+						"y": 1100,
+						"w": 42,
+						"h": 91
+					}
+				},
+				{
+					"filename": "mutant-idle-22.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 3,
+						"w": 48,
+						"h": 90
+					},
+					"frame": {
+						"x": 94,
+						"y": 1102,
+						"w": 48,
+						"h": 90
+					}
+				},
+				{
+					"filename": "mutant-idle-23.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 3,
+						"y": 3,
+						"w": 50,
+						"h": 90
+					},
+					"frame": {
+						"x": 144,
+						"y": 1104,
+						"w": 50,
+						"h": 90
+					}
+				},
+				{
+					"filename": "mutant-walk-51.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 11,
+						"y": 4,
+						"w": 44,
+						"h": 90
+					},
+					"frame": {
+						"x": 196,
+						"y": 1106,
+						"w": 44,
+						"h": 90
+					}
+				},
+				{
+					"filename": "mutant-idle-24.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 2,
+						"y": 3,
+						"w": 51,
+						"h": 90
+					},
+					"frame": {
+						"x": 242,
+						"y": 1107,
+						"w": 51,
+						"h": 90
+					}
+				},
+				{
+					"filename": "mutant-walk-54.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 4,
+						"w": 52,
+						"h": 90
+					},
+					"frame": {
+						"x": 295,
+						"y": 1110,
+						"w": 52,
+						"h": 90
+					}
+				},
+				{
+					"filename": "mutant-walk-59.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 8,
+						"y": 4,
+						"w": 50,
+						"h": 90
+					},
+					"frame": {
+						"x": 349,
+						"y": 1110,
+						"w": 50,
+						"h": 90
+					}
+				},
+				{
+					"filename": "mutant-idle-68.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 6,
+						"y": 2,
+						"w": 43,
+						"h": 91
+					},
+					"frame": {
+						"x": 401,
+						"y": 1111,
+						"w": 43,
+						"h": 91
+					}
+				},
+				{
+					"filename": "mutant-idle-81.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 2,
+						"w": 56,
+						"h": 91
+					},
+					"frame": {
+						"x": 446,
+						"y": 1112,
+						"w": 56,
+						"h": 91
+					}
+				},
+				{
+					"filename": "mutant-idle-66.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 8,
+						"y": 1,
+						"w": 39,
+						"h": 92
+					},
+					"frame": {
+						"x": 1,
+						"y": 1192,
+						"w": 39,
+						"h": 92
+					}
+				},
+				{
+					"filename": "mutant-walk-2.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 9,
+						"y": 3,
+						"w": 48,
+						"h": 91
+					},
+					"frame": {
+						"x": 42,
+						"y": 1193,
+						"w": 48,
+						"h": 91
+					}
+				},
+				{
+					"filename": "mutant-walk-57.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 9,
+						"y": 3,
+						"w": 48,
+						"h": 91
+					},
+					"frame": {
+						"x": 92,
+						"y": 1194,
+						"w": 48,
+						"h": 91
+					}
+				},
+				{
+					"filename": "mutant-idle-69.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 1,
+						"w": 47,
+						"h": 92
+					},
+					"frame": {
+						"x": 142,
+						"y": 1196,
+						"w": 47,
+						"h": 92
+					}
+				},
+				{
+					"filename": "mutant-idle-70.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 4,
+						"y": 1,
+						"w": 48,
+						"h": 92
+					},
+					"frame": {
+						"x": 191,
+						"y": 1198,
+						"w": 48,
+						"h": 92
+					}
+				},
+				{
+					"filename": "mutant-idle-71.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 2,
+						"y": 1,
+						"w": 51,
+						"h": 92
+					},
+					"frame": {
+						"x": 241,
+						"y": 1199,
+						"w": 51,
+						"h": 92
+					}
+				},
+				{
+					"filename": "mutant-idle-89.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 2,
+						"w": 56,
+						"h": 91
+					},
+					"frame": {
+						"x": 294,
+						"y": 1202,
+						"w": 56,
+						"h": 91
+					}
+				},
+				{
+					"filename": "mutant-walk-52.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 12,
+						"y": 2,
+						"w": 42,
+						"h": 92
+					},
+					"frame": {
+						"x": 352,
+						"y": 1202,
+						"w": 42,
+						"h": 92
+					}
+				},
+				{
+					"filename": "mutant-idle-72.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 2,
+						"y": 1,
+						"w": 51,
+						"h": 92
+					},
+					"frame": {
+						"x": 396,
+						"y": 1205,
+						"w": 51,
+						"h": 92
+					}
+				},
+				{
+					"filename": "mutant-idle-82.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 1,
+						"w": 55,
+						"h": 92
+					},
+					"frame": {
+						"x": 449,
+						"y": 1205,
+						"w": 55,
+						"h": 92
+					}
+				},
+				{
+					"filename": "mutant-idle-83.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 55,
+						"h": 93
+					},
+					"frame": {
+						"x": 1,
+						"y": 1286,
+						"w": 55,
+						"h": 93
+					}
+				},
+				{
+					"filename": "mutant-idle-84.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 55,
+						"h": 93
+					},
+					"frame": {
+						"x": 58,
+						"y": 1287,
+						"w": 55,
+						"h": 93
+					}
+				},
+				{
+					"filename": "mutant-idle-85.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 1,
+						"y": 0,
+						"w": 54,
+						"h": 93
+					},
+					"frame": {
+						"x": 115,
+						"y": 1290,
+						"w": 54,
+						"h": 93
+					}
+				},
+				{
+					"filename": "mutant-idle-86.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 1,
+						"y": 0,
+						"w": 54,
+						"h": 93
+					},
+					"frame": {
+						"x": 171,
+						"y": 1292,
+						"w": 54,
+						"h": 93
+					}
+				},
+				{
+					"filename": "mutant-idle-87.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 2,
+						"y": 0,
+						"w": 51,
+						"h": 93
+					},
+					"frame": {
+						"x": 227,
+						"y": 1293,
+						"w": 51,
+						"h": 93
+					}
+				},
+				{
+					"filename": "mutant-idle-88.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 56,
+						"h": 93
+					},
+					"spriteSourceSize": {
+						"x": 2,
+						"y": 0,
+						"w": 51,
+						"h": 93
+					},
+					"frame": {
+						"x": 280,
+						"y": 1295,
+						"w": 51,
+						"h": 93
+					}
+				},
+				{
+					"filename": "mutant-walk-4.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 7,
+						"y": 1,
+						"w": 51,
+						"h": 93
+					},
+					"frame": {
+						"x": 333,
+						"y": 1296,
+						"w": 51,
+						"h": 93
+					}
+				},
+				{
+					"filename": "mutant-walk-50.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 8,
+						"y": 1,
+						"w": 50,
+						"h": 93
+					},
+					"frame": {
+						"x": 386,
+						"y": 1299,
+						"w": 50,
+						"h": 93
+					}
+				},
+				{
+					"filename": "mutant-walk-5.png",
+					"rotated": false,
+					"trimmed": true,
+					"sourceSize": {
+						"w": 64,
+						"h": 94
+					},
+					"spriteSourceSize": {
+						"x": 8,
+						"y": 0,
+						"w": 50,
+						"h": 94
+					},
+					"frame": {
+						"x": 438,
+						"y": 1299,
+						"w": 50,
+						"h": 94
+					}
+				}
+			]
+		}
+	],
+	"meta": {
+		"app": "https://www.codeandweb.com/texturepacker",
+		"version": "3.0",
+		"smartupdate": "$TexturePacker:SmartUpdate:db7131fd29bb10b3cc1d037131edb748:df111f2973192b5ef3632fa544cdc306:cc71bb8b7802cb862a4884d13a5c74f2$"
+	}
+}
