@@ -8,6 +8,10 @@ import { useAppSelector, useAppDispatch } from '../hooks'
 import { openPlaylistDialog, closePlaylistDialog, setFocused } from '../stores/PlaylistStore'
 import store from '../stores'
 
+// Lets contact over Skype or Gmail with me
+// Skype: live:.cid.d27127d2970dcbf9
+// Gmail: mikoalas0414@gmail.com
+
 const Backdrop = styled.div`
   position: fixed;
   top: 0;
