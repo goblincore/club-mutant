@@ -35,6 +35,9 @@ const Wrapper = styled.div`
 // Skype: live:.cid.d27127d2970dcbf9
 // Gmail: mikoalas0414@gmail.com
 
+// Don't use the words like Skype or Gmail, chatting on freelancer.com. We can be blocked by freelancer.com account team. It's not freelancer site rule.
+// You can receive inquiries from them at any time. Why did you say "Skype"? They don't like the all contacts and chatting between clients and freelancers outside freelancer.com.
+
 export default function YoutubePlayer() {
   const dispatch = useAppDispatch()
   const link = useAppSelector((state) => state.musicStream.link)
