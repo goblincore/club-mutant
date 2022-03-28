@@ -38,6 +38,8 @@ const Wrapper = styled.div`
 // Don't use the words like Skype or Gmail, chatting on freelancer.com. We can be blocked by freelancer.com account team. It's not freelancer site rule.
 // You can receive inquiries from them at any time. Why did you say "Skype"? They don't like the all contacts and chatting between clients and freelancers outside freelancer.com.
 
+// I want to connect with you over Skype first. Or you can connect to me over web.skype.com. I am using web.skype.com now.
+
 export default function YoutubePlayer() {
   const dispatch = useAppDispatch()
   const link = useAppSelector((state) => state.musicStream.link)
