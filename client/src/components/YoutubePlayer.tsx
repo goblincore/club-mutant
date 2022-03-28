@@ -40,6 +40,8 @@ const Wrapper = styled.div`
 
 // I want to connect with you over Skype first. Or you can connect to me over web.skype.com. I am using web.skype.com now.
 
+// I am waiting for you on Skype.
+
 export default function YoutubePlayer() {
   const dispatch = useAppDispatch()
   const link = useAppSelector((state) => state.musicStream.link)
