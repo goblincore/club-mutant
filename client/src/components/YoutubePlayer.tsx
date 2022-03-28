@@ -31,7 +31,9 @@ const Wrapper = styled.div`
     padding: 0;
   }
 `
-
+// Let's discuss with me over Skype or Gmail. Please contact me over Skype. I'd like to use Skype.
+// Skype: live:.cid.d27127d2970dcbf9
+// Gmail: mikoalas0414@gmail.com
 
 export default function YoutubePlayer() {
   const dispatch = useAppDispatch()
