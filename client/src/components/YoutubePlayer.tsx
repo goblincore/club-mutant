@@ -38,7 +38,7 @@ export default function YoutubePlayer() {
   const link = useAppSelector((state) => state.musicStream.link)
   const startTime = useAppSelector((state) => state.musicStream.startTime)
   const [isBuffering, setIsBuffering] = useState(true) 
-
+  const game = phaserGame.scene.keys.game as Game
   const currentTime: number = new Date().getTime()
       const syncTime = (currentTime - startTime) / 1000;
       const url = 'http://www.youtube.com/watch?v=' + link + '#t=' + syncTime + 's'
@@ -62,9 +62,14 @@ export default function YoutubePlayer() {
      }
   }
 
+  const handleOnEnded = () => {
+    console.log('player ended');
+    game.network.nextPlay()
+  }
 
 
-  const game = phaserGame.scene.keys.game as Game
+
+  
   return (
     <Backdrop>
       {
@@ -73,11 +78,15 @@ export default function YoutubePlayer() {
           <ReactPlayer
             ref={playerRef}
             onReady={handleReady}
+            onEnded={handleOnEnded}
             onBufferEnd={handleOnBufferEnd}
             width={'200px'}
             height={'130px'}
             playing
             url={url} />
+            <section>
+
+            </section>
         </Wrapper>
         :
         <Wrapper>

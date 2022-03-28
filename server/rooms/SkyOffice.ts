@@ -141,6 +141,11 @@ export class SkyOffice extends Room<OfficeState> {
       }
     })
 
+    this.onMessage(Message.NEXT_PLAY, (client, message ) => {
+      console.log('NEXT PLAY');
+      this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+    })
+
     this.onMessage(Message.DELETE_PLAYLIST_ITEM, (client, message: { itemIndex: number }) => {
       // update the message array (so that players join later can also see the message)
       this.dispatcher.dispatch(new PlayerRemoveItemFromPlaylistCommand(), {

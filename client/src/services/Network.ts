@@ -112,9 +112,12 @@ export default class Network {
 
       // track changes on every child object inside the players MapSchema
       player.onChange = (changes) => {
+        console.log('player onChange', changes);
         changes.forEach((change) => {
           const { field, value } = change
           phaserEvents.emit(Event.PLAYER_UPDATED, field, value, key)
+
+     
 
           // when a new player finished setting up player name
           if (field === 'name' && value !== '') {
@@ -125,6 +128,7 @@ export default class Network {
         })
       }
     }
+
 
     // when a player left the room, this instance wiill be removed from the players MapSchema
     this.room.state.players.onRemove = (player: IPlayer, key: string) => {
@@ -168,12 +172,17 @@ export default class Network {
 
     // when the server sends room data
     this.room.onMessage(Message.STOP_MUSIC_STREAM, ({}) => {
+      console.log('STOP MUSIC STREAM');
       phaserEvents.emit(Event.STOP_PLAYING_MEDIA, {})
     })
 
     // when the server sends room data
     this.room.onMessage(Message.SYNC_MUSIC_STREAM, ({}) => {
       this.syncMusicStream()
+    })
+
+    this.room.onMessage(Message.ADD_PLAYLIST_ITEM, (data) => {
+      console.log('playlistitem added', data);
     })
 
     // when a user sends a message
@@ -239,7 +248,7 @@ export default class Network {
 
   // method to send player action updates to Colyseus server
   updatePlayerAction(currentX: number, currentY: number, currentAnim: string) {
-    console.log('Update player action')
+    // console.log('Update player action')
     this.room?.send(Message.UPDATE_PLAYER_ACTION, { x: currentX, y: currentY, anim: currentAnim })
   }
 
@@ -284,5 +293,9 @@ export default class Network {
   addChatMessage(content: string) {
     console.log('Add chat message, content', content);
     this.room?.send(Message.ADD_CHAT_MESSAGE, { content })
+  }
+
+  nextPlay(){
+    this.room?.send(Message.NEXT_PLAY);
   }
 }
