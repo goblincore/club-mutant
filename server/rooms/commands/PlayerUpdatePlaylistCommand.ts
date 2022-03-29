@@ -12,17 +12,17 @@ type Payload = {
 export class PlayerAddItemToPlaylistCommand extends Command<IOfficeState, Payload> {
   execute(data: Payload) {
     const { client, item } = data
-    console.log("///////////////////////PlayerAddItemToPlaylistCommand, item", item)
+    console.log("///////////////PlayerAddItemToPlaylistCommand, item", item)
     const player = this.room.state.players.get(client.sessionId)
     
     const newItem = new PlaylistItem()
     newItem.title = item.title
     newItem.link = item.link
     newItem.duration = item.duration
-    console.log("///////////////////////PlayerAddItemToPlaylistCommand, player", player)
-    console.log("///////////////////////PlayerAddItemToPlaylistCommand, player.playlistItems", player.playlistItems)
+    console.log("///////////////PlayerAddItemToPlaylistCommand, player", player)
+    console.log("///////////////PlayerAddItemToPlaylistCommand, player.playlistItems", player.playlistItems)
     player.playlistItems.push(newItem)
-    console.log("///////////////////////PlayerAddItemToPlaylistCommand, player.playlistItems.pushed")
+    console.log("///////////////PlayerAddItemToPlaylistCommand, player.playlistItems.pushed")
   }
 }
 

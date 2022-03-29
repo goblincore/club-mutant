@@ -60,12 +60,12 @@ export class SkyOffice extends Room<OfficeState> {
 
     // when a player connects to a music booth
     this.onMessage(Message.CONNECT_TO_MUSIC_BOOTH, (client, message: { musicBoothIndex: number }) => {
-      console.log("///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, message.musicBoothIndex", message.musicBoothIndex)
+      console.log("///////////////onMessage, CONNECT_TO_MUSIC_BOOTH, message.musicBoothIndex", message.musicBoothIndex)
       this.dispatcher.dispatch(new MusicBoothConnectUserCommand(), {
         client,
         musicBoothIndex: message.musicBoothIndex,
       })
-      console.log("///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status", this.state.musicStream.status)
+      console.log("///////////////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status", this.state.musicStream.status)
       if (this.state.musicStream.status = 'waiting') {
         this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
       }
@@ -130,12 +130,12 @@ export class SkyOffice extends Room<OfficeState> {
 
     this.onMessage(Message.ADD_PLAYLIST_ITEM, (client, message: { item: PlaylistItem }) => {
       // update the message array (so that players join later can also see the message)
-      console.log("///////////////////////onMessage, ADD_PLAYLIST_ITEM, message.item", message.item)
+      console.log("///////////////onMessage, ADD_PLAYLIST_ITEM, message.item", message.item)
       this.dispatcher.dispatch(new PlayerAddItemToPlaylistCommand(), {
         client,
         item: message.item,
       })
-      console.log("///////////////////////onMessage, this.state.musicStream.status", this.state.musicStream.status)
+      console.log("///////////////onMessage, this.state.musicStream.status", this.state.musicStream.status)
       if (this.state.musicStream.status !== 'playing') {
         this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
       }
@@ -175,14 +175,14 @@ export class SkyOffice extends Room<OfficeState> {
 
   // when a new player joins, send room data
   onJoin(client: Client, options: any) {
-    console.log("///////////////////////onJoin, client", client)
+    console.log("///////////////onJoin, client", client)
     this.state.players.set(client.sessionId, new Player())
     client.send(Message.SEND_ROOM_DATA, {
       id: this.roomId,
       name: this.name,
       description: this.description,
     })
-    console.log("///////////////////////onJoin, Message.SEND_ROOM_DATA")
+    console.log("///////////////onJoin, Message.SEND_ROOM_DATA")
 
 
     const musicStream = this.state.musicStream
@@ -194,7 +194,7 @@ export class SkyOffice extends Room<OfficeState> {
         offset: (currentTime - musicStream.startTime) / 1000
       })
     }
-    console.log("///////////////////////onJoin, musicStream.status", musicStream.status)
+    console.log("///////////////onJoin, musicStream.status", musicStream.status)
   }
 
   onLeave(client: Client, consented: boolean) {
