@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { sanitizeId } from '../util'
-import { BackgroundMode } from '../../../types/BackgroundMode'
+import { BackgroundMode } from '../../../types/Backgrounds'
 
 import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'

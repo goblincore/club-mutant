@@ -1,8 +1,7 @@
 import Phaser from 'phaser'
 import PlayerSelector from './PlayerSelector'
-import { PlayerBehavior } from '../../../types/PlayerBehavior'
+import { PlayerBehavior } from '../../../types/Players'
 import Player from './Player'
-import { sittingShiftData } from './Player'
 import Network from '../services/Network'
 import MusicBooth from '../items/MusicBooth'
 

@@ -1,5 +1,4 @@
 import { Command } from '@colyseus/command'
-import { Client } from 'colyseus'
 
 import { IOfficeState } from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
@@ -9,7 +8,7 @@ type Payload = {
 
 export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
   execute(data: Payload) {
-    console.log("//////////////////////MusicStreamNextCommand, data", data)
+    console.log("///////////////MusicStreamNextCommand, data", data)
     this.clock.clear()
     const musicStream = this.room.state.musicStream
     const musicBooths = this.room.state.musicBooths
@@ -30,7 +29,7 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
           musicStream.currentBooth = i
           musicStream.startTime = new Date().getTime()
           musicStream.duration = player.playlistItems[0].duration
-          console.log("//////////////////////MusicStreamNextCommand, musicStream.currentLink", musicStream.currentLink)
+          console.log("///////////////MusicStreamNextCommand, musicStream.currentLink", musicStream.currentLink)
           this.room.broadcast(
             Message.START_MUSIC_STREAM,
             { musicStream: musicStream },
@@ -56,7 +55,7 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
             musicStream.currentBooth = i
             musicStream.startTime = new Date().getTime()
             musicStream.duration = player.playlistItems[0].duration
-            console.log("//////////////////////MusicStreamNextCommand, musicStream.currentLink", musicStream.currentLink)
+            console.log("///////////////MusicStreamNextCommand, musicStream.currentLink", musicStream.currentLink)
             this.room.broadcast(
               Message.START_MUSIC_STREAM,
               { musicStream: musicStream, offset: 0 },
@@ -72,7 +71,7 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
         }
       }
     }
-    console.log("//////////////////////MusicStreamNextCommand, musicStream.status", musicStream.status)
+    console.log("///////////////MusicStreamNextCommand, musicStream.status", musicStream.status)
     
     if (musicStream.status !== 'playing') {
       musicStream.status = 'waiting'
@@ -80,7 +79,7 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
         Message.STOP_MUSIC_STREAM,
         {},
       )
-      console.log("//////////////////////MusicStreamNextCommand, broadcast, STOP_MUSIC_STREAM")
+      console.log("///////////////MusicStreamNextCommand, broadcast, STOP_MUSIC_STREAM")
     }
   }
 }
