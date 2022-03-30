@@ -22,7 +22,7 @@ export class PlayerAddItemToPlaylistCommand extends Command<IOfficeState, Payloa
     console.log("///////////////////////PlayerAddItemToPlaylistCommand, player", player)
     console.log("///////////////////////PlayerAddItemToPlaylistCommand, player.playlistItems", player.playlistItems)
     player.playlistItems.push(newItem)
-    console.log("///////////////////////PlayerAddItemToPlaylistCommand, player.playlistItems.pushed")
+    console.log("///////////////////////PlayerAddItemToPlaylistCommand, player.playlistItems.push")
   }
 }
 
@@ -34,10 +34,21 @@ export class PlayerRemoveItemFromPlaylistCommand extends Command<IOfficeState, P
   }
 }
 
+export class PlayerShiftPlaylistCommand extends Command<IOfficeState, Payload> {
+  execute(data: Payload) {
+    const connectedUser = this.room.state.musicBooths[this.room.state.musicStream.currentBooth].connectedUser
+    console.log('unshift player command');
+    console.log('unshift connecteduser', connectedUser);
+    const player = this.room.state.players.get(connectedUser)
+    player.playlistItems.shift()
+  }
+}
+
 export class PlayerUnshiftPlaylistCommand extends Command<IOfficeState, Payload> {
   execute(data: Payload) {
     const connectedUser = this.room.state.musicBooths[this.room.state.musicStream.currentBooth].connectedUser
-    
+    console.log('unshift player command');
+    console.log('unshift connecteduser', connectedUser);
     const player = this.room.state.players.get(connectedUser)
     player.playlistItems.unshift()
   }

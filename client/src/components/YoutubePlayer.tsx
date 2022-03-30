@@ -64,7 +64,7 @@ export default function YoutubePlayer() {
 
   const handleOnEnded = () => {
     console.log('player ended');
-    game.network.nextPlay()
+    game.network.syncMusicStream()
   }
 
 
