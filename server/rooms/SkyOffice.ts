@@ -10,6 +10,8 @@ import PlayerUpdateActionCommand from './commands/PlayerUpdateActionCommand'
 import PlayerUpdateNameCommand from './commands/PlayerUpdateNameCommand'
 import {
   PlayerAddItemToPlaylistCommand,
+  PlayerPlaylistEnqueueCommand,
+  PlayerPlaylistDequeueCommand,
   PlayerRemoveItemFromPlaylistCommand,
   PlayerUnshiftPlaylistCommand,
 } from './commands/PlayerUpdatePlaylistCommand'
@@ -54,7 +56,16 @@ export class SkyOffice extends Room<OfficeState> {
 
     // when a player starts playing a song
     this.onMessage(Message.SYNC_MUSIC_STREAM, (client, message: {}) => {
-      this.dispatcher.dispatch(new PlayerUnshiftPlaylistCommand(), {})
+      // Dequeue
+      this.dispatcher.dispatch(new PlayerPlaylistDequeueCommand(), {client})
+
+      // this is not ideal, would like to take the popped item and call enqueue with it?
+      const musicStream = this.state.musicStream;
+      const item = new PlaylistItem()
+      item.title = musicStream.currentLink
+      item.link = musicStream.currentLink
+      item.duration = musicStream.duration
+      this.dispatcher.dispatch(new PlayerPlaylistEnqueueCommand(), {client, item })
       this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
     })
 
@@ -131,14 +142,14 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(Message.ADD_PLAYLIST_ITEM, (client, message: { item: PlaylistItem }) => {
       // update the message array (so that players join later can also see the message)
       console.log("///////////////////////onMessage, ADD_PLAYLIST_ITEM, message.item", message.item)
-      this.dispatcher.dispatch(new PlayerAddItemToPlaylistCommand(), {
+      this.dispatcher.dispatch(new PlayerPlaylistEnqueueCommand(), {
         client,
         item: message.item,
       })
       console.log("///////////////////////onMessage, this.state.musicStream.status", this.state.musicStream.status)
-      if (this.state.musicStream.status !== 'playing') {
-        this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
-      }
+      // if (this.state.musicStream.status !== 'playing') {
+      //   this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+      // }
     })
 
     this.onMessage(Message.DELETE_PLAYLIST_ITEM, (client, message: { itemIndex: number }) => {

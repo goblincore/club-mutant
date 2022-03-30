@@ -35,6 +35,7 @@ const Wrapper = styled.div`
 
 export default function YoutubePlayer() {
   const dispatch = useAppDispatch()
+  const game = phaserGame.scene.keys.game as Game
   const link = useAppSelector((state) => state.musicStream.link)
   const startTime = useAppSelector((state) => state.musicStream.startTime)
   const [isBuffering, setIsBuffering] = useState(true) 
@@ -63,8 +64,10 @@ export default function YoutubePlayer() {
   }
 
 
+  const handleOnEnded = () => {
+     game.network.syncMusicStream()
+  }
 
-  const game = phaserGame.scene.keys.game as Game
   return (
     <Backdrop>
       {
@@ -73,6 +76,7 @@ export default function YoutubePlayer() {
           <ReactPlayer
             ref={playerRef}
             onReady={handleReady}
+            onEnded={handleOnEnded}
             onBufferEnd={handleOnBufferEnd}
             width={'200px'}
             height={'130px'}
