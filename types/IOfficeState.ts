@@ -8,6 +8,7 @@ export interface IPlayer extends Schema {
   readyToConnect: boolean
   videoConnected: boolean
   playlistItems: ArraySchema<IPlaylistItem>
+  playlistStack2: ArraySchema<IPlaylistItem>
 }
 
 export interface IMusicBooth extends Schema {

@@ -24,6 +24,8 @@ export class Player extends Schema implements IPlayer {
 
   @type([PlaylistItem])
   playlistItems = new ArraySchema<PlaylistItem>()
+  @type([PlaylistItem])
+  playlistStack2 = new ArraySchema<PlaylistItem>()
 }
 
 export class ChatMessage extends Schema implements IChatMessage {
