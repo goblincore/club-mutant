@@ -55,20 +55,29 @@ const FabWrapper = styled.div`
     line-height: 100%;
     background-color: white !important;
   }
-
 `
-export default function MyPlaylistPanel() {
-  const showMyPlaylistPanel = useAppSelector((state) => state.myPlaylist.myPlaylistPanelOpen)
+export default function PlaylistDialog() {
+  const showPlaylistDialog = useAppSelector((state) => state.myPlaylist.myPlaylistPanelOpen)
   const dispatch = useAppDispatch()
   // const game = phaserGame.scene.keys.game as Game
 
   return (
     <Backdrop>
-    {showMyPlaylistPanel ? (
-      <Wrapper>
+      {showPlaylistDialog ? (
+        <Wrapper>
           <>
-            <div style={{display: 'flex', alignItems: 'center', padding: '2px 5px'}}>
-              <h3 style={{margin: '5px 0', flexGrow: 1, textAlign: 'center', color: '#888', fontSize: '16px'}}>My Playlist</h3>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '2px 5px' }}>
+              <h3
+                style={{
+                  margin: '5px 0',
+                  flexGrow: 1,
+                  textAlign: 'center',
+                  color: '#888',
+                  fontSize: '16px',
+                }}
+              >
+                My Playlist
+              </h3>
               <IconButton
                 aria-label="close dialog"
                 className="close"
@@ -80,15 +89,15 @@ export default function MyPlaylistPanel() {
             <MyPlaylistWrapper>
               <MusicSearch />
             </MyPlaylistWrapper>
-          </>)
-      </Wrapper>)
-      :
-        (
-          <div style={{textAlign: 'right'}}>
+          </>
+          )
+        </Wrapper>
+      ) : (
+        <div style={{ textAlign: 'right' }}>
           <FabWrapper>
             <Fab
               color="secondary"
-              aria-label="showMyPlaylistPanel"
+              aria-label="showPlaylistDialog"
               onClick={() => {
                 dispatch(openMyPlaylistPanel())
                 dispatch(setFocused(true))
@@ -97,9 +106,8 @@ export default function MyPlaylistPanel() {
               My Playlist
             </Fab>
           </FabWrapper>
-          </div>
-        )
-      }
+        </div>
+      )}
     </Backdrop>
   )
 }
@@ -119,13 +127,17 @@ const InputTextField = styled(InputBase)`
   }
 `
 
-const SearchList =styled.ul`
-  padding:0px;
-  margin:0px;
+const SearchList = styled.ul`
+  padding: 0px;
+  margin: 0px;
+  button {
+    color: #222;
+  }
 `
 
 const MusicSearch = () => {
   const [data, setData] = useState([])
+  const [tab, setTab] = useState('search')
   const [inputValue, setInputValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const dispatch = useAppDispatch()
@@ -133,11 +145,10 @@ const MusicSearch = () => {
   const game = phaserGame.scene.keys.game as Game
 
   useEffect(() => {
-     axios.get(`http://localhost:2567/youtube/${inputValue}`).then((response) => {
-      
+    axios.get(`http://localhost:2567/youtube/${inputValue}`).then((response) => {
       setData(response?.data?.items)
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputValue])
 
   useEffect(() => {
@@ -167,61 +178,77 @@ const MusicSearch = () => {
   }
 
   const handleClick = (title: string, id: string, lengthText: string) => {
-    const durationParts = lengthText.split(":")
-    let duration = 0;
-    
+    const durationParts = lengthText.split(':')
+    let duration = 0
+
     if (durationParts.length === 3) {
-      duration = Number(durationParts[0]) * 60 * 60 + Number(durationParts[1]) * 60 + Number(durationParts[2])
+      duration =
+        Number(durationParts[0]) * 60 * 60 +
+        Number(durationParts[1]) * 60 +
+        Number(durationParts[2])
     }
 
     if (durationParts.length === 2) {
       duration = Number(durationParts[0]) * 60 + Number(durationParts[1]) * 60
     }
+    console.log('//////////MusicSearch, handleClick, duration', duration)
 
-    // store.dispatch(addItemToMyPlaylist(item))
     const item: any = {
       title,
       link: id,
-      duration
+      duration,
     }
-    game.network.addMyPlaylistItem(item);
+    // store.dispatch(addItemToPlaylist(item))
+    game.network.addMyPlaylistItem(item)
   }
 
-  const resultsList = data?.length > 0 && data?.map( result => {
-      const { title, thumbnail, length, id} = result;
+  const resultsList =
+    data?.length > 0 &&
+    data?.map((result) => {
+      const { title, thumbnail, length, id } = result
       return (
-          <YoutubeResult onClick={handleClick} key={id} title={title} thumbnail={thumbnail} length={length} id={id} />
+        <YoutubeResult
+          onClick={handleClick}
+          key={id}
+          title={title}
+          thumbnail={thumbnail}
+          length={length}
+          id={id}
+        />
       )
-  })
+    })
 
   return (
-      <section>
-    <InputWrapper onSubmit={handleSubmit}>
-      <InputTextField
-        inputRef={inputRef}
-        autoFocus={focused}
-        fullWidth
-        placeholder="Search"
-        value={inputValue}
-        onKeyDown={handleKeyDown}
-        onChange={handleChange}
-        onFocus={() => {
-          if (!focused) dispatch(setFocused(true))
-        }}
-        onBlur={() => dispatch(setFocused(false))}
-      />
-    </InputWrapper>
+    <section>
+      <InputWrapper onSubmit={handleSubmit}>
+        <InputTextField
+          inputRef={inputRef}
+          autoFocus={focused}
+          fullWidth
+          placeholder="Search"
+          value={inputValue}
+          onKeyDown={handleKeyDown}
+          onChange={handleChange}
+          onFocus={() => {
+            if (!focused) dispatch(setFocused(true))
+          }}
+          onBlur={() => dispatch(setFocused(false))}
+        />
+      </InputWrapper>
 
-    <SearchList>
+      <button style={{color: '#222'}} onClick={() => setTab('search')}>Search</button>
+      <button style={{color:'#222'}} onClick={() => setTab('playlist')}>Playlist</button>
 
-    {resultsList}
+      {tab === 'search' && <SearchList>{resultsList}</SearchList>}
 
-    </SearchList>
-
+      {tab === 'playlist' && (
+        <SearchList>
+          <UserPlaylist />
+        </SearchList>
+      )}
     </section>
   )
 }
-
 
 const ListItem = styled.li`
   border-radius: 0px;
@@ -229,27 +256,47 @@ const ListItem = styled.li`
   display: flex;
   color: #666;
   flex-direction: row;
-  border-bottom:1px solid grey;
+  border-bottom: 1px solid grey;
   justify-content: space-between;
 
   h4 {
-      color: #666;
+    color: #666;
   }
 `
 
-const YoutubeResult = ({id, thumbnail, title, length, onClick}) => {
+const YoutubeResult = ({ id, thumbnail, title, length, onClick }) => {
+  const lengthText = length?.simpleText
 
-    const lengthText = length?.simpleText;
+  return (
+    <ListItem onClick={() => onClick(title, id, lengthText)}>
+      <section>
+        <h4>{title}</h4>
+      </section>
+      <section>{lengthText}</section>
+    </ListItem>
+  )
+}
 
-    return(
-        <ListItem onClick={() => onClick(title, id, lengthText)}>
-            <section>
-                <h4>{title}</h4>
-            </section>
-            <section>
-                {lengthText}
-            </section>
-        </ListItem>
+const UserPlaylist = (props) => {
+  const currentPlaylist = useAppSelector((state) => state.myPlaylist)
 
-    );
+  const handleClick = () => {}
+
+  const renderPlaylistItems = currentPlaylist?.items?.map((item) => {
+    const { title, duration } = item;
+    return (
+      <ListItem onClick={() => handleClick()}>
+        <section>
+          <h4>{title}</h4>
+        </section>
+        <section>{duration}</section>
+      </ListItem>
+    )
+  })
+
+  return (
+    <MyPlaylistWrapper>
+      {renderPlaylistItems}
+    </MyPlaylistWrapper>
+  )
 }

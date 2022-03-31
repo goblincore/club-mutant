@@ -3,7 +3,6 @@ import styled from 'styled-components'
 import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
 import Avatar from '@mui/material/Avatar'
-import Alert from '@mui/material/Alert'
 import ArrowRightIcon from '@mui/icons-material/ArrowRight'
 
 import { Swiper, SwiperSlide } from 'swiper/react'
@@ -17,6 +16,7 @@ import Lucy from '../assets/Lucy_login.png'
 import Nancy from '../assets/Nancy_login.png'
 import { useAppSelector, useAppDispatch } from '../hooks'
 import { setLoggedIn } from '../stores/UserStore'
+import { setRoomJoined } from '../stores/RoomStore'
 import { getAvatarString, getColorByString } from '../util'
 
 import phaserGame from '../PhaserGame'
@@ -119,14 +119,6 @@ const Bottom = styled.div`
   justify-content: center;
 `
 
-const Warning = styled.div`
-  margin-top: 30px;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-`
-
 const avatars = [
   { name: 'adam', img: Adam },
   { name: 'ash', img: Ash },
@@ -145,7 +137,6 @@ export default function LoginDialog() {
   const [avatarIndex, setAvatarIndex] = useState<number>(0)
   const [nameFieldEmpty, setNameFieldEmpty] = useState<boolean>(false)
   const dispatch = useAppDispatch()
-  const videoConnected = useAppSelector((state) => state.user.videoConnected)
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
   const roomName = useAppSelector((state) => state.room.roomName)
   const roomDescription = useAppSelector((state) => state.room.roomDescription)
@@ -163,6 +154,12 @@ export default function LoginDialog() {
       game.network.readyToConnect()
       dispatch(setLoggedIn(true))
     }
+  }
+
+  const handleExit = () => {
+    game.scene.stop()
+    dispatch(setRoomJoined(false))
+    console.log("//////////handleClickExitButton")
   }
 
   return (
@@ -209,34 +206,21 @@ export default function LoginDialog() {
               setName((e.target as HTMLInputElement).value)
             }}
           />
-          {/* {!videoConnected && (
-            <Warning>
-              <Alert variant="outlined" severity="warning">
-                <AlertTitle>Warning</AlertTitle>
-                No webcam/mic connected - <strong>connect one for best experience!</strong>
-              </Alert>
-              <Button
-                variant="outlined"
-                color="secondary"
-                onClick={() => {
-                  game.network.webRTC?.getUserMedia()
-                }}
-              >
-                Connect Webcam
-              </Button>
-            </Warning>
-          )} */}
-
-          {videoConnected && (
-            <Warning>
-              <Alert variant="outlined">Webcam connected!</Alert>
-            </Warning>
-          )}
         </Right>
       </Content>
       <Bottom>
-        <Button variant="contained" color="secondary" size="large" type="submit">
+        <Button variant="contained" color="secondary" size="large" type="submit" style={{margin: '0 10px'}}>
           Join
+        </Button>
+        <Button
+          variant="outlined"
+          color="secondary"
+          size="large"
+          type="button"
+          style={{margin: '0 10px'}}
+          onClick={() => handleExit()}
+        >
+          Exit
         </Button>
       </Bottom>
     </Wrapper>
