@@ -13,6 +13,7 @@ import {
   PlayerPlaylistEnqueueCommand,
   PlayerPlaylistDequeueCommand,
   PlayerRemoveItemFromPlaylistCommand,
+  PlayerSetCurrentPlaylistItemCommand,
   PlayerUnshiftPlaylistCommand,
 } from './commands/PlayerUpdatePlaylistCommand'
 
@@ -55,18 +56,20 @@ export class SkyOffice extends Room<OfficeState> {
     }
 
     // when a player starts playing a song
-    this.onMessage(Message.SYNC_MUSIC_STREAM, (client, message: {}) => {
+    this.onMessage(Message.SYNC_MUSIC_STREAM, (client, message: { item?: PlaylistItem}) => {
       // Dequeue
-      this.dispatcher.dispatch(new PlayerPlaylistDequeueCommand(), {client})
+      // this.dispatcher.dispatch(new PlayerPlaylistDequeueCommand(), {client})
 
+      console.log('///ON MESSSAGE SYNYC MUSIC STREAM', message?.item);
       // this is not ideal, would like to take the popped item and call enqueue with it?
-      const musicStream = this.state.musicStream;
-      const item = new PlaylistItem()
-      item.title = musicStream.currentLink
-      item.link = musicStream.currentLink
-      item.duration = musicStream.duration
-      this.dispatcher.dispatch(new PlayerPlaylistEnqueueCommand(), {client, item })
-      this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+      // const musicStream = this.state.musicStream;
+      // const item = new PlaylistItem()
+      // item.title = musicStream.currentLink
+      // item.link = musicStream.currentLink
+      // item.duration = musicStream.duration
+      // this.dispatcher.dispatch(new PlayerPlaylistEnqueueCommand(), {client, item })
+    
+      this.dispatcher.dispatch(new MusicStreamNextCommand(), {item: message?.item})
     })
 
     // when a player connects to a music booth
@@ -76,9 +79,15 @@ export class SkyOffice extends Room<OfficeState> {
         client,
         musicBoothIndex: message.musicBoothIndex,
       })
+      console.log('///////connectToMusicBooth client', client);
       console.log("///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status", this.state.musicStream.status)
       if (this.state.musicStream.status = 'waiting') {
-        this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+        console.log('////////MUSIC STREAM NEXT COMMAND INVOKE')
+        const player = this.state.players.get(client.sessionId);
+        console.log('////GET PLAYER', player);
+        if(player.currentPlaylistItem.link){
+        this.dispatcher.dispatch(new MusicStreamNextCommand(), {item: player.currentPlaylistItem})
+        }
       }
     })
 
@@ -150,6 +159,15 @@ export class SkyOffice extends Room<OfficeState> {
       // if (this.state.musicStream.status !== 'playing') {
       //   this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
       // }
+    })
+
+
+    this.onMessage(Message.SET_USER_PLAYLIST_ITEM, (client, message: { item: PlaylistItem }) => {
+      console.log('////SET USER PLAYLIST ITEM', message.item );
+      this.dispatcher.dispatch(new PlayerSetCurrentPlaylistItemCommand(), {
+        client,
+        item: message.item,
+      })
     })
 
     this.onMessage(Message.DELETE_PLAYLIST_ITEM, (client, message: { itemIndex: number }) => {

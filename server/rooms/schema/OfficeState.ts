@@ -21,7 +21,7 @@ export class Player extends Schema implements IPlayer {
   @type('string') anim = 'adam_idle_down'
   @type('boolean') readyToConnect = false
   @type('boolean') videoConnected = false
-
+  @type(PlaylistItem) currentPlaylistItem = new PlaylistItem()
   @type([PlaylistItem])
   playlistItems = new ArraySchema<PlaylistItem>()
   @type([PlaylistItem])

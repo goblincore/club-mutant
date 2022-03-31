@@ -206,7 +206,8 @@ const MusicSearch = () => {
       duration,
     }
     // store.dispatch(addItemToPlaylist(item))
-    game.network.addPlaylistItem(item)
+    // game.network.addPlaylistItem(item)
+      store.dispatch(addItemToPlaylist(item))
   }
 
   const resultsList =
@@ -286,8 +287,14 @@ const YoutubeResult = ({ id, thumbnail, title, length, onClick }) => {
 
 const UserPlaylist = (props) => {
   const currentPlaylist = useAppSelector((state) => state.playlist)
-
+  const game = phaserGame.scene.keys.game as Game
   const handleClick = () => {}
+
+  useEffect(()=>{
+    if(currentPlaylist && currentPlaylist?.items?.length > 0){
+    game.network.setUserPlaylistItem(currentPlaylist?.items?.[0]);
+    }
+  },[currentPlaylist])
 
   const renderPlaylistItems = currentPlaylist?.items?.map((item) => {
     const { link, title, duration } = item;

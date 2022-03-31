@@ -1,7 +1,7 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 import { IOfficeState, IPlaylistItem } from '../../../types/IOfficeState'
-import { PlaylistItem } from '../schema/OfficeState'
+import { Player, PlaylistItem } from '../schema/OfficeState'
 
 type Payload = {
   client?: Client
@@ -74,6 +74,19 @@ export class PlayerPlaylistDequeueCommand extends Command<IOfficeState, Payload>
                // all items are in playlistStack2 but reversed
           }
       }
+  }
+}
+
+export class PlayerSetCurrentPlaylistItemCommand extends Command<IOfficeState, Payload> {
+  execute(data: Payload) {
+    const { client, item } = data
+    console.log("///////////////////////PlayerSetCurrentPlaylistItemCommand, item", item)
+    const player = this.room.state.players.get(client.sessionId)
+    const newItem = new PlaylistItem()
+    newItem.title = item.title
+    newItem.link = item.link
+    newItem.duration = item.duration
+    player.currentPlaylistItem = newItem
   }
 }
 

@@ -7,6 +7,7 @@ export interface IPlayer extends Schema {
   anim: string
   readyToConnect: boolean
   videoConnected: boolean
+  currentPlaylistItem: IPlaylistItem
   playlistItems: ArraySchema<IPlaylistItem>
   playlistStack2: ArraySchema<IPlaylistItem>
 }

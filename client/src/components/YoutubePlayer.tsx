@@ -39,6 +39,7 @@ export default function YoutubePlayer() {
   const link = useAppSelector((state) => state.musicStream.link)
   const startTime = useAppSelector((state) => state.musicStream.startTime)
   const [isBuffering, setIsBuffering] = useState(true) 
+  const currentPlaylist = useAppSelector((state) => state.playlist)
 
   const currentTime: number = new Date().getTime()
       const syncTime = (currentTime - startTime) / 1000;
@@ -65,7 +66,9 @@ export default function YoutubePlayer() {
 
 
   const handleOnEnded = () => {
-     game.network.syncMusicStream()
+     const nextItem = currentPlaylist.items[1];
+     console.log('nextItem', nextItem);
+     game.network.syncMusicStream(nextItem)
   }
 
   return (

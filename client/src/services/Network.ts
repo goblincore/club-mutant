@@ -101,12 +101,13 @@ export default class Network {
     // new instance added to the players MapSchema
     this.room.state.players.onAdd = (player: IPlayer, key: string) => {
       if (key === this.mySessionId) {
-        player.playlistItems.onAdd = (item, index) => {
-          store.dispatch(addItemToPlaylist(item))
-        }
-        player.playlistItems.onRemove = (item, index) => {
-          store.dispatch(removeItemFromPlaylist(index))
-        }
+       
+        // player.playlistItems.onAdd = (item, index) => {
+        //   store.dispatch(addItemToPlaylist(item))
+        // }
+        // player.playlistItems.onRemove = (item, index) => {
+        //   store.dispatch(removeItemFromPlaylist(index))
+        // }
         return
       }
 
@@ -266,9 +267,9 @@ export default class Network {
     this.room?.send(Message.DISCONNECT_FROM_MUSIC_BOOTH, { musicBoothIndex: index })
   }
 
-  syncMusicStream() {
-    console.log('Synchronize music stream');
-    this.room?.send(Message.SYNC_MUSIC_STREAM, {})
+  syncMusicStream(item?:IPlaylistItem) {
+    console.log('Synchronize music stream', item);
+    this.room?.send(Message.SYNC_MUSIC_STREAM, { item })
   }
 
   addPlaylistItem(item: IPlaylistItem) {
@@ -284,5 +285,10 @@ export default class Network {
   addChatMessage(content: string) {
     console.log('Add chat message, content', content);
     this.room?.send(Message.ADD_CHAT_MESSAGE, { content })
+  }
+
+  setUserPlaylistItem(item: IPlaylistItem) {
+    console.log('Set User Playlist Item', item);
+    this.room?.send(Message.SET_USER_PLAYLIST_ITEM, { item});
   }
 }
