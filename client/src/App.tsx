@@ -4,9 +4,9 @@ import { useAppSelector } from './hooks'
 
 import RoomSelectionDialog from './components/RoomSelectionDialog'
 import LoginDialog from './components/LoginDialog'
+import ChatPanel from './components/ChatPanel'
 import MyPlaylistPanel from './components/MyPlaylistPanel'
 import YoutubePlayer from './components/YoutubePlayer'
-import ChatPanel from './components/ChatPanel'
 
 const Backdrop = styled.div`
   position: absolute;

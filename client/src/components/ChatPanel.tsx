@@ -73,6 +73,7 @@ const ChatBox = styled(Box)`
   overflow: auto;
   background: #eee;
   border: 1px solid #00000029;
+
   p, span {
     color: black !important;
   }
@@ -121,6 +122,7 @@ const InputWrapper = styled.form`
 
 const InputTextField = styled(InputBase)`
   border-radius: 0px 0px 10px 10px;
+  
   input {
     padding: 5px;
     color: black;

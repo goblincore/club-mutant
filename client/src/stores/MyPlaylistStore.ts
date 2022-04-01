@@ -30,15 +30,18 @@ export const myPlaylistSlice = createSlice({
             state.myPlaylistPanelOpen = true
             const game = phaserGame.scene.keys.game as Game
             game.disableKeys()
+            console.log("///////////////MyPlaylistStore, openMyPlaylistPanel, disableKeys")
         },
         closeMyPlaylistPanel: (state) => {
             const game = phaserGame.scene.keys.game as Game
             game.enableKeys()
+            console.log("///////////////MyPlaylistStore, closeMyPlaylistPanel, enableKeys")
             state.myPlaylistPanelOpen = false
         },
         setFocused: (state, action: PayloadAction<boolean>) => {
             const game = phaserGame.scene.keys.game as Game
             action.payload ? game.disableKeys() : game.enableKeys()
+            console.log("///////////////MyPlaylistStore, setFocused, action.payload", action.payload)
             state.focused = action.payload
         },
     },
