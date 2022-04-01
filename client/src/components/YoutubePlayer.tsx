@@ -49,9 +49,9 @@ export default function YoutubePlayer() {
   }
 
   const handleOnBufferEnd = () => {
-     if(isBuffering){
-       setIsBuffering(false);
-     }
+    if(isBuffering){
+      setIsBuffering(false);
+    }
   }
 
   // const game = phaserGame.scene.keys.game as Game

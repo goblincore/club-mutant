@@ -11,7 +11,7 @@ import { pushPlayerJoinedMessage } from '../stores/ChatStore'
 import { ItemType } from '../../../types/Items'
 
 export default class MyPlayer extends Player {
-  private playContainerBody: Phaser.Physics.Arcade.Body
+  private playerContainerBody: Phaser.Physics.Arcade.Body
   private musicBoothOnSit?: MusicBooth
   
   constructor(
@@ -23,7 +23,7 @@ export default class MyPlayer extends Player {
     frame?: string | number
   ) {
     super(scene, x, y, texture, id, frame)
-    this.playContainerBody = this.playerContainer.body as Phaser.Physics.Arcade.Body
+    this.playerContainerBody = this.playerContainer.body as Phaser.Physics.Arcade.Body
   }
 
   setPlayerName(name: string) {
@@ -48,19 +48,23 @@ export default class MyPlayer extends Player {
     if (!cursors) return
 
     const item = playerSelector.selectedItem
-
-    if (Phaser.Input.Keyboard.JustDown(keyR)) {
-      switch (item?.itemType) {
-        case ItemType.MUSIC_BOOTH:
-          const musicBooth = item as MusicBooth
-          musicBooth.openDialog(network)
-          break
-      }
-    }
-
+    
     switch (this.playerBehavior) {
       case PlayerBehavior.IDLE:
-        // if press E in front of selected chair
+        if (Phaser.Input.Keyboard.JustDown(keyR)) {
+          console.log("///////////////MyPlayer, update, switch, PlayerBehavior.IDLE, JustDown")
+          switch (item?.itemType) {
+            case ItemType.MUSIC_BOOTH:
+              const musicBootItem = item as MusicBooth
+              musicBootItem.openDialog(network)
+              musicBootItem.clearDialogBox()
+              musicBootItem.setDialogBox('Press R to leave the DJ booth')
+              this.musicBoothOnSit = musicBootItem
+              this.playerBehavior = PlayerBehavior.SITTING
+              break
+          }
+          return
+        }
         const speed = 200
         let vx = 0
         let vy = 0
@@ -78,8 +82,8 @@ export default class MyPlayer extends Player {
         this.setVelocity(vx, vy)
         this.body.velocity.setLength(speed)
         // also update playerNameContainer velocity
-        this.playContainerBody.setVelocity(vx, vy)
-        this.playContainerBody.velocity.setLength(speed)
+        this.playerContainerBody.setVelocity(vx, vy)
+        this.playerContainerBody.velocity.setLength(speed)
 
         // update animation according to velocity and send new location and anim to server
         if (vx !== 0 || vy !== 0) network.updatePlayerAction(this.x, this.y, this.anims.currentAnim.key)
@@ -106,15 +110,16 @@ export default class MyPlayer extends Player {
 
       case PlayerBehavior.SITTING:
         // back to idle if player press E while sitting
-        if (Phaser.Input.Keyboard.JustDown(keyE)) {
-          const parts = this.anims.currentAnim.key.split('_')
-          parts[1] = 'idle'
-          this.play(parts.join('_'), true)
-          this.playerBehavior = PlayerBehavior.IDLE
-          this.musicBoothOnSit?.clearDialogBox()
-          playerSelector.setPosition(this.x, this.y)
-          playerSelector.update(this, cursors)
-          network.updatePlayerAction(this.x, this.y, this.anims.currentAnim.key)
+        if (Phaser.Input.Keyboard.JustDown(keyR)) {
+          console.log("///////////////MyPlayer, update, switch, PlayerBehavior.SITTING, JustDown")
+          switch (item?.itemType) {
+            case ItemType.MUSIC_BOOTH:
+              this.musicBoothOnSit?.closeDialog(network)
+              this.musicBoothOnSit?.clearDialogBox()
+              this.musicBoothOnSit?.setDialogBox('Press R to be the DJ')
+              this.playerBehavior = PlayerBehavior.IDLE
+              break
+          }
         }
         break
     }
