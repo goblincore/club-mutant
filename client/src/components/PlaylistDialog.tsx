@@ -77,14 +77,20 @@ export default function PlaylistDialog() {
       console.log('currentlyPlayingsong', currentMusicStream);
 
       // game.network.setUserPlaylistItem()
-      if (playQueue.length < 2 && !currentMusicStream.link) {
+      if (currentPlaylist?.items?.length < 2 && !currentMusicStream.link) {
         const queueItems = currentPlaylist.items.slice(0, 2)
         console.log('queueItems', queueItems)
         game.network.syncPlayerPlaylistQueue(queueItems)
       }
 
-      if (currentMusicStream?.link === currentPlaylist.items?.[0]?.link) {
+      if (currentMusicStream.link && currentMusicStream?.link === currentPlaylist.items?.[0]?.link) {
         const queueItems = currentPlaylist.items.slice(1, 3)
+        console.log('queueItems', queueItems)
+        game.network.syncPlayerPlaylistQueue(queueItems)
+      }
+
+      if (currentPlaylist?.items?.length < 2 && currentMusicStream.link && currentMusicStream?.link !== currentPlaylist.items?.[0]?.link) {
+        const queueItems = currentPlaylist.items.slice(0, 2)
         console.log('queueItems', queueItems)
         game.network.syncPlayerPlaylistQueue(queueItems)
       }

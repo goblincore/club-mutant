@@ -22,7 +22,7 @@ const Wrapper = styled.div`
   background: #eee;
   border-radius: 16px;
   padding: 0;
-  color: #eee;
+  color: #666;
   display: flex;
   flex-direction: column;
 
@@ -38,6 +38,7 @@ export default function YoutubePlayer() {
   const game = phaserGame.scene.keys.game as Game
   const link = useAppSelector((state) => state.musicStream.link)
   const startTime = useAppSelector((state) => state.musicStream.startTime)
+  const title = useAppSelector((state) => state.musicStream.title)
   const [isBuffering, setIsBuffering] = useState(true) 
   const currentPlaylist = useAppSelector((state) => state.playlist)
 
@@ -88,6 +89,9 @@ export default function YoutubePlayer() {
             height={'130px'}
             playing
             url={url} />
+            <section>
+            <p>{title}</p>
+            </section>
         </Wrapper>
         :
         <Wrapper>

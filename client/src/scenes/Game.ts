@@ -248,10 +248,11 @@ export default class Game extends Phaser.Scene {
     // const url = 'http://www.youtube.com/watch?v=' + musicStream.currentLink + '#t=' + syncTime + 's'
 
     const url = musicStream.currentLink;
+    const title = musicStream.currentTitle;
 
     console.log('game handle start music stream', url)
 
-    store.dispatch(setMusicStream({url, startTime}))
+    store.dispatch(setMusicStream({url, title, startTime}))
     // this.youtubePlayer?.load(url, false)
     // console.log('////////////////////handleStartMusicStream, this.youtubePlayer.load, url', url)
     // if (this.youtubePlayer) {
