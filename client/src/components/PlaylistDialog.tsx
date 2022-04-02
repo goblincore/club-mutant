@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useRef, useEffect, useState } from 'react'
 import styled from 'styled-components'
 import InputBase from '@mui/material/InputBase'
@@ -10,7 +11,7 @@ import { useAppSelector, useAppDispatch } from '../hooks'
 import { openPlaylistDialog, closePlaylistDialog, setFocused } from '../stores/PlaylistStore'
 import axios from 'axios'
 import store from '../stores'
-import { addItemToPlaylist } from '../stores/PlaylistStore'
+import { addItemToPlaylist, syncPlayQueue } from '../stores/PlaylistStore'
 
 const Backdrop = styled.div`
   position: fixed;
@@ -59,9 +60,47 @@ const FabWrapper = styled.div`
   }
 `
 export default function PlaylistDialog() {
+  const game = phaserGame.scene.keys.game as Game
   const showPlaylistDialog = useAppSelector((state) => state.playlist.playlistDialogOpen)
   const dispatch = useAppDispatch()
-  const game = phaserGame.scene.keys.game as Game
+
+  const currentPlaylist = useAppSelector((state) => state.playlist)
+  const playQueue = useAppSelector((state) => state.playlist.playQueue)
+  const currentMusicStream = useAppSelector((state) => state.musicStream)
+
+  useEffect(() => {
+    if (currentPlaylist && currentPlaylist?.items) {
+      // game.network.setUserPlaylistItem(currentPlaylist?.items?.[0]);
+      // game.network.setNextUserPlaylistItem(currentPlaylist?.items?.[1]);
+    
+
+      console.log('currentlyPlayingsong', currentMusicStream);
+
+      // game.network.setUserPlaylistItem()
+      if (playQueue.length < 2 && !currentMusicStream.link) {
+        const queueItems = currentPlaylist.items.slice(0, 2)
+        console.log('queueItems', queueItems)
+        game.network.syncPlayerPlaylistQueue(queueItems)
+      }
+
+      if (currentMusicStream?.link === currentPlaylist.items?.[0]?.link) {
+        const queueItems = currentPlaylist.items.slice(1, 3)
+        console.log('queueItems', queueItems)
+        game.network.syncPlayerPlaylistQueue(queueItems)
+      }
+
+      // if (playQueue.length < 2 && isCurrentlyPlaying) {
+      //   const queueItems = currentPlaylist.items.slice(1, 3)
+      //   console.log('queueItems', queueItems)
+      //   game.network.syncPlayerPlaylistQueue(queueItems)
+      // }
+    }
+  }, [currentPlaylist.items])
+
+  useEffect(() => {
+    console.log('player short queue changed', playQueue)
+    // game.network.syncPlayerPlaylistQueue(playQueue);
+  }, [playQueue])
 
   const handlePlay = () => {
     console.log('handlePlay')
@@ -207,7 +246,7 @@ const MusicSearch = () => {
     }
     // store.dispatch(addItemToPlaylist(item))
     // game.network.addPlaylistItem(item)
-      store.dispatch(addItemToPlaylist(item))
+    store.dispatch(addItemToPlaylist(item))
   }
 
   const resultsList =
@@ -244,8 +283,12 @@ const MusicSearch = () => {
         />
       </InputWrapper>
 
-      <button style={{color: '#222'}} onClick={() => setTab('search')}>Search</button>
-      <button style={{color:'#222'}} onClick={() => setTab('playlist')}>Playlist</button>
+      <button style={{ color: '#222' }} onClick={() => setTab('search')}>
+        Search
+      </button>
+      <button style={{ color: '#222' }} onClick={() => setTab('playlist')}>
+        Playlist
+      </button>
 
       {tab === 'search' && <SearchList>{resultsList}</SearchList>}
 
@@ -287,17 +330,12 @@ const YoutubeResult = ({ id, thumbnail, title, length, onClick }) => {
 
 const UserPlaylist = (props) => {
   const currentPlaylist = useAppSelector((state) => state.playlist)
+
   const game = phaserGame.scene.keys.game as Game
   const handleClick = () => {}
 
-  useEffect(()=>{
-    if(currentPlaylist && currentPlaylist?.items?.length > 0){
-    game.network.setUserPlaylistItem(currentPlaylist?.items?.[0]);
-    }
-  },[currentPlaylist])
-
   const renderPlaylistItems = currentPlaylist?.items?.map((item) => {
-    const { link, title, duration } = item;
+    const { link, title, duration } = item
     return (
       <ListItem onClick={() => handleClick()}>
         <section>
@@ -308,9 +346,5 @@ const UserPlaylist = (props) => {
     )
   })
 
-  return (
-    <PlaylistWrapper>
-      {renderPlaylistItems}
-    </PlaylistWrapper>
-  )
+  return <PlaylistWrapper>{renderPlaylistItems}</PlaylistWrapper>
 }

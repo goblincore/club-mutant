@@ -7,6 +7,7 @@ import {
   IChatMessage,
   IPlaylistItem,
 } from '../../../types/IOfficeState'
+import Queue from '../../Queue';
 
 export class PlaylistItem extends Schema implements IPlaylistItem {
   @type('string') title = ''
@@ -22,6 +23,9 @@ export class Player extends Schema implements IPlayer {
   @type('boolean') readyToConnect = false
   @type('boolean') videoConnected = false
   @type(PlaylistItem) currentPlaylistItem = new PlaylistItem()
+  @type(PlaylistItem) nextPlaylistItem = new PlaylistItem()
+  @type([PlaylistItem]) 
+  nextTwoPlaylist = new ArraySchema<PlaylistItem>()
   @type([PlaylistItem])
   playlistItems = new ArraySchema<PlaylistItem>()
   @type([PlaylistItem])
@@ -37,6 +41,7 @@ export class ChatMessage extends Schema implements IChatMessage {
 export class MusicStream extends Schema implements IMusicStream {
   @type('string') status = 'waiting' // waiting or seeking or playing
   @type('string') currentLink = null
+  @type('string') currentTitle = null
   @type('number') currentBooth = 0
   @type('number') startTime = new Date().getTime()
   @type('number') duration = 0

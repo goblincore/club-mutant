@@ -1,4 +1,5 @@
 import { Schema, ArraySchema, SetSchema, MapSchema } from '@colyseus/schema'
+import Queue from "../server/Queue"
 
 export interface IPlayer extends Schema {
   name: string
@@ -8,6 +9,9 @@ export interface IPlayer extends Schema {
   readyToConnect: boolean
   videoConnected: boolean
   currentPlaylistItem: IPlaylistItem
+  nextPlaylistItem: IPlaylistItem
+  playlistQueue: Queue
+  nextTwoPlaylist: ArraySchema<IPlaylistItem>
   playlistItems: ArraySchema<IPlaylistItem>
   playlistStack2: ArraySchema<IPlaylistItem>
 }
@@ -31,6 +35,7 @@ export interface IPlaylistItem extends Schema {
 export interface IMusicStream extends Schema {
   status: string // waiting or seeking or playing
   currentLink: string
+  currentTitle: string
   currentBooth: number
   startTime: number
   duration: number

@@ -5,7 +5,7 @@ import styled from 'styled-components'
 import Game from '../scenes/Game'
 import phaserGame from '../PhaserGame'
 import { useAppSelector, useAppDispatch } from '../hooks'
-import { openPlaylistDialog, closePlaylistDialog, setFocused } from '../stores/PlaylistStore'
+import { openPlaylistDialog, closePlaylistDialog, setFocused, shiftPlaylist } from '../stores/PlaylistStore'
 import store from '../stores'
 
 const Backdrop = styled.div`
@@ -68,7 +68,10 @@ export default function YoutubePlayer() {
   const handleOnEnded = () => {
      const nextItem = currentPlaylist.items[1];
      console.log('nextItem', nextItem);
-     game.network.syncMusicStream(nextItem)
+     dispatch(shiftPlaylist())
+     if(nextItem){
+      game.network.syncMusicStream(nextItem)
+     }
   }
 
   return (

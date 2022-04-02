@@ -14,6 +14,8 @@ import {
   PlayerPlaylistDequeueCommand,
   PlayerRemoveItemFromPlaylistCommand,
   PlayerSetCurrentPlaylistItemCommand,
+  PlayerSetNextPlaylistItemCommand,
+  PlayerSyncShortPlaylist,
   PlayerUnshiftPlaylistCommand,
 } from './commands/PlayerUpdatePlaylistCommand'
 
@@ -59,7 +61,7 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(Message.SYNC_MUSIC_STREAM, (client, message: { item?: PlaylistItem}) => {
       // Dequeue
       // this.dispatcher.dispatch(new PlayerPlaylistDequeueCommand(), {client})
-
+      console.log('///ON MESSSAGE SYNYC MUSIC STREAM', message?.item);
       console.log('///ON MESSSAGE SYNYC MUSIC STREAM', message?.item);
       // this is not ideal, would like to take the popped item and call enqueue with it?
       // const musicStream = this.state.musicStream;
@@ -79,15 +81,18 @@ export class SkyOffice extends Room<OfficeState> {
         client,
         musicBoothIndex: message.musicBoothIndex,
       })
-      console.log('///////connectToMusicBooth client', client);
+      console.log('///////connectToMusicBooth client');
       console.log("///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status", this.state.musicStream.status)
       if (this.state.musicStream.status = 'waiting') {
         console.log('////////MUSIC STREAM NEXT COMMAND INVOKE')
         const player = this.state.players.get(client.sessionId);
-        console.log('////GET PLAYER', player);
-        if(player.currentPlaylistItem.link){
-        this.dispatcher.dispatch(new MusicStreamNextCommand(), {item: player.currentPlaylistItem})
-        }
+        // console.log('////GET PLAYER', player);
+       
+          // const currentItem = player.nextTwoPlaylist.shift();
+         
+          // console.log('///currentItem title', currentItem.title);
+        this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+        
       }
     })
 
@@ -148,6 +153,14 @@ export class SkyOffice extends Room<OfficeState> {
       )
     })
 
+    this.onMessage(Message.SYNC_USER_SHORT_PLAYLIST, (client, message: { items: PlaylistItem[]}) => {
+      console.log('/////////onMessage, SYNC USER SHORT PLAYLIST', message.items);
+      this.dispatcher.dispatch(new PlayerSyncShortPlaylist(), {
+        client,
+        items: message.items,
+      })
+    })
+
     this.onMessage(Message.ADD_PLAYLIST_ITEM, (client, message: { item: PlaylistItem }) => {
       // update the message array (so that players join later can also see the message)
       console.log("///////////////////////onMessage, ADD_PLAYLIST_ITEM, message.item", message.item)
@@ -161,6 +174,13 @@ export class SkyOffice extends Room<OfficeState> {
       // }
     })
 
+    this.onMessage(Message.SET_USER_NEXT_PLAYLIST_ITEM, (client, message: { item: PlaylistItem }) => {
+      console.log('////SET NEXT USER PLAYLIST ITEM', message.item );
+      this.dispatcher.dispatch(new PlayerSetNextPlaylistItemCommand(), {
+        client,
+        item: message.item,
+      })
+    })
 
     this.onMessage(Message.SET_USER_PLAYLIST_ITEM, (client, message: { item: PlaylistItem }) => {
       console.log('////SET USER PLAYLIST ITEM', message.item );
