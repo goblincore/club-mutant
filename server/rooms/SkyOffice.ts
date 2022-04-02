@@ -161,18 +161,6 @@ export class SkyOffice extends Room<OfficeState> {
       })
     })
 
-    this.onMessage(Message.ADD_PLAYLIST_ITEM, (client, message: { item: PlaylistItem }) => {
-      // update the message array (so that players join later can also see the message)
-      console.log("///////////////////////onMessage, ADD_PLAYLIST_ITEM, message.item", message.item)
-      this.dispatcher.dispatch(new PlayerPlaylistEnqueueCommand(), {
-        client,
-        item: message.item,
-      })
-      console.log("///////////////////////onMessage, this.state.musicStream.status", this.state.musicStream.status)
-      // if (this.state.musicStream.status !== 'playing') {
-      //   this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
-      // }
-    })
 
     this.onMessage(Message.SET_USER_NEXT_PLAYLIST_ITEM, (client, message: { item: PlaylistItem }) => {
       console.log('////SET NEXT USER PLAYLIST ITEM', message.item );
@@ -190,26 +178,7 @@ export class SkyOffice extends Room<OfficeState> {
       })
     })
 
-    this.onMessage(Message.DELETE_PLAYLIST_ITEM, (client, message: { itemIndex: number }) => {
-      // update the message array (so that players join later can also see the message)
-      this.dispatcher.dispatch(new PlayerRemoveItemFromPlaylistCommand(), {
-        client,
-        index: message.itemIndex,
-      })
-      this.state.musicBooths.forEach((musicBooth, index) => {
-        if (musicBooth.connectedUser === client.sessionId) {
-          if (this.state.musicStream.currentBooth === index) {
-            if (this.state.musicStream.status === 'playing') {
-              if (message.itemIndex === 0) {
-                this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
-              }
-            } else {
-              this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
-            }
-          }
-        }
-      })
-    })
+    
   }
 
   async onAuth(client: Client, options: { password: string | null }) {

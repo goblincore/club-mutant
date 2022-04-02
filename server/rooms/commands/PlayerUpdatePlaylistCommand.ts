@@ -10,29 +10,6 @@ type Payload = {
   items?: IPlaylistItem[]
 }
 
-// Method to implement enqueue operation
-export class PlayerPlaylistEnqueueCommand extends Command<IOfficeState, Payload> {
-  execute(data: Payload) {
-    const { client, item } = data
-    const player = this.room.state.players.get(client.sessionId)
-    const newItem = new PlaylistItem()
-    newItem.title = item.title
-    newItem.link = item.link
-    newItem.duration = item.duration
-    console.log('ENQUEUE COMMAND')
-    player.playlistQueue.enqueue(newItem)
-  }
-}
-
-export class PlayerPlaylistDequeueCommand extends Command<IOfficeState, Payload> {
-  execute(data: Payload) {
-    const { client } = data
-    const player = this.room.state.players.get(client.sessionId)
-
-    console.log('DEQUEUE COMMAND')
-    player.playlistQueue.dequeue()
-  }
-}
 
 export class PlayerSyncShortPlaylist extends Command<IOfficeState, Payload> {
   execute(data: Payload) {
@@ -90,42 +67,4 @@ export class PlayerSetNextPlaylistItemCommand extends Command<IOfficeState, Payl
   }
 }
 
-export class PlayerAddItemToPlaylistCommand extends Command<IOfficeState, Payload> {
-  execute(data: Payload) {
-    const { client, item } = data
-    console.log('///////////////////////PlayerAddItemToPlaylistCommand, item', item)
-    const player = this.room.state.players.get(client.sessionId)
 
-    const newItem = new PlaylistItem()
-    newItem.title = item.title
-    newItem.link = item.link
-    newItem.duration = item.duration
-    console.log('///////////////////////PlayerAddItemToPlaylistCommand, player', player)
-    console.log(
-      '///////////////////////PlayerAddItemToPlaylistCommand, player.playlistItems',
-      player.playlistItems
-    )
-    player.playlistItems.push(newItem)
-    console.log(
-      '///////////////////////PlayerAddItemToPlaylistCommand, player.playlistItems.pushed'
-    )
-  }
-}
-
-export class PlayerRemoveItemFromPlaylistCommand extends Command<IOfficeState, Payload> {
-  execute(data: Payload) {
-    const { client, index } = data
-    const player = this.room.state.players.get(client.sessionId)
-    player.playlistItems.slice(index, 1)
-  }
-}
-
-export class PlayerUnshiftPlaylistCommand extends Command<IOfficeState, Payload> {
-  execute(data: Payload) {
-    const connectedUser =
-      this.room.state.musicBooths[this.room.state.musicStream.currentBooth].connectedUser
-
-    const player = this.room.state.players.get(connectedUser)
-    player.playlistItems.unshift()
-  }
-}

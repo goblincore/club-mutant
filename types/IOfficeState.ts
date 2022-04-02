@@ -10,10 +10,7 @@ export interface IPlayer extends Schema {
   videoConnected: boolean
   currentPlaylistItem: IPlaylistItem
   nextPlaylistItem: IPlaylistItem
-  playlistQueue: Queue
   nextTwoPlaylist: ArraySchema<IPlaylistItem>
-  playlistItems: ArraySchema<IPlaylistItem>
-  playlistStack2: ArraySchema<IPlaylistItem>
 }
 
 export interface IMusicBooth extends Schema {
