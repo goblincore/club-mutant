@@ -16,15 +16,19 @@ export default class MusicBooth extends Item {
   }
 
   onOverlapDialog() {
-    console.log('//////////onOverlapDialog');
+    console.log('//////////onOverlapDialog', this.currentUser);
     if (this.currentUser === null) {
       this.setDialogBox('Press R to be the DJ')
+    } else {
+    this.clearDialogBox()
     }
   }
 
   addCurrentUser(userId: string) {
+    console.log('//////////addCurrentUser userId', userId);
     if (this.currentUser) return
     this.currentUser = userId
+    this.setStatusBox(`${userId} Connected`);
   }
 
   removeCurrentUser(userId: string) {

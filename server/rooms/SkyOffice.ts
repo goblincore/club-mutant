@@ -76,12 +76,13 @@ export class SkyOffice extends Room<OfficeState> {
 
     // when a player connects to a music booth
     this.onMessage(Message.CONNECT_TO_MUSIC_BOOTH, (client, message: { musicBoothIndex: number }) => {
+      console.log('/////onMessage, CONNECT_TO_USER_BOOth client sesiondId', client.sessionId);
       console.log("///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, message.musicBoothIndex", message.musicBoothIndex)
       this.dispatcher.dispatch(new MusicBoothConnectUserCommand(), {
         client,
         musicBoothIndex: message.musicBoothIndex,
       })
-      console.log('///////connectToMusicBooth client');
+      console.log('///////connectToMusicBooth client', client.sessionId);
       console.log("///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status", this.state.musicStream.status)
       if (this.state.musicStream.status = 'waiting') {
         console.log('////////MUSIC STREAM NEXT COMMAND INVOKE')

@@ -18,9 +18,13 @@ export const musicStreamSlice = createSlice({
     reducers: {
         setMusicStream: (state, action: PayloadAction<any>) => {
             console.log('action', action);
+            try{
             state.link = action?.payload?.url
             state.title = action?.payload.title
             state.startTime = action?.payload?.startTime
+            }catch(e){
+                console.warn('Failed setting music stream')
+            }
         },
     },
 })

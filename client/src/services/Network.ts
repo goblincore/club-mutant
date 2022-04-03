@@ -149,7 +149,8 @@ export default class Network {
             if (value === null) {
               phaserEvents.emit(Event.ITEM_USER_REMOVED, index, ItemType.MUSIC_BOOTH)
             } else {
-              phaserEvents.emit(Event.ITEM_USER_ADDED, index, value, ItemType.MUSIC_BOOTH)
+              console.log('USER JOINED MUSICBOOTH field', field ,'value', value);
+              phaserEvents.emit(Event.ITEM_USER_ADDED, value, index, ItemType.MUSIC_BOOTH)
             }
           }
         })

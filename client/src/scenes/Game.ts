@@ -217,9 +217,13 @@ export default class Game extends Phaser.Scene {
   }
 
   private handleItemUserAdded(playerId: string, itemId: number, itemType: ItemType) {
+    console.log('////NETWORK handleItemUserAdded', playerId, itemId, itemType);
     if (itemType === ItemType.MUSIC_BOOTH) {
       const musicBooth = this.musicBoothMap.get(itemId)
+      const currentPlayer = this.otherPlayerMap.get(playerId) || this.myPlayer.playerId === playerId ? this.myPlayer : null;
+      console.log('currentDJPlayerinfo', currentPlayer);
       musicBooth?.addCurrentUser(playerId)
+      console.log('////MusicBooth', musicBooth);
     }
   }
 
@@ -239,30 +243,18 @@ export default class Game extends Phaser.Scene {
   private handleStartMusicStream(musicStream: IMusicStream, offset: number) {
     console.log('////////////////////handleStartMusicStream, musicStream.currentLink', musicStream.currentLink)
     console.log('////////////////////handleStartMusicStream, offset', offset);
-    const currentTime: number = new Date().getTime()
-    const syncTime = (currentTime - musicStream?.startTime) / 1000;
 
+ 
     console.log('musicStream handle start music stream game', musicStream);
    const startTime = musicStream?.startTime;
     
-    // const url = 'http://www.youtube.com/watch?v=' + musicStream.currentLink + '#t=' + syncTime + 's'
-
     const url = musicStream.currentLink;
     const title = musicStream.currentTitle;
 
     console.log('game handle start music stream', url)
 
     store.dispatch(setMusicStream({url, title, startTime}))
-    // this.youtubePlayer?.load(url, false)
-    // console.log('////////////////////handleStartMusicStream, this.youtubePlayer.load, url', url)
-    // if (this.youtubePlayer) {
-    //   this.youtubePlayer.alpha = 1;
-    //   this.youtubePlayer.blendMode = Phaser.BlendModes.SCREEN;
-    // }
-    // this.youtubePlayer?.setPlaybackTime(1000)
-    // console.log('////////////////////handleStartMusicStream, youtubePlayer.playbackTime', this.youtubePlayer?.playbackTime)
-    // this.youtubePlayer?.play();
-    // console.log('////////////////////handleStartMusicStream, this.youtubePlayer.play')
+ 
   }
 
   private handleStopMusicStream() {

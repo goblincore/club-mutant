@@ -29,6 +29,7 @@ export default class MyPlayer extends Player {
 
   setPlayerName(name: string) {
     this.playerName.setText(name)
+    this.setName(name);
     phaserEvents.emit(Event.MY_PLAYER_NAME_CHANGE, name)
     store.dispatch(pushPlayerJoinedMessage(name))
   }
