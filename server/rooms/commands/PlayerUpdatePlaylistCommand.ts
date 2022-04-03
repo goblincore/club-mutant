@@ -1,44 +1,60 @@
 import { Command } from '@colyseus/command'
-import { Client } from 'colyseus'
+import { Client, Room } from 'colyseus'
 import { IOfficeState, IPlaylistItem } from '../../../types/IOfficeState'
-import { PlaylistItem } from '../schema/OfficeState'
+import { Player, PlaylistItem } from '../schema/OfficeState'
 
 type Payload = {
   client?: Client
   index?: number
   item?: IPlaylistItem
+  items?: IPlaylistItem[]
 }
 
-export class PlayerAddItemToPlaylistCommand extends Command<IOfficeState, Payload> {
+export class PlayerSyncShortPlaylist extends Command<IOfficeState, Payload> {
+  execute(data: Payload) {
+    const { client, items } = data
+    const player = this.state.players.get(client.sessionId)
+
+    console.log('//Player sync next two playlist command', items, 'client', client.sessionId)
+
+    player.nextTwoPlaylist = items?.map(item => {
+      const newItem = new PlaylistItem()
+      newItem.title = item.title
+      newItem.link = item.link
+      newItem.id = item.id
+      newItem.djId = client.sessionId
+      newItem.duration = item.duration
+      return newItem
+    })
+  
+  }
+}
+
+export class PlayerSetCurrentPlaylistItemCommand extends Command<IOfficeState, Payload> {
   execute(data: Payload) {
     const { client, item } = data
-    console.log("///////////////PlayerAddItemToPlaylistCommand, item", item)
-    const player = this.room.state.players.get(client.sessionId)
-    
+    console.log('///////////////////////PlayerSetCurrentPlaylistItemCommand, item', item)
+    const player = this.state.players.get(client.sessionId)
     const newItem = new PlaylistItem()
     newItem.title = item.title
     newItem.link = item.link
     newItem.duration = item.duration
-    console.log("///////////////PlayerAddItemToPlaylistCommand, player", player)
-    console.log("///////////////PlayerAddItemToPlaylistCommand, player.playlistItems", player.playlistItems)
-    player.playlistItems.push(newItem)
-    console.log("///////////////PlayerAddItemToPlaylistCommand, player.playlistItems.pushed")
+    player.currentPlaylistItem = newItem
   }
 }
 
-export class PlayerRemoveItemFromPlaylistCommand extends Command<IOfficeState, Payload> {
+
+export class PlayerSetNextPlaylistItemCommand extends Command<IOfficeState, Payload> {
   execute(data: Payload) {
-    const { client, index } = data
-    const player = this.room.state.players.get(client.sessionId)
-    player.playlistItems.slice(index, 1)
+    const { client, item } = data
+    console.log('///////////////////////PlayerSetNextPlaylistItemCommand, item', item)
+    const player = this.state.players.get(client.sessionId)
+    const newItem = new PlaylistItem()
+    newItem.title = item.title
+    newItem.link = item.link
+    newItem.duration = item.duration
+    player.nextPlaylistItem = newItem
   }
 }
 
-export class PlayerUnshiftPlaylistCommand extends Command<IOfficeState, Payload> {
-  execute(data: Payload) {
-    const connectedUser = this.room.state.musicBooths[this.room.state.musicStream.currentBooth].connectedUser
-    
-    const player = this.room.state.players.get(connectedUser)
-    player.playlistItems.unshift()
-  }
-}
+

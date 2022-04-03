@@ -216,9 +216,13 @@ export default class Game extends Phaser.Scene {
   }
 
   private handleItemUserAdded(playerId: string, itemId: number, itemType: ItemType) {
+    console.log('////NETWORK handleItemUserAdded', playerId, itemId, itemType);
     if (itemType === ItemType.MUSIC_BOOTH) {
       const musicBooth = this.musicBoothMap.get(itemId)
+      const currentPlayer = this.otherPlayerMap.get(playerId) || this.myPlayer.playerId === playerId ? this.myPlayer : null;
+      console.log('currentDJPlayerinfo', currentPlayer);
       musicBooth?.addCurrentUser(playerId)
+      console.log('////MusicBooth', musicBooth);
     }
   }
 
@@ -236,28 +240,17 @@ export default class Game extends Phaser.Scene {
   }
 
   private handleStartMusicStream(musicStream: IMusicStream, offset: number) {
-    console.log('///////////////handleStartMusicStream, musicStream.currentLink', musicStream.currentLink)
-    console.log('///////////////handleStartMusicStream, offset', offset);
-    // const currentTime: number = new Date().getTime()
-    // const syncTime = (currentTime - musicStream?.startTime) / 1000;
+    console.log('////////////////////handleStartMusicStream, musicStream.currentLink', musicStream.currentLink)
+    console.log('////////////////////handleStartMusicStream, offset', offset);
 
-   const startTime = musicStream?.startTime;
-    
-    // const url = 'http://www.youtube.com/watch?v=' + musicStream.currentLink + '#t=' + syncTime + 's'
+ 
+    console.log('musicStream handle start music stream game', musicStream);
+    const { currentLink: url , currentTitle:title, currentDj, startTime} = musicStream
 
-    const url = musicStream.currentLink;
+    console.log('game handle start music stream', url)
 
-    store.dispatch(setMusicStream({url, startTime}))
-    // this.myYoutubePlayer?.load(url, false)
-    // console.log('///////////////handleStartMusicStream, this.myYoutubePlayer.load, url', url)
-    // if (this.myYoutubePlayer) {
-    //   this.myYoutubePlayer.alpha = 1;
-    //   this.myYoutubePlayer.blendMode = Phaser.BlendModes.SCREEN;
-    // }
-    // this.myYoutubePlayer?.setPlaybackTime(1000)
-    // console.log('///////////////handleStartMusicStream, youtubePlayer.playbackTime', this.myYoutubePlayer?.playbackTime)
-    // this.myYoutubePlayer?.play();
-    // console.log('///////////////handleStartMusicStream, this.myYoutubePlayer.play')
+    store.dispatch(setMusicStream({url, title, currentDj, startTime}))
+ 
   }
 
   private handleStopMusicStream() {

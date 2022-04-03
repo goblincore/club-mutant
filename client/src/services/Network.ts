@@ -1,6 +1,12 @@
 import { Client, Room } from 'colyseus.js'
 
-import { IOfficeState, IPlayer, IMusicBooth, IPlaylistItem, IMusicStream } from '../../../types/IOfficeState'
+import {
+  IOfficeState,
+  IPlayer,
+  IMusicBooth,
+  IPlaylistItem,
+  IMusicStream,
+} from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
@@ -19,7 +25,7 @@ import {
   pushPlayerJoinedMessage,
   pushPlayerLeftMessage,
 } from '../stores/ChatStore'
-import { addItemToMyPlaylist, removeItemFromMyPlaylist } from '../stores/MyPlaylistStore'
+import { addItemToPlaylist, removeItemFromPlaylist, syncPlayQueue, removeFromPlayQueue } from '../stores/PlaylistStore'
 
 // This class centralizes the handling of network events from the server
 // mostly the socket events
@@ -101,12 +107,12 @@ export default class Network {
     // new instance added to the players MapSchema
     this.room.state.players.onAdd = (player: IPlayer, key: string) => {
       if (key === this.mySessionId) {
-        player.playlistItems.onAdd = (item, index) => {
-          store.dispatch(addItemToMyPlaylist(item))
+        player.nextTwoPlaylist.onRemove = (item, index) => {
+          console.log('////*player next two playlist onchange item',  player.nextTwoPlaylist)
+          // store.dispatch(removeFromPlayQueue(item))
+          
         }
-        player.playlistItems.onRemove = (item, index) => {
-          store.dispatch(removeItemFromMyPlaylist(index))
-        }
+       
         return
       }
 
@@ -143,7 +149,8 @@ export default class Network {
             if (value === null) {
               phaserEvents.emit(Event.ITEM_USER_REMOVED, index, ItemType.MUSIC_BOOTH)
             } else {
-              phaserEvents.emit(Event.ITEM_USER_ADDED, index, value, ItemType.MUSIC_BOOTH)
+              console.log('USER JOINED MUSICBOOTH field', field ,'value', value);
+              phaserEvents.emit(Event.ITEM_USER_ADDED, value, index, ItemType.MUSIC_BOOTH)
             }
           }
         })
@@ -162,7 +169,7 @@ export default class Network {
 
     // when the server sends room data
     this.room.onMessage(Message.START_MUSIC_STREAM, ({ musicStream, offset }) => {
-      console.log('///////////////Network, initialize, onMessage, START_USIC STREAM', musicStream, offset);
+      console.log('start playing media on message START_USIC STREAM', musicStream, offset)
       phaserEvents.emit(Event.START_PLAYING_MEDIA, musicStream, offset)
     })
 
@@ -172,7 +179,8 @@ export default class Network {
     })
 
     // when the server sends room data
-    this.room.onMessage(Message.SYNC_MUSIC_STREAM, () => {
+    this.room.onMessage(Message.SYNC_MUSIC_STREAM, (item) => {
+      console.log('SERVER NETWORK SEND ON MESSAGE SYNC MUSIC', item);
       this.syncMusicStream()
     })
 
@@ -239,7 +247,7 @@ export default class Network {
 
   // method to send player action updates to Colyseus server
   updatePlayerAction(currentX: number, currentY: number, currentAnim: string) {
-    console.log('///////////////Network, initialize, updatePlayerAction')
+    // console.log('Update player action')
     this.room?.send(Message.UPDATE_PLAYER_ACTION, { x: currentX, y: currentY, anim: currentAnim })
   }
 
@@ -266,23 +274,40 @@ export default class Network {
     this.room?.send(Message.DISCONNECT_FROM_MUSIC_BOOTH, { musicBoothIndex: index })
   }
 
-  syncMusicStream() {
-    console.log('///////////////Network, initialize, syncMusicStream');
-    this.room?.send(Message.SYNC_MUSIC_STREAM, {})
+  syncPlayerPlaylistQueue(items: IPlaylistItem[]) {
+    console.log('//Synchronize player queue playlist', items)
+    this.room?.send(Message.SYNC_USER_SHORT_PLAYLIST, { items })
   }
 
-  addMyPlaylistItem(item: IPlaylistItem) {
-    console.log('///////////////Network, initialize, addMyPlaylistItem, item', item);
+  syncMusicStream(item?: IPlaylistItem) {
+    console.log('Synchronize music stream', item)
+    this.room?.send(Message.SYNC_MUSIC_STREAM, { item })
+  }
+
+  addPlaylistItem(item: IPlaylistItem) {
+    console.log('Add playlist item, item', item)
     this.room?.send(Message.ADD_PLAYLIST_ITEM, { item })
   }
 
-  deleteMyPlaylistItem(itemIndex: number) {
-    console.log('///////////////Network, initialize, deleteMyPlaylistItem, itemIndex', itemIndex);
+  deletePlaylistItem(itemIndex: number) {
+    console.log('Add playlist item, itemIndex', itemIndex)
     this.room?.send(Message.DELETE_PLAYLIST_ITEM, { itemIndex })
   }
 
   addChatMessage(content: string) {
-    console.log('///////////////Network, initialize, addChatMessage, content', content);
+    console.log('Add chat message, content', content)
     this.room?.send(Message.ADD_CHAT_MESSAGE, { content })
   }
+
+  setUserPlaylistItem(item: IPlaylistItem) {
+    console.log('Set User Playlist Item', item)
+    this.room?.send(Message.SET_USER_PLAYLIST_ITEM, { item })
+  }
+
+  setNextUserPlaylistItem(item: IPlaylistItem) {
+    console.log('Set User Playlist Item', item)
+    this.room?.send(Message.SET_USER_NEXT_PLAYLIST_ITEM, { item })
+  }
+
+
 }

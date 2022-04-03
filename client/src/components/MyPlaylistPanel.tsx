@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useRef, useEffect, useState } from 'react'
 import styled from 'styled-components'
 import InputBase from '@mui/material/InputBase'
@@ -7,8 +8,11 @@ import Fab from '@mui/material/Fab'
 import Game from '../scenes/Game'
 import phaserGame from '../PhaserGame'
 import { useAppSelector, useAppDispatch } from '../hooks'
-import { openMyPlaylistPanel, closeMyPlaylistPanel, setFocused } from '../stores/MyPlaylistStore'
+import { openPlaylistDialog, closePlaylistDialog, setFocused } from '../stores/PlaylistStore'
 import axios from 'axios'
+import store from '../stores'
+import { addItemToPlaylist, syncPlayQueue } from '../stores/PlaylistStore'
+import { v4 as uuidv4 } from 'uuid';
 
 const Backdrop = styled.div`
   position: fixed;
@@ -37,7 +41,7 @@ const Wrapper = styled.div`
   }
 `
 
-const MyPlaylistWrapper = styled.div`
+const PlaylistWrapper = styled.div`
   flex: 1;
   border-radius: 0px;
   border-top: 1px solid #aaa;
@@ -57,9 +61,52 @@ const FabWrapper = styled.div`
   }
 `
 export default function PlaylistDialog() {
-  const showPlaylistDialog = useAppSelector((state) => state.myPlaylist.myPlaylistPanelOpen)
+  const game = phaserGame.scene.keys.game as Game
+  const showPlaylistDialog = useAppSelector((state) => state.playlist.playlistDialogOpen)
   const dispatch = useAppDispatch()
-  // const game = phaserGame.scene.keys.game as Game
+
+  const currentPlaylist = useAppSelector((state) => state.playlist)
+  const playQueue = useAppSelector((state) => state.playlist.playQueue)
+  const currentMusicStream = useAppSelector((state) => state.musicStream)
+
+  useEffect(() => {
+    if (currentPlaylist && currentPlaylist?.items) {
+     
+       /* This currently handle syncing the players playlist on the server with the client */
+
+      console.log('currentlyPlayingsong', currentMusicStream);
+
+      if (currentPlaylist?.items?.length < 2 && !currentMusicStream.link) {
+        const queueItems = currentPlaylist.items.slice(0, 2)
+        console.log('queueItems', queueItems)
+        game.network.syncPlayerPlaylistQueue(queueItems)
+      }
+
+      if (currentMusicStream.link && currentMusicStream?.link === currentPlaylist.items?.[0]?.link) {
+        const queueItems = currentPlaylist.items.slice(0, 2)
+        console.log('queueItems', queueItems)
+        game.network.syncPlayerPlaylistQueue(queueItems)
+      }
+
+      if (currentPlaylist?.items && currentMusicStream.link && currentMusicStream?.link !== currentPlaylist.items?.[0]?.link) {
+        const queueItems = currentPlaylist.items.slice(0, 2)
+        console.log('queueItems', queueItems)
+        game.network.syncPlayerPlaylistQueue(queueItems)
+      }
+
+    
+    }
+  }, [currentPlaylist.items])
+
+  useEffect(() => {
+    console.log('player short queue changed', playQueue)
+    // game.network.syncPlayerPlaylistQueue(playQueue);
+  }, [playQueue])
+
+  const handlePlay = () => {
+    console.log('handlePlay')
+    game.network.syncMusicStream()
+  }
 
   return (
     <Backdrop>
@@ -81,14 +128,14 @@ export default function PlaylistDialog() {
               <IconButton
                 aria-label="close dialog"
                 className="close"
-                onClick={() => dispatch(closeMyPlaylistPanel())}
+                onClick={() => dispatch(closePlaylistDialog())}
               >
                 <CloseIcon />
               </IconButton>
             </div>
-            <MyPlaylistWrapper>
+            <PlaylistWrapper>
               <MusicSearch />
-            </MyPlaylistWrapper>
+            </PlaylistWrapper>
           </>
           )
         </Wrapper>
@@ -99,7 +146,7 @@ export default function PlaylistDialog() {
               color="secondary"
               aria-label="showPlaylistDialog"
               onClick={() => {
-                dispatch(openMyPlaylistPanel())
+                dispatch(openPlaylistDialog())
                 dispatch(setFocused(true))
               }}
             >
@@ -141,7 +188,7 @@ const MusicSearch = () => {
   const [inputValue, setInputValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const dispatch = useAppDispatch()
-  const focused = useAppSelector((state) => state.myPlaylist.focused)
+  const focused = useAppSelector((state) => state.playlist.focused)
   const game = phaserGame.scene.keys.game as Game
 
   useEffect(() => {
@@ -157,7 +204,7 @@ const MusicSearch = () => {
     }
   }, [focused])
 
-  console.log('///////////////MusicSearchPanel, data', data);
+  console.log('data', data)
 
   const handleChange = (event: React.FormEvent<HTMLInputElement>) => {
     setInputValue(event.currentTarget.value)
@@ -170,10 +217,10 @@ const MusicSearch = () => {
   }
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    console.log("///////////////handleKeyDown")
+    console.log('/////////////handleKeyDown')
     if (event.key === 'Escape') {
       inputRef.current?.blur()
-      dispatch(closeMyPlaylistPanel())
+      dispatch(closePlaylistDialog())
     }
   }
 
@@ -191,15 +238,18 @@ const MusicSearch = () => {
     if (durationParts.length === 2) {
       duration = Number(durationParts[0]) * 60 + Number(durationParts[1]) * 60
     }
-    console.log('//////////MusicSearch, handleClick, duration', duration)
+    console.log('////////////////////////duration', duration)
 
     const item: any = {
       title,
       link: id,
+      djId: game.myPlayer.playerId,
+      id: uuidv4(),
       duration,
     }
     // store.dispatch(addItemToPlaylist(item))
-    game.network.addMyPlaylistItem(item)
+    // game.network.addPlaylistItem(item)
+    store.dispatch(addItemToPlaylist(item))
   }
 
   const resultsList =
@@ -236,8 +286,12 @@ const MusicSearch = () => {
         />
       </InputWrapper>
 
-      <button style={{color: '#222'}} onClick={() => setTab('search')}>Search</button>
-      <button style={{color:'#222'}} onClick={() => setTab('playlist')}>Playlist</button>
+      <button style={{ color: '#222' }} onClick={() => setTab('search')}>
+        Search
+      </button>
+      <button style={{ color: '#222' }} onClick={() => setTab('playlist')}>
+        Playlist
+      </button>
 
       {tab === 'search' && <SearchList>{resultsList}</SearchList>}
 
@@ -278,12 +332,13 @@ const YoutubeResult = ({ id, thumbnail, title, length, onClick }) => {
 }
 
 const UserPlaylist = (props) => {
-  const currentPlaylist = useAppSelector((state) => state.myPlaylist)
+  const currentPlaylist = useAppSelector((state) => state.playlist)
 
+  const game = phaserGame.scene.keys.game as Game
   const handleClick = () => {}
 
   const renderPlaylistItems = currentPlaylist?.items?.map((item) => {
-    const { title, duration } = item;
+    const { link, title, duration } = item
     return (
       <ListItem onClick={() => handleClick()}>
         <section>
@@ -294,9 +349,5 @@ const UserPlaylist = (props) => {
     )
   })
 
-  return (
-    <MyPlaylistWrapper>
-      {renderPlaylistItems}
-    </MyPlaylistWrapper>
-  )
+  return <PlaylistWrapper>{renderPlaylistItems}</PlaylistWrapper>
 }

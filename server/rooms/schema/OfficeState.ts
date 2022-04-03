@@ -6,9 +6,13 @@ import {
   IMusicBooth,
   IChatMessage,
   IPlaylistItem,
+  IDJUserInfo,
 } from '../../../types/IOfficeState'
+import Queue from '../../Queue';
 
 export class PlaylistItem extends Schema implements IPlaylistItem {
+  @type('string') id = null
+  @type('string') djId = null
   @type('string') title = ''
   @type('string') link = null
   @type('number') duration = 0
@@ -21,9 +25,10 @@ export class Player extends Schema implements IPlayer {
   @type('string') anim = 'adam_idle_down'
   @type('boolean') readyToConnect = false
   @type('boolean') videoConnected = false
-
-  @type([PlaylistItem])
-  playlistItems = new ArraySchema<PlaylistItem>()
+  @type(PlaylistItem) currentPlaylistItem = new PlaylistItem()
+  @type(PlaylistItem) nextPlaylistItem = new PlaylistItem()
+  @type([PlaylistItem]) 
+  nextTwoPlaylist = new ArraySchema<PlaylistItem>()
 }
 
 export class ChatMessage extends Schema implements IChatMessage {
@@ -32,11 +37,18 @@ export class ChatMessage extends Schema implements IChatMessage {
   @type('string') content = ''
 }
 
+export class DJUserInfo extends Schema implements IDJUserInfo {
+  @type('string') name = null
+  @type('string') sessionId = null
+}
+
 export class MusicStream extends Schema implements IMusicStream {
   @type('string') status = 'waiting' // waiting or seeking or playing
   @type('string') currentLink = null
+  @type('string') currentTitle = null
   @type('number') currentBooth = 0
-  @type('number') startTime = new Date().getTime()
+  @type(DJUserInfo) currentDj = new DJUserInfo()
+  @type('number') startTime = Date.now()
   @type('number') duration = 0
 }
 
@@ -51,11 +63,17 @@ export class OfficeState extends Schema implements IOfficeState {
   @type([MusicBooth])
   musicBooths = new ArraySchema<MusicBooth>()
 
+  @type(['number'])
+  musicBoothQueue = new ArraySchema<number>()
+
   @type([ChatMessage])
   chatMessages = new ArraySchema<ChatMessage>()
 
   @type(MusicStream)
   musicStream = new MusicStream()
+
+  @type(MusicStream)
+  nextStream = new MusicStream()
 }
 
 // const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
