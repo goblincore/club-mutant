@@ -1,9 +1,11 @@
 import http from 'http'
 import express from 'express'
+import expressify from "uwebsockets-express"
 import cors from 'cors'
 import { Server, LobbyRoom } from 'colyseus'
 import { monitor } from '@colyseus/monitor'
 import { WebSocketTransport } from "@colyseus/ws-transport";
+import { uWebSocketsTransport } from "@colyseus/uwebsockets-transport"
 // import socialRoutes from "@colyseus/social/express"
 import * as yt from 'youtube-search-without-api-key'
 
@@ -11,21 +13,19 @@ import * as youtube from './Youtube';
 import { RoomType } from '../types/Rooms'
 
 import { SkyOffice } from './rooms/SkyOffice'
-
+const transport = new uWebSocketsTransport({
+  /* ...options */
+});
 const port = Number(process.env.PORT || 2567)
-const app = express()
+const app = expressify(transport.app);
 
 app.use(cors())
 app.use(express.json())
 // app.use(express.static('dist'))
 
-const server = http.createServer(app)
+// const server = http.createServer(app)
 const gameServer = new Server({
-  transport: new WebSocketTransport({
-    server,
-    pingInterval: 5000,
-    pingMaxRetries: 3,
-})
+  transport
 })
 
 // register room handlers
