@@ -11,6 +11,8 @@ import {
 import Queue from '../../Queue';
 
 export class PlaylistItem extends Schema implements IPlaylistItem {
+  @type('string') id = null
+  @type('string') djId = null
   @type('string') title = ''
   @type('string') link = null
   @type('number') duration = 0
@@ -36,7 +38,7 @@ export class ChatMessage extends Schema implements IChatMessage {
 }
 
 export class DJUserInfo extends Schema implements IDJUserInfo {
-  @type('string') name = ''
+  @type('string') name = null
   @type('string') sessionId = null
 }
 
@@ -45,7 +47,7 @@ export class MusicStream extends Schema implements IMusicStream {
   @type('string') currentLink = null
   @type('string') currentTitle = null
   @type('number') currentBooth = 0
-  @type('string') currentDj = null
+  @type(DJUserInfo) currentDj = new DJUserInfo()
   @type('number') startTime = new Date().getTime()
   @type('number') duration = 0
 }

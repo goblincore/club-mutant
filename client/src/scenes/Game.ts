@@ -245,14 +245,11 @@ export default class Game extends Phaser.Scene {
 
  
     console.log('musicStream handle start music stream game', musicStream);
-   const startTime = musicStream?.startTime;
-    
-    const url = musicStream.currentLink;
-    const title = musicStream.currentTitle;
+    const { currentLink: url , currentTitle:title, currentDj, startTime} = musicStream
 
     console.log('game handle start music stream', url)
 
-    store.dispatch(setMusicStream({url, title, startTime}))
+    store.dispatch(setMusicStream({url, title, currentDj, startTime}))
  
   }
 

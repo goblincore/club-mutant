@@ -22,6 +22,7 @@ export class PlayerSyncShortPlaylist extends Command<IOfficeState, Payload> {
       if (item) {
         newItem.title = item.title
         newItem.link = item.link
+        newItem.djId = client.sessionId
         newItem.duration = item.duration
         player.nextTwoPlaylist.setAt(0, newItem)
       }
@@ -32,6 +33,7 @@ export class PlayerSyncShortPlaylist extends Command<IOfficeState, Payload> {
       if (item) {
         newItem.title = item.title
         newItem.link = item.link
+        newItem.djId = client.sessionId
         newItem.duration = item.duration
         player.nextTwoPlaylist.setAt(1, newItem)
       }

@@ -14,8 +14,8 @@ export interface IPlayer extends Schema {
 }
 
 export interface IDJUserInfo extends Schema {
-  name: string
-  sessionId: string
+  name: string | null
+  sessionId: string | null
 }
 
 export interface IMusicBooth extends Schema {
@@ -29,6 +29,8 @@ export interface IChatMessage extends Schema {
 }
 
 export interface IPlaylistItem extends Schema {
+  id: string
+  djId: string
   title: string
   link: string
   duration: number

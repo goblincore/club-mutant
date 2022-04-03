@@ -12,6 +12,7 @@ import { openPlaylistDialog, closePlaylistDialog, setFocused } from '../stores/P
 import axios from 'axios'
 import store from '../stores'
 import { addItemToPlaylist, syncPlayQueue } from '../stores/PlaylistStore'
+import { v4 as uuidv4 } from 'uuid';
 
 const Backdrop = styled.div`
   position: fixed;
@@ -67,6 +68,7 @@ export default function PlaylistDialog() {
   const currentPlaylist = useAppSelector((state) => state.playlist)
   const playQueue = useAppSelector((state) => state.playlist.playQueue)
   const currentMusicStream = useAppSelector((state) => state.musicStream)
+
   useEffect(() => {
     if (currentPlaylist && currentPlaylist?.items) {
      
@@ -86,7 +88,7 @@ export default function PlaylistDialog() {
         game.network.syncPlayerPlaylistQueue(queueItems)
       }
 
-      if (currentMusicStream.link && currentMusicStream?.link !== currentPlaylist.items?.[0]?.link) {
+      if (currentPlaylist?.items && currentMusicStream.link && currentMusicStream?.link !== currentPlaylist.items?.[0]?.link) {
         const queueItems = currentPlaylist.items.slice(0, 2)
         console.log('queueItems', queueItems)
         game.network.syncPlayerPlaylistQueue(queueItems)
@@ -95,7 +97,7 @@ export default function PlaylistDialog() {
     
     }
   }, [currentPlaylist.items])
-  
+
   useEffect(() => {
     console.log('player short queue changed', playQueue)
     // game.network.syncPlayerPlaylistQueue(playQueue);
@@ -241,6 +243,8 @@ const MusicSearch = () => {
     const item: any = {
       title,
       link: id,
+      djId: game.myPlayer.playerId,
+      id: uuidv4(),
       duration,
     }
     // store.dispatch(addItemToPlaylist(item))

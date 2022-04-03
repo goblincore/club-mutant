@@ -4,7 +4,9 @@ import { Player, PlaylistItem, DJUserInfo } from '../schema/OfficeState'
 import { IOfficeState, IPlaylistItem, IDJUserInfo} from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
 
+
 type Payload = {
+  client: Client
   item: IPlaylistItem 
 }
 
@@ -21,6 +23,10 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
     let startIndex: number = 0
     if (musicBooths.length > 1 && musicStream.currentBooth) {
       startIndex = musicStream.currentBooth
+    } 
+
+    if(this.room.state.musicBoothQueue?.length === 1) {
+      startIndex = musicBooths.findIndex(musicbooth => musicbooth.connectedUser)
     }
 
     const nextMusicBooth = this.state.musicBoothQueue.shift();
@@ -47,24 +53,26 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
          
 
             console.log('//MUSICBOOTH PLAYER', 'INDEX BOOTH', nextBoothIndex, 'playerId', player.name);
-            // if(data.item && data.item?.link){
-            //   console.log('//////////DATA ITEM', data.item);
-            //   const newItem = new PlaylistItem()
-            //   newItem.title = data.item.title
-            //   newItem.link = data.item.link
-            //   newItem.duration = data.item.duration
+            if(data.item && data.item?.link && nextMusicBooth.connectedUser === data.item.djId){
+              console.log('//////////DATA ITEM', data.item);
+              const newItem = new PlaylistItem()
+              newItem.title = data.item.title
+              newItem.link = data.item.link
+              newItem.djId = data.item.djId
+              newItem.duration = data.item.duration
               
-            //   player.nextTwoPlaylist.setAt(1, newItem);
-            // }
+              player.nextTwoPlaylist.setAt(1, newItem);
+            }
          
             if (player.nextTwoPlaylist.length > 0) {
               const playbackItem = player.nextTwoPlaylist.shift();
-              // const djInfo = new DJUserInfo();
-              // djInfo.name = player.name;
+              const djInfo = new DJUserInfo();
+              djInfo.name = player.name
+              djInfo.sessionId = playbackItem.djId
               musicStream.status = 'playing'
               musicStream.currentLink = playbackItem.link
               musicStream.currentBooth = nextBoothIndex
-              // musicStream.currentDj = djInfo
+              musicStream.currentDj = djInfo
               musicStream.currentTitle = playbackItem.title
               musicStream.startTime = new Date().getTime()
               musicStream.duration =  playbackItem.duration

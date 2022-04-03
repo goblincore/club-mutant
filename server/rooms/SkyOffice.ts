@@ -64,7 +64,7 @@ export class SkyOffice extends Room<OfficeState> {
       // item.duration = musicStream.duration
       // this.dispatcher.dispatch(new PlayerPlaylistEnqueueCommand(), {client, item })
      
-      this.dispatcher.dispatch(new MusicStreamNextCommand(), { item: message?.item })
+      this.dispatcher.dispatch(new MusicStreamNextCommand(), { client, item: message?.item })
     })
 
     // when a player connects to a music booth
@@ -88,7 +88,7 @@ export class SkyOffice extends Room<OfficeState> {
           '///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status',
           this.state.musicStream.status
         )
-        if ((this.state.musicStream.status === 'waiting')) {
+        if ((this.state.musicStream.status === 'waiting' || this.state.musicStream.status === 'seeking')) {
           console.log('////////MUSIC STREAM NEXT COMMAND INVOKE')
           const player = this.state.players.get(client.sessionId)
           // console.log('////GET PLAYER', player);

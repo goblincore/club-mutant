@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+/* eslint-disable react-hooks/exhaustive-deps */
+import { useRef, useState, useEffect } from 'react'
 import ReactPlayer from 'react-player/youtube'
 import styled from 'styled-components'
 import Game from '../scenes/Game'
@@ -37,6 +38,7 @@ export default function YoutubePlayer() {
   const link = useAppSelector((state) => state.musicStream.link)
   const startTime = useAppSelector((state) => state.musicStream.startTime)
   const title = useAppSelector((state) => state.musicStream.title)
+  const currentDj = useAppSelector((state) => state.musicStream.currentDj)
   const [isBuffering, setIsBuffering] = useState(true) 
   const currentPlaylist = useAppSelector((state) => state.playlist)
 
@@ -55,6 +57,9 @@ export default function YoutubePlayer() {
     }
   }
 
+
+
+
   const handleOnBufferEnd = () => {
     if(isBuffering){
       setIsBuffering(false);
@@ -65,10 +70,15 @@ export default function YoutubePlayer() {
   const handleOnEnded = () => {
      const nextItem = currentPlaylist.items[1];
      console.log('nextItem', nextItem);
+     if(!isBuffering){
+      setIsBuffering(true);
+    }
+    if(currentDj?.sessionId === game.myPlayer.playerId){
      dispatch(shiftPlaylist())
      if(nextItem){
       game.network.syncMusicStream(nextItem)
      }
+    }
   }
 
   return (

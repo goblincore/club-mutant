@@ -179,7 +179,8 @@ export default class Network {
     })
 
     // when the server sends room data
-    this.room.onMessage(Message.SYNC_MUSIC_STREAM, () => {
+    this.room.onMessage(Message.SYNC_MUSIC_STREAM, (item) => {
+      console.log('SERVER NETWORK SEND ON MESSAGE SYNC MUSIC', item);
       this.syncMusicStream()
     })
 
