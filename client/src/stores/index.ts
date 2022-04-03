@@ -4,9 +4,10 @@ import { enableMapSet } from 'immer'
 import userReducer from './UserStore'
 import chatReducer from './ChatStore'
 import roomReducer from './RoomStore'
-import playlistReducer from './PlaylistStore';
+import myPlaylistReducer from './MyPlaylistStore';
 import musicBoothReducer from './MusicBoothStore';
 import musicStreamReducer from './MusicStreamStore';
+import playlistReducer from './PlaylistStore';
 
 enableMapSet()
 
@@ -14,6 +15,7 @@ enableMapSet()
 const store = configureStore({
   reducer: {
     user: userReducer,
+    myPlaylist: myPlaylistReducer,
     playlist: playlistReducer,
     musicBooth: musicBoothReducer,
     musicStream: musicStreamReducer,

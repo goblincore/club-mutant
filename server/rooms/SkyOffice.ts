@@ -9,14 +9,9 @@ import { Message } from '../../types/Messages'
 import PlayerUpdateActionCommand from './commands/PlayerUpdateActionCommand'
 import PlayerUpdateNameCommand from './commands/PlayerUpdateNameCommand'
 import {
-  PlayerAddItemToPlaylistCommand,
-  PlayerPlaylistEnqueueCommand,
-  PlayerPlaylistDequeueCommand,
-  PlayerRemoveItemFromPlaylistCommand,
   PlayerSetCurrentPlaylistItemCommand,
   PlayerSetNextPlaylistItemCommand,
   PlayerSyncShortPlaylist,
-  PlayerUnshiftPlaylistCommand,
 } from './commands/PlayerUpdatePlaylistCommand'
 
 import {
@@ -24,9 +19,7 @@ import {
   MusicBoothDisconnectUserCommand,
 } from './commands/MusicBoothUpdateCommand'
 
-import {
-  MusicStreamNextCommand,
-} from './commands/MusicStreamUpdateCommand'
+import { MusicStreamNextCommand } from './commands/MusicStreamUpdateCommand'
 
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 
@@ -58,11 +51,11 @@ export class SkyOffice extends Room<OfficeState> {
     }
 
     // when a player starts playing a song
-    this.onMessage(Message.SYNC_MUSIC_STREAM, (client, message: { item?: PlaylistItem}) => {
+    this.onMessage(Message.SYNC_MUSIC_STREAM, (client, message: { item?: PlaylistItem }) => {
       // Dequeue
       // this.dispatcher.dispatch(new PlayerPlaylistDequeueCommand(), {client})
-      console.log('///ON MESSSAGE SYNYC MUSIC STREAM', message?.item);
-      console.log('///ON MESSSAGE SYNYC MUSIC STREAM', message?.item);
+      console.log('///ON MESSSAGE SYNYC MUSIC STREAM', message?.item)
+      console.log('///ON MESSSAGE SYNYC MUSIC STREAM', message?.item)
       // this is not ideal, would like to take the popped item and call enqueue with it?
       // const musicStream = this.state.musicStream;
       // const item = new PlaylistItem()
@@ -70,32 +63,40 @@ export class SkyOffice extends Room<OfficeState> {
       // item.link = musicStream.currentLink
       // item.duration = musicStream.duration
       // this.dispatcher.dispatch(new PlayerPlaylistEnqueueCommand(), {client, item })
-    
-      this.dispatcher.dispatch(new MusicStreamNextCommand(), {item: message?.item})
+
+      this.dispatcher.dispatch(new MusicStreamNextCommand(), { item: message?.item })
     })
 
     // when a player connects to a music booth
-    this.onMessage(Message.CONNECT_TO_MUSIC_BOOTH, (client, message: { musicBoothIndex: number }) => {
-      console.log('/////onMessage, CONNECT_TO_USER_BOOth client sesiondId', client.sessionId);
-      console.log("///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, message.musicBoothIndex", message.musicBoothIndex)
-      this.dispatcher.dispatch(new MusicBoothConnectUserCommand(), {
-        client,
-        musicBoothIndex: message.musicBoothIndex,
-      })
-      console.log('///////connectToMusicBooth client', client.sessionId);
-      console.log("///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status", this.state.musicStream.status)
-      if (this.state.musicStream.status = 'waiting') {
-        console.log('////////MUSIC STREAM NEXT COMMAND INVOKE')
-        const player = this.state.players.get(client.sessionId);
-        // console.log('////GET PLAYER', player);
-       
+    this.onMessage(
+      Message.CONNECT_TO_MUSIC_BOOTH,
+      (client, message: { musicBoothIndex: number }) => {
+        console.log('/////onMessage, CONNECT_TO_USER_BOOth client sesiondId', client.sessionId)
+        console.log(
+          '///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, message.musicBoothIndex',
+          message.musicBoothIndex
+        )
+        this.dispatcher.dispatch(new MusicBoothConnectUserCommand(), {
+          client,
+          musicBoothIndex: message.musicBoothIndex,
+        })
+        console.log('///////connectToMusicBooth client', client.sessionId)
+        console.log(
+          '///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status',
+          this.state.musicStream.status
+        )
+        if ((this.state.musicStream.status = 'waiting')) {
+          console.log('////////MUSIC STREAM NEXT COMMAND INVOKE')
+          const player = this.state.players.get(client.sessionId)
+          // console.log('////GET PLAYER', player);
+
           // const currentItem = player.nextTwoPlaylist.shift();
-         
+
           // console.log('///currentItem title', currentItem.title);
-        this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
-        
+          this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+        }
       }
-    })
+    )
 
     // when a player disconnects from a music booth, remove the user to the musicBooth connectedUser array
     this.onMessage(
@@ -154,32 +155,35 @@ export class SkyOffice extends Room<OfficeState> {
       )
     })
 
-    this.onMessage(Message.SYNC_USER_SHORT_PLAYLIST, (client, message: { items: PlaylistItem[]}) => {
-      console.log('/////////onMessage, SYNC USER SHORT PLAYLIST', message.items);
-      this.dispatcher.dispatch(new PlayerSyncShortPlaylist(), {
-        client,
-        items: message.items,
-      })
-    })
+    this.onMessage(
+      Message.SYNC_USER_SHORT_PLAYLIST,
+      (client, message: { items: PlaylistItem[] }) => {
+        console.log('/////////onMessage, SYNC USER SHORT PLAYLIST', message.items)
+        this.dispatcher.dispatch(new PlayerSyncShortPlaylist(), {
+          client,
+          items: message.items,
+        })
+      }
+    )
 
-
-    this.onMessage(Message.SET_USER_NEXT_PLAYLIST_ITEM, (client, message: { item: PlaylistItem }) => {
-      console.log('////SET NEXT USER PLAYLIST ITEM', message.item );
-      this.dispatcher.dispatch(new PlayerSetNextPlaylistItemCommand(), {
-        client,
-        item: message.item,
-      })
-    })
+    this.onMessage(
+      Message.SET_USER_NEXT_PLAYLIST_ITEM,
+      (client, message: { item: PlaylistItem }) => {
+        console.log('////SET NEXT USER PLAYLIST ITEM', message.item)
+        this.dispatcher.dispatch(new PlayerSetNextPlaylistItemCommand(), {
+          client,
+          item: message.item,
+        })
+      }
+    )
 
     this.onMessage(Message.SET_USER_PLAYLIST_ITEM, (client, message: { item: PlaylistItem }) => {
-      console.log('////SET USER PLAYLIST ITEM', message.item );
+      console.log('////SET USER PLAYLIST ITEM', message.item)
       this.dispatcher.dispatch(new PlayerSetCurrentPlaylistItemCommand(), {
         client,
         item: message.item,
       })
     })
-
-    
   }
 
   async onAuth(client: Client, options: { password: string | null }) {
@@ -194,26 +198,25 @@ export class SkyOffice extends Room<OfficeState> {
 
   // when a new player joins, send room data
   onJoin(client: Client, options: any) {
-    console.log("///////////////////////onJoin, client", client)
+    console.log('///////////////onJoin, client', client)
     this.state.players.set(client.sessionId, new Player())
     client.send(Message.SEND_ROOM_DATA, {
       id: this.roomId,
       name: this.name,
       description: this.description,
     })
-    console.log("///////////////////////onJoin, Message.SEND_ROOM_DATA")
-
+    console.log('///////////////onJoin, Message.SEND_ROOM_DATA')
 
     const musicStream = this.state.musicStream
-    console.log('this state musicStream', musicStream);
+    console.log('this state musicStream', musicStream)
     if (musicStream.status === 'playing') {
       const currentTime: number = new Date().getTime()
       client.send(Message.START_MUSIC_STREAM, {
         musicStream: musicStream,
-        offset: (currentTime - musicStream.startTime) / 1000
+        offset: (currentTime - musicStream.startTime) / 1000,
       })
     }
-    console.log("///////////////////////onJoin, musicStream.status", musicStream.status)
+    console.log('///////////////onJoin, musicStream.status', musicStream.status)
   }
 
   onLeave(client: Client, consented: boolean) {

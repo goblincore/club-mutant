@@ -10,7 +10,7 @@ const config: Phaser.Types.Core.GameConfig = {
     createContainer: true,
   },
   backgroundColor: '#93cbee',
-  pixelArt: false, // Prevent pixel art from becoming blurred when scaled.
+  pixelArt: false,
   scale: {
     mode: Phaser.Scale.ScaleModes.RESIZE,
     width: window.innerWidth,

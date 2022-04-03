@@ -12,8 +12,6 @@ export class MusicBoothConnectUserCommand extends Command<IOfficeState, Payload>
     const { client, musicBoothIndex } = data
     const clientId = client.sessionId
     const musicBooth = this.room.state.musicBooths[musicBoothIndex]
- 
-
     if (musicBooth.connectedUser !== null) return
     musicBooth.connectedUser = clientId
     console.log('//////////MusicBoothConnectUserCommand, musicBooth.connectedUser', musicBooth.connectedUser)
@@ -25,7 +23,7 @@ export class MusicBoothDisconnectUserCommand extends Command<IOfficeState, Paylo
     const { client, musicBoothIndex } = data
     const clientId = client.sessionId
     const musicBooth = this.state.musicBooths[musicBoothIndex]
-    console.log('//////////MusicBoothDisconnectUserCommand, musicBooth', musicBooth)
+    console.log('///////////////MusicBoothDisconnectUserCommand, musicBooth', musicBooth)
 
     if (musicBooth.connectedUser === clientId) {
       musicBooth.connectedUser = null

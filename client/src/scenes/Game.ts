@@ -4,7 +4,7 @@ import { createCharacterAnims } from '../anims/CharacterAnims'
 
 import Item from '../items/Item'
 import MusicBooth from '../items/MusicBooth'
-import { LilYoutubePlayer } from '../items/MediaPlayer'
+import { MyYoutubePlayer } from '../items/MediaPlayer'
 
 import '../characters/MyPlayer'
 import '../characters/OtherPlayer'
@@ -12,8 +12,8 @@ import MyPlayer from '../characters/MyPlayer'
 import OtherPlayer from '../characters/OtherPlayer'
 import PlayerSelector from '../characters/PlayerSelector'
 
-import { IOfficeState, IPlayer, IMusicBooth, IPlaylistItem, IMusicStream } from '../../../types/IOfficeState'
-import { PlayerBehavior } from '../../../types/PlayerBehavior'
+import { IPlayer, IMusicStream } from '../../../types/IOfficeState'
+import { PlayerBehavior } from '../../../types/Players'
 import { ItemType } from '../../../types/Items'
 
 import Network from '../services/Network'
@@ -33,8 +33,7 @@ export default class Game extends Phaser.Scene {
   private otherPlayers!: Phaser.Physics.Arcade.Group
   private otherPlayerMap = new Map<string, OtherPlayer>()
   private musicBoothMap = new Map<number, MusicBooth>()
-  private youtubePlayer?: LilYoutubePlayer
-  private youtubeUrl: string = ''
+  private myYoutubePlayer?: MyYoutubePlayer
 
   constructor() {
     super('game')
@@ -130,17 +129,17 @@ export default class Game extends Phaser.Scene {
     //   height: 180,
     // }
 
-    // this.youtubePlayer = new LilYoutubePlayer({ ...youtubePlayerProps })
-    // this.youtubePlayer.load(this.youtubeUrl, false)
-    // this.youtubePlayer.alpha = 0
+    // this.myYoutubePlayer = new MyYoutubePlayer({ ...youtubePlayerProps })
+    // this.myYoutubePlayer.load(this.youtubeUrl, false)
+    // this.myYoutubePlayer.alpha = 0
     // const currentLink = store.getState().musicStream.link
     // if (currentLink !== null) {
-    //   this.youtubePlayer?.load(currentLink)
-    //   if (this.youtubePlayer) {
-    //     this.youtubePlayer.alpha = 0.5
-    //     this.youtubePlayer.blendMode = Phaser.BlendModes.SCREEN
+    //   this.myYoutubePlayer?.load(currentLink)
+    //   if (this.myYoutubePlayer) {
+    //     this.myYoutubePlayer.alpha = 0.5
+    //     this.myYoutubePlayer.blendMode = Phaser.BlendModes.SCREEN
     //   }
-    //   this.youtubePlayer?.play()
+    //   this.myYoutubePlayer?.play()
     // }
 
     // register network event listeners
@@ -235,7 +234,7 @@ export default class Game extends Phaser.Scene {
   }
 
   private handleChatMessageAdded(playerId: string, content: string) {
-    console.log('////////////////////handleChatMessageAdded')
+    console.log('///////////////handleChatMessageAdded')
     const otherPlayer = this.otherPlayerMap.get(playerId)
     otherPlayer?.updateDialogBubble(content)
   }
@@ -258,9 +257,9 @@ export default class Game extends Phaser.Scene {
   }
 
   private handleStopMusicStream() {
-    console.log('/////////////////////handleStopMusicStream')
+    console.log('///////////////handleStopMusicStream')
     store.dispatch(setMusicStream(null));
-    this.youtubePlayer?.pause();
+    this.myYoutubePlayer?.pause();
   }
 
   update(t: number, dt: number) {

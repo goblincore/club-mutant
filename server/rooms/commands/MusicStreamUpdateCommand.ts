@@ -10,7 +10,7 @@ type Payload = {
 
 export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
   execute(data: Payload) {
-    console.log("//////////////////////MusicStreamNextCommand, data", data)
+    console.log("///////////////MusicStreamNextCommand, data", data)
     this.clock.clear()
     const musicStream = this.room.state.musicStream
     const musicBooths = this.room.state.musicBooths
@@ -103,7 +103,7 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
         Message.STOP_MUSIC_STREAM,
         {},
       )
-      console.log("//////////////////////MusicStreamNextCommand, broadcast, STOP_MUSIC_STREAM")
+      console.log("///////////////MusicStreamNextCommand, broadcast, STOP_MUSIC_STREAM")
     }
   }
 }

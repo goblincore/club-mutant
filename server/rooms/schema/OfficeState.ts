@@ -61,12 +61,12 @@ export class OfficeState extends Schema implements IOfficeState {
   musicStream = new MusicStream()
 }
 
-const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-const charactersLength = characters.length
+// const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+// const charactersLength = characters.length
 
-function getRoomId() {
-  let result = ''
-  for (let i = 0; i < 12; i++) {
-    result += characters.charAt(Math.floor(Math.random() * charactersLength))
-  }
-}
+// function getRoomId() {
+//   let result = ''
+//   for (let i = 0; i < 12; i++) {
+//     result += characters.charAt(Math.floor(Math.random() * charactersLength))
+//   }
+// }

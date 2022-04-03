@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import Network from '../services/Network'
-import { BackgroundMode } from '../../../types/BackgroundMode'
+import { BackgroundMode } from '../../../types/Backgrounds'
 import store from '../stores'
 import { setRoomJoined } from '../stores/RoomStore'
 
@@ -102,7 +102,6 @@ export default class Bootstrap extends Phaser.Scene {
       network: this.network,
     })
 
-    // update Redux state
     store.dispatch(setRoomJoined(true))
   }
 

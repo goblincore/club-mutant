@@ -3,10 +3,11 @@ import express from 'express'
 import cors from 'cors'
 import { Server, LobbyRoom } from 'colyseus'
 import { monitor } from '@colyseus/monitor'
-import { RoomType } from '../types/Rooms'
-import * as yt from 'youtube-search-without-api-key'
-import * as youtube from './Youtube';
 // import socialRoutes from "@colyseus/social/express"
+import * as yt from 'youtube-search-without-api-key'
+
+import * as youtube from './Youtube';
+import { RoomType } from '../types/Rooms'
 
 import { SkyOffice } from './rooms/SkyOffice'
 
@@ -48,14 +49,14 @@ console.log(`Listening on ws://localhost:${port}`)
 
 app.get('/youtube/:search', async (req, res, next) => {
   const { search } = req.params;
-  console.log('request search', search);
+  console.log('///////////////app.get(/youtube/:search)', search);
   try {
     // We will be coding here
     // const videos = await yt.search('dj lostboi')
     const videos = await youtube.GetData(search, false, 24);
     res.json(videos)
   } catch (e) {
-    console.log('e', e)
+    console.log('///////////////app.get(/youtube/:search), catch, e', e)
     return next(e);
   }
 })

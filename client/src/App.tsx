@@ -4,9 +4,9 @@ import { useAppSelector } from './hooks'
 
 import RoomSelectionDialog from './components/RoomSelectionDialog'
 import LoginDialog from './components/LoginDialog'
-import PlaylistDialog from './components/PlaylistDialog'
+import ChatPanel from './components/ChatPanel'
+import MyPlaylistPanel from './components/MyPlaylistPanel'
 import YoutubePlayer from './components/YoutubePlayer'
-import Chat from './components/Chat'
 
 const Backdrop = styled.div`
   position: absolute;
@@ -22,8 +22,8 @@ function App() {
   if (loggedIn) {
     ui = (
       <>
-        <Chat />
-        <PlaylistDialog />
+        <ChatPanel />
+        <MyPlaylistPanel />
         <YoutubePlayer />
       </>
     )

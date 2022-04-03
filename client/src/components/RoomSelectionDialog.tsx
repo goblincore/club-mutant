@@ -1,5 +1,4 @@
 import React, { useState } from 'react'
-import logo from '../assets/logo.png'
 import styled from 'styled-components'
 import Button from '@mui/material/Button'
 import IconButton from '@mui/material/IconButton'
@@ -16,6 +15,7 @@ import { useAppSelector } from '../hooks'
 
 import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
+import logo from '../assets/logo.png'
 
 const Backdrop = styled.div`
   position: absolute;
@@ -166,7 +166,7 @@ export default function RoomSelectionDialog() {
             </CustomRoomWrapper>
           ) : (
             <>
-              <Title>my lily world</Title>
+              <Title>My Lily World</Title>
               <Content>
                 <img src={logo} alt="logo" />
                 <Button variant="contained" color="secondary" onClick={handleConnect}>

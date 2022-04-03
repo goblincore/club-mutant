@@ -10,7 +10,6 @@ type Payload = {
   items?: IPlaylistItem[]
 }
 
-
 export class PlayerSyncShortPlaylist extends Command<IOfficeState, Payload> {
   execute(data: Payload) {
     const { client, items } = data

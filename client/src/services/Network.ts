@@ -174,12 +174,12 @@ export default class Network {
     })
 
     // when the server sends room data
-    this.room.onMessage(Message.STOP_MUSIC_STREAM, ({}) => {
-      phaserEvents.emit(Event.STOP_PLAYING_MEDIA, {})
+    this.room.onMessage(Message.STOP_MUSIC_STREAM, () => {
+      phaserEvents.emit(Event.STOP_PLAYING_MEDIA)
     })
 
     // when the server sends room data
-    this.room.onMessage(Message.SYNC_MUSIC_STREAM, ({}) => {
+    this.room.onMessage(Message.SYNC_MUSIC_STREAM, () => {
       this.syncMusicStream()
     })
 
@@ -252,24 +252,24 @@ export default class Network {
 
   // method to send player name to Colyseus server
   updatePlayerName(currentName: string) {
-    console.log('Update player name, currentName', currentName)
+    console.log('///////////////Network, initialize, updatePlayerName, currentName', currentName)
     this.room?.send(Message.UPDATE_PLAYER_NAME, { name: currentName })
   }
 
   // method to send ready-to-connect signal to Colyseus server
   readyToConnect() {
-    console.log('Ready to connect')
+    console.log('///////////////Network, initialize, readyToConnect')
     this.room?.send(Message.READY_TO_CONNECT)
     phaserEvents.emit(Event.MY_PLAYER_READY)
   }
 
   connectToMusicBooth(index: number) {
-    console.log('Connect to music booth, index', index)
+    console.log('///////////////Network, initialize, connectToMusicBooth, index', index)
     this.room?.send(Message.CONNECT_TO_MUSIC_BOOTH, { musicBoothIndex: index })
   }
 
   disconnectFromMusicBooth(index: number) {
-    console.log('Disconnect from music booth, index')
+    console.log('///////////////Network, initialize, disconnectFromMusicBooth, index')
     this.room?.send(Message.DISCONNECT_FROM_MUSIC_BOOTH, { musicBoothIndex: index })
   }
 

@@ -1,5 +1,4 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-import React, { useRef, useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import ReactPlayer from 'react-player/youtube'
 import styled from 'styled-components'
 import Game from '../scenes/Game'
@@ -32,7 +31,6 @@ const Wrapper = styled.div`
   }
 `
 
-
 export default function YoutubePlayer() {
   const dispatch = useAppDispatch()
   const game = phaserGame.scene.keys.game as Game
@@ -43,15 +41,13 @@ export default function YoutubePlayer() {
   const currentPlaylist = useAppSelector((state) => state.playlist)
 
   const currentTime: number = new Date().getTime()
-      const syncTime = (currentTime - startTime) / 1000;
-      const url = 'http://www.youtube.com/watch?v=' + link + '#t=' + syncTime + 's'
+  const syncTime = (currentTime - startTime) / 1000;
+  const url = 'http://www.youtube.com/watch?v=' + link + '#t=' + syncTime + 's'
 
   const playerRef = useRef<any>();
 
-
-
   const handleReady = e => {
-    console.log('playerReady');
+    console.log('///////////////YoutubePlayer, handlePlay, e', e);
     if(!isBuffering){
     const currentTime: number = new Date().getTime()
       const syncTime = (currentTime - startTime) / 1000;
@@ -60,9 +56,9 @@ export default function YoutubePlayer() {
   }
 
   const handleOnBufferEnd = () => {
-     if(isBuffering){
-       setIsBuffering(false);
-     }
+    if(isBuffering){
+      setIsBuffering(false);
+    }
   }
 
 
@@ -94,8 +90,8 @@ export default function YoutubePlayer() {
             </section>
         </Wrapper>
         :
-        <Wrapper>
-        </Wrapper>
+          <Wrapper>
+          </Wrapper>
       }
     </Backdrop>
   )

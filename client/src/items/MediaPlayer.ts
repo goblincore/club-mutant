@@ -9,7 +9,7 @@ interface Props {
     config?: any;
 }
 
-export class LilYoutubePlayer extends YoutubePlayer {
+export class MyYoutubePlayer extends YoutubePlayer {
     constructor({ scene, x, y, width, height, config }: Props) {
         super(scene, x, y, width, height, config);
         scene.add.existing(this);
