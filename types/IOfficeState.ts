@@ -13,6 +13,11 @@ export interface IPlayer extends Schema {
   nextTwoPlaylist: ArraySchema<IPlaylistItem>
 }
 
+export interface IDJUserInfo extends Schema {
+  name: string
+  sessionId: string
+}
+
 export interface IMusicBooth extends Schema {
   connectedUser: string
 }
@@ -33,6 +38,7 @@ export interface IMusicStream extends Schema {
   status: string // waiting or seeking or playing
   currentLink: string
   currentTitle: string
+  currentDj: IDJUserInfo
   currentBooth: number
   startTime: number
   duration: number
@@ -41,6 +47,8 @@ export interface IMusicStream extends Schema {
 export interface IOfficeState extends Schema {
   players: MapSchema<IPlayer>
   musicBooths: ArraySchema<IMusicBooth>
+  musicBoothQueue: ArraySchema<IMusicBooth>
   chatMessages: ArraySchema<IChatMessage>
   musicStream: IMusicStream
+  nextStream: IMusicStream
 }

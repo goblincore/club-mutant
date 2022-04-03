@@ -70,13 +70,11 @@ export default function PlaylistDialog() {
 
   useEffect(() => {
     if (currentPlaylist && currentPlaylist?.items) {
-      // game.network.setUserPlaylistItem(currentPlaylist?.items?.[0]);
-      // game.network.setNextUserPlaylistItem(currentPlaylist?.items?.[1]);
-    
+     
+       /* This currently handle syncing the players playlist on the server with the client */
 
       console.log('currentlyPlayingsong', currentMusicStream);
 
-      // game.network.setUserPlaylistItem()
       if (currentPlaylist?.items?.length < 2 && !currentMusicStream.link) {
         const queueItems = currentPlaylist.items.slice(0, 2)
         console.log('queueItems', queueItems)
@@ -89,17 +87,13 @@ export default function PlaylistDialog() {
         game.network.syncPlayerPlaylistQueue(queueItems)
       }
 
-      if (currentPlaylist?.items?.length < 2 && currentMusicStream.link && currentMusicStream?.link !== currentPlaylist.items?.[0]?.link) {
+      if (currentMusicStream.link && currentMusicStream?.link !== currentPlaylist.items?.[0]?.link) {
         const queueItems = currentPlaylist.items.slice(0, 2)
         console.log('queueItems', queueItems)
         game.network.syncPlayerPlaylistQueue(queueItems)
       }
 
-      // if (playQueue.length < 2 && isCurrentlyPlaying) {
-      //   const queueItems = currentPlaylist.items.slice(1, 3)
-      //   console.log('queueItems', queueItems)
-      //   game.network.syncPlayerPlaylistQueue(queueItems)
-      // }
+    
     }
   }, [currentPlaylist.items])
 

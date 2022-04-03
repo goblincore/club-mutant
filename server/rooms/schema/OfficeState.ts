@@ -6,6 +6,7 @@ import {
   IMusicBooth,
   IChatMessage,
   IPlaylistItem,
+  IDJUserInfo,
 } from '../../../types/IOfficeState'
 import Queue from '../../Queue';
 
@@ -34,11 +35,17 @@ export class ChatMessage extends Schema implements IChatMessage {
   @type('string') content = ''
 }
 
+export class DJUserInfo extends Schema implements IDJUserInfo {
+  @type('string') name = ''
+  @type('string') sessionId = null
+}
+
 export class MusicStream extends Schema implements IMusicStream {
   @type('string') status = 'waiting' // waiting or seeking or playing
   @type('string') currentLink = null
   @type('string') currentTitle = null
   @type('number') currentBooth = 0
+  @type('string') currentDj = null
   @type('number') startTime = new Date().getTime()
   @type('number') duration = 0
 }
@@ -54,11 +61,17 @@ export class OfficeState extends Schema implements IOfficeState {
   @type([MusicBooth])
   musicBooths = new ArraySchema<MusicBooth>()
 
+  @type([MusicBooth])
+  musicBoothQueue = new ArraySchema<MusicBooth>()
+
   @type([ChatMessage])
   chatMessages = new ArraySchema<ChatMessage>()
 
   @type(MusicStream)
   musicStream = new MusicStream()
+
+  @type(MusicStream)
+  nextStream = new MusicStream()
 }
 
 // const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'

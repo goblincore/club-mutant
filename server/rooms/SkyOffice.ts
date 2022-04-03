@@ -55,7 +55,7 @@ export class SkyOffice extends Room<OfficeState> {
       // Dequeue
       // this.dispatcher.dispatch(new PlayerPlaylistDequeueCommand(), {client})
       console.log('///ON MESSSAGE SYNYC MUSIC STREAM', message?.item)
-      console.log('///ON MESSSAGE SYNYC MUSIC STREAM', message?.item)
+      console.log('///ON MESSSAGE SYNC USER PLAYLIST QUEUE', message?.item)
       // this is not ideal, would like to take the popped item and call enqueue with it?
       // const musicStream = this.state.musicStream;
       // const item = new PlaylistItem()
@@ -63,7 +63,7 @@ export class SkyOffice extends Room<OfficeState> {
       // item.link = musicStream.currentLink
       // item.duration = musicStream.duration
       // this.dispatcher.dispatch(new PlayerPlaylistEnqueueCommand(), {client, item })
-
+     
       this.dispatcher.dispatch(new MusicStreamNextCommand(), { item: message?.item })
     })
 
@@ -80,6 +80,9 @@ export class SkyOffice extends Room<OfficeState> {
           client,
           musicBoothIndex: message.musicBoothIndex,
         })
+
+        this.state.musicBoothQueue.push(this.state.musicBooths[message.musicBoothIndex])
+       
         console.log('///////connectToMusicBooth client', client.sessionId)
         console.log(
           '///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status',

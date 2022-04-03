@@ -67,7 +67,6 @@ export default function PlaylistDialog() {
   const currentPlaylist = useAppSelector((state) => state.playlist)
   const playQueue = useAppSelector((state) => state.playlist.playQueue)
   const currentMusicStream = useAppSelector((state) => state.musicStream)
-
   useEffect(() => {
     if (currentPlaylist && currentPlaylist?.items) {
      
@@ -87,7 +86,7 @@ export default function PlaylistDialog() {
         game.network.syncPlayerPlaylistQueue(queueItems)
       }
 
-      if (currentPlaylist?.items?.length < 2 && currentMusicStream.link && currentMusicStream?.link !== currentPlaylist.items?.[0]?.link) {
+      if (currentMusicStream.link && currentMusicStream?.link !== currentPlaylist.items?.[0]?.link) {
         const queueItems = currentPlaylist.items.slice(0, 2)
         console.log('queueItems', queueItems)
         game.network.syncPlayerPlaylistQueue(queueItems)
@@ -96,7 +95,7 @@ export default function PlaylistDialog() {
     
     }
   }, [currentPlaylist.items])
-
+  
   useEffect(() => {
     console.log('player short queue changed', playQueue)
     // game.network.syncPlayerPlaylistQueue(playQueue);

@@ -14,6 +14,7 @@ export class MusicBoothConnectUserCommand extends Command<IOfficeState, Payload>
     const musicBooth = this.room.state.musicBooths[musicBoothIndex]
     if (musicBooth.connectedUser !== null) return
     musicBooth.connectedUser = clientId
+    console.log('/////MusicBoothConnect musicboth index', musicBoothIndex)
     console.log('//////////MusicBoothConnectUserCommand, musicBooth.connectedUser', musicBooth.connectedUser)
   }
 }
