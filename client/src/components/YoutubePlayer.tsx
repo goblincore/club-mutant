@@ -73,6 +73,9 @@ export default function YoutubePlayer() {
      if(!isBuffering){
       setIsBuffering(true);
     }
+
+    console.log('currentDj.sessoinId',currentDj?.sessionId)
+    console.log('///myplayer game playerid', game.myPlayer.playerId)
     if(currentDj?.sessionId === game.myPlayer.playerId){
      dispatch(shiftPlaylist())
      if(nextItem){

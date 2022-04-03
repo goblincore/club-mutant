@@ -83,7 +83,7 @@ export default function PlaylistDialog() {
       }
 
       if (currentMusicStream.link && currentMusicStream?.link === currentPlaylist.items?.[0]?.link) {
-        const queueItems = currentPlaylist.items.slice(1, 3)
+        const queueItems = currentPlaylist.items.slice(0, 2)
         console.log('queueItems', queueItems)
         game.network.syncPlayerPlaylistQueue(queueItems)
       }

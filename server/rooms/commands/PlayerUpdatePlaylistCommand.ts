@@ -16,28 +16,17 @@ export class PlayerSyncShortPlaylist extends Command<IOfficeState, Payload> {
     const player = this.state.players.get(client.sessionId)
 
     console.log('//Player sync next two playlist', items)
-    if (items?.length > 0) {
+
+    player.nextTwoPlaylist = items?.map(item => {
       const newItem = new PlaylistItem()
-      const item = items?.[0]
-      if (item) {
-        newItem.title = item.title
-        newItem.link = item.link
-        newItem.djId = client.sessionId
-        newItem.duration = item.duration
-        player.nextTwoPlaylist.setAt(0, newItem)
-      }
-    }
-    if (items?.length > 1) {
-      const newItem = new PlaylistItem()
-      const item = items?.[1]
-      if (item) {
-        newItem.title = item.title
-        newItem.link = item.link
-        newItem.djId = client.sessionId
-        newItem.duration = item.duration
-        player.nextTwoPlaylist.setAt(1, newItem)
-      }
-    }
+      newItem.title = item.title
+      newItem.link = item.link
+      newItem.id = item.id
+      newItem.djId = client.sessionId
+      newItem.duration = item.duration
+      return newItem
+    })
+  
   }
 }
 

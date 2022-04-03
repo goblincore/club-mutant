@@ -54,18 +54,10 @@ export class SkyOffice extends Room<OfficeState> {
 
     // when a player starts playing a song
     this.onMessage(Message.SYNC_MUSIC_STREAM, (client, message: { item?: PlaylistItem }) => {
-      // Dequeue
-      // this.dispatcher.dispatch(new PlayerPlaylistDequeueCommand(), {client})
+  
       console.log('///ON MESSSAGE SYNYC MUSIC STREAM', message?.item)
       console.log('///ON MESSSAGE SYNC USER PLAYLIST QUEUE', message?.item)
-      // this is not ideal, would like to take the popped item and call enqueue with it?
-      // const musicStream = this.state.musicStream;
-      // const item = new PlaylistItem()
-      // item.title = musicStream.currentLink
-      // item.link = musicStream.currentLink
-      // item.duration = musicStream.duration
-      // this.dispatcher.dispatch(new PlayerPlaylistEnqueueCommand(), {client, item })
-     
+
       this.dispatcher.dispatch(new MusicStreamNextCommand(), { client, item: message?.item })
     })
 
@@ -90,14 +82,8 @@ export class SkyOffice extends Room<OfficeState> {
           '///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status',
           this.state.musicStream.status
         )
-        if ((this.state.musicStream.status === 'waiting')) {
+        if ((this.state.musicStream.status === 'waiting') || this.state.musicStream.status === 'seeking') {
           console.log('////////MUSIC STREAM NEXT COMMAND INVOKE')
-          const player = this.state.players.get(client.sessionId)
-          // console.log('////GET PLAYER', player);
-
-          // const currentItem = player.nextTwoPlaylist.shift();
-
-          // console.log('///currentItem title', currentItem.title);
           this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
         }
       }

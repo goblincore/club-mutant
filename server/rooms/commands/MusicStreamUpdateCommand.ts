@@ -49,25 +49,23 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
 
   console.log('/////NEXT BOOTH INDEX', nextBoothIndex);
 
-       // if no other players and not playing
-      //  if (data?.item) {
    
           const musicBooth = musicBooths[this.state.musicBoothQueue[0]]
           if (musicBooth.connectedUser !== null) {
-            const player = this.state.players.get(musicBooth.connectedUser)
+            const player: Player = this.state.players.get(musicBooth.connectedUser)
          
 
-            console.log('//MUSICBOOTH PLAYER', 'INDEX BOOTH', nextBoothIndex, 'playerId', player.name, 'id', player.playerId);
-            // if(data.item && data.item?.link && musicBooths[nextMusicBoothIndex].connectedUser === data.item.djId ){
-            //   console.log('//////////DATA ITEM', data.item);
-            //   const newItem = new PlaylistItem()
-            //   newItem.title = data.item.title
-            //   newItem.link = data.item.link
-            //   newItem.djId = data.item.djId
-            //   newItem.duration = data.item.duration
+            console.log('//MUSICBOOTH PLAYER', 'INDEX BOOTH', nextBoothIndex, 'playerId', player.name, 'id', player);
+            if(this.state.musicBoothQueue?.length === 1 && data.item && data.item?.link &&  data.client.sessionId === data.item.djId ){
+              console.log('//////////DATA ITEM', data.item);
+              const newItem = new PlaylistItem()
+              newItem.title = data.item.title
+              newItem.link = data.item.link
+              newItem.djId = data.item.djId
+              newItem.duration = data.item.duration
               
-            //   player.nextTwoPlaylist.setAt(1, newItem);
-            // }
+              player.nextTwoPlaylist.setAt(0, newItem);
+            }
 
             console.log('player.nextTwoPlaylist length', player.nextTwoPlaylist.length)
          
