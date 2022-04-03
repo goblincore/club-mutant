@@ -1,5 +1,5 @@
 import { Schema, ArraySchema, SetSchema, MapSchema } from '@colyseus/schema'
-import Queue from "../server/Queue"
+import { Room, Client, ServerError } from 'colyseus'
 
 export interface IPlayer extends Schema {
   name: string
@@ -46,10 +46,10 @@ export interface IMusicStream extends Schema {
   duration: number
 }
 
-export interface IOfficeState extends Schema {
+export interface IOfficeState extends Room{
   players: MapSchema<IPlayer>
   musicBooths: ArraySchema<IMusicBooth>
-  musicBoothQueue: ArraySchema<IMusicBooth>
+  musicBoothQueue: ArraySchema<number>
   chatMessages: ArraySchema<IChatMessage>
   musicStream: IMusicStream
   nextStream: IMusicStream
