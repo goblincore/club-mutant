@@ -55,12 +55,13 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
             const player: Player = this.state.players.get(musicBooth.connectedUser)
          
 
-            console.log('//MUSICBOOTH PLAYER', 'INDEX BOOTH', nextBoothIndex, 'playerId', player.name, 'id', player);
-            if(this.state.musicBoothQueue?.length === 1 && data.item && data.item?.link &&  data.client.sessionId === data.item.djId ){
+            console.log('//MUSICBOOTH PLAYER', 'INDEX BOOTH', nextBoothIndex, 'playerId', player.name, 'id', musicBooth.connectedUser);
+            if(this.state.musicBoothQueue?.length === 1 && data.item && data.item?.link &&  musicBooth.connectedUser === data.item.djId ){
               console.log('//////////DATA ITEM', data.item);
               const newItem = new PlaylistItem()
               newItem.title = data.item.title
               newItem.link = data.item.link
+              newItem.id = data.item.id
               newItem.djId = data.item.djId
               newItem.duration = data.item.duration
               
