@@ -24,6 +24,8 @@ export class MusicBoothDisconnectUserCommand extends Command<IOfficeState, Paylo
     const { client, musicBoothIndex } = data
     const clientId = client.sessionId
     const musicBooth = this.state.musicBooths[musicBoothIndex]
+    this.state.musicBoothQueue = this.state.musicBoothQueue.filter(musicbooth => musicbooth.connectedUser !== client.sessionId)
+    console.log('this.state.musicQueue', this.state.musicBoothQueue.length)
     console.log('///////////////MusicBoothDisconnectUserCommand, musicBooth', musicBooth)
 
     if (musicBooth.connectedUser === clientId) {
