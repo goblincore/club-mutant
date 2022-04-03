@@ -85,7 +85,7 @@ export class SkyOffice extends Room<OfficeState> {
           '///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status',
           this.state.musicStream.status
         )
-        if ((this.state.musicStream.status = 'waiting')) {
+        if ((this.state.musicStream.status === 'waiting')) {
           console.log('////////MUSIC STREAM NEXT COMMAND INVOKE')
           const player = this.state.players.get(client.sessionId)
           // console.log('////GET PLAYER', player);
