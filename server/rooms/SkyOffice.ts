@@ -213,7 +213,7 @@ export class SkyOffice extends Room<OfficeState> {
     const musicStream = this.state.musicStream
     console.log('this state musicStream', musicStream)
     if (musicStream.status === 'playing') {
-      const currentTime: number = new Date().getTime()
+      const currentTime: number = Date.now()
       client.send(Message.START_MUSIC_STREAM, {
         musicStream: musicStream,
         offset: (currentTime - musicStream.startTime) / 1000,

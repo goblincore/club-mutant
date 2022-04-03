@@ -42,7 +42,7 @@ export default function YoutubePlayer() {
   const [isBuffering, setIsBuffering] = useState(true) 
   const currentPlaylist = useAppSelector((state) => state.playlist)
 
-  const currentTime: number = new Date().getTime()
+  const currentTime: number = Date.now()
   const syncTime = (currentTime - startTime) / 1000;
   const url = 'http://www.youtube.com/watch?v=' + link + '#t=' + syncTime + 's'
 
@@ -51,7 +51,7 @@ export default function YoutubePlayer() {
   const handleReady = e => {
     console.log('///////////////YoutubePlayer, handlePlay, e', e);
     if(!isBuffering){
-    const currentTime: number = new Date().getTime()
+    const currentTime: number = Date.now()
       const syncTime = (currentTime - startTime) / 1000;
      playerRef.current.seekTo(syncTime ,'seconds')
     }

@@ -74,7 +74,7 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
               musicStream.currentBooth = nextBoothIndex
               musicStream.currentDj = djInfo
               musicStream.currentTitle = playbackItem.title
-              musicStream.startTime = new Date().getTime()
+              musicStream.startTime = Date.now()
               musicStream.duration =  playbackItem.duration
               console.log("//////////////////////MusicStreamNextCommand, musicStream.currentLink", musicStream.currentLink)
               this.room.broadcast(

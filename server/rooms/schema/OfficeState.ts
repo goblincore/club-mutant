@@ -48,7 +48,7 @@ export class MusicStream extends Schema implements IMusicStream {
   @type('string') currentTitle = null
   @type('number') currentBooth = 0
   @type(DJUserInfo) currentDj = new DJUserInfo()
-  @type('number') startTime = new Date().getTime()
+  @type('number') startTime = Date.now()
   @type('number') duration = 0
 }
 
