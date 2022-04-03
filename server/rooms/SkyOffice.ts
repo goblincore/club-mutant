@@ -22,12 +22,14 @@ import {
 import { MusicStreamNextCommand } from './commands/MusicStreamUpdateCommand'
 
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
+import Queue from '../Queue';
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
   private name: string
   private description: string
   private password: string | null = null
+  private musicBoothQueue: Queue | null = null
 
   async onCreate(options: IRoomData) {
     const { name, description, password, autoDispose } = options
@@ -81,14 +83,14 @@ export class SkyOffice extends Room<OfficeState> {
           musicBoothIndex: message.musicBoothIndex,
         })
 
-        this.state.musicBoothQueue.push(this.state.musicBooths[message.musicBoothIndex])
+        this.state.musicBoothQueue.push(message.musicBoothIndex)
        
         console.log('///////connectToMusicBooth client', client.sessionId)
         console.log(
           '///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status',
           this.state.musicStream.status
         )
-        if ((this.state.musicStream.status === 'waiting' || this.state.musicStream.status === 'seeking')) {
+        if ((this.state.musicStream.status === 'waiting')) {
           console.log('////////MUSIC STREAM NEXT COMMAND INVOKE')
           const player = this.state.players.get(client.sessionId)
           // console.log('////GET PLAYER', player);

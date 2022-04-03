@@ -63,8 +63,8 @@ export class OfficeState extends Schema implements IOfficeState {
   @type([MusicBooth])
   musicBooths = new ArraySchema<MusicBooth>()
 
-  @type([MusicBooth])
-  musicBoothQueue = new ArraySchema<MusicBooth>()
+  @type(['number'])
+  musicBoothQueue = new ArraySchema<number>()
 
   @type([ChatMessage])
   chatMessages = new ArraySchema<ChatMessage>()

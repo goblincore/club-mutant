@@ -12,7 +12,7 @@ export default class PlayerUpdateNameCommand extends Command<IOfficeState, Paylo
   execute(data: Payload) {
     const { client, name } = data
 
-    const player = this.room.state.players.get(client.sessionId)
+    const player = this.state.players.get(client.sessionId)
 
     if (!player) return
     player.name = name

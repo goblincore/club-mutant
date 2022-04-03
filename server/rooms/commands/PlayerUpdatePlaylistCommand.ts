@@ -1,5 +1,5 @@
 import { Command } from '@colyseus/command'
-import { Client } from 'colyseus'
+import { Client, Room } from 'colyseus'
 import { IOfficeState, IPlaylistItem } from '../../../types/IOfficeState'
 import { Player, PlaylistItem } from '../schema/OfficeState'
 
@@ -13,7 +13,7 @@ type Payload = {
 export class PlayerSyncShortPlaylist extends Command<IOfficeState, Payload> {
   execute(data: Payload) {
     const { client, items } = data
-    const player = this.room.state.players.get(client.sessionId)
+    const player = this.state.players.get(client.sessionId)
 
     console.log('//Player sync next two playlist', items)
     if (items?.length > 0) {
@@ -45,7 +45,7 @@ export class PlayerSetCurrentPlaylistItemCommand extends Command<IOfficeState, P
   execute(data: Payload) {
     const { client, item } = data
     console.log('///////////////////////PlayerSetCurrentPlaylistItemCommand, item', item)
-    const player = this.room.state.players.get(client.sessionId)
+    const player = this.state.players.get(client.sessionId)
     const newItem = new PlaylistItem()
     newItem.title = item.title
     newItem.link = item.link
@@ -59,7 +59,7 @@ export class PlayerSetNextPlaylistItemCommand extends Command<IOfficeState, Payl
   execute(data: Payload) {
     const { client, item } = data
     console.log('///////////////////////PlayerSetNextPlaylistItemCommand, item', item)
-    const player = this.room.state.players.get(client.sessionId)
+    const player = this.state.players.get(client.sessionId)
     const newItem = new PlaylistItem()
     newItem.title = item.title
     newItem.link = item.link
