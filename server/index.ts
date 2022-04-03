@@ -3,6 +3,7 @@ import express from 'express'
 import cors from 'cors'
 import { Server, LobbyRoom } from 'colyseus'
 import { monitor } from '@colyseus/monitor'
+import { WebSocketTransport } from "@colyseus/ws-transport";
 // import socialRoutes from "@colyseus/social/express"
 import * as yt from 'youtube-search-without-api-key'
 
@@ -20,7 +21,11 @@ app.use(express.json())
 
 const server = http.createServer(app)
 const gameServer = new Server({
-  server,
+  transport: new WebSocketTransport({
+    server,
+    pingInterval: 5000,
+    pingMaxRetries: 3,
+})
 })
 
 // register room handlers
