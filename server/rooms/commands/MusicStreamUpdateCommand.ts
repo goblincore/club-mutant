@@ -37,13 +37,8 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
     musicBoothQueueClone.push(nextMusicBoothIndex);
     this.state.musicBoothQueue = musicBoothQueueClone;
     console.log('///FIRST MUSIC QUEUE ITEM MUTATED', this.state.musicBoothQueue[0]);
-    console.log('///NEXT MUSIC BOOTH INDEX', nextMusicBoothIndex);
-    console.log('//MUSICBOOTHQUEUE', this.state.musicBoothQueue)
     console.log('//MUSICBOOTH CONNECTED USER', musicBooths[nextMusicBoothIndex].connectedUser);
-
     console.log('//// music stream current start', startIndex);
-    // console.log('///MUSICBOOTHS ALL', musicBooths);
-
 
     let nextBoothIndex = this.state.musicBoothQueue?.length === 1 ?  musicBoothQueue[0] : this.state.musicBoothQueue[0];
 
@@ -56,6 +51,7 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
          
 
             console.log('//MUSICBOOTH PLAYER', 'INDEX BOOTH', nextBoothIndex, 'playerId', player.name, 'id', musicBooth.connectedUser);
+              // This is to handle a case where the player next two playlist may be not in sync / up to date
             if(this.state.musicBoothQueue?.length === 1 && data.item && data.item?.link &&  musicBooth.connectedUser === data.item.djId ){
               console.log('//////////DATA ITEM', data.item);
               const newItem = new PlaylistItem()
@@ -71,7 +67,7 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
             console.log('player.nextTwoPlaylist length', player.nextTwoPlaylist.length)
          
             if (player.nextTwoPlaylist.length > 0) {
-              
+              // Set room musicStream state
               const playbackItem = player.nextTwoPlaylist[0]
               const djInfo = new DJUserInfo();
               djInfo.name = player.name
