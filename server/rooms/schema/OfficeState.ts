@@ -8,7 +8,7 @@ import {
   IPlaylistItem,
   IDJUserInfo,
 } from '../../../types/IOfficeState'
-import Queue from '../../Queue';
+import { Room } from 'colyseus'
 
 export class PlaylistItem extends Schema implements IPlaylistItem {
   @type('string') id = null
@@ -56,7 +56,7 @@ export class MusicBooth extends Schema implements IMusicBooth {
   @type('string') connectedUser = null
 }
 
-export class OfficeState extends Schema implements IOfficeState {
+export class OfficeState extends Room implements IOfficeState {
   @type({ map: Player })
   players = new MapSchema<Player>()
 

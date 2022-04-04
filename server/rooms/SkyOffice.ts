@@ -84,7 +84,7 @@ export class SkyOffice extends Room<OfficeState> {
         )
         if ((this.state.musicStream.status === 'waiting') || this.state.musicStream.status === 'seeking') {
           console.log('////////MUSIC STREAM NEXT COMMAND INVOKE')
-          this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+          this.dispatcher.dispatch(new MusicStreamNextCommand())
         }
       }
     )
@@ -98,7 +98,7 @@ export class SkyOffice extends Room<OfficeState> {
           musicBoothIndex: message.musicBoothIndex,
         })
         if (this.state.musicStream.currentBooth === message.musicBoothIndex) {
-          this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+          this.dispatcher.dispatch(new MusicStreamNextCommand())
         }
       }
     )
@@ -221,7 +221,7 @@ export class SkyOffice extends Room<OfficeState> {
           musicBoothIndex: index,
         })
         if (this.state.musicStream.currentBooth === index) {
-          this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+          this.dispatcher.dispatch(new MusicStreamNextCommand())
         }
       }
     })
