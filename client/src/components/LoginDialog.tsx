@@ -159,7 +159,7 @@ export default function LoginDialog() {
   const handleExit = () => {
     game.scene.stop()
     dispatch(setRoomJoined(false))
-    console.log("//////////handleClickExitButton")
+    console.log("////handleClickExitButton")
   }
 
   return (

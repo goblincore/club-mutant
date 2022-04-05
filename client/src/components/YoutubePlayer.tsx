@@ -2,10 +2,11 @@
 import { useRef, useState, useEffect } from 'react'
 import ReactPlayer from 'react-player/youtube'
 import styled from 'styled-components'
+
 import Game from '../scenes/Game'
 import phaserGame from '../PhaserGame'
 import { useAppSelector, useAppDispatch } from '../hooks'
-import { openPlaylistDialog, closePlaylistDialog, setFocused, shiftPlaylist } from '../stores/PlaylistStore'
+import { openMyPlaylistPanel, closeMyPlaylistPanel, setFocused, shiftMyPlaylist } from '../stores/MyPlaylistStore'
 import store from '../stores'
 
 const Backdrop = styled.div`
@@ -39,8 +40,8 @@ export default function YoutubePlayer() {
   const startTime = useAppSelector((state) => state.musicStream.startTime)
   const title = useAppSelector((state) => state.musicStream.title)
   const currentDj = useAppSelector((state) => state.musicStream.currentDj)
-  const [isBuffering, setIsBuffering] = useState(true) 
-  const currentPlaylist = useAppSelector((state) => state.playlist)
+  const [isBuffering, setIsBuffering] = useState(true)
+  const currentPlaylist = useAppSelector((state) => state.myPlaylist)
 
   const currentTime: number = Date.now()
   const syncTime = (currentTime - startTime) / 1000;
@@ -49,16 +50,13 @@ export default function YoutubePlayer() {
   const playerRef = useRef<any>();
 
   const handleReady = e => {
-    console.log('///////////////YoutubePlayer, handlePlay, e', e);
+    console.log('////YoutubePlayer, handlePlay, e', e);
     if(!isBuffering){
-    const currentTime: number = Date.now()
+      const currentTime: number = Date.now()
       const syncTime = (currentTime - startTime) / 1000;
      playerRef.current.seekTo(syncTime ,'seconds')
     }
   }
-
-
-
 
   const handleOnBufferEnd = () => {
     if(isBuffering){
@@ -66,21 +64,20 @@ export default function YoutubePlayer() {
     }
   }
 
-
   const handleOnEnded = () => {
-     const nextItem = currentPlaylist.items[1];
-     console.log('nextItem', nextItem);
-     if(!isBuffering){
-      setIsBuffering(true);
+    const nextItem = currentPlaylist.items[1];
+    console.log('nextItem', nextItem);
+    if(!isBuffering){
+     setIsBuffering(true);
     }
 
     console.log('currentDj.sessoinId',currentDj?.sessionId)
     console.log('///myplayer game playerid', game.myPlayer.playerId)
     if(currentDj?.sessionId === game.myPlayer.playerId){
-     dispatch(shiftPlaylist())
-     if(nextItem){
+      dispatch(shiftMyPlaylist())
+      if(nextItem){
       game.network.syncMusicStream(nextItem)
-     }
+      }
     }
   }
 
@@ -88,20 +85,20 @@ export default function YoutubePlayer() {
     <Backdrop>
       {
         link !== null ?
-        <Wrapper>
-          <ReactPlayer
-            ref={playerRef}
-            onReady={handleReady}
-            onEnded={handleOnEnded}
-            onBufferEnd={handleOnBufferEnd}
-            width={'200px'}
-            height={'130px'}
-            playing
-            url={url} />
-            <section>
-            <p>{title}</p>
-            </section>
-        </Wrapper>
+          <Wrapper>
+            <ReactPlayer
+              ref={playerRef}
+              onReady={handleReady}
+              onEnded={handleOnEnded}
+              onBufferEnd={handleOnBufferEnd}
+              width={'200px'}
+              height={'130px'}
+              playing
+              url={url} />
+              <section>
+              <p>{title}</p>
+              </section>
+          </Wrapper>
         :
           <Wrapper>
           </Wrapper>

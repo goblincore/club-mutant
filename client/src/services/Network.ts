@@ -25,7 +25,7 @@ import {
   pushPlayerJoinedMessage,
   pushPlayerLeftMessage,
 } from '../stores/ChatStore'
-import { addItemToPlaylist, removeItemFromPlaylist, syncPlayQueue, removeFromPlayQueue } from '../stores/PlaylistStore'
+import { addItemToMyPlaylist, removeItemFromMyPlaylist, syncPlayQueue, removeFromPlayQueue } from '../stores/MyPlaylistStore'
 
 // This class centralizes the handling of network events from the server
 // mostly the socket events
@@ -112,7 +112,6 @@ export default class Network {
           // store.dispatch(removeFromPlayQueue(item))
           
         }
-       
         return
       }
 
@@ -253,24 +252,24 @@ export default class Network {
 
   // method to send player name to Colyseus server
   updatePlayerName(currentName: string) {
-    console.log('///////////////Network, initialize, updatePlayerName, currentName', currentName)
+    console.log('////Network, initialize, updatePlayerName, currentName', currentName)
     this.room?.send(Message.UPDATE_PLAYER_NAME, { name: currentName })
   }
 
   // method to send ready-to-connect signal to Colyseus server
   readyToConnect() {
-    console.log('///////////////Network, initialize, readyToConnect')
+    console.log('////Network, initialize, readyToConnect')
     this.room?.send(Message.READY_TO_CONNECT)
     phaserEvents.emit(Event.MY_PLAYER_READY)
   }
 
   connectToMusicBooth(index: number) {
-    console.log('///////////////Network, initialize, connectToMusicBooth, index', index)
+    console.log('////Network, initialize, connectToMusicBooth, index', index)
     this.room?.send(Message.CONNECT_TO_MUSIC_BOOTH, { musicBoothIndex: index })
   }
 
   disconnectFromMusicBooth(index: number) {
-    console.log('///////////////Network, initialize, disconnectFromMusicBooth, index')
+    console.log('////Network, initialize, disconnectFromMusicBooth, index')
     this.room?.send(Message.DISCONNECT_FROM_MUSIC_BOOTH, { musicBoothIndex: index })
   }
 
@@ -284,12 +283,12 @@ export default class Network {
     this.room?.send(Message.SYNC_MUSIC_STREAM, { item })
   }
 
-  addPlaylistItem(item: IPlaylistItem) {
+  addMyPlaylistItem(item: IPlaylistItem) {
     console.log('Add playlist item, item', item)
     this.room?.send(Message.ADD_PLAYLIST_ITEM, { item })
   }
 
-  deletePlaylistItem(itemIndex: number) {
+  deleteMyPlaylistItem(itemIndex: number) {
     console.log('Add playlist item, itemIndex', itemIndex)
     this.room?.send(Message.DELETE_PLAYLIST_ITEM, { itemIndex })
   }
@@ -308,6 +307,4 @@ export default class Network {
     console.log('Set User Playlist Item', item)
     this.room?.send(Message.SET_USER_NEXT_PLAYLIST_ITEM, { item })
   }
-
-
 }

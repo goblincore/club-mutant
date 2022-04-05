@@ -1,23 +1,23 @@
 class Queue {
-    constructor() {
-        this.items = [];
-    }
+  constructor() {
+      this.items = [];
+  }
 
-    isEmpty() {
-        return (this.items.length === 0);
-    }
+  isEmpty() {
+      return (this.items.length === 0);
+  }
 
-    enqueue(item) {
-        this.items.unshift(item);
-    }
+  enqueue(item) {
+      this.items.unshift(item);
+  }
 
-    dequeue() {
-        return this.items.pop();
-    }
+  dequeue() {
+      return this.items.pop();
+  }
 
-    size() {
-        return this.items.length;
-    }
+  size() {
+      return this.items.length;
+  }
 }
 
 export default Queue;

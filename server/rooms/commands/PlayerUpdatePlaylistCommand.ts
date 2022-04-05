@@ -17,14 +17,14 @@ export class PlayerSyncShortPlaylist extends Command<IOfficeState, Payload> {
 
     console.log('//Player sync next two playlist command', items, 'client', client.sessionId)
 
-    player.nextTwoPlaylist = items?.map(item => {
+    items?.forEach(item => {
       const newItem = new PlaylistItem()
       newItem.title = item.title
       newItem.link = item.link
       newItem.id = item.id
       newItem.djId = client.sessionId
       newItem.duration = item.duration
-      return newItem
+      player.nextTwoPlaylist.push(newItem)
     })
   
   }
@@ -33,7 +33,6 @@ export class PlayerSyncShortPlaylist extends Command<IOfficeState, Payload> {
 export class PlayerSetCurrentPlaylistItemCommand extends Command<IOfficeState, Payload> {
   execute(data: Payload) {
     const { client, item } = data
-    console.log('///////////////////////PlayerSetCurrentPlaylistItemCommand, item', item)
     const player = this.state.players.get(client.sessionId)
     const newItem = new PlaylistItem()
     newItem.title = item.title
@@ -43,11 +42,10 @@ export class PlayerSetCurrentPlaylistItemCommand extends Command<IOfficeState, P
   }
 }
 
-
 export class PlayerSetNextPlaylistItemCommand extends Command<IOfficeState, Payload> {
   execute(data: Payload) {
     const { client, item } = data
-    console.log('///////////////////////PlayerSetNextPlaylistItemCommand, item', item)
+    console.log('////PlayerSetNextPlaylistItemCommand, item', item)
     const player = this.state.players.get(client.sessionId)
     const newItem = new PlaylistItem()
     newItem.title = item.title
@@ -56,5 +54,3 @@ export class PlayerSetNextPlaylistItemCommand extends Command<IOfficeState, Payl
     player.nextPlaylistItem = newItem
   }
 }
-
-

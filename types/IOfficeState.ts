@@ -1,5 +1,5 @@
-import { Schema, ArraySchema, SetSchema, MapSchema } from '@colyseus/schema'
-import { Room, Client, ServerError } from 'colyseus'
+import { Schema, ArraySchema, MapSchema } from '@colyseus/schema'
+import { Room } from 'colyseus'
 
 export interface IPlayer extends Schema {
   name: string
@@ -36,7 +36,7 @@ export interface IPlaylistItem extends Schema {
   duration: number
 }
 
-export interface IMusicStream extends Schema {
+export interface IMusicStream extends Room {
   status: string // waiting or seeking or playing
   currentLink: string
   currentTitle: string
@@ -46,7 +46,7 @@ export interface IMusicStream extends Schema {
   duration: number
 }
 
-export interface IOfficeState extends Room{
+export interface IOfficeState extends Schema {
   players: MapSchema<IPlayer>
   musicBooths: ArraySchema<IMusicBooth>
   musicBoothQueue: ArraySchema<number>

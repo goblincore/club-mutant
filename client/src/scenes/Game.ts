@@ -4,7 +4,7 @@ import { createCharacterAnims } from '../anims/CharacterAnims'
 
 import Item from '../items/Item'
 import MusicBooth from '../items/MusicBooth'
-import { MyYoutubePlayer } from '../items/MediaPlayer'
+import { MyYoutubePlayer } from '../items/MyYoutubePlayer'
 
 import '../characters/MyPlayer'
 import '../characters/OtherPlayer'
@@ -234,14 +234,14 @@ export default class Game extends Phaser.Scene {
   }
 
   private handleChatMessageAdded(playerId: string, content: string) {
-    console.log('///////////////handleChatMessageAdded')
+    console.log('////handleChatMessageAdded')
     const otherPlayer = this.otherPlayerMap.get(playerId)
     otherPlayer?.updateDialogBubble(content)
   }
 
   private handleStartMusicStream(musicStream: IMusicStream, offset: number) {
-    console.log('////////////////////handleStartMusicStream, musicStream.currentLink', musicStream.currentLink)
-    console.log('////////////////////handleStartMusicStream, offset', offset);
+    console.log('////handleStartMusicStream, musicStream.currentLink', musicStream.currentLink)
+    console.log('////handleStartMusicStream, offset', offset);
 
  
     console.log('musicStream handle start music stream game', musicStream);
@@ -250,11 +250,10 @@ export default class Game extends Phaser.Scene {
     console.log('game handle start music stream', url)
 
     store.dispatch(setMusicStream({url, title, currentDj, startTime}))
- 
   }
 
   private handleStopMusicStream() {
-    console.log('///////////////handleStopMusicStream')
+    console.log('////handleStopMusicStream')
     store.dispatch(setMusicStream(null));
     this.myYoutubePlayer?.pause();
   }

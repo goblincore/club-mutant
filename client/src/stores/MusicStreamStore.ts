@@ -15,7 +15,6 @@ const initialState: MusicStreamState = {
         name: null,
         sessionId: null
     },
-
 }
 
 export const musicStreamSlice = createSlice({
@@ -24,12 +23,12 @@ export const musicStreamSlice = createSlice({
     reducers: {
         setMusicStream: (state, action: PayloadAction<any>) => {
             console.log('////action set music stream reducer', action);
-            try{
-            state.link = action?.payload?.url
-            state.title = action?.payload.title
-            state.startTime = action?.payload?.startTime
-            state.currentDj = action?.payload?.currentDj
-            }catch(e){
+            try {
+                state.link = action?.payload?.url
+                state.title = action?.payload.title
+                state.startTime = action?.payload?.startTime
+                state.currentDj = action?.payload?.currentDj
+            } catch(e) {
                 console.warn('Failed setting music stream')
             }
         },

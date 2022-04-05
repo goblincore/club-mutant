@@ -21,11 +21,12 @@ app.use(express.json())
 
 const server = http.createServer(app)
 const gameServer = new Server({
+  server,
   transport: new WebSocketTransport({
     server,
     pingInterval: 5000,
     pingMaxRetries: 3,
-})
+  })
 })
 
 // register room handlers
@@ -54,14 +55,14 @@ console.log(`Listening on ws://localhost:${port}`)
 
 app.get('/youtube/:search', async (req, res, next) => {
   const { search } = req.params;
-  console.log('///////////////app.get(/youtube/:search)', search);
+  console.log('////app.get(/youtube/:search)', search);
   try {
     // We will be coding here
     // const videos = await yt.search('dj lostboi')
     const videos = await youtube.GetData(search, false, 24);
     res.json(videos)
   } catch (e) {
-    console.log('///////////////app.get(/youtube/:search), catch, e', e)
+    console.log('////app.get(/youtube/:search), catch, e', e)
     return next(e);
   }
 })

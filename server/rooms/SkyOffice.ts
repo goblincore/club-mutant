@@ -65,9 +65,9 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(
       Message.CONNECT_TO_MUSIC_BOOTH,
       (client, message: { musicBoothIndex: number }) => {
-        console.log('/////onMessage, CONNECT_TO_USER_BOOth client sesiondId', client.sessionId)
+        console.log('////onMessage, CONNECT_TO_USER_BOOth client sesiondId', client.sessionId)
         console.log(
-          '///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, message.musicBoothIndex',
+          '////onMessage, CONNECT_TO_MUSIC_BOOTH, message.musicBoothIndex',
           message.musicBoothIndex
         )
         this.dispatcher.dispatch(new MusicBoothConnectUserCommand(), {
@@ -77,13 +77,13 @@ export class SkyOffice extends Room<OfficeState> {
 
         this.state.musicBoothQueue.push(message.musicBoothIndex)
        
-        console.log('///////connectToMusicBooth client', client.sessionId)
+        console.log('////connectToMusicBooth client', client.sessionId)
         console.log(
-          '///////////////////////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status',
+          '////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status',
           this.state.musicStream.status
         )
         if ((this.state.musicStream.status === 'waiting') || this.state.musicStream.status === 'seeking') {
-          console.log('////////MUSIC STREAM NEXT COMMAND INVOKE')
+          console.log('////MUSIC STREAM NEXT COMMAND INVOKE')
           this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
         }
       }
@@ -149,14 +149,13 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(
       Message.SYNC_USER_SHORT_PLAYLIST,
       (client, message: { items: PlaylistItem[] }) => {
-        console.log('/////////onMessage, SYNC USER SHORT PLAYLIST', message.items)
+        console.log('////onMessage, SYNC USER SHORT PLAYLIST', message.items)
         this.dispatcher.dispatch(new PlayerSyncShortPlaylist(), {
           client,
           items: message.items,
         })
       }
     )
-
     this.onMessage(
       Message.SET_USER_NEXT_PLAYLIST_ITEM,
       (client, message: { item: PlaylistItem }) => {
@@ -189,25 +188,26 @@ export class SkyOffice extends Room<OfficeState> {
 
   // when a new player joins, send room data
   onJoin(client: Client, options: any) {
-    console.log('///////////////onJoin, client', client)
+    console.log("////onJoin, client", client)
     this.state.players.set(client.sessionId, new Player())
     client.send(Message.SEND_ROOM_DATA, {
       id: this.roomId,
       name: this.name,
       description: this.description,
     })
-    console.log('///////////////onJoin, Message.SEND_ROOM_DATA')
+    console.log("////onJoin, Message.SEND_ROOM_DATA")
+
 
     const musicStream = this.state.musicStream
-    console.log('this state musicStream', musicStream)
+    console.log('this state musicStream', musicStream);
     if (musicStream.status === 'playing') {
       const currentTime: number = Date.now()
       client.send(Message.START_MUSIC_STREAM, {
         musicStream: musicStream,
-        offset: (currentTime - musicStream.startTime) / 1000,
+        offset: (currentTime - musicStream.startTime) / 1000
       })
     }
-    console.log('///////////////onJoin, musicStream.status', musicStream.status)
+    console.log("////onJoin, musicStream.status", musicStream.status)
   }
 
   onLeave(client: Client, consented: boolean) {

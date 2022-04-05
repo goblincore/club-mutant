@@ -28,7 +28,7 @@ export default class MyPlayer extends Player {
 
   setPlayerName(name: string) {
     this.playerName.setText(name)
-    this.setName(name);
+    this.setName(name)
     phaserEvents.emit(Event.MY_PLAYER_NAME_CHANGE, name)
     store.dispatch(pushPlayerJoinedMessage(name))
   }
@@ -53,7 +53,7 @@ export default class MyPlayer extends Player {
     switch (this.playerBehavior) {
       case PlayerBehavior.IDLE:
         if (Phaser.Input.Keyboard.JustDown(keyR)) {
-          console.log("///////////////MyPlayer, update, switch, PlayerBehavior.IDLE, JustDown")
+          console.log("////MyPlayer, update, switch, PlayerBehavior.IDLE, JustDown")
           switch (item?.itemType) {
             case ItemType.MUSIC_BOOTH:
               const musicBootItem = item as MusicBooth
@@ -112,7 +112,7 @@ export default class MyPlayer extends Player {
       case PlayerBehavior.SITTING:
         // back to idle if player press E while sitting
         if (Phaser.Input.Keyboard.JustDown(keyR)) {
-          console.log("///////////////MyPlayer, update, switch, PlayerBehavior.SITTING, JustDown")
+          console.log("////MyPlayer, update, switch, PlayerBehavior.SITTING, JustDown")
           switch (item?.itemType) {
             case ItemType.MUSIC_BOOTH:
               this.musicBoothOnSit?.closeDialog(network)

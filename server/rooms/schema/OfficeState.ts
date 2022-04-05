@@ -1,4 +1,4 @@
-import { Schema, ArraySchema, SetSchema, MapSchema, type } from '@colyseus/schema'
+import { Schema, ArraySchema, MapSchema, type } from '@colyseus/schema'
 import {
   IOfficeState,
   IPlayer,
@@ -8,17 +8,18 @@ import {
   IPlaylistItem,
   IDJUserInfo,
 } from '../../../types/IOfficeState'
-import Queue from '../../Queue';
 
 export class PlaylistItem extends Schema implements IPlaylistItem {
-  @type('string') id = null
-  @type('string') djId = null
+  @type('string') id = ''
+  @type('string') djId = ''
   @type('string') title = ''
   @type('string') link = null
   @type('number') duration = 0
 }
 
 export class Player extends Schema implements IPlayer {
+  @type('string') id = null
+  @type('string') djId = null
   @type('string') name = ''
   @type('number') x = 705
   @type('number') y = 500
