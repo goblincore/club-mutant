@@ -2,19 +2,19 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
-import { IPlaylistItem } from '../../../types/IOfficeState'
+import { PlaylistItem } from '../../../types/IOfficeState'
 
 interface MyPlaylistState {
     myPlaylistPanelOpen: boolean
-    playQueue: Array<IPlaylistItem>
-    items: Array<IPlaylistItem>
+    playQueue: Array<PlaylistItem>
+    items: Array<PlaylistItem>
     focused: boolean
 }
 
 const initialState: MyPlaylistState = {
     myPlaylistPanelOpen: false,
-    playQueue: new Array<IPlaylistItem>(),
-    items: new Array<IPlaylistItem>(),
+    playQueue: new Array<PlaylistItem>(),
+    items: new Array<PlaylistItem>(),
     focused: false,
 }
 
@@ -39,7 +39,7 @@ export const myPlaylistSlice = createSlice({
       //     }
       //   }
       },
-      removeFromPlayQueue: (state, action: PayloadAction<IPlaylistItem>) => {
+      removeFromPlayQueue: (state, action: PayloadAction<PlaylistItem>) => {
   
           console.log('////REMOVE FROM PLAYLIST QUEUE', action.payload);
          
@@ -49,7 +49,7 @@ export const myPlaylistSlice = createSlice({
       shiftMyPlaylist: (state) => {
           state.items = state.items.slice(1)
       },
-      addItemToMyPlaylist: (state, action: PayloadAction<IPlaylistItem>) => {
+      addItemToMyPlaylist: (state, action: PayloadAction<PlaylistItem>) => {
         state.items.push(action.payload)
       },
       removeItemFromMyPlaylist: (state, action: PayloadAction<number>) => {
