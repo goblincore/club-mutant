@@ -33,6 +33,18 @@ export interface IPlaylistItem extends Schema {
   djId: string
   title: string
   link: string
+  thumb?: string
+  type?: string
+  duration: number
+}
+
+export type PlaylistItem = {
+  id: string
+  djId: string
+  title: string
+  link: string
+  thumb?: string
+  type?: string
   duration: number
 }
 
