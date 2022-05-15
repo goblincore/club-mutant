@@ -12,6 +12,7 @@ import axios from 'axios'
 import store from '../stores'
 import { addItemToMyPlaylist, syncPlayQueue } from '../stores/MyPlaylistStore'
 import { v4 as uuidv4 } from 'uuid';
+import { IPlaylistItem } from '../../../types/IOfficeState'
 
 const Backdrop = styled.div`
   position: fixed;
@@ -188,6 +189,7 @@ const MusicSearch = () => {
   const inputRef = useRef<HTMLInputElement>(null)
   const dispatch = useAppDispatch()
   const focused = useAppSelector((state) => state.myPlaylist.focused)
+  const currentPlaylist =  useAppSelector((state) => state.myPlaylist);
   const game = phaserGame.scene.keys.game as Game
 
   useEffect(() => {
@@ -249,6 +251,22 @@ const MusicSearch = () => {
     }
     store.dispatch(addItemToMyPlaylist(item))
   }
+
+  // const resultsFromCurrentPlaylist = currentPlaylist?.items?. map( (playlistItem: IPlaylistItem) => {
+  
+  //   // const { title, thumbnail, length, id } = playlistItem;
+  //   return (
+  //     <YoutubeResult
+  //     onClick={handleClick}
+  //     key={id}
+  //     title={title}
+  //     thumbnail={thumbnail}
+  //     length={length}
+  //     id={id}
+  //   />
+
+  //   )
+  // })
 
   const resultsList =
     data?.length > 0 &&

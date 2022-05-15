@@ -5,6 +5,7 @@ import {
   IPlayer,
   IMusicBooth,
   IPlaylistItem,
+  PlaylistItem,
   IMusicStream,
 } from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
@@ -273,17 +274,17 @@ export default class Network {
     this.room?.send(Message.DISCONNECT_FROM_MUSIC_BOOTH, { musicBoothIndex: index })
   }
 
-  syncPlayerPlaylistQueue(items: IPlaylistItem[]) {
+  syncPlayerPlaylistQueue(items: PlaylistItem[]) {
     console.log('//Synchronize player queue playlist', items)
     this.room?.send(Message.SYNC_USER_SHORT_PLAYLIST, { items })
   }
 
-  syncMusicStream(item?: IPlaylistItem) {
+  syncMusicStream(item?: PlaylistItem) {
     console.log('Synchronize music stream', item)
     this.room?.send(Message.SYNC_MUSIC_STREAM, { item })
   }
 
-  addMyPlaylistItem(item: IPlaylistItem) {
+  addMyPlaylistItem(item: PlaylistItem) {
     console.log('Add playlist item, item', item)
     this.room?.send(Message.ADD_PLAYLIST_ITEM, { item })
   }
@@ -298,12 +299,12 @@ export default class Network {
     this.room?.send(Message.ADD_CHAT_MESSAGE, { content })
   }
 
-  setUserPlaylistItem(item: IPlaylistItem) {
+  setUserPlaylistItem(item: PlaylistItem) {
     console.log('Set User Playlist Item', item)
     this.room?.send(Message.SET_USER_PLAYLIST_ITEM, { item })
   }
 
-  setNextUserPlaylistItem(item: IPlaylistItem) {
+  setNextUserPlaylistItem(item: PlaylistItem) {
     console.log('Set User Playlist Item', item)
     this.room?.send(Message.SET_USER_NEXT_PLAYLIST_ITEM, { item })
   }
