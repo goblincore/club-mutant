@@ -39,8 +39,7 @@ export default class Game extends Phaser.Scene {
     super('game')
   }
 
-  preload() {
-  }
+  preload() {}
 
   registerKeys() {
     this.cursors = this.input.keyboard.createCursorKeys()
@@ -71,6 +70,8 @@ export default class Game extends Phaser.Scene {
     } else {
       this.network = data.network
     }
+
+    this.registerKeys()
 
     createCharacterAnims(this.anims)
 
@@ -212,17 +213,19 @@ export default class Game extends Phaser.Scene {
     otherPlayer?.updateOtherPlayer(field, value)
   }
 
-  private handlePlayersOverlap(myPlayer, otherPlayer) {
-  }
+  private handlePlayersOverlap(myPlayer, otherPlayer) {}
 
   private handleItemUserAdded(playerId: string, itemId: number, itemType: ItemType) {
-    console.log('////NETWORK handleItemUserAdded', playerId, itemId, itemType);
+    console.log('////NETWORK handleItemUserAdded', playerId, itemId, itemType)
     if (itemType === ItemType.MUSIC_BOOTH) {
       const musicBooth = this.musicBoothMap.get(itemId)
-      const currentPlayer = this.otherPlayerMap.get(playerId) || this.myPlayer.playerId === playerId ? this.myPlayer : null;
-      console.log('currentDJPlayerinfo', currentPlayer);
+      const currentPlayer =
+        this.otherPlayerMap.get(playerId) || this.myPlayer.playerId === playerId
+          ? this.myPlayer
+          : null
+      console.log('currentDJPlayerinfo', currentPlayer)
       musicBooth?.addCurrentUser(playerId)
-      console.log('////MusicBooth', musicBooth);
+      console.log('////MusicBooth', musicBooth)
     }
   }
 
@@ -241,21 +244,20 @@ export default class Game extends Phaser.Scene {
 
   private handleStartMusicStream(musicStream: IMusicStream, offset: number) {
     console.log('////handleStartMusicStream, musicStream.currentLink', musicStream.currentLink)
-    console.log('////handleStartMusicStream, offset', offset);
+    console.log('////handleStartMusicStream, offset', offset)
 
- 
-    console.log('musicStream handle start music stream game', musicStream);
-    const { currentLink: url , currentTitle:title, currentDj, startTime} = musicStream
+    console.log('musicStream handle start music stream game', musicStream)
+    const { currentLink: url, currentTitle: title, currentDj, startTime } = musicStream
 
     console.log('game handle start music stream', url)
 
-    store.dispatch(setMusicStream({url, title, currentDj, startTime}))
+    store.dispatch(setMusicStream({ url, title, currentDj, startTime }))
   }
 
   private handleStopMusicStream() {
     console.log('////handleStopMusicStream')
-    store.dispatch(setMusicStream(null));
-    this.myYoutubePlayer?.pause();
+    store.dispatch(setMusicStream(null))
+    this.myYoutubePlayer?.pause()
   }
 
   update(t: number, dt: number) {
