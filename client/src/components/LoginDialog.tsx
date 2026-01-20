@@ -6,9 +6,10 @@ import Avatar from '@mui/material/Avatar'
 import ArrowRightIcon from '@mui/icons-material/ArrowRight'
 
 import { Swiper, SwiperSlide } from 'swiper/react'
-import SwiperCore, { Navigation } from 'swiper'
-import 'swiper/swiper.min.css'
-import 'swiper/components/navigation/navigation.min.css'
+import SwiperCore from 'swiper'
+import { Navigation } from 'swiper'
+import 'swiper/css'
+import 'swiper/css/navigation'
 
 import Adam from '../assets/Adam_login.png'
 import Ash from '../assets/Ash_login.png'
@@ -33,6 +34,14 @@ const Wrapper = styled.form`
   border-radius: 16px;
   padding: 36px 60px;
   box-shadow: 0px 0px 5px #0000006f;
+
+  width: min(760px, 92vw);
+  max-height: 92vh;
+  overflow: auto;
+
+  @media (max-width: 800px) {
+    padding: 24px 20px;
+  }
 `
 
 const Title = styled.p`
@@ -78,6 +87,12 @@ const SubTitle = styled.h3`
 const Content = styled.div`
   display: flex;
   margin: 36px 0;
+
+  @media (max-width: 800px) {
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
 `
 
 const Left = styled.div`
@@ -85,11 +100,16 @@ const Left = styled.div`
 
   --swiper-navigation-size: 24px;
 
-  .swiper-container {
+  .swiper-container,
+  .swiper {
     width: 160px;
     height: 220px;
     border-radius: 8px;
     overflow: hidden;
+  }
+
+  @media (max-width: 800px) {
+    margin-right: 0;
   }
 
   .swiper-slide {
@@ -111,6 +131,11 @@ const Left = styled.div`
 
 const Right = styled.div`
   width: 300px;
+
+  @media (max-width: 800px) {
+    width: 100%;
+    max-width: 360px;
+  }
 `
 
 const Bottom = styled.div`
@@ -148,7 +173,6 @@ export default function LoginDialog() {
       setNameFieldEmpty(true)
     } else if (roomJoined) {
       console.log('Join! Name:', name, 'Avatar:', avatars[avatarIndex].name)
-      game.registerKeys()
       game.myPlayer.setPlayerName(name)
       game.myPlayer.setPlayerTexture(avatars[avatarIndex].name)
       game.network.readyToConnect()
@@ -159,7 +183,7 @@ export default function LoginDialog() {
   const handleExit = () => {
     game.scene.stop()
     dispatch(setRoomJoined(false))
-    console.log("////handleClickExitButton")
+    console.log('////handleClickExitButton')
   }
 
   return (
@@ -178,7 +202,6 @@ export default function LoginDialog() {
         <Left>
           <SubTitle>Select an avatar</SubTitle>
           <Swiper
-            // install Swiper modules
             navigation
             spaceBetween={0}
             slidesPerView={1}
@@ -202,14 +225,21 @@ export default function LoginDialog() {
             color="secondary"
             error={nameFieldEmpty}
             helperText={nameFieldEmpty && 'Name is required'}
-            onInput={(e) => {
+            onChange={(e) => {
               setName((e.target as HTMLInputElement).value)
+              if (nameFieldEmpty) setNameFieldEmpty(false)
             }}
           />
         </Right>
       </Content>
       <Bottom>
-        <Button variant="contained" color="secondary" size="large" type="submit" style={{margin: '0 10px'}}>
+        <Button
+          variant="contained"
+          color="secondary"
+          size="large"
+          type="submit"
+          style={{ margin: '0 10px' }}
+        >
           Join
         </Button>
         <Button
@@ -217,7 +247,7 @@ export default function LoginDialog() {
           color="secondary"
           size="large"
           type="button"
-          style={{margin: '0 10px'}}
+          style={{ margin: '0 10px' }}
           onClick={() => handleExit()}
         >
           Exit

@@ -23,7 +23,7 @@
     "regenerator-runtime": "^0.13.11",
     "sass": "^1.42.1",
     "styled-components": "^5.3.1",
-    "swiper": "^6.8.4",
+    "swiper": "^8.1.4",
     "tslib": "^2.6.2",
     "types": "file:./../types",
     "typescript": "^4.8.2",
