@@ -370,6 +370,12 @@ const MusicSearch = () => {
 
       {tab === 'room' && (
         <Tab>
+          <button
+            style={{ color: '#222', marginBottom: 8 }}
+            onClick={() => game.network.skipRoomPlaylist()}
+          >
+            Skip (Room)
+          </button>
           <RoomPlaylist
             items={roomPlaylist}
             mySessionId={mySessionId}
