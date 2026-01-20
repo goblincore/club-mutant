@@ -26,7 +26,12 @@ import {
   pushPlayerJoinedMessage,
   pushPlayerLeftMessage,
 } from '../stores/ChatStore'
-import { addItemToMyPlaylist, removeItemFromMyPlaylist, syncPlayQueue, removeFromPlayQueue } from '../stores/MyPlaylistStore'
+import {
+  addItemToMyPlaylist,
+  removeItemFromMyPlaylist,
+  syncPlayQueue,
+  removeFromPlayQueue,
+} from '../stores/MyPlaylistStore'
 
 // This class centralizes the handling of network events from the server
 // mostly the socket events
@@ -40,10 +45,13 @@ export default class Network {
 
   constructor() {
     const protocol = window.location.protocol.replace('http', 'ws')
+
     const endpoint =
-      process.env.NODE_ENV === 'production'
+      import.meta.env.VITE_WS_ENDPOINT ??
+      (import.meta.env.PROD
         ? `wss://sky-office.herokuapp.com`
-        : `${protocol}//${window.location.hostname}:2567`
+        : `${protocol}//${window.location.hostname}:2567`)
+
     this.client = new Client(endpoint)
     this.joinLobbyRoom().then(() => {
       store.dispatch(setLobbyJoined(true))
@@ -109,9 +117,8 @@ export default class Network {
     this.room.state.players.onAdd = (player: IPlayer, key: string) => {
       if (key === this.mySessionId) {
         player.nextTwoPlaylist.onRemove = (item, index) => {
-          console.log('////*player next two playlist onchange item',  player.nextTwoPlaylist)
+          console.log('////*player next two playlist onchange item', player.nextTwoPlaylist)
           // store.dispatch(removeFromPlayQueue(item))
-          
         }
         return
       }
@@ -149,7 +156,7 @@ export default class Network {
             if (value === null) {
               phaserEvents.emit(Event.ITEM_USER_REMOVED, index, ItemType.MUSIC_BOOTH)
             } else {
-              console.log('USER JOINED MUSICBOOTH field', field ,'value', value);
+              console.log('USER JOINED MUSICBOOTH field', field, 'value', value)
               phaserEvents.emit(Event.ITEM_USER_ADDED, value, index, ItemType.MUSIC_BOOTH)
             }
           }
@@ -180,7 +187,7 @@ export default class Network {
 
     // when the server sends room data
     this.room.onMessage(Message.SYNC_MUSIC_STREAM, (item) => {
-      console.log('SERVER NETWORK SEND ON MESSAGE SYNC MUSIC', item);
+      console.log('SERVER NETWORK SEND ON MESSAGE SYNC MUSIC', item)
       this.syncMusicStream()
     })
 

@@ -38,6 +38,15 @@ export interface IPlaylistItem extends Schema {
   duration: number
 }
 
+export interface IRoomPlaylistItem extends Schema {
+  id: string
+  title: string
+  link: string
+  duration: number
+  addedAtMs: number
+  addedBySessionId: string
+}
+
 export type PlaylistItem = {
   id: string
   djId: string
@@ -65,4 +74,5 @@ export interface IOfficeState extends Schema {
   chatMessages: ArraySchema<IChatMessage>
   musicStream: IMusicStream
   nextStream: IMusicStream
+  roomPlaylist: ArraySchema<IRoomPlaylistItem>
 }

@@ -4,9 +4,9 @@ import { enableMapSet } from 'immer'
 import userReducer from './UserStore'
 import chatReducer from './ChatStore'
 import roomReducer from './RoomStore'
-import myPlaylistReducer from './MyPlaylistStore';
-import musicBoothReducer from './MusicBoothStore';
-import musicStreamReducer from './MusicStreamStore';
+import myPlaylistReducer from './MyPlaylistStore'
+import musicBoothReducer from './MusicBoothStore'
+import musicStreamReducer from './MusicStreamStore'
 
 enableMapSet()
 
@@ -26,6 +26,24 @@ const store = configureStore({
     getDefaultMiddleware({
       serializableCheck: false,
     }),
+})
+
+const MY_PLAYLIST_STORAGE_KEY = 'club-mutant:my-playlist:v1'
+
+let lastPersistedMyPlaylistItemsJson: string | null = null
+
+store.subscribe(() => {
+  try {
+    const items = store.getState().myPlaylist.items
+    const serialized = JSON.stringify(items)
+
+    if (serialized === lastPersistedMyPlaylistItemsJson) return
+
+    lastPersistedMyPlaylistItemsJson = serialized
+    localStorage.setItem(MY_PLAYLIST_STORAGE_KEY, serialized)
+  } catch {
+    // ignore localStorage errors (private browsing, quota exceeded, etc.)
+  }
 })
 
 // Infer the `RootState` and `AppDispatch` types from the store itself

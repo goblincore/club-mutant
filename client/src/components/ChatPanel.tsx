@@ -7,8 +7,8 @@ import IconButton from '@mui/material/IconButton'
 import InputBase from '@mui/material/InputBase'
 import InsertEmoticonIcon from '@mui/icons-material/InsertEmoticon'
 import CloseIcon from '@mui/icons-material/Close'
-import { Picker } from 'emoji-mart'
-import 'emoji-mart/css/emoji-mart.css'
+import data from '@emoji-mart/data'
+import Picker from '@emoji-mart/react'
 
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
@@ -16,6 +16,7 @@ import Game from '../scenes/Game'
 import { getColorByString } from '../util'
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { MessageType, setFocused, setShowChat } from '../stores/ChatStore'
+import { IChatMessage } from '../../../types/IOfficeState'
 
 const Backdrop = styled.div`
   position: fixed;
@@ -44,7 +45,6 @@ const FabWrapper = styled.div`
     line-height: 100%;
     background-color: white !important;
   }
-
 `
 
 const ChatHeader = styled.div`
@@ -74,7 +74,8 @@ const ChatBox = styled(Box)`
   background: #eee;
   border: 1px solid #00000029;
 
-  p, span {
+  p,
+  span {
     color: black !important;
   }
 `
@@ -122,7 +123,7 @@ const InputWrapper = styled.form`
 
 const InputTextField = styled(InputBase)`
   border-radius: 0px 0px 10px 10px;
-  
+
   input {
     padding: 5px;
     color: black;
@@ -141,7 +142,16 @@ const dateFormatter = new Intl.DateTimeFormat('en', {
   dateStyle: 'short',
 })
 
-const Message = ({ chatMessage, messageType }) => {
+type EmojiSelectResult = {
+  native?: string
+}
+
+type MessageProps = {
+  chatMessage: IChatMessage
+  messageType: MessageType
+}
+
+const Message: React.FC<MessageProps> = ({ chatMessage, messageType }) => {
   const [tooltipOpen, setTooltipOpen] = useState(false)
 
   return (
@@ -251,15 +261,17 @@ export default function Chat() {
               {showEmojiPicker && (
                 <EmojiPickerWrapper>
                   <Picker
+                    data={data}
                     theme="dark"
-                    showSkinTones={false}
-                    showPreview={false}
-                    onSelect={(emoji) => {
+                    previewPosition="none"
+                    skinTonePosition="none"
+                    onEmojiSelect={(emoji: EmojiSelectResult) => {
+                      if (!emoji.native) return
+
                       setInputValue(inputValue + emoji.native)
                       setShowEmojiPicker(!showEmojiPicker)
                       dispatch(setFocused(true))
                     }}
-                    exclude={['recent', 'flags']}
                   />
                 </EmojiPickerWrapper>
               )}
