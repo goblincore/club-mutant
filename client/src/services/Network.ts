@@ -7,6 +7,7 @@ import {
   IPlaylistItem,
   PlaylistItem,
   IMusicStream,
+  IRoomPlaylistItem,
 } from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
@@ -32,6 +33,12 @@ import {
   syncPlayQueue,
   removeFromPlayQueue,
 } from '../stores/MyPlaylistStore'
+import {
+  addRoomPlaylistItem,
+  removeRoomPlaylistItem,
+  setRoomPlaylist,
+  type RoomPlaylistItem as RoomPlaylistItemState,
+} from '../stores/RoomPlaylistStore'
 
 // This class centralizes the handling of network events from the server
 // mostly the socket events
@@ -169,6 +176,25 @@ export default class Network {
       store.dispatch(pushChatMessage(item))
     }
 
+    const toRoomPlaylistItem = (item: IRoomPlaylistItem): RoomPlaylistItemState => ({
+      id: item.id,
+      title: item.title,
+      link: item.link,
+      duration: item.duration,
+      addedAtMs: item.addedAtMs,
+      addedBySessionId: item.addedBySessionId,
+    })
+
+    store.dispatch(setRoomPlaylist(this.room.state.roomPlaylist.map(toRoomPlaylistItem)))
+
+    this.room.state.roomPlaylist.onAdd = (item: IRoomPlaylistItem) => {
+      store.dispatch(addRoomPlaylistItem(toRoomPlaylistItem(item)))
+    }
+
+    this.room.state.roomPlaylist.onRemove = (item: IRoomPlaylistItem) => {
+      store.dispatch(removeRoomPlaylistItem(item.id))
+    }
+
     // when the server sends room data
     this.room.onMessage(Message.SEND_ROOM_DATA, (content) => {
       store.dispatch(setJoinedRoomData(content))
@@ -289,6 +315,19 @@ export default class Network {
   syncMusicStream(item?: PlaylistItem) {
     console.log('Synchronize music stream', item)
     this.room?.send(Message.SYNC_MUSIC_STREAM, { item })
+  }
+
+  addRoomPlaylistItem(item: Pick<PlaylistItem, 'title' | 'link' | 'duration'>) {
+    if (!item.link) return
+    this.room?.send(Message.ROOM_PLAYLIST_ADD, {
+      title: item.title,
+      link: item.link,
+      duration: item.duration,
+    })
+  }
+
+  removeRoomPlaylistItem(id: string) {
+    this.room?.send(Message.ROOM_PLAYLIST_REMOVE, { id })
   }
 
   addMyPlaylistItem(item: PlaylistItem) {

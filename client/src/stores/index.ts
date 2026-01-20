@@ -5,6 +5,7 @@ import userReducer from './UserStore'
 import chatReducer from './ChatStore'
 import roomReducer from './RoomStore'
 import myPlaylistReducer from './MyPlaylistStore'
+import roomPlaylistReducer from './RoomPlaylistStore'
 import musicBoothReducer from './MusicBoothStore'
 import musicStreamReducer from './MusicStreamStore'
 
@@ -15,6 +16,7 @@ const store = configureStore({
   reducer: {
     user: userReducer,
     myPlaylist: myPlaylistReducer,
+    roomPlaylist: roomPlaylistReducer,
     musicBooth: musicBoothReducer,
     musicStream: musicStreamReducer,
     chat: chatReducer,
