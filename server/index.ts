@@ -1,13 +1,12 @@
 import http from 'http'
 import express from 'express'
+import type { NextFunction, Request, Response } from 'express'
 import cors from 'cors'
 import { Server, LobbyRoom } from 'colyseus'
 import { monitor } from '@colyseus/monitor'
-import { WebSocketTransport } from "@colyseus/ws-transport";
 // import socialRoutes from "@colyseus/social/express"
-import * as yt from 'youtube-search-without-api-key'
 
-import * as youtube from './Youtube';
+import * as youtube from './Youtube'
 import { RoomType } from '../types/Rooms'
 
 import { SkyOffice } from './rooms/SkyOffice'
@@ -20,14 +19,7 @@ app.use(express.json())
 // app.use(express.static('dist'))
 
 const server = http.createServer(app)
-const gameServer = new Server({
-  server,
-  transport: new WebSocketTransport({
-    server,
-    pingInterval: 5000,
-    pingMaxRetries: 3,
-  })
-})
+const gameServer = new Server({ server })
 
 // register room handlers
 gameServer.define(RoomType.LOBBY, LobbyRoom)
@@ -53,18 +45,16 @@ app.use('/colyseus', monitor())
 gameServer.listen(port)
 console.log(`Listening on ws://localhost:${port}`)
 
-app.get('/youtube/:search', async (req, res, next) => {
-  const { search } = req.params;
-  console.log('////app.get(/youtube/:search)', search);
+app.get('/youtube/:search', async (req: Request, res: Response, next: NextFunction) => {
+  const { search } = req.params
+  console.log('////app.get(/youtube/:search)', search)
   try {
     // We will be coding here
     // const videos = await yt.search('dj lostboi')
-    const videos = await youtube.GetData(search, false, 24);
+    const videos = await youtube.GetData(search, false, 24)
     res.json(videos)
   } catch (e) {
     console.log('////app.get(/youtube/:search), catch, e', e)
-    return next(e);
+    return next(e)
   }
 })
-
-
