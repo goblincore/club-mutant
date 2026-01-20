@@ -130,6 +130,15 @@ export default class Network {
         return
       }
 
+      let hasEmittedJoined = false
+
+      if (player.name !== '') {
+        hasEmittedJoined = true
+        phaserEvents.emit(Event.PLAYER_JOINED, player, key)
+        store.dispatch(setPlayerNameMap({ id: key, name: player.name }))
+        store.dispatch(pushPlayerJoinedMessage(player.name))
+      }
+
       // track changes on every child object inside the players MapSchema
       player.onChange = (changes) => {
         changes.forEach((change) => {
@@ -137,7 +146,8 @@ export default class Network {
           phaserEvents.emit(Event.PLAYER_UPDATED, field, value, key)
 
           // when a new player finished setting up player name
-          if (field === 'name' && value !== '') {
+          if (!hasEmittedJoined && field === 'name' && value !== '') {
+            hasEmittedJoined = true
             phaserEvents.emit(Event.PLAYER_JOINED, player, key)
             store.dispatch(setPlayerNameMap({ id: key, name: value }))
             store.dispatch(pushPlayerJoinedMessage(value))
@@ -258,6 +268,19 @@ export default class Network {
   // method to register event listener and call back function when a player joined
   onPlayerJoined(callback: (Player: IPlayer, key: string) => void, context?: any) {
     phaserEvents.on(Event.PLAYER_JOINED, callback, context)
+
+    if (!this.room) return
+
+    this.room.state.players.forEach((player, key) => {
+      if (key === this.mySessionId) return
+      if (player.name === '') return
+
+      if (context) {
+        callback.call(context, player, key)
+      } else {
+        callback(player, key)
+      }
+    })
   }
 
   // method to register event listener and call back function when a player left
