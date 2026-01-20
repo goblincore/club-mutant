@@ -22,4 +22,5 @@ export enum Message {
 
   ROOM_PLAYLIST_ADD,
   ROOM_PLAYLIST_REMOVE,
+  ROOM_PLAYLIST_SKIP,
 }

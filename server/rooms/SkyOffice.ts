@@ -1,8 +1,16 @@
 import bcrypt from 'bcrypt'
 import { Room, Client, ServerError } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
+import { v4 as uuidv4 } from 'uuid'
 
-import { Player, OfficeState, MusicBooth, PlaylistItem } from './schema/OfficeState'
+import {
+  Player,
+  OfficeState,
+  MusicBooth,
+  PlaylistItem,
+  RoomPlaylistItem,
+  DJUserInfo,
+} from './schema/OfficeState'
 import { IRoomData } from '../../types/Rooms'
 import { Message } from '../../types/Messages'
 
@@ -22,7 +30,7 @@ import {
 import { MusicStreamNextCommand } from './commands/MusicStreamUpdateCommand'
 
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
-import Queue from '../Queue';
+import Queue from '../Queue'
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
@@ -52,9 +60,77 @@ export class SkyOffice extends Room<OfficeState> {
       this.state.musicBooths.push(new MusicBooth())
     }
 
+    this.onMessage(
+      Message.ROOM_PLAYLIST_ADD,
+      (
+        client,
+        message: {
+          title: string
+          link: string
+          duration: number
+        }
+      ) => {
+        const item = new RoomPlaylistItem()
+        item.id = uuidv4()
+        item.title = message.title
+        item.link = message.link
+        item.duration = message.duration
+        item.addedAtMs = Date.now()
+        item.addedBySessionId = client.sessionId
+
+        this.state.roomPlaylist.push(item)
+      }
+    )
+
+    this.onMessage(
+      Message.ROOM_PLAYLIST_REMOVE,
+      (
+        client,
+        message: {
+          id: string
+        }
+      ) => {
+        const index = this.state.roomPlaylist.findIndex((i) => i.id === message.id)
+        if (index < 0) return
+
+        const item = this.state.roomPlaylist[index]
+        if (item.addedBySessionId !== client.sessionId) return
+
+        this.state.roomPlaylist.splice(index, 1)
+      }
+    )
+
+    this.onMessage(Message.ROOM_PLAYLIST_SKIP, (client) => {
+      const next = this.state.roomPlaylist.splice(0, 1)[0]
+      const musicStream = this.state.musicStream
+
+      if (!next) {
+        musicStream.status = 'waiting'
+        musicStream.currentLink = null
+        musicStream.currentTitle = null
+        musicStream.startTime = Date.now()
+        musicStream.duration = 0
+
+        this.broadcast(Message.STOP_MUSIC_STREAM, {})
+        return
+      }
+
+      const djInfo = new DJUserInfo()
+      djInfo.name = 'Room'
+      djInfo.sessionId = ''
+
+      musicStream.status = 'playing'
+      musicStream.currentLink = next.link
+      musicStream.currentTitle = next.title
+      musicStream.currentDj = djInfo
+      musicStream.startTime = Date.now()
+      musicStream.duration = next.duration
+
+      this.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
+    })
+
     // when a player starts playing a song
     this.onMessage(Message.SYNC_MUSIC_STREAM, (client, message: { item?: PlaylistItem }) => {
-  
       console.log('///ON MESSSAGE SYNYC MUSIC STREAM', message?.item)
       console.log('///ON MESSSAGE SYNC USER PLAYLIST QUEUE', message?.item)
 
@@ -76,13 +152,16 @@ export class SkyOffice extends Room<OfficeState> {
         })
 
         this.state.musicBoothQueue.push(message.musicBoothIndex)
-       
+
         console.log('////connectToMusicBooth client', client.sessionId)
         console.log(
           '////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status',
           this.state.musicStream.status
         )
-        if ((this.state.musicStream.status === 'waiting') || this.state.musicStream.status === 'seeking') {
+        if (
+          this.state.musicStream.status === 'waiting' ||
+          this.state.musicStream.status === 'seeking'
+        ) {
           console.log('////MUSIC STREAM NEXT COMMAND INVOKE')
           this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
         }
@@ -188,26 +267,25 @@ export class SkyOffice extends Room<OfficeState> {
 
   // when a new player joins, send room data
   onJoin(client: Client, options: any) {
-    console.log("////onJoin, client", client)
+    console.log('////onJoin, client', client)
     this.state.players.set(client.sessionId, new Player())
     client.send(Message.SEND_ROOM_DATA, {
       id: this.roomId,
       name: this.name,
       description: this.description,
     })
-    console.log("////onJoin, Message.SEND_ROOM_DATA")
-
+    console.log('////onJoin, Message.SEND_ROOM_DATA')
 
     const musicStream = this.state.musicStream
-    console.log('this state musicStream', musicStream);
+    console.log('this state musicStream', musicStream)
     if (musicStream.status === 'playing') {
       const currentTime: number = Date.now()
       client.send(Message.START_MUSIC_STREAM, {
         musicStream: musicStream,
-        offset: (currentTime - musicStream.startTime) / 1000
+        offset: (currentTime - musicStream.startTime) / 1000,
       })
     }
-    console.log("////onJoin, musicStream.status", musicStream.status)
+    console.log('////onJoin, musicStream.status', musicStream.status)
   }
 
   onLeave(client: Client, consented: boolean) {
