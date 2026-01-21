@@ -19,7 +19,7 @@ import { ItemType } from '../../../types/Items'
 import Network from '../services/Network'
 
 import store from '../stores'
-import { setFocused, setShowChat } from '../stores/ChatStore'
+import { setShowChat } from '../stores/ChatStore'
 import { setMusicStream } from '../stores/MusicStreamStore'
 import { setLoggedIn } from '../stores/UserStore'
 
@@ -30,6 +30,10 @@ import { RoomType } from '../../../types/Rooms'
 export default class Game extends Phaser.Scene {
   network!: Network
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
+  private keyW!: Phaser.Input.Keyboard.Key
+  private keyA!: Phaser.Input.Keyboard.Key
+  private keyS!: Phaser.Input.Keyboard.Key
+  private keyD!: Phaser.Input.Keyboard.Key
   private keyE!: Phaser.Input.Keyboard.Key
   private keyR!: Phaser.Input.Keyboard.Key
   private map!: Phaser.Tilemaps.Tilemap
@@ -38,7 +42,7 @@ export default class Game extends Phaser.Scene {
   private lastPointerDownTime = 0
   private pendingMoveClick: { downTime: number; x: number; y: number } | null = null
   myPlayer!: MyPlayer
-  private playerSelector!: Phaser.GameObjects.Zone
+  private playerSelector!: PlayerSelector
   private otherPlayers!: Phaser.Physics.Arcade.Group
   private otherPlayerMap = new Map<string, OtherPlayer>()
   private musicBoothMap = new Map<number, MusicBooth>()
@@ -88,16 +92,19 @@ export default class Game extends Phaser.Scene {
   preload() {}
 
   registerKeys() {
-    this.cursors = this.input.keyboard.createCursorKeys()
+    const keyboard = this.input.keyboard
+    if (!keyboard) return
+
+    this.cursors = keyboard.createCursorKeys()
     // maybe we can have a dedicated method for adding keys if more keys are needed in the future
-    this.keyE = this.input.keyboard.addKey('E')
-    this.keyR = this.input.keyboard.addKey('R')
-    this.input.keyboard.disableGlobalCapture()
-    this.input.keyboard.on('keydown-ENTER', (event) => {
-      store.dispatch(setShowChat(true))
-      store.dispatch(setFocused(true))
-    })
-    this.input.keyboard.on('keydown-ESC', (event) => {
+    this.keyW = keyboard.addKey('W')
+    this.keyA = keyboard.addKey('A')
+    this.keyS = keyboard.addKey('S')
+    this.keyD = keyboard.addKey('D')
+    this.keyE = keyboard.addKey('E')
+    this.keyR = keyboard.addKey('R')
+    keyboard.disableGlobalCapture()
+    keyboard.on('keydown-ESC', (event) => {
       store.dispatch(setShowChat(false))
     })
   }
@@ -576,10 +583,21 @@ export default class Game extends Phaser.Scene {
         }
       }
 
-      this.playerSelector.update(this.myPlayer, this.cursors)
+      this.playerSelector.update(this.myPlayer, this.cursors, {
+        up: this.keyW,
+        down: this.keyS,
+        left: this.keyA,
+        right: this.keyD,
+      })
       this.myPlayer.update(
         this.playerSelector,
         this.cursors,
+        {
+          up: this.keyW,
+          down: this.keyS,
+          left: this.keyA,
+          right: this.keyD,
+        },
         this.keyE,
         this.keyR,
         this.network,

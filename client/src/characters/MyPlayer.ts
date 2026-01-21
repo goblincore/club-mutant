@@ -99,6 +99,12 @@ export default class MyPlayer extends Player {
   update(
     playerSelector: PlayerSelector,
     cursors: Phaser.Types.Input.Keyboard.CursorKeys,
+    wasd: {
+      up: Phaser.Input.Keyboard.Key
+      down: Phaser.Input.Keyboard.Key
+      left: Phaser.Input.Keyboard.Key
+      right: Phaser.Input.Keyboard.Key
+    },
     keyE: Phaser.Input.Keyboard.Key,
     keyR: Phaser.Input.Keyboard.Key,
     network: Network,
@@ -140,12 +146,12 @@ export default class MyPlayer extends Player {
         }
         const speed = 200
 
-        const hasKeyboardInput = Boolean(
-          cursors.left?.isDown ||
-          cursors.right?.isDown ||
-          cursors.up?.isDown ||
-          cursors.down?.isDown
-        )
+        const leftDown = Boolean(cursors.left?.isDown || wasd.left.isDown)
+        const rightDown = Boolean(cursors.right?.isDown || wasd.right.isDown)
+        const upDown = Boolean(cursors.up?.isDown || wasd.up.isDown)
+        const downDown = Boolean(cursors.down?.isDown || wasd.down.isDown)
+
+        const hasKeyboardInput = Boolean(leftDown || rightDown || upDown || downDown)
 
         if (hasKeyboardInput && this.moveTarget) {
           this.clearMoveNavigation()
@@ -155,13 +161,13 @@ export default class MyPlayer extends Player {
         let vy = 0
 
         if (hasKeyboardInput) {
-          if (cursors.left?.isDown) vx -= speed
-          if (cursors.right?.isDown) vx += speed
-          if (cursors.up?.isDown) {
+          if (leftDown) vx -= speed
+          if (rightDown) vx += speed
+          if (upDown) {
             vy -= speed
             this.setDepth(this.y) //change player.depth if player.y changes
           }
-          if (cursors.down?.isDown) {
+          if (downDown) {
             vy += speed
             this.setDepth(this.y) //change player.depth if player.y changes
           }
