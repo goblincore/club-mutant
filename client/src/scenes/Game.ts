@@ -28,6 +28,7 @@ export default class Game extends Phaser.Scene {
   private keyE!: Phaser.Input.Keyboard.Key
   private keyR!: Phaser.Input.Keyboard.Key
   private map!: Phaser.Tilemaps.Tilemap
+  private lastPointerDownTime = 0
   myPlayer!: MyPlayer
   private playerSelector!: Phaser.GameObjects.Zone
   private otherPlayers!: Phaser.Physics.Arcade.Group
@@ -37,6 +38,43 @@ export default class Game extends Phaser.Scene {
 
   constructor() {
     super('game')
+  }
+
+  private isPointerOverCanvas(pointer: Phaser.Input.Pointer): boolean {
+    const canvas = this.game.canvas
+    if (!canvas) return false
+
+    const rect = canvas.getBoundingClientRect()
+
+    const event = pointer.event
+    let clientX: number | null = null
+    let clientY: number | null = null
+
+    if (event) {
+      if ('clientX' in event && typeof event.clientX === 'number') {
+        clientX = event.clientX
+        clientY = event.clientY
+      } else if ('changedTouches' in event && event.changedTouches.length > 0) {
+        clientX = event.changedTouches[0].clientX
+        clientY = event.changedTouches[0].clientY
+      }
+    }
+
+    if (clientX !== null && clientY !== null) {
+      return (
+        clientX >= rect.left &&
+        clientX <= rect.right &&
+        clientY >= rect.top &&
+        clientY <= rect.bottom
+      )
+    }
+
+    return (
+      pointer.x >= 0 &&
+      pointer.x <= this.scale.width &&
+      pointer.y >= 0 &&
+      pointer.y <= this.scale.height
+    )
   }
 
   preload() {}
@@ -120,6 +158,28 @@ export default class Game extends Phaser.Scene {
       this.otherPlayers,
       this.handlePlayersOverlap,
       undefined,
+      this
+    )
+
+    this.input.on(
+      Phaser.Input.Events.POINTER_DOWN,
+      (pointer: Phaser.Input.Pointer) => {
+        if (typeof pointer.button === 'number' && pointer.button !== 0) return
+        if (!this.isPointerOverCanvas(pointer)) return
+
+        const state = store.getState()
+        if (
+          state.chat.focused ||
+          state.myPlaylist.focused ||
+          state.myPlaylist.myPlaylistPanelOpen
+        ) {
+          return
+        }
+
+        if (this.myPlayer.playerBehavior !== PlayerBehavior.IDLE) return
+
+        this.myPlayer.setMoveTarget(pointer.worldX, pointer.worldY)
+      },
       this
     )
     // Youtube embed test
@@ -281,6 +341,24 @@ export default class Game extends Phaser.Scene {
 
   update(t: number, dt: number) {
     if (this.myPlayer && this.network) {
+      const pointer = this.input.activePointer
+
+      if (pointer.isDown && pointer.downTime !== this.lastPointerDownTime) {
+        this.lastPointerDownTime = pointer.downTime
+
+        const state = store.getState()
+        if (
+          !state.chat.focused &&
+          !state.myPlaylist.focused &&
+          !state.myPlaylist.myPlaylistPanelOpen &&
+          this.myPlayer.playerBehavior === PlayerBehavior.IDLE &&
+          !pointer.rightButtonDown() &&
+          this.isPointerOverCanvas(pointer)
+        ) {
+          this.myPlayer.setMoveTarget(pointer.worldX, pointer.worldY)
+        }
+      }
+
       this.playerSelector.update(this.myPlayer, this.cursors)
       this.myPlayer.update(this.playerSelector, this.cursors, this.keyE, this.keyR, this.network)
     }

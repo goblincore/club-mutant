@@ -13,7 +13,8 @@ import { ItemType } from '../../../types/Items'
 export default class MyPlayer extends Player {
   private playerContainerBody: Phaser.Physics.Arcade.Body
   private musicBoothOnSit?: MusicBooth
-  
+  private moveTarget: { x: number; y: number } | null = null
+
   constructor(
     scene: Phaser.Scene,
     x: number,
@@ -26,6 +27,14 @@ export default class MyPlayer extends Player {
     this.playerContainerBody = this.playerContainer.body as Phaser.Physics.Arcade.Body
   }
 
+  setMoveTarget(x: number, y: number) {
+    this.moveTarget = { x, y }
+  }
+
+  clearMoveTarget() {
+    this.moveTarget = null
+  }
+
   setPlayerName(name: string) {
     this.playerName.setText(name)
     this.setName(name)
@@ -35,8 +44,9 @@ export default class MyPlayer extends Player {
 
   setPlayerTexture(texture: string) {
     this.playerTexture = texture
-    this.anims.play(`${this.playerTexture}_idle_down`, true)
-    phaserEvents.emit(Event.MY_PLAYER_TEXTURE_CHANGE, this.x, this.y, this.anims.currentAnim.key)
+    const idleKey = `${this.playerTexture}_idle_down`
+    this.anims.play(idleKey, true)
+    phaserEvents.emit(Event.MY_PLAYER_TEXTURE_CHANGE, this.x, this.y, idleKey)
   }
 
   update(
@@ -48,12 +58,17 @@ export default class MyPlayer extends Player {
   ) {
     if (!cursors) return
 
+    const body = this.body as Phaser.Physics.Arcade.Body | null
+    if (!body) return
+
+    const currentAnimKey = this.anims.currentAnim?.key ?? `${this.playerTexture}_idle_down`
+
     const item = playerSelector.selectedItem
-    
+
     switch (this.playerBehavior) {
       case PlayerBehavior.IDLE:
         if (Phaser.Input.Keyboard.JustDown(keyR)) {
-          console.log("////MyPlayer, update, switch, PlayerBehavior.IDLE, JustDown")
+          console.log('////MyPlayer, update, switch, PlayerBehavior.IDLE, JustDown')
           switch (item?.itemType) {
             case ItemType.MUSIC_BOOTH:
               const musicBootItem = item as MusicBooth
@@ -67,27 +82,57 @@ export default class MyPlayer extends Player {
           return
         }
         const speed = 200
+
+        const hasKeyboardInput = Boolean(
+          cursors.left?.isDown ||
+          cursors.right?.isDown ||
+          cursors.up?.isDown ||
+          cursors.down?.isDown
+        )
+
+        if (hasKeyboardInput && this.moveTarget) {
+          this.clearMoveTarget()
+        }
+
         let vx = 0
         let vy = 0
-        if (cursors.left?.isDown) vx -= speed
-        if (cursors.right?.isDown) vx += speed
-        if (cursors.up?.isDown) {
-          vy -= speed
-          this.setDepth(this.y) //change player.depth if player.y changes
+
+        if (hasKeyboardInput) {
+          if (cursors.left?.isDown) vx -= speed
+          if (cursors.right?.isDown) vx += speed
+          if (cursors.up?.isDown) {
+            vy -= speed
+            this.setDepth(this.y) //change player.depth if player.y changes
+          }
+          if (cursors.down?.isDown) {
+            vy += speed
+            this.setDepth(this.y) //change player.depth if player.y changes
+          }
+        } else if (this.moveTarget) {
+          const dx = this.moveTarget.x - this.x
+          const dy = this.moveTarget.y - this.y
+
+          const distanceSq = dx * dx + dy * dy
+          if (distanceSq <= 4 * 4) {
+            this.clearMoveTarget()
+          } else {
+            const distance = Math.sqrt(distanceSq)
+            vx = (dx / distance) * speed
+            vy = (dy / distance) * speed
+          }
         }
-        if (cursors.down?.isDown) {
-          vy += speed
-          this.setDepth(this.y) //change player.depth if player.y changes
-        }
+
+        this.setDepth(this.y)
+
         // update character velocity
         this.setVelocity(vx, vy)
-        this.body.velocity.setLength(speed)
+        body.velocity.setLength(speed)
         // also update playerNameContainer velocity
         this.playerContainerBody.setVelocity(vx, vy)
         this.playerContainerBody.velocity.setLength(speed)
 
         // update animation according to velocity and send new location and anim to server
-        if (vx !== 0 || vy !== 0) network.updatePlayerAction(this.x, this.y, this.anims.currentAnim.key)
+        if (vx !== 0 || vy !== 0) network.updatePlayerAction(this.x, this.y, currentAnimKey)
         if (vx > 0) {
           this.play(`${this.playerTexture}_run_right`, true)
         } else if (vx < 0) {
@@ -97,14 +142,14 @@ export default class MyPlayer extends Player {
         } else if (vy < 0) {
           this.play(`${this.playerTexture}_run_up`, true)
         } else {
-          const parts = this.anims.currentAnim.key.split('_')
+          const parts = currentAnimKey.split('_')
           parts[1] = 'idle'
           const newAnim = parts.join('_')
           // this prevents idle animation keeps getting called
-          if (this.anims.currentAnim.key !== newAnim) {
+          if (currentAnimKey !== newAnim) {
             this.play(parts.join('_'), true)
             // send new location and anim to server
-            network.updatePlayerAction(this.x, this.y, this.anims.currentAnim.key)
+            network.updatePlayerAction(this.x, this.y, newAnim)
           }
         }
         break
@@ -112,7 +157,7 @@ export default class MyPlayer extends Player {
       case PlayerBehavior.SITTING:
         // back to idle if player press E while sitting
         if (Phaser.Input.Keyboard.JustDown(keyR)) {
-          console.log("////MyPlayer, update, switch, PlayerBehavior.SITTING, JustDown")
+          console.log('////MyPlayer, update, switch, PlayerBehavior.SITTING, JustDown')
           switch (item?.itemType) {
             case ItemType.MUSIC_BOOTH:
               this.musicBoothOnSit?.closeDialog(network)
@@ -121,6 +166,10 @@ export default class MyPlayer extends Player {
               this.playerBehavior = PlayerBehavior.IDLE
               break
           }
+        }
+
+        if (this.moveTarget) {
+          this.clearMoveTarget()
         }
         break
     }
@@ -153,7 +202,7 @@ Phaser.GameObjects.GameObjectFactory.register(
     this.scene.physics.world.enableBody(sprite, Phaser.Physics.Arcade.DYNAMIC_BODY)
 
     const collisionScale = [0.5, 0.2]
-    sprite.body
+    ;(sprite.body as Phaser.Physics.Arcade.Body)
       .setSize(sprite.width * collisionScale[0], sprite.height * collisionScale[1])
       .setOffset(
         sprite.width * (1 - collisionScale[0]) * 0.5,
