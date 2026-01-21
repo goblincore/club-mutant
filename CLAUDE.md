@@ -110,6 +110,7 @@ There are two parallel playback modes:
   - `ROOM_PLAYLIST_PLAY`: starts playback at current cursor (`roomPlaylistIndex`), DJ-only.
   - `ROOM_PLAYLIST_SKIP`: advances cursor by +1 and starts playback, DJ-only.
     - **Non-destructive:** does _not_ remove tracks from `roomPlaylist`.
+  - `ROOM_PLAYLIST_PREV`: moves cursor by -1 and starts playback (clamped at 0), DJ-only.
   - Auto-start: on `CONNECT_TO_MUSIC_BOOTH`, if the room playlist has items and stream is idle, it starts playback.
 
 ### Client-side playback + UI
@@ -119,16 +120,31 @@ There are two parallel playback modes:
   - `onEnded`:
     - If `isRoomPlaylist` and you are the current DJ, it calls `skipRoomPlaylist()`.
 
+- Minimized DJ bar:
+  - `YoutubePlayer.tsx` can be minimized into a small top-left bar.
+  - Shows a marquee track title + minimal prev/play-pause/next controls.
+  - The underlying `ReactPlayer` stays mounted while minimized (audio continues).
+
 - Stream metadata flow:
   - Server broadcasts `Message.START_MUSIC_STREAM` with `musicStream`.
   - `client/src/services/Network.ts` forwards to Phaser via `Event.START_PLAYING_MEDIA`.
   - `client/src/scenes/Game.ts` handles it and dispatches to Redux:
-    - `setMusicStream({ url, title, currentDj, startTime, isRoomPlaylist, roomPlaylistIndex })`
+    - `setMusicStream({ url, title, currentDj, startTime, isRoomPlaylist, roomPlaylistIndex, videoBackgroundEnabled })`
 
 - UI rendering:
   - `YoutubePlayer.tsx` shows `Play` and `Skip` buttons.
   - The room playlist list highlights the active track when:
     - `musicStream.isRoomPlaylist === true` and `index === musicStream.roomPlaylistIndex`.
+
+### DJ-synced fullscreen video background
+
+The DJ can toggle the current YouTube stream as a fullscreen background for everyone:
+
+- **Server state**: `musicStream.videoBackgroundEnabled` (Colyseus schema)
+- **Message**: `Message.SET_VIDEO_BACKGROUND` (DJ-only; booth connected user)
+- **Client rendering**:
+  - `client/src/App.tsx` portals a muted `ReactPlayer` fullscreen behind Phaser when enabled.
+  - Background video is forced to stretch/distort to cover the full viewport.
 
 ## DJ booth (music booth) behavior
 
@@ -183,10 +199,25 @@ There are two parallel playback modes:
 - If you change a player animation locally and want others to see it, you must update `player.anim` via `Network.updatePlayerAction(...)`.
 - For shared state, prefer adding explicit fields to the server schema + shared interfaces in `types/` and use those on the client.
 
+## Current tasks
+
+- Fix dev duplication: prevent multiple Phaser/Network instances (multiple connects / duplicated chat) under Vite HMR/refresh
+- Implement shared Room Playlist (server-authoritative, remove-own-only)
+- Stabilize legacy music booth/music stream code to prevent server errors during transition
+- Replace random-spawned pathfinding obstacles with Tiled-placed items (chairs/vending) + proper item classes/object layers
+- Pathfinding improvements: diagonal movement + corner-cutting rules + waypoint smoothing
+- Cache walkability grid (and expanded clearance grid) instead of rebuilding each click; recompute only when map/obstacles change
+- Add path debug rendering (waypoints/polyline and optionally blocked tiles overlay) for easier tuning
+- Get client TypeScript build (tsc) passing under Vite (fix nullable Phaser tilemap layer types, etc.)
+- Investigate 'playlist videos not playing' (defer until new playback pipeline lands)
+
 ## Recent noteworthy commits (Jan 2026)
 
 - Added DJ boombox spritesheet + animation + slowed playback.
 - Room playlist changed to be non-destructive, index-based playback.
 - Added Play button + auto-start on DJ connect + active-track highlight.
+- Added room playlist previous-track control (`ROOM_PLAYLIST_PREV`).
+- Added minimized DJ playlist bar with marquee + minimal controls.
+- Added DJ-synced fullscreen YouTube video background toggle.
 - Synced DJ boombox animation to other players via `updatePlayerAction`.
 - Public lobby: skip login, server-enforced mutant identity, and reliable auto-login in `Game.create()`.
