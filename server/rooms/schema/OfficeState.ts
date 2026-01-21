@@ -63,6 +63,7 @@ export class MusicStream extends Schema implements IMusicStream {
   @type('number') duration = 0
   @type('boolean') isRoomPlaylist = false
   @type('number') roomPlaylistIndex = 0
+  @type('boolean') videoBackgroundEnabled = false
 }
 
 export class MusicBooth extends Schema implements IMusicBooth {

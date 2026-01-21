@@ -181,6 +181,12 @@ export class SkyOffice extends Room<OfficeState> {
       }
     )
 
+    this.onMessage(Message.SET_VIDEO_BACKGROUND, (client, message: { enabled: boolean }) => {
+      if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
+
+      this.state.musicStream.videoBackgroundEnabled = Boolean(message.enabled)
+    })
+
     this.onMessage(Message.ROOM_PLAYLIST_SKIP, (client) => {
       if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
 

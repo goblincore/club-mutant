@@ -12,6 +12,7 @@ interface MusicStreamState {
   currentDj: DJUserInfoState
   isRoomPlaylist: boolean
   roomPlaylistIndex: number
+  videoBackgroundEnabled: boolean
 }
 
 const initialState: MusicStreamState = {
@@ -24,6 +25,7 @@ const initialState: MusicStreamState = {
   },
   isRoomPlaylist: false,
   roomPlaylistIndex: 0,
+  videoBackgroundEnabled: false,
 }
 
 export const musicStreamSlice = createSlice({
@@ -39,6 +41,7 @@ export const musicStreamSlice = createSlice({
         currentDj: DJUserInfoState
         isRoomPlaylist?: boolean
         roomPlaylistIndex?: number
+        videoBackgroundEnabled?: boolean
       } | null>
     ) => {
       console.log('////action set music stream reducer', action)
@@ -52,6 +55,7 @@ export const musicStreamSlice = createSlice({
         }
         state.isRoomPlaylist = false
         state.roomPlaylistIndex = 0
+        state.videoBackgroundEnabled = false
         return
       }
 
@@ -62,13 +66,18 @@ export const musicStreamSlice = createSlice({
         state.currentDj = action.payload.currentDj
         state.isRoomPlaylist = action.payload.isRoomPlaylist ?? false
         state.roomPlaylistIndex = action.payload.roomPlaylistIndex ?? 0
+        state.videoBackgroundEnabled = action.payload.videoBackgroundEnabled ?? false
       } catch (e) {
         console.warn('Failed setting music stream')
       }
     },
+
+    setVideoBackgroundEnabled: (state, action: PayloadAction<boolean>) => {
+      state.videoBackgroundEnabled = action.payload
+    },
   },
 })
 
-export const { setMusicStream } = musicStreamSlice.actions
+export const { setMusicStream, setVideoBackgroundEnabled } = musicStreamSlice.actions
 
 export default musicStreamSlice.reducer

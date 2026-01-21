@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import styled from 'styled-components'
 import { createPortal } from 'react-dom'
+import ReactPlayer from 'react-player/youtube'
 
 import { useAppSelector } from './hooks'
 
@@ -28,10 +29,41 @@ const PublicLobbyBackground = styled.img`
   pointer-events: none;
 `
 
+const VideoBackground = styled.div`
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+
+  > div {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  iframe {
+    width: 100% !important;
+    height: 100% !important;
+  }
+`
+
 function PublicLobbyBackgroundPortal({ src }: { src: string }) {
   if (typeof document === 'undefined') return null
 
   return createPortal(<PublicLobbyBackground src={src} alt="" />, document.body)
+}
+
+function VideoBackgroundPortal({ url }: { url: string }) {
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
+    <VideoBackground>
+      <ReactPlayer url={url} playing muted controls={false} width="100%" height="100%" />
+    </VideoBackground>,
+    document.body
+  )
 }
 
 function App() {
@@ -40,6 +72,10 @@ function App() {
   const roomType = useAppSelector((state) => state.room.roomType)
   const backgroundGif = useAppSelector((state) => state.room.backgroundGif)
   const backgroundSeed = useAppSelector((state) => state.room.backgroundSeed)
+
+  const videoBackgroundEnabled = useAppSelector((state) => state.musicStream.videoBackgroundEnabled)
+  const streamLink = useAppSelector((state) => state.musicStream.link)
+  const streamStartTime = useAppSelector((state) => state.musicStream.startTime)
 
   const [resolvedPublicGif, setResolvedPublicGif] = useState<string | null>(null)
 
@@ -108,7 +144,19 @@ function App() {
 
   return (
     <Backdrop>
-      {roomJoined && roomType === RoomType.PUBLIC && resolvedPublicGif ? (
+      {roomJoined && videoBackgroundEnabled && streamLink ? (
+        <VideoBackgroundPortal
+          url={`http://www.youtube.com/watch?v=${streamLink}#t=${Math.max(
+            0,
+            (Date.now() - streamStartTime) / 1000
+          )}s`}
+        />
+      ) : null}
+
+      {roomJoined &&
+      roomType === RoomType.PUBLIC &&
+      resolvedPublicGif &&
+      !(videoBackgroundEnabled && streamLink) ? (
         <PublicLobbyBackgroundPortal src={`assets/background/gif/${resolvedPublicGif}`} />
       ) : null}
       {ui}

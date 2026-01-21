@@ -35,6 +35,7 @@ import {
   syncPlayQueue,
   removeFromPlayQueue,
 } from '../stores/MyPlaylistStore'
+import { setVideoBackgroundEnabled } from '../stores/MusicStreamStore'
 import {
   addRoomPlaylistItem,
   removeRoomPlaylistItem,
@@ -235,6 +236,18 @@ export default class Network {
       phaserEvents.emit(Event.STOP_PLAYING_MEDIA)
     })
 
+    store.dispatch(
+      setVideoBackgroundEnabled(Boolean(this.room.state.musicStream.videoBackgroundEnabled))
+    )
+
+    this.room.state.musicStream.onChange = (changes) => {
+      changes.forEach((change) => {
+        if (change.field === 'videoBackgroundEnabled') {
+          store.dispatch(setVideoBackgroundEnabled(Boolean(change.value)))
+        }
+      })
+    }
+
     // when the server sends room data
     this.room.onMessage(Message.SYNC_MUSIC_STREAM, (item) => {
       console.log('SERVER NETWORK SEND ON MESSAGE SYNC MUSIC', item)
@@ -377,6 +390,10 @@ export default class Network {
 
   playRoomPlaylist() {
     this.room?.send(Message.ROOM_PLAYLIST_PLAY, {})
+  }
+
+  setVideoBackgroundEnabled(enabled: boolean) {
+    this.room?.send(Message.SET_VIDEO_BACKGROUND, { enabled })
   }
 
   addMyPlaylistItem(item: PlaylistItem) {

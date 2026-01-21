@@ -9,6 +9,8 @@ import PauseIcon from '@mui/icons-material/Pause'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import OpenInFullIcon from '@mui/icons-material/OpenInFull'
 import MinimizeIcon from '@mui/icons-material/Minimize'
+import FullscreenIcon from '@mui/icons-material/Fullscreen'
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit'
 
 import Game from '../scenes/Game'
 import phaserGame from '../PhaserGame'
@@ -161,6 +163,7 @@ export default function YoutubePlayer() {
   const currentDj = useAppSelector((state) => state.musicStream.currentDj)
   const isRoomPlaylist = useAppSelector((state) => state.musicStream.isRoomPlaylist)
   const roomPlaylistIndex = useAppSelector((state) => state.musicStream.roomPlaylistIndex)
+  const videoBackgroundEnabled = useAppSelector((state) => state.musicStream.videoBackgroundEnabled)
   const connectedBoothIndex = useAppSelector((state) => state.musicBooth.musicBoothIndex)
   const mySessionId = useAppSelector((state) => state.user.sessionId)
   const playerNameMap = useAppSelector((state) => state.user.playerNameMap)
@@ -172,6 +175,7 @@ export default function YoutubePlayer() {
 
   const canControlRoomPlaylist = Boolean(connectedBoothIndex !== null && roomPlaylist.length > 0)
   const isStreaming = link !== null
+  const canToggleVideoBackground = Boolean(connectedBoothIndex !== null)
   const displayTitle =
     title && title.trim() !== ''
       ? `Now Playing: ${title}`
@@ -332,6 +336,20 @@ export default function YoutubePlayer() {
             }
           >
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <IconButton
+                aria-label={
+                  videoBackgroundEnabled ? 'disable video background' : 'enable video background'
+                }
+                className="close"
+                disabled={!canToggleVideoBackground}
+                onClick={() => {
+                  game.network.setVideoBackgroundEnabled(!videoBackgroundEnabled)
+                }}
+                size="small"
+              >
+                {videoBackgroundEnabled ? <FullscreenExitIcon /> : <FullscreenIcon />}
+              </IconButton>
+
               <IconButton
                 aria-label="minimize dj player"
                 className="close"
