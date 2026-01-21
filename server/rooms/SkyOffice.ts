@@ -39,6 +39,7 @@ export class SkyOffice extends Room<OfficeState> {
   private password: string | null = null
   private musicBoothQueue: Queue | null = null
   private isPublic = false
+  private publicBackgroundSeed: number | null = null
 
   async onCreate(options: IRoomData) {
     const { name, description, password, autoDispose, isPublic } = options
@@ -46,6 +47,10 @@ export class SkyOffice extends Room<OfficeState> {
     this.description = description
     this.autoDispose = autoDispose
     this.isPublic = Boolean(isPublic)
+
+    if (this.isPublic) {
+      this.publicBackgroundSeed = 4
+    }
 
     let hasPassword = false
     if (password) {
@@ -369,6 +374,7 @@ export class SkyOffice extends Room<OfficeState> {
       id: this.roomId,
       name: this.name,
       description: this.description,
+      backgroundSeed: this.isPublic ? this.publicBackgroundSeed : null,
     })
     console.log('////onJoin, Message.SEND_ROOM_DATA')
 

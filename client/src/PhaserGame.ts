@@ -9,7 +9,7 @@ const config: Phaser.Types.Core.GameConfig = {
   dom: {
     createContainer: true,
   },
-  backgroundColor: '#93cbee',
+  transparent: true,
   pixelArt: false,
   scale: {
     mode: Phaser.Scale.ScaleModes.RESIZE,
@@ -19,7 +19,7 @@ const config: Phaser.Types.Core.GameConfig = {
   physics: {
     default: 'arcade',
     arcade: {
-      gravity: { y: 0 },
+      gravity: { x: 0, y: 0 },
       debug: false,
     },
   },
