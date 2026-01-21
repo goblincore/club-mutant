@@ -16,7 +16,7 @@ export default class MusicBooth extends Item {
   }
 
   onOverlapDialog() {
-    console.log('////onOverlapDialog', this.currentUser);
+    console.log('////onOverlapDialog', this.currentUser)
     if (this.currentUser === null) {
       this.setDialogBox('Press R to be the DJ')
     } else {
@@ -25,10 +25,10 @@ export default class MusicBooth extends Item {
   }
 
   addCurrentUser(userId: string) {
-    console.log('////addCurrentUser userId', userId);
+    console.log('////addCurrentUser userId', userId)
     if (this.currentUser) return
     this.currentUser = userId
-    this.setStatusBox(`${userId} Connected`);
+    this.setStatusBox(`${userId} Connected`)
   }
 
   removeCurrentUser(userId: string) {
@@ -38,16 +38,16 @@ export default class MusicBooth extends Item {
   }
 
   openDialog(network: Network) {
-    console.log("////MusicBooth, openDialog, id", this.id)
+    console.log('////MusicBooth, openDialog, id', this.id)
     if (this.id === undefined) return
     store.dispatch(openMyPlaylistPanel())
     store.dispatch(setFocused(true))
-    console.log("////MusicBooth, openDialog, network.connectToMusicBooth, this.id", this.id)
+    console.log('////MusicBooth, openDialog, network.connectToMusicBooth, this.id', this.id)
     network.connectToMusicBooth(this.id)
   }
 
   closeDialog(network: Network) {
-    if (!this.id) return
+    if (this.id === undefined) return
     store.dispatch(setFocused(false))
     store.dispatch(closeMyPlaylistPanel())
     network.disconnectFromMusicBooth(this.id)

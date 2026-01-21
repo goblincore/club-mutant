@@ -88,6 +88,7 @@ export default class Game extends Phaser.Scene {
     const musicBooths = this.physics.add.staticGroup({ classType: MusicBooth })
     const musicBoothLayer = this.map.getObjectLayer('MusicBooth')
     musicBoothLayer.objects.forEach((obj, index) => {
+      if (index !== 0) return
       const item = this.addObjectFromTiled(
         musicBooths,
         obj,

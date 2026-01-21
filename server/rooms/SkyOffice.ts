@@ -55,10 +55,7 @@ export class SkyOffice extends Room<OfficeState> {
 
     this.setState(new OfficeState())
 
-    // add 3 musicbooths in a room
-    for (let i = 0; i < 3; i++) {
-      this.state.musicBooths.push(new MusicBooth())
-    }
+    this.state.musicBooths.push(new MusicBooth())
 
     this.onMessage(
       Message.ROOM_PLAYLIST_ADD,
@@ -141,28 +138,18 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(
       Message.CONNECT_TO_MUSIC_BOOTH,
       (client, message: { musicBoothIndex: number }) => {
-        console.log('////onMessage, CONNECT_TO_USER_BOOth client sesiondId', client.sessionId)
-        console.log(
-          '////onMessage, CONNECT_TO_MUSIC_BOOTH, message.musicBoothIndex',
-          message.musicBoothIndex
-        )
+        const musicBoothIndex = 0
+
         this.dispatcher.dispatch(new MusicBoothConnectUserCommand(), {
           client,
-          musicBoothIndex: message.musicBoothIndex,
+          musicBoothIndex,
         })
 
-        this.state.musicBoothQueue.push(message.musicBoothIndex)
-
-        console.log('////connectToMusicBooth client', client.sessionId)
-        console.log(
-          '////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status',
-          this.state.musicStream.status
-        )
         if (
-          this.state.musicStream.status === 'waiting' ||
-          this.state.musicStream.status === 'seeking'
+          (this.state.musicStream.status === 'waiting' ||
+            this.state.musicStream.status === 'seeking') &&
+          this.state.musicBooths[musicBoothIndex]?.connectedUser === client.sessionId
         ) {
-          console.log('////MUSIC STREAM NEXT COMMAND INVOKE')
           this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
         }
       }
@@ -172,11 +159,12 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(
       Message.DISCONNECT_FROM_MUSIC_BOOTH,
       (client, message: { musicBoothIndex: number }) => {
+        const musicBoothIndex = 0
         this.dispatcher.dispatch(new MusicBoothDisconnectUserCommand(), {
           client,
-          musicBoothIndex: message.musicBoothIndex,
+          musicBoothIndex,
         })
-        if (this.state.musicStream.currentBooth === message.musicBoothIndex) {
+        if (this.state.musicStream.currentBooth === musicBoothIndex) {
           this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
         }
       }
