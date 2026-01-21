@@ -55,8 +55,8 @@ export class DJUserInfo extends Schema implements IDJUserInfo {
 
 export class MusicStream extends Schema implements IMusicStream {
   @type('string') status = 'waiting' // waiting or seeking or playing
-  @type('string') currentLink = null
-  @type('string') currentTitle = null
+  @type('string') currentLink: string | null = null
+  @type('string') currentTitle: string | null = null
   @type('number') currentBooth = 0
   @type(DJUserInfo) currentDj = new DJUserInfo()
   @type('number') startTime = Date.now()
@@ -64,6 +64,7 @@ export class MusicStream extends Schema implements IMusicStream {
   @type('boolean') isRoomPlaylist = false
   @type('number') roomPlaylistIndex = 0
   @type('boolean') videoBackgroundEnabled = false
+  @type('boolean') isAmbient = false
 }
 
 export class MusicBooth extends Schema implements IMusicBooth {

@@ -35,7 +35,7 @@ import {
   syncPlayQueue,
   removeFromPlayQueue,
 } from '../stores/MyPlaylistStore'
-import { setVideoBackgroundEnabled } from '../stores/MusicStreamStore'
+import { setMusicStream, setVideoBackgroundEnabled } from '../stores/MusicStreamStore'
 import {
   addRoomPlaylistItem,
   removeRoomPlaylistItem,
@@ -121,6 +121,36 @@ export default class Network {
   // set up all network listeners before the game starts
   initialize() {
     if (!this.room) return
+
+    const syncMusicStreamFromState = () => {
+      if (!this.room) return
+
+      const ms = this.room.state.musicStream
+
+      if (ms.status !== 'playing' || !ms.currentLink) {
+        store.dispatch(setMusicStream(null))
+        phaserEvents.emit(Event.STOP_PLAYING_MEDIA)
+        return
+      }
+
+      const currentTime: number = Date.now()
+      const offset = (currentTime - ms.startTime) / 1000
+
+      store.dispatch(
+        setMusicStream({
+          url: ms.currentLink,
+          title: ms.currentTitle,
+          startTime: ms.startTime,
+          currentDj: ms.currentDj,
+          isRoomPlaylist: ms.isRoomPlaylist,
+          roomPlaylistIndex: ms.roomPlaylistIndex,
+          videoBackgroundEnabled: ms.videoBackgroundEnabled,
+          isAmbient: ms.isAmbient,
+        })
+      )
+
+      phaserEvents.emit(Event.START_PLAYING_MEDIA, ms, offset)
+    }
 
     this.lobby.leave()
     this.mySessionId = this.room.sessionId
@@ -240,12 +270,32 @@ export default class Network {
       setVideoBackgroundEnabled(Boolean(this.room.state.musicStream.videoBackgroundEnabled))
     )
 
+    syncMusicStreamFromState()
+
     this.room.state.musicStream.onChange = (changes) => {
+      let shouldSync = false
+
       changes.forEach((change) => {
         if (change.field === 'videoBackgroundEnabled') {
           store.dispatch(setVideoBackgroundEnabled(Boolean(change.value)))
         }
+
+        if (
+          change.field === 'status' ||
+          change.field === 'currentLink' ||
+          change.field === 'currentTitle' ||
+          change.field === 'startTime' ||
+          change.field === 'isRoomPlaylist' ||
+          change.field === 'roomPlaylistIndex' ||
+          change.field === 'isAmbient'
+        ) {
+          shouldSync = true
+        }
       })
+
+      if (shouldSync) {
+        syncMusicStreamFromState()
+      }
     }
 
     // when the server sends room data

@@ -67,6 +67,7 @@ export interface IMusicStream extends Schema {
   isRoomPlaylist: boolean
   roomPlaylistIndex: number
   videoBackgroundEnabled: boolean
+  isAmbient: boolean
 }
 
 export interface IOfficeState extends Schema {

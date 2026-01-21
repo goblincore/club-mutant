@@ -164,6 +164,7 @@ export default function YoutubePlayer() {
   const isRoomPlaylist = useAppSelector((state) => state.musicStream.isRoomPlaylist)
   const roomPlaylistIndex = useAppSelector((state) => state.musicStream.roomPlaylistIndex)
   const videoBackgroundEnabled = useAppSelector((state) => state.musicStream.videoBackgroundEnabled)
+  const isAmbient = useAppSelector((state) => state.musicStream.isAmbient)
   const connectedBoothIndex = useAppSelector((state) => state.musicBooth.musicBoothIndex)
   const mySessionId = useAppSelector((state) => state.user.sessionId)
   const playerNameMap = useAppSelector((state) => state.user.playerNameMap)
@@ -171,7 +172,37 @@ export default function YoutubePlayer() {
   const [isBuffering, setIsBuffering] = useState(true)
   const [isPlaying, setIsPlaying] = useState(true)
   const [minimized, setMinimized] = useState(false)
+  const [ambientMuted, setAmbientMuted] = useState(true)
   const currentPlaylist = useAppSelector((state) => state.myPlaylist)
+
+  useEffect(() => {
+    if (!isAmbient) {
+      setAmbientMuted(false)
+      return
+    }
+
+    setMinimized(false)
+    setIsPlaying(true)
+    setAmbientMuted(true)
+
+    const kick = () => {
+      setAmbientMuted(false)
+      setIsPlaying(false)
+      requestAnimationFrame(() => {
+        setIsPlaying(true)
+      })
+      window.removeEventListener('pointerdown', kick)
+      window.removeEventListener('keydown', kick)
+    }
+
+    window.addEventListener('pointerdown', kick)
+    window.addEventListener('keydown', kick)
+
+    return () => {
+      window.removeEventListener('pointerdown', kick)
+      window.removeEventListener('keydown', kick)
+    }
+  }, [isAmbient])
 
   const canControlRoomPlaylist = Boolean(connectedBoothIndex !== null && roomPlaylist.length > 0)
   const isStreaming = link !== null
@@ -187,7 +218,8 @@ export default function YoutubePlayer() {
 
   const currentTime: number = Date.now()
   const syncTime = (currentTime - startTime) / 1000
-  const url = link ? 'http://www.youtube.com/watch?v=' + link + '#t=' + syncTime + 's' : ''
+  const url = link ? 'https://www.youtube.com/watch?v=' + link : ''
+  const startSeconds = Math.max(0, Math.floor(syncTime))
 
   const playerRef = useRef<any>()
 
@@ -205,6 +237,12 @@ export default function YoutubePlayer() {
 
   const handleReady = (e) => {
     console.log('////YoutubePlayer, handlePlay, e', e)
+    if (isAmbient) {
+      const currentTime: number = Date.now()
+      const syncTime = (currentTime - startTime) / 1000
+      playerRef.current?.seekTo(syncTime, 'seconds')
+      return
+    }
     if (!isBuffering) {
       const currentTime: number = Date.now()
       const syncTime = (currentTime - startTime) / 1000
@@ -219,6 +257,12 @@ export default function YoutubePlayer() {
   }
 
   const handleOnEnded = () => {
+    if (isAmbient) {
+      setIsPlaying(true)
+      playerRef.current?.seekTo(0, 'seconds')
+      return
+    }
+
     if (!isBuffering) {
       setIsBuffering(true)
     }
@@ -246,7 +290,46 @@ export default function YoutubePlayer() {
 
   return (
     <Backdrop>
-      {link !== null || connectedBoothIndex !== null ? (
+      {isAmbient && link !== null ? (
+        <Wrapper
+          style={{
+            position: 'fixed',
+            right: 0,
+            bottom: 0,
+            width: 2,
+            height: 2,
+            opacity: 0,
+            pointerEvents: 'none',
+            overflow: 'hidden',
+          }}
+        >
+          <ReactPlayer
+            ref={playerRef}
+            onReady={handleReady}
+            onEnded={handleOnEnded}
+            onBufferEnd={handleOnBufferEnd}
+            width={'200px'}
+            height={'130px'}
+            playing={isPlaying}
+            muted={ambientMuted}
+            url={url}
+            config={{
+              youtube: {
+                playerVars: {
+                  autoplay: 1,
+                  playsinline: 1,
+                  controls: 0,
+                  disablekb: 1,
+                  fs: 0,
+                  modestbranding: 1,
+                  rel: 0,
+                  start: startSeconds,
+                },
+              },
+            }}
+          />
+        </Wrapper>
+      ) : link !== null || connectedBoothIndex !== null ? (
         <>
           {minimized ? (
             <MiniBar>

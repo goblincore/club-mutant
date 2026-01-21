@@ -76,6 +76,7 @@ function App() {
   const videoBackgroundEnabled = useAppSelector((state) => state.musicStream.videoBackgroundEnabled)
   const streamLink = useAppSelector((state) => state.musicStream.link)
   const streamStartTime = useAppSelector((state) => state.musicStream.startTime)
+  const isAmbient = useAppSelector((state) => state.musicStream.isAmbient)
 
   const [resolvedPublicGif, setResolvedPublicGif] = useState<string | null>(null)
 
@@ -144,9 +145,9 @@ function App() {
 
   return (
     <Backdrop>
-      {roomJoined && videoBackgroundEnabled && streamLink ? (
+      {roomJoined && videoBackgroundEnabled && streamLink && !isAmbient ? (
         <VideoBackgroundPortal
-          url={`http://www.youtube.com/watch?v=${streamLink}#t=${Math.max(
+          url={`https://www.youtube.com/watch?v=${streamLink}#t=${Math.max(
             0,
             (Date.now() - streamStartTime) / 1000
           )}s`}
@@ -156,7 +157,7 @@ function App() {
       {roomJoined &&
       roomType === RoomType.PUBLIC &&
       resolvedPublicGif &&
-      !(videoBackgroundEnabled && streamLink) ? (
+      !(videoBackgroundEnabled && streamLink && !isAmbient) ? (
         <PublicLobbyBackgroundPortal src={`assets/background/gif/${resolvedPublicGif}`} />
       ) : null}
       {ui}

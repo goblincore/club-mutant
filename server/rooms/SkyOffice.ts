@@ -41,6 +41,54 @@ export class SkyOffice extends Room<OfficeState> {
   private isPublic = false
   private publicBackgroundSeed: number | null = null
 
+  private ambientPublicVideoId = 'CAWJ2PO1V_g'
+
+  private setStoppedMusicStream() {
+    const musicStream = this.state.musicStream
+
+    musicStream.status = 'waiting'
+    musicStream.currentLink = null
+    musicStream.currentTitle = null
+    musicStream.startTime = Date.now()
+    musicStream.duration = 0
+    musicStream.isAmbient = false
+  }
+
+  private startAmbientIfNeeded() {
+    if (!this.isPublic) return
+
+    const djSessionId = this.state.musicBooths[0]?.connectedUser
+    if (djSessionId) return
+
+    if (this.state.players.size === 0) return
+
+    const musicStream = this.state.musicStream
+    if (musicStream.isAmbient && musicStream.status === 'playing') return
+
+    musicStream.isAmbient = true
+    musicStream.isRoomPlaylist = false
+    musicStream.roomPlaylistIndex = 0
+    musicStream.currentBooth = 0
+    musicStream.status = 'playing'
+    musicStream.currentLink = this.ambientPublicVideoId
+    musicStream.currentTitle = null
+    musicStream.currentDj.name = ''
+    musicStream.currentDj.sessionId = ''
+    musicStream.startTime = Date.now()
+    musicStream.duration = 0
+    musicStream.videoBackgroundEnabled = false
+
+    this.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
+  }
+
+  private stopAmbientIfNeeded() {
+    const musicStream = this.state.musicStream
+    if (!musicStream.isAmbient) return
+
+    this.setStoppedMusicStream()
+    this.broadcast(Message.STOP_MUSIC_STREAM, {})
+  }
+
   async onCreate(options: IRoomData) {
     const { name, description, password, autoDispose, isPublic } = options
     this.name = name
@@ -63,13 +111,7 @@ export class SkyOffice extends Room<OfficeState> {
     this.setState(new OfficeState())
 
     const setStoppedMusicStream = () => {
-      const musicStream = this.state.musicStream
-
-      musicStream.status = 'waiting'
-      musicStream.currentLink = null
-      musicStream.currentTitle = null
-      musicStream.startTime = Date.now()
-      musicStream.duration = 0
+      this.setStoppedMusicStream()
     }
 
     const startRoomPlaylistAtIndex = (requestedIndex: number) => {
@@ -244,6 +286,13 @@ export class SkyOffice extends Room<OfficeState> {
         })
 
         if (
+          this.isPublic &&
+          this.state.musicBooths[musicBoothIndex]?.connectedUser === client.sessionId
+        ) {
+          this.stopAmbientIfNeeded()
+        }
+
+        if (
           (this.state.musicStream.status === 'waiting' ||
             this.state.musicStream.status === 'seeking') &&
           this.state.musicBooths[musicBoothIndex]?.connectedUser === client.sessionId
@@ -268,6 +317,11 @@ export class SkyOffice extends Room<OfficeState> {
           client,
           musicBoothIndex,
         })
+
+        if (this.isPublic && !this.state.musicBooths[musicBoothIndex]?.connectedUser) {
+          this.startAmbientIfNeeded()
+          return
+        }
         if (this.state.musicStream.currentBooth === musicBoothIndex) {
           if (this.state.musicStream.isRoomPlaylist) {
             this.state.musicStream.isRoomPlaylist = true
@@ -395,6 +449,8 @@ export class SkyOffice extends Room<OfficeState> {
     })
     console.log('////onJoin, Message.SEND_ROOM_DATA')
 
+    this.startAmbientIfNeeded()
+
     const musicStream = this.state.musicStream
     console.log('this state musicStream', musicStream)
     if (musicStream.status === 'playing') {
@@ -417,6 +473,12 @@ export class SkyOffice extends Room<OfficeState> {
           client,
           musicBoothIndex: index,
         })
+
+        if (this.isPublic) {
+          this.startAmbientIfNeeded()
+          return
+        }
+
         if (this.state.musicStream.currentBooth === index) {
           this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
         }

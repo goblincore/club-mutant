@@ -474,6 +474,7 @@ export default class Game extends Phaser.Scene {
       isRoomPlaylist,
       roomPlaylistIndex,
       videoBackgroundEnabled,
+      isAmbient,
     } = musicStream
 
     console.log('game handle start music stream', url)
@@ -487,6 +488,7 @@ export default class Game extends Phaser.Scene {
         isRoomPlaylist,
         roomPlaylistIndex,
         videoBackgroundEnabled,
+        isAmbient,
       })
     )
   }

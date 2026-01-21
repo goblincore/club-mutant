@@ -13,6 +13,7 @@ interface MusicStreamState {
   isRoomPlaylist: boolean
   roomPlaylistIndex: number
   videoBackgroundEnabled: boolean
+  isAmbient: boolean
 }
 
 const initialState: MusicStreamState = {
@@ -26,6 +27,7 @@ const initialState: MusicStreamState = {
   isRoomPlaylist: false,
   roomPlaylistIndex: 0,
   videoBackgroundEnabled: false,
+  isAmbient: false,
 }
 
 export const musicStreamSlice = createSlice({
@@ -42,6 +44,7 @@ export const musicStreamSlice = createSlice({
         isRoomPlaylist?: boolean
         roomPlaylistIndex?: number
         videoBackgroundEnabled?: boolean
+        isAmbient?: boolean
       } | null>
     ) => {
       console.log('////action set music stream reducer', action)
@@ -56,6 +59,7 @@ export const musicStreamSlice = createSlice({
         state.isRoomPlaylist = false
         state.roomPlaylistIndex = 0
         state.videoBackgroundEnabled = false
+        state.isAmbient = false
         return
       }
 
@@ -67,6 +71,7 @@ export const musicStreamSlice = createSlice({
         state.isRoomPlaylist = action.payload.isRoomPlaylist ?? false
         state.roomPlaylistIndex = action.payload.roomPlaylistIndex ?? 0
         state.videoBackgroundEnabled = action.payload.videoBackgroundEnabled ?? false
+        state.isAmbient = action.payload.isAmbient ?? false
       } catch (e) {
         console.warn('Failed setting music stream')
       }
