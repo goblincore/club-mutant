@@ -186,11 +186,17 @@ export default function YoutubePlayer() {
     setAmbientMuted(true)
 
     const kick = () => {
+      const currentTime: number = Date.now()
+      const syncTime = (currentTime - startTime) / 1000
+
       setAmbientMuted(false)
-      setIsPlaying(false)
-      requestAnimationFrame(() => {
-        setIsPlaying(true)
-      })
+
+      const internalPlayer = playerRef.current?.getInternalPlayer?.()
+      internalPlayer?.seekTo?.(Math.max(0, syncTime), true)
+      internalPlayer?.unMute?.()
+      internalPlayer?.playVideo?.()
+
+      setIsPlaying(true)
       window.removeEventListener('pointerdown', kick)
       window.removeEventListener('keydown', kick)
     }
@@ -237,16 +243,18 @@ export default function YoutubePlayer() {
 
   const handleReady = (e) => {
     console.log('////YoutubePlayer, handlePlay, e', e)
-    if (isAmbient) {
-      const currentTime: number = Date.now()
-      const syncTime = (currentTime - startTime) / 1000
-      playerRef.current?.seekTo(syncTime, 'seconds')
-      return
-    }
-    if (!isBuffering) {
-      const currentTime: number = Date.now()
-      const syncTime = (currentTime - startTime) / 1000
-      playerRef.current.seekTo(syncTime, 'seconds')
+    const currentTime: number = Date.now()
+    const syncTime = (currentTime - startTime) / 1000
+    playerRef.current?.seekTo(syncTime, 'seconds')
+
+    if (isAmbient && ambientMuted) {
+      window.setTimeout(() => {
+        const internalPlayer = playerRef.current?.getInternalPlayer?.()
+        internalPlayer?.unMute?.()
+        internalPlayer?.setVolume?.(100)
+        internalPlayer?.playVideo?.()
+        setAmbientMuted(false)
+      }, 250)
     }
   }
 
@@ -313,20 +321,6 @@ export default function YoutubePlayer() {
             playing={isPlaying}
             muted={ambientMuted}
             url={url}
-            config={{
-              youtube: {
-                playerVars: {
-                  autoplay: 1,
-                  playsinline: 1,
-                  controls: 0,
-                  disablekb: 1,
-                  fs: 0,
-                  modestbranding: 1,
-                  rel: 0,
-                  start: startSeconds,
-                },
-              },
-            }}
           />
         </Wrapper>
       ) : link !== null || connectedBoothIndex !== null ? (
