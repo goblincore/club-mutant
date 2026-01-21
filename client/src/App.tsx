@@ -38,14 +38,46 @@ const VideoBackground = styled.div`
   pointer-events: none;
   overflow: hidden;
 
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    mix-blend-mode: multiply;
+    z-index: 2;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.35) 0,
+      rgba(0, 0, 0, 0.35) 1px,
+      rgba(0, 0, 0, 0) 2px,
+      rgba(0, 0, 0, 0) 4px
+    );
+    opacity: 0.55;
+    mix-blend-mode: multiply;
+    z-index: 3;
+  }
+
   > div {
     width: 100% !important;
     height: 100% !important;
+    position: relative;
+    z-index: 1;
   }
 
   iframe {
-    width: 100% !important;
-    height: 100% !important;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 200% !important;
+    height: 130% !important;
+    transform: translate(-50%, -50%);
+    mix-blend-mode: hard-light;
   }
 `
 

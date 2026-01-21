@@ -84,9 +84,9 @@ export default class Bootstrap extends Phaser.Scene {
       frameHeight: 88,
     })
 
-    this.load.spritesheet('adam_djwip', 'assets/character/djwip2.gif', {
-      frameWidth: 90,
-      frameHeight: 125,
+    this.load.spritesheet('adam_djwip', 'assets/character/djmutant3.gif', {
+      frameWidth: 188,
+      frameHeight: 117,
     })
   }
 
