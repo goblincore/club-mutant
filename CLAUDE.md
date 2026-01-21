@@ -181,6 +181,64 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
   - `OtherPlayer` plays the synced anim key.
   - If `currentAnimKey === 'adam_boombox'`, it forces high depth so the DJ renders above the booth.
 
+### DJ “desk” / djmutant3 animation (public room)
+
+- Asset:
+  - `client/public/assets/character/djmutant3.gif`
+  - Dimensions: `376x704` (2 columns x 6 rows)
+  - Frame size: `188x117`
+
+- Bootstrapping:
+  - `client/src/scenes/Bootstrap.ts` preloads the spritesheet under key `adam_djwip`.
+
+- Animation creation:
+  - `client/src/anims/CharacterAnims.ts` creates `adam_djwip` (frames `0..4`), repeat `-1`.
+  - Frame rate is intentionally slower than the base anim rate (`animsFrameRate * 0.25`).
+
+- Local + network sync:
+  - `MyPlayer` uses `adam_djwip` when entering the booth in public rooms and calls `network.updatePlayerAction(..., 'adam_djwip')`.
+
+- Desk visibility:
+  - The booth sprite is treated as a placeholder “desk”.
+  - While a DJ is active, the booth sprite is hidden via `MusicBooth.setVisible(false)`.
+  - Late joiners must “replay” booth occupancy state (see Network gotchas below).
+
+### Player collision + DJ hitbox gotchas
+
+- Player-vs-player collision is Arcade physics (`this.physics.add.collider(this.myPlayer, this.otherPlayers)` in `Game`).
+- Remote players are `OtherPlayer` instances, driven by server-synced positions.
+- The DJ animation frames include the whole desk/table, so collision cannot be frame-wide.
+  - `client/src/characters/Player.ts` implements a special DJ-only “feet” hitbox in `updatePhysicsBodyForAnim()`.
+  - It uses a narrow, low hitbox and anchors it using a right-edge reference so it can be widened leftward.
+
+- Late-join collision mismatch:
+  - When an `OtherPlayer` is spawned with `newPlayer.anim` already set (e.g. DJ), `Game.handlePlayerJoined()` must call:
+    - `otherPlayer.updatePhysicsBodyForAnim(newPlayer.anim)`
+      otherwise the initial hitbox stays in the default shape until the next `anim` change.
+
+### DJ chat bubble scaling
+
+- `Player.updateDialogBubble(content, scale)` supports scaling.
+- The DJ bubble is rendered at `1.5x` scale (both for local and remote):
+  - `client/src/scenes/Game.ts` determines whether a message sender is the DJ.
+  - `client/src/components/ChatPanel.tsx` also scales the local immediate bubble (since it renders before the server echo).
+
+## Recent learnings / gotchas (Jan 2026)
+
+- **Booth occupancy must be replayed on join**
+  - `Network.onItemUserAdded()` replays any already-occupied `musicBooths[*].connectedUser` when registering the listener.
+  - This prevents late joiners from seeing the placeholder desk when the booth is already occupied.
+
+- **Avoid “toggle debug anim” drift**
+  - Keeping a single authoritative DJ anim key (`adam_djwip`) avoids hitbox/asset confusion.
+
+- **Fullscreen YouTube background styling lives in React (not Phaser)**
+  - `client/src/App.tsx` uses a portal to render a fullscreen `ReactPlayer` behind Phaser.
+  - The background is styled with:
+    - `mix-blend-mode: hard-light` on the `iframe`
+    - dark overlay + scanlines via `::before`/`::after`
+    - zoom/crop by rendering the iframe at ~`200%` and centering it (overflow hidden)
+
 ## Important files (high touch)
 
 - **Networking**: `client/src/services/Network.ts`
