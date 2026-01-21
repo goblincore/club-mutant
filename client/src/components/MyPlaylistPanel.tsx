@@ -3,6 +3,7 @@ import styled from 'styled-components'
 import InputBase from '@mui/material/InputBase'
 import IconButton from '@mui/material/IconButton'
 import CloseIcon from '@mui/icons-material/Close'
+import AddIcon from '@mui/icons-material/Add'
 import Fab from '@mui/material/Fab'
 import Game from '../scenes/Game'
 import phaserGame from '../PhaserGame'
@@ -13,7 +14,6 @@ import store from '../stores'
 import { addItemToMyPlaylist, syncPlayQueue } from '../stores/MyPlaylistStore'
 import { v4 as uuidv4 } from 'uuid'
 import type { PlaylistItem } from '../../../types/IOfficeState'
-import type { RoomPlaylistItem } from '../stores/RoomPlaylistStore'
 
 const Backdrop = styled.div`
   position: fixed;
@@ -189,15 +189,13 @@ const Tab = styled.ul`
 
 const MusicSearch = () => {
   const [data, setData] = useState([])
-  const [tab, setTab] = useState<'search' | 'playlist' | 'room'>('search')
+  const [tab, setTab] = useState<'search' | 'playlist'>('search')
   const [inputValue, setInputValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const dispatch = useAppDispatch()
   const focused = useAppSelector((state) => state.myPlaylist.focused)
   const currentPlaylist = useAppSelector((state) => state.myPlaylist)
   const game = phaserGame.scene.keys.game as Game
-  const mySessionId = useAppSelector((state) => state.user.sessionId)
-  const roomPlaylist = useAppSelector((state) => state.roomPlaylist.items)
 
   useEffect(() => {
     axios.get(`http://localhost:2567/youtube/${inputValue}`).then((response) => {
@@ -316,22 +314,6 @@ const MusicSearch = () => {
       )
     })
 
-  const roomResultsList =
-    data?.length > 0 &&
-    data?.map((result) => {
-      const { title, thumbnail, length, id } = result
-      return (
-        <YoutubeResult
-          onClick={handleAddSearchResultToRoom}
-          key={id}
-          title={title}
-          thumbnail={thumbnail}
-          length={length}
-          id={id}
-        />
-      )
-    })
-
   return (
     <section>
       <InputWrapper onSubmit={handleSubmit}>
@@ -356,34 +338,12 @@ const MusicSearch = () => {
       <button style={{ color: '#222' }} onClick={() => setTab('playlist')}>
         Playlist
       </button>
-      <button style={{ color: '#222' }} onClick={() => setTab('room')}>
-        Room
-      </button>
 
       {tab === 'search' && <Tab>{resultsList}</Tab>}
 
       {tab === 'playlist' && (
         <Tab>
           <UserPlaylist />
-        </Tab>
-      )}
-
-      {tab === 'room' && (
-        <Tab>
-          <button
-            style={{ color: '#222', marginBottom: 8 }}
-            onClick={() => game.network.skipRoomPlaylist()}
-          >
-            Skip (Room)
-          </button>
-          <RoomPlaylist
-            items={roomPlaylist}
-            mySessionId={mySessionId}
-            onRemove={(id) => game.network.removeRoomPlaylistItem(id)}
-          />
-          <div style={{ marginTop: 8 }} />
-          <div style={{ fontSize: 12, color: '#666' }}>Search results (tap to add to Room)</div>
-          <Tab>{roomResultsList}</Tab>
         </Tab>
       )}
     </section>
@@ -419,8 +379,17 @@ const YoutubeResult = ({ id, thumbnail, title, length, onClick }) => {
 
 const UserPlaylist = (props) => {
   const myPlaylist = useAppSelector((state) => state.myPlaylist)
+  const connectedBoothIndex = useAppSelector((state) => state.musicBooth.musicBoothIndex)
 
   const game = phaserGame.scene.keys.game as Game
+
+  const formatDuration = (seconds: number) => {
+    if (!Number.isFinite(seconds) || seconds < 0) return ''
+    const m = Math.floor(seconds / 60)
+    const s = Math.floor(seconds % 60)
+    return `${m}:${String(s).padStart(2, '0')}`
+  }
+
   const handleAddToRoom = (item: PlaylistItem) => {
     if (!item.link) return
     game.network.addRoomPlaylistItem({
@@ -433,49 +402,26 @@ const UserPlaylist = (props) => {
   const renderMyPlaylistItems = myPlaylist?.items?.map((item) => {
     const { link, title, duration } = item
     return (
-      <ListItem onClick={() => handleAddToRoom(item)}>
+      <ListItem>
         <section>
           <h4>{title}</h4>
         </section>
-        <section>{duration}</section>
+        <section style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>{formatDuration(duration)}</span>
+          {connectedBoothIndex !== null ? (
+            <IconButton
+              size="small"
+              onClick={() => {
+                handleAddToRoom(item)
+              }}
+            >
+              <AddIcon fontSize="small" />
+            </IconButton>
+          ) : null}
+        </section>
       </ListItem>
     )
   })
 
   return <MyPlaylistWrapper>{renderMyPlaylistItems}</MyPlaylistWrapper>
-}
-
-const RoomPlaylist = ({
-  items,
-  mySessionId,
-  onRemove,
-}: {
-  items: RoomPlaylistItem[]
-  mySessionId: string
-  onRemove: (id: string) => void
-}) => {
-  const renderItems = items.map((item) => {
-    const canRemove = item.addedBySessionId === mySessionId
-
-    return (
-      <ListItem
-        key={item.id}
-        onClick={() => {
-          if (!canRemove) return
-          onRemove(item.id)
-        }}
-        style={{ cursor: canRemove ? 'pointer' : 'default' }}
-      >
-        <section>
-          <h4>
-            {item.title}
-            {!canRemove ? ' (locked)' : ''}
-          </h4>
-        </section>
-        <section>{item.duration}</section>
-      </ListItem>
-    )
-  })
-
-  return <MyPlaylistWrapper>{renderItems}</MyPlaylistWrapper>
 }

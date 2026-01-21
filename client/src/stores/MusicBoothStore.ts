@@ -1,8 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 
-import phaserGame from '../PhaserGame'
-import Game from '../scenes/Game'
-
 interface MusicBoothState {
   musicBoothIndex: null | number
 }
@@ -16,19 +13,14 @@ export const musicBoothSlice = createSlice({
   initialState,
   reducers: {
     connectToMusicBooth: (state, action: PayloadAction<number>) => {
-      const game = phaserGame.scene.keys.game as Game
-      game.network.connectToMusicBooth(state.musicBoothIndex!)
       state.musicBoothIndex = action.payload
     },
     disconnectFromMusicBooth: (state) => {
-      const game = phaserGame.scene.keys.game as Game
-      game.network.disconnectFromMusicBooth(state.musicBoothIndex!)
       state.musicBoothIndex = null
     },
   },
 })
 
-export const { connectToMusicBooth, disconnectFromMusicBooth } =
-  musicBoothSlice.actions
+export const { connectToMusicBooth, disconnectFromMusicBooth } = musicBoothSlice.actions
 
 export default musicBoothSlice.reducer
