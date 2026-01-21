@@ -14,6 +14,10 @@ export default class MyPlayer extends Player {
   private playerContainerBody: Phaser.Physics.Arcade.Body
   private musicBoothOnSit?: MusicBooth
   private moveTarget: { x: number; y: number } | null = null
+  private movePath: Array<{ x: number; y: number }> | null = null
+  private movePathIndex = 0
+  private navLastPos: { x: number; y: number } | null = null
+  private navNoProgressMs = 0
 
   constructor(
     scene: Phaser.Scene,
@@ -28,11 +32,52 @@ export default class MyPlayer extends Player {
   }
 
   setMoveTarget(x: number, y: number) {
+    this.movePath = null
+    this.movePathIndex = 0
     this.moveTarget = { x, y }
+    this.navLastPos = { x: this.x, y: this.y }
+    this.navNoProgressMs = 0
+  }
+
+  setMovePath(path: Array<{ x: number; y: number }>) {
+    this.movePath = path
+    this.movePathIndex = 0
+
+    if (path.length > 0) {
+      this.moveTarget = path[0]
+    } else {
+      this.moveTarget = null
+    }
+
+    this.navLastPos = { x: this.x, y: this.y }
+    this.navNoProgressMs = 0
   }
 
   clearMoveTarget() {
     this.moveTarget = null
+  }
+
+  clearMovePath() {
+    this.movePath = null
+    this.movePathIndex = 0
+  }
+
+  private clearMoveNavigation() {
+    this.clearMoveTarget()
+    this.clearMovePath()
+    this.navLastPos = null
+    this.navNoProgressMs = 0
+  }
+
+  updateCollisionBody() {
+    const body = this.body as Phaser.Physics.Arcade.Body | null
+    if (!body) return
+
+    const collisionWidth = Math.max(this.width * 0.5, 10)
+    const collisionHeight = Math.max(this.height * 0.25, 8)
+
+    body.setSize(collisionWidth, collisionHeight)
+    body.setOffset((this.width - collisionWidth) * 0.5, this.height - collisionHeight)
   }
 
   setPlayerName(name: string) {
@@ -46,6 +91,7 @@ export default class MyPlayer extends Player {
     this.playerTexture = texture
     const idleKey = `${this.playerTexture}_idle_down`
     this.anims.play(idleKey, true)
+    this.updateCollisionBody()
     phaserEvents.emit(Event.MY_PLAYER_TEXTURE_CHANGE, this.x, this.y, idleKey)
   }
 
@@ -54,7 +100,8 @@ export default class MyPlayer extends Player {
     cursors: Phaser.Types.Input.Keyboard.CursorKeys,
     keyE: Phaser.Input.Keyboard.Key,
     keyR: Phaser.Input.Keyboard.Key,
-    network: Network
+    network: Network,
+    dt: number
   ) {
     if (!cursors) return
 
@@ -91,7 +138,7 @@ export default class MyPlayer extends Player {
         )
 
         if (hasKeyboardInput && this.moveTarget) {
-          this.clearMoveTarget()
+          this.clearMoveNavigation()
         }
 
         let vx = 0
@@ -109,12 +156,36 @@ export default class MyPlayer extends Player {
             this.setDepth(this.y) //change player.depth if player.y changes
           }
         } else if (this.moveTarget) {
+          if (!this.navLastPos) {
+            this.navLastPos = { x: this.x, y: this.y }
+          }
+
+          const movedDx = this.x - this.navLastPos.x
+          const movedDy = this.y - this.navLastPos.y
+          const movedSq = movedDx * movedDx + movedDy * movedDy
+
+          if (movedSq < 0.5 * 0.5) {
+            this.navNoProgressMs += dt
+
+            if (this.navNoProgressMs >= 650) {
+              this.clearMoveNavigation()
+            }
+          } else {
+            this.navNoProgressMs = 0
+            this.navLastPos = { x: this.x, y: this.y }
+          }
+
           const dx = this.moveTarget.x - this.x
           const dy = this.moveTarget.y - this.y
 
           const distanceSq = dx * dx + dy * dy
-          if (distanceSq <= 4 * 4) {
-            this.clearMoveTarget()
+          if (distanceSq <= 10 * 10) {
+            if (this.movePath && this.movePathIndex < this.movePath.length - 1) {
+              this.movePathIndex += 1
+              this.moveTarget = this.movePath[this.movePathIndex]
+            } else {
+              this.clearMoveNavigation()
+            }
           } else {
             const distance = Math.sqrt(distanceSq)
             vx = (dx / distance) * speed
@@ -169,7 +240,7 @@ export default class MyPlayer extends Player {
         }
 
         if (this.moveTarget) {
-          this.clearMoveTarget()
+          this.clearMoveNavigation()
         }
         break
     }
@@ -201,13 +272,7 @@ Phaser.GameObjects.GameObjectFactory.register(
 
     this.scene.physics.world.enableBody(sprite, Phaser.Physics.Arcade.DYNAMIC_BODY)
 
-    const collisionScale = [0.5, 0.2]
-    ;(sprite.body as Phaser.Physics.Arcade.Body)
-      .setSize(sprite.width * collisionScale[0], sprite.height * collisionScale[1])
-      .setOffset(
-        sprite.width * (1 - collisionScale[0]) * 0.5,
-        sprite.height * (1 - collisionScale[1])
-      )
+    sprite.updateCollisionBody()
 
     return sprite
   }

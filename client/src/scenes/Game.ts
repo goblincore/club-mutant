@@ -22,12 +22,16 @@ import store from '../stores'
 import { setFocused, setShowChat } from '../stores/ChatStore'
 import { setMusicStream } from '../stores/MusicStreamStore'
 
+import { findPathAStar } from '../utils/pathfinding'
+
 export default class Game extends Phaser.Scene {
   network!: Network
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
   private keyE!: Phaser.Input.Keyboard.Key
   private keyR!: Phaser.Input.Keyboard.Key
   private map!: Phaser.Tilemaps.Tilemap
+  private groundLayer!: Phaser.Tilemaps.TilemapLayer
+  private pathObstacles: Array<{ getBounds: () => Phaser.Geom.Rectangle }> = []
   private lastPointerDownTime = 0
   private pendingMoveClick: { downTime: number; x: number; y: number } | null = null
   myPlayer!: MyPlayer
@@ -103,6 +107,93 @@ export default class Game extends Phaser.Scene {
     this.input.keyboard.enabled = true
   }
 
+  private buildBlockedGrid(): { width: number; height: number; blocked: Uint8Array } {
+    const width = this.map.width
+    const height = this.map.height
+
+    const blocked = new Uint8Array(width * height)
+
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const tile = this.groundLayer.getTileAt(x, y)
+        if (tile?.collides) {
+          blocked[y * width + x] = 1
+        }
+      }
+    }
+
+    for (const obstacle of this.pathObstacles) {
+      const left = obstacle.getBounds().left
+      const right = obstacle.getBounds().right
+      const top = obstacle.getBounds().top
+      const bottom = obstacle.getBounds().bottom
+
+      const startX = this.map.worldToTileX(left) ?? 0
+      const endX = this.map.worldToTileX(right) ?? 0
+      const startY = this.map.worldToTileY(top) ?? 0
+      const endY = this.map.worldToTileY(bottom) ?? 0
+
+      for (let ty = startY; ty <= endY; ty += 1) {
+        for (let tx = startX; tx <= endX; tx += 1) {
+          if (tx < 0 || tx >= width || ty < 0 || ty >= height) continue
+          blocked[ty * width + tx] = 1
+        }
+      }
+    }
+
+    const expanded = new Uint8Array(blocked)
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (blocked[y * width + x] !== 1) continue
+
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const nx = x + dx
+            const ny = y + dy
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue
+            expanded[ny * width + nx] = 1
+          }
+        }
+      }
+    }
+
+    return { width, height, blocked: expanded }
+  }
+
+  private findNearestOpenTile(params: {
+    width: number
+
+    height: number
+
+    blocked: Uint8Array
+
+    x: number
+
+    y: number
+  }): { x: number; y: number } | null {
+    const { width, height, blocked, x, y } = params
+
+    const inBounds = (tx: number, ty: number) => tx >= 0 && tx < width && ty >= 0 && ty < height
+
+    const maxRadius = 12
+
+    for (let r = 0; r <= maxRadius; r += 1) {
+      for (let dy = -r; dy <= r; dy += 1) {
+        for (let dx = -r; dx <= r; dx += 1) {
+          const tx = x + dx
+          const ty = y + dy
+          if (!inBounds(tx, ty)) continue
+
+          if (blocked[ty * width + tx] === 0) {
+            return { x: tx, y: ty }
+          }
+        }
+      }
+    }
+
+    return null
+  }
+
   create(data: { network: Network }) {
     if (!data.network) {
       throw new Error('server instance missing')
@@ -117,8 +208,17 @@ export default class Game extends Phaser.Scene {
     this.map = this.make.tilemap({ key: 'tilemap' })
     const FloorAndGround = this.map.addTilesetImage('FloorAndGround', 'tiles_wall')
 
+    if (!FloorAndGround) {
+      throw new Error('missing tileset FloorAndGround')
+    }
+
     const groundLayer = this.map.createLayer('Ground', FloorAndGround)
+    if (!groundLayer) {
+      throw new Error('missing tilemap layer Ground')
+    }
+
     groundLayer.setCollisionByProperty({ collides: true })
+    this.groundLayer = groundLayer
 
     this.myPlayer = this.add.myPlayer(705, 500, 'adam', this.network.mySessionId)
     this.playerSelector = new PlayerSelector(this, 0, 0, 16, 16)
@@ -144,7 +244,43 @@ export default class Game extends Phaser.Scene {
     this.cameras.main.zoom = 1.5
     this.cameras.main.startFollow(this.myPlayer, true)
 
-    this.physics.add.collider([this.myPlayer, this.myPlayer.playerContainer], groundLayer)
+    this.physics.add.collider(this.myPlayer, groundLayer)
+
+    const obstacles = this.physics.add.staticGroup()
+
+    for (let i = 0; i < 3; i += 1) {
+      const x = Phaser.Math.Between(600, 900)
+      const y = Phaser.Math.Between(420, 650)
+
+      const chair = this.physics.add.staticSprite(x, y, 'chairs', 0)
+      chair.setDepth(y)
+      chair.setOrigin(0.5, 0.5)
+
+      const chairBody = chair.body as Phaser.Physics.Arcade.StaticBody | null
+      chairBody?.setSize(chair.width * 0.9, chair.height * 0.3)
+      chairBody?.setOffset(chair.width * 0.05, chair.height * 0.65)
+
+      obstacles.add(chair)
+      this.pathObstacles.push(chair)
+    }
+
+    for (let i = 0; i < 3; i += 1) {
+      const x = Phaser.Math.Between(600, 900)
+      const y = Phaser.Math.Between(420, 650)
+
+      const vending = this.physics.add.staticSprite(x, y, 'vendingmachines', 0)
+      vending.setDepth(y)
+      vending.setOrigin(0.5, 0.5)
+
+      const vendingBody = vending.body as Phaser.Physics.Arcade.StaticBody | null
+      vendingBody?.setSize(vending.width * 0.9, vending.height * 0.5)
+      vendingBody?.setOffset(vending.width * 0.05, vending.height * 0.5)
+
+      obstacles.add(vending)
+      this.pathObstacles.push(vending)
+    }
+
+    this.physics.add.collider(this.myPlayer, obstacles)
 
     this.physics.add.overlap(
       this.playerSelector,
@@ -220,9 +356,13 @@ export default class Game extends Phaser.Scene {
   ) {
     const actualX = object.x! + object.width! * 0.5
     const actualY = object.y! - object.height! * 0.5
-    const obj = group
-      .get(actualX, actualY, key, object.gid! - this.map.getTileset(tilesetName).firstgid)
-      .setDepth(actualY)
+
+    const tileset = this.map.getTileset(tilesetName)
+    if (!tileset) {
+      throw new Error(`missing tileset ${tilesetName}`)
+    }
+
+    const obj = group.get(actualX, actualY, key, object.gid! - tileset.firstgid).setDepth(actualY)
     return obj
   }
 
@@ -346,7 +486,55 @@ export default class Game extends Phaser.Scene {
 
             if (timeDelta > 0 && timeDelta <= 300 && distanceSq <= 24 * 24) {
               this.pendingMoveClick = null
-              this.myPlayer.setMoveTarget(x, y)
+
+              const startX = this.map.worldToTileX(this.myPlayer.x)
+              const startY = this.map.worldToTileY(this.myPlayer.y)
+              const goalX = this.map.worldToTileX(x)
+              const goalY = this.map.worldToTileY(y)
+
+              if (startX === null || startY === null || goalX === null || goalY === null) {
+                this.myPlayer.setMoveTarget(x, y)
+                return
+              }
+
+              const { width, height, blocked } = this.buildBlockedGrid()
+
+              const startOpen =
+                blocked[startY * width + startX] === 0
+                  ? { x: startX, y: startY }
+                  : this.findNearestOpenTile({ width, height, blocked, x: startX, y: startY })
+
+              const goalOpen =
+                blocked[goalY * width + goalX] === 0
+                  ? { x: goalX, y: goalY }
+                  : this.findNearestOpenTile({ width, height, blocked, x: goalX, y: goalY })
+
+              if (!startOpen || !goalOpen) {
+                this.myPlayer.setMoveTarget(x, y)
+                return
+              }
+
+              const tilePath = findPathAStar({
+                width,
+                height,
+                blocked,
+                start: startOpen,
+                goal: goalOpen,
+              })
+
+              if (tilePath && tilePath.length > 0) {
+                const tileWidth = this.map.tileWidth || 32
+                const tileHeight = this.map.tileHeight || 32
+
+                const waypoints = tilePath.slice(1).map((p) => ({
+                  x: (this.map.tileToWorldX(p.x) ?? 0) + tileWidth * 0.5,
+                  y: (this.map.tileToWorldY(p.y) ?? 0) + tileHeight * 0.5,
+                }))
+
+                this.myPlayer.setMovePath(waypoints)
+              } else {
+                this.myPlayer.setMoveTarget(x, y)
+              }
             } else {
               this.pendingMoveClick = { downTime, x, y }
             }
@@ -359,7 +547,14 @@ export default class Game extends Phaser.Scene {
       }
 
       this.playerSelector.update(this.myPlayer, this.cursors)
-      this.myPlayer.update(this.playerSelector, this.cursors, this.keyE, this.keyR, this.network)
+      this.myPlayer.update(
+        this.playerSelector,
+        this.cursors,
+        this.keyE,
+        this.keyR,
+        this.network,
+        dt
+      )
     }
   }
 }
