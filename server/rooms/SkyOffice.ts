@@ -199,6 +199,17 @@ export class SkyOffice extends Room<OfficeState> {
       startRoomPlaylistAtIndex(nextIndex)
     })
 
+    this.onMessage(Message.ROOM_PLAYLIST_PREV, (client) => {
+      if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
+
+      if (this.state.roomPlaylist.length === 0) return
+
+      const musicStream = this.state.musicStream
+      const nextIndex = musicStream.isRoomPlaylist ? musicStream.roomPlaylistIndex - 1 : 0
+
+      startRoomPlaylistAtIndex(Math.max(0, nextIndex))
+    })
+
     this.onMessage(Message.ROOM_PLAYLIST_PLAY, (client) => {
       if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
 

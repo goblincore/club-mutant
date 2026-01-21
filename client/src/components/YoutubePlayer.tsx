@@ -2,6 +2,13 @@
 import { useRef, useState, useEffect } from 'react'
 import ReactPlayer from 'react-player/youtube'
 import styled from 'styled-components'
+import IconButton from '@mui/material/IconButton'
+import SkipNextIcon from '@mui/icons-material/SkipNext'
+import SkipPreviousIcon from '@mui/icons-material/SkipPrevious'
+import PauseIcon from '@mui/icons-material/Pause'
+import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import OpenInFullIcon from '@mui/icons-material/OpenInFull'
+import MinimizeIcon from '@mui/icons-material/Minimize'
 
 import Game from '../scenes/Game'
 import phaserGame from '../PhaserGame'
@@ -22,6 +29,49 @@ const Backdrop = styled.div`
   background: transparent;
   overflow: hidden;
   padding: 16px 16px 16px 16px;
+`
+
+const MiniBar = styled.div`
+  height: 36px;
+  width: 360px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(8px);
+
+  button {
+    color: rgba(255, 255, 255, 0.9);
+  }
+`
+
+const Marquee = styled.div`
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+  height: 18px;
+`
+
+const MarqueeInner = styled.div`
+  display: inline-block;
+  padding-left: 100%;
+  animation: dj-marquee 12s linear infinite;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  text-shadow: 0.3px 0.3px rgba(0, 0, 0, 0.8);
+
+  @keyframes dj-marquee {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-100%);
+    }
+  }
 `
 const Wrapper = styled.div`
   width: 100%;
@@ -117,7 +167,19 @@ export default function YoutubePlayer() {
   const roomPlaylist = useAppSelector((state) => state.roomPlaylist.items)
   const [isBuffering, setIsBuffering] = useState(true)
   const [isPlaying, setIsPlaying] = useState(true)
+  const [minimized, setMinimized] = useState(false)
   const currentPlaylist = useAppSelector((state) => state.myPlaylist)
+
+  const canControlRoomPlaylist = Boolean(connectedBoothIndex !== null && roomPlaylist.length > 0)
+  const isStreaming = link !== null
+  const displayTitle =
+    title && title.trim() !== ''
+      ? `Now Playing: ${title}`
+      : isStreaming
+        ? 'Now Playing'
+        : roomPlaylist.length > 0
+          ? 'Room Playlist Ready'
+          : 'Room Playlist Empty'
 
   const currentTime: number = Date.now()
   const syncTime = (currentTime - startTime) / 1000
@@ -181,101 +243,202 @@ export default function YoutubePlayer() {
   return (
     <Backdrop>
       {link !== null || connectedBoothIndex !== null ? (
-        <Wrapper>
-          {link !== null ? (
-            <ReactPlayer
-              ref={playerRef}
-              onReady={handleReady}
-              onEnded={handleOnEnded}
-              onBufferEnd={handleOnBufferEnd}
-              width={'200px'}
-              height={'130px'}
-              playing={isPlaying}
-              url={url}
-            />
-          ) : (
-            <EmptyVideo>Room Stream</EmptyVideo>
-          )}
+        <>
+          {minimized ? (
+            <MiniBar>
+              <IconButton
+                aria-label="expand dj bar"
+                size="small"
+                onClick={() => {
+                  setMinimized(false)
+                }}
+              >
+                <OpenInFullIcon fontSize="inherit" />
+              </IconButton>
 
-          <RoomInfo>
-            <div>{link !== null ? `Room Playing: ${title}` : 'Room is not playing yet'}</div>
-          </RoomInfo>
+              <IconButton
+                aria-label="previous track"
+                size="small"
+                disabled={!canControlRoomPlaylist}
+                onClick={() => {
+                  setIsPlaying(true)
+                  game.network.prevRoomPlaylist()
+                }}
+              >
+                <SkipPreviousIcon fontSize="inherit" />
+              </IconButton>
 
-          <Controls>
-            <button
-              disabled={link === null}
-              onClick={() => {
-                setIsPlaying(false)
-              }}
-            >
-              Pause
-            </button>
-            <button
-              disabled={link === null}
-              onClick={() => {
-                setIsPlaying(true)
-                const currentTime: number = Date.now()
-                const nextSyncTime = (currentTime - startTime) / 1000
-                playerRef.current?.seekTo(nextSyncTime, 'seconds')
-              }}
-            >
-              Resume
-            </button>
-            <button
-              disabled={connectedBoothIndex === null || roomPlaylist.length === 0}
-              onClick={() => {
-                setIsPlaying(true)
-                game.network.playRoomPlaylist()
-              }}
-            >
-              Play
-            </button>
-            <button
-              disabled={connectedBoothIndex === null || roomPlaylist.length === 0}
-              onClick={() => {
-                setIsPlaying(true)
-                game.network.skipRoomPlaylist()
-              }}
-            >
-              Skip
-            </button>
-          </Controls>
+              <IconButton
+                aria-label={isPlaying ? 'pause' : 'play'}
+                size="small"
+                disabled={!isStreaming && !canControlRoomPlaylist}
+                onClick={() => {
+                  if (isPlaying) {
+                    setIsPlaying(false)
+                    return
+                  }
 
-          <RoomPlaylist>
-            {roomPlaylist.length === 0 ? (
-              <div className="row">
-                <div className="title">No room tracks yet</div>
-                <div className="meta">Add some from your playlist</div>
-              </div>
+                  setIsPlaying(true)
+
+                  if (!isStreaming) {
+                    game.network.playRoomPlaylist()
+                    return
+                  }
+
+                  const currentTime: number = Date.now()
+                  const nextSyncTime = (currentTime - startTime) / 1000
+                  playerRef.current?.seekTo(nextSyncTime, 'seconds')
+                }}
+              >
+                {isPlaying ? (
+                  <PauseIcon fontSize="inherit" />
+                ) : (
+                  <PlayArrowIcon fontSize="inherit" />
+                )}
+              </IconButton>
+
+              <IconButton
+                aria-label="next track"
+                size="small"
+                disabled={!canControlRoomPlaylist}
+                onClick={() => {
+                  setIsPlaying(true)
+                  game.network.skipRoomPlaylist()
+                }}
+              >
+                <SkipNextIcon fontSize="inherit" />
+              </IconButton>
+
+              <Marquee>
+                <MarqueeInner>{displayTitle}</MarqueeInner>
+              </Marquee>
+            </MiniBar>
+          ) : null}
+
+          <Wrapper
+            style={
+              minimized
+                ? {
+                    position: 'fixed',
+                    left: -10000,
+                    top: 0,
+                    width: 1,
+                    height: 1,
+                    opacity: 0,
+                    pointerEvents: 'none',
+                    overflow: 'hidden',
+                  }
+                : undefined
+            }
+          >
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <IconButton
+                aria-label="minimize dj player"
+                className="close"
+                onClick={() => {
+                  setMinimized(true)
+                }}
+                size="small"
+              >
+                <MinimizeIcon />
+              </IconButton>
+            </div>
+
+            {link !== null ? (
+              <ReactPlayer
+                ref={playerRef}
+                onReady={handleReady}
+                onEnded={handleOnEnded}
+                onBufferEnd={handleOnBufferEnd}
+                width={'200px'}
+                height={'130px'}
+                playing={isPlaying}
+                url={url}
+              />
             ) : (
-              roomPlaylist.map((item, index) => {
-                const displayName = getDisplayName(item.addedBySessionId)
-                const canRemove = item.addedBySessionId === mySessionId
-                const durationText = formatDuration(item.duration)
-                const isActive = isRoomPlaylist && index === roomPlaylistIndex
-
-                return (
-                  <div key={item.id} className={isActive ? 'row active' : 'row'}>
-                    <div className="title">{item.title}</div>
-                    <div className="meta">
-                      @{displayName}
-                      {durationText ? ` · ${durationText}` : ''}
-                    </div>
-                    {canRemove ? (
-                      <button
-                        onClick={() => {
-                          game.network.removeRoomPlaylistItem(item.id)
-                        }}
-                      >
-                        Remove
-                      </button>
-                    ) : null}
-                  </div>
-                )
-              })
+              <EmptyVideo>Room Stream</EmptyVideo>
             )}
-          </RoomPlaylist>
-        </Wrapper>
+
+            <RoomInfo>
+              <div>{link !== null ? `Room Playing: ${title}` : 'Room is not playing yet'}</div>
+            </RoomInfo>
+
+            <Controls>
+              <button
+                disabled={link === null}
+                onClick={() => {
+                  setIsPlaying(false)
+                }}
+              >
+                Pause
+              </button>
+              <button
+                disabled={link === null}
+                onClick={() => {
+                  setIsPlaying(true)
+                  const currentTime: number = Date.now()
+                  const nextSyncTime = (currentTime - startTime) / 1000
+                  playerRef.current?.seekTo(nextSyncTime, 'seconds')
+                }}
+              >
+                Resume
+              </button>
+              <button
+                disabled={connectedBoothIndex === null || roomPlaylist.length === 0}
+                onClick={() => {
+                  setIsPlaying(true)
+                  game.network.playRoomPlaylist()
+                }}
+              >
+                Play
+              </button>
+              <button
+                disabled={connectedBoothIndex === null || roomPlaylist.length === 0}
+                onClick={() => {
+                  setIsPlaying(true)
+                  game.network.skipRoomPlaylist()
+                }}
+              >
+                Skip
+              </button>
+            </Controls>
+
+            <RoomPlaylist>
+              {roomPlaylist.length === 0 ? (
+                <div className="row">
+                  <div className="title">No room tracks yet</div>
+                  <div className="meta">Add some from your playlist</div>
+                </div>
+              ) : (
+                roomPlaylist.map((item, index) => {
+                  const displayName = getDisplayName(item.addedBySessionId)
+                  const canRemove = item.addedBySessionId === mySessionId
+                  const durationText = formatDuration(item.duration)
+                  const isActive = isRoomPlaylist && index === roomPlaylistIndex
+
+                  return (
+                    <div key={item.id} className={isActive ? 'row active' : 'row'}>
+                      <div className="title">{item.title}</div>
+                      <div className="meta">
+                        @{displayName}
+                        {durationText ? ` · ${durationText}` : ''}
+                      </div>
+                      {canRemove ? (
+                        <button
+                          onClick={() => {
+                            game.network.removeRoomPlaylistItem(item.id)
+                          }}
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                  )
+                })
+              )}
+            </RoomPlaylist>
+          </Wrapper>
+        </>
       ) : (
         <Wrapper></Wrapper>
       )}

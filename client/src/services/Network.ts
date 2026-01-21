@@ -371,6 +371,10 @@ export default class Network {
     this.room?.send(Message.ROOM_PLAYLIST_SKIP, {})
   }
 
+  prevRoomPlaylist() {
+    this.room?.send(Message.ROOM_PLAYLIST_PREV, {})
+  }
+
   playRoomPlaylist() {
     this.room?.send(Message.ROOM_PLAYLIST_PLAY, {})
   }
