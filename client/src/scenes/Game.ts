@@ -29,6 +29,7 @@ export default class Game extends Phaser.Scene {
   private keyR!: Phaser.Input.Keyboard.Key
   private map!: Phaser.Tilemaps.Tilemap
   private lastPointerDownTime = 0
+  private pendingMoveClick: { downTime: number; x: number; y: number } | null = null
   myPlayer!: MyPlayer
   private playerSelector!: Phaser.GameObjects.Zone
   private otherPlayers!: Phaser.Physics.Arcade.Group
@@ -158,28 +159,6 @@ export default class Game extends Phaser.Scene {
       this.otherPlayers,
       this.handlePlayersOverlap,
       undefined,
-      this
-    )
-
-    this.input.on(
-      Phaser.Input.Events.POINTER_DOWN,
-      (pointer: Phaser.Input.Pointer) => {
-        if (typeof pointer.button === 'number' && pointer.button !== 0) return
-        if (!this.isPointerOverCanvas(pointer)) return
-
-        const state = store.getState()
-        if (
-          state.chat.focused ||
-          state.myPlaylist.focused ||
-          state.myPlaylist.myPlaylistPanelOpen
-        ) {
-          return
-        }
-
-        if (this.myPlayer.playerBehavior !== PlayerBehavior.IDLE) return
-
-        this.myPlayer.setMoveTarget(pointer.worldX, pointer.worldY)
-      },
       this
     )
     // Youtube embed test
@@ -355,7 +334,27 @@ export default class Game extends Phaser.Scene {
           !pointer.rightButtonDown() &&
           this.isPointerOverCanvas(pointer)
         ) {
-          this.myPlayer.setMoveTarget(pointer.worldX, pointer.worldY)
+          const downTime = pointer.downTime
+          const x = pointer.worldX
+          const y = pointer.worldY
+
+          if (this.pendingMoveClick) {
+            const timeDelta = downTime - this.pendingMoveClick.downTime
+            const dx = x - this.pendingMoveClick.x
+            const dy = y - this.pendingMoveClick.y
+            const distanceSq = dx * dx + dy * dy
+
+            if (timeDelta > 0 && timeDelta <= 300 && distanceSq <= 24 * 24) {
+              this.pendingMoveClick = null
+              this.myPlayer.setMoveTarget(x, y)
+            } else {
+              this.pendingMoveClick = { downTime, x, y }
+            }
+          } else {
+            this.pendingMoveClick = { downTime, x, y }
+          }
+        } else {
+          this.pendingMoveClick = null
         }
       }
 
