@@ -1,11 +1,11 @@
 import React, { useRef, useState, useEffect } from 'react'
 import styled from 'styled-components'
 import Box from '@mui/material/Box'
-import Fab from '@mui/material/Fab'
 import Tooltip from '@mui/material/Tooltip'
 import IconButton from '@mui/material/IconButton'
 import InputBase from '@mui/material/InputBase'
 import InsertEmoticonIcon from '@mui/icons-material/InsertEmoticon'
+import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline'
 import CloseIcon from '@mui/icons-material/Close'
 import data from '@emoji-mart/data'
 import Picker from '@emoji-mart/react'
@@ -18,11 +18,11 @@ import { useAppDispatch, useAppSelector } from '../hooks'
 import { MessageType, setFocused, setShowChat } from '../stores/ChatStore'
 import { IChatMessage } from '../../../types/IOfficeState'
 
-const Backdrop = styled.div`
+const Backdrop = styled.div<{ $expanded: boolean }>`
   position: fixed;
   bottom: 0;
   left: 0;
-  height: 400px;
+  height: ${(p) => (p.$expanded ? '400px' : '64px')};
   width: 500px;
   max-height: 50%;
   max-width: 50%;
@@ -34,17 +34,6 @@ const Wrapper = styled.div`
   padding: 16px;
   display: flex;
   flex-direction: column;
-`
-
-const FabWrapper = styled.div`
-  margin-top: auto;
-
-  button {
-    font-size: 14px;
-    text-transform: lowercase !important;
-    line-height: 100%;
-    background-color: white !important;
-  }
 `
 
 const ChatHeader = styled.div`
@@ -117,7 +106,7 @@ const MessageWrapper = styled.div`
 const InputWrapper = styled.form`
   box-shadow: 10px 10px 10px #00000018;
   border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 0px 0px 10px 10px;
+  border-radius: 10px;
   display: flex;
   flex-direction: row;
   color: rgba(255, 255, 255, 0.9);
@@ -127,7 +116,7 @@ const InputWrapper = styled.form`
 `
 
 const InputTextField = styled(InputBase)`
-  border-radius: 0px 0px 10px 10px;
+  border-radius: 10px;
 
   input {
     padding: 5px;
@@ -203,6 +192,35 @@ export default function Chat() {
   const dispatch = useAppDispatch()
   const game = phaserGame.scene.keys.game as Game
 
+  useEffect(() => {
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter') return
+      if (focused) return
+
+      const target = event.target as HTMLElement | null
+      const isTypingTarget =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        Boolean(target?.isContentEditable)
+
+      if (isTypingTarget) return
+
+      dispatch(setFocused(true))
+      window.setTimeout(() => {
+        inputRef.current?.focus()
+      }, 0)
+
+      event.preventDefault()
+      event.stopPropagation()
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown, { capture: true })
+
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown, { capture: true })
+    }
+  }, [dispatch, focused])
+
   const handleChange = (event: React.FormEvent<HTMLInputElement>) => {
     setInputValue(event.currentTarget.value)
   }
@@ -217,8 +235,6 @@ export default function Chat() {
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    // move focus back to the game
-    inputRef.current?.blur()
 
     const val = inputValue.trim()
     setInputValue('')
@@ -226,6 +242,11 @@ export default function Chat() {
       game.network.addChatMessage(val)
       game.myPlayer.updateDialogBubble(val)
     }
+
+    dispatch(setFocused(true))
+    window.setTimeout(() => {
+      inputRef.current?.focus()
+    }, 0)
   }
 
   const scrollToBottom = () => {
@@ -243,7 +264,7 @@ export default function Chat() {
   }, [chatMessages, showChat])
 
   return (
-    <Backdrop>
+    <Backdrop $expanded={showChat}>
       <Wrapper>
         {showChat ? (
           <>
@@ -281,39 +302,37 @@ export default function Chat() {
                 </EmojiPickerWrapper>
               )}
             </ChatBox>
-            <InputWrapper onSubmit={handleSubmit}>
-              <InputTextField
-                inputRef={inputRef}
-                autoFocus={focused}
-                fullWidth
-                placeholder="Press Enter to chat"
-                value={inputValue}
-                onKeyDown={handleKeyDown}
-                onChange={handleChange}
-                onFocus={() => {
-                  if (!focused) dispatch(setFocused(true))
-                }}
-                onBlur={() => dispatch(setFocused(false))}
-              />
-              <IconButton aria-label="emoji" onClick={() => setShowEmojiPicker(!showEmojiPicker)}>
-                <InsertEmoticonIcon />
-              </IconButton>
-            </InputWrapper>
           </>
-        ) : (
-          <FabWrapper>
-            <Fab
-              color="secondary"
-              aria-label="showChat"
-              onClick={() => {
-                dispatch(setShowChat(true))
-                dispatch(setFocused(true))
-              }}
-            >
-              Open Chat
-            </Fab>
-          </FabWrapper>
-        )}
+        ) : null}
+
+        <InputWrapper
+          onSubmit={handleSubmit}
+          style={{ borderRadius: showChat ? '0px 0px 10px 10px' : '10px' }}
+        >
+          <IconButton
+            aria-label="toggle chat history"
+            onClick={() => dispatch(setShowChat(!showChat))}
+            size="small"
+          >
+            <ChatBubbleOutlineIcon />
+          </IconButton>
+          <InputTextField
+            inputRef={inputRef}
+            autoFocus={focused}
+            fullWidth
+            placeholder="Press Enter to chat"
+            value={inputValue}
+            onKeyDown={handleKeyDown}
+            onChange={handleChange}
+            onFocus={() => {
+              if (!focused) dispatch(setFocused(true))
+            }}
+            onBlur={() => dispatch(setFocused(false))}
+          />
+          <IconButton aria-label="emoji" onClick={() => setShowEmojiPicker(!showEmojiPicker)}>
+            <InsertEmoticonIcon />
+          </IconButton>
+        </InputWrapper>
       </Wrapper>
     </Backdrop>
   )
