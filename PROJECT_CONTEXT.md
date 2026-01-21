@@ -57,6 +57,38 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
 - Other clients render it via:
   - `client/src/characters/OtherPlayer.ts` → `updateOtherPlayer('anim', animKey)` → `this.anims.play(animKey, true)`.
 
+## Public lobby: skip login + force Mutant identity
+
+Public lobby differs from custom/private rooms:
+
+- **Goal**
+  - Skip avatar/name selection UI
+  - Always use the Mutant character (`adam`)
+  - Auto-assign a unique username that contains `mutant`
+
+- **Server enforcement (authoritative)**
+  - `server/index.ts` passes `isPublic: true` to the public room create options.
+  - `types/Rooms.ts` includes `isPublic?: boolean` on `IRoomData`.
+  - `server/rooms/SkyOffice.ts`:
+    - Stores `this.isPublic`.
+    - On `onJoin`, if public:
+      - Sets `player.name = mutant-${client.sessionId}` (unique per connection)
+      - Sets `player.anim = adam_idle_down`
+    - Ignores `Message.UPDATE_PLAYER_NAME` when public.
+    - Sanitizes `Message.UPDATE_PLAYER_ACTION` animation keys to `adam_*` when public.
+
+- **Client behavior**
+  - Tracks `roomType` in Redux:
+    - `client/src/stores/RoomStore.ts` adds `roomType` + `setJoinedRoomType`.
+    - `client/src/services/Network.ts` dispatches `setJoinedRoomType(RoomType.PUBLIC|CUSTOM)`.
+  - Public auto-login is executed in Phaser (reliable timing):
+    - `client/src/scenes/Game.ts` `create()` sets:
+      - `myPlayer` texture to `adam`
+      - `myPlayer` name to `mutant-${sessionId}`
+      - calls `network.readyToConnect()`
+      - dispatches `setLoggedIn(true)` so Chat/Playlist UI renders
+  - `client/src/components/LoginDialog.tsx` returns empty for public rooms (no UI).
+
 ## Music + room playlist (current implementation)
 
 ### The concept
@@ -157,3 +189,4 @@ There are two parallel playback modes:
 - Room playlist changed to be non-destructive, index-based playback.
 - Added Play button + auto-start on DJ connect + active-track highlight.
 - Synced DJ boombox animation to other players via `updatePlayerAction`.
+- Public lobby: skip login, server-enforced mutant identity, and reliable auto-login in `Game.create()`.
