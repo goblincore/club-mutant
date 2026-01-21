@@ -49,7 +49,7 @@ export class SkyOffice extends Room<OfficeState> {
     this.isPublic = Boolean(isPublic)
 
     if (this.isPublic) {
-      this.publicBackgroundSeed = 4
+      this.publicBackgroundSeed = 3
     }
 
     let hasPassword = false
