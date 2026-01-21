@@ -61,6 +61,8 @@ export class MusicStream extends Schema implements IMusicStream {
   @type(DJUserInfo) currentDj = new DJUserInfo()
   @type('number') startTime = Date.now()
   @type('number') duration = 0
+  @type('boolean') isRoomPlaylist = false
+  @type('number') roomPlaylistIndex = 0
 }
 
 export class MusicBooth extends Schema implements IMusicBooth {

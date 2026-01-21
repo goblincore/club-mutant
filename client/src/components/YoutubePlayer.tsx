@@ -81,6 +81,10 @@ const RoomPlaylist = styled.div`
     border-top: 1px solid #ddd;
   }
 
+  .row.active {
+    background: #ddd;
+  }
+
   .title {
     flex: 1;
     overflow: hidden;
@@ -105,6 +109,8 @@ export default function YoutubePlayer() {
   const startTime = useAppSelector((state) => state.musicStream.startTime)
   const title = useAppSelector((state) => state.musicStream.title)
   const currentDj = useAppSelector((state) => state.musicStream.currentDj)
+  const isRoomPlaylist = useAppSelector((state) => state.musicStream.isRoomPlaylist)
+  const roomPlaylistIndex = useAppSelector((state) => state.musicStream.roomPlaylistIndex)
   const connectedBoothIndex = useAppSelector((state) => state.musicBooth.musicBoothIndex)
   const mySessionId = useAppSelector((state) => state.user.sessionId)
   const playerNameMap = useAppSelector((state) => state.user.playerNameMap)
@@ -147,11 +153,20 @@ export default function YoutubePlayer() {
   }
 
   const handleOnEnded = () => {
-    const nextItem = currentPlaylist.items[1]
-    console.log('nextItem', nextItem)
     if (!isBuffering) {
       setIsBuffering(true)
     }
+
+    if (isRoomPlaylist) {
+      if (currentDj?.sessionId === game.myPlayer.playerId) {
+        setIsPlaying(true)
+        game.network.skipRoomPlaylist()
+      }
+      return
+    }
+
+    const nextItem = currentPlaylist.items[1]
+    console.log('nextItem', nextItem)
 
     console.log('currentDj.sessoinId', currentDj?.sessionId)
     console.log('///myplayer game playerid', game.myPlayer.playerId)
@@ -207,7 +222,16 @@ export default function YoutubePlayer() {
               Resume
             </button>
             <button
-              disabled={roomPlaylist.length === 0}
+              disabled={connectedBoothIndex === null || roomPlaylist.length === 0}
+              onClick={() => {
+                setIsPlaying(true)
+                game.network.playRoomPlaylist()
+              }}
+            >
+              Play
+            </button>
+            <button
+              disabled={connectedBoothIndex === null || roomPlaylist.length === 0}
               onClick={() => {
                 setIsPlaying(true)
                 game.network.skipRoomPlaylist()
@@ -224,13 +248,14 @@ export default function YoutubePlayer() {
                 <div className="meta">Add some from your playlist</div>
               </div>
             ) : (
-              roomPlaylist.map((item) => {
+              roomPlaylist.map((item, index) => {
                 const displayName = getDisplayName(item.addedBySessionId)
                 const canRemove = item.addedBySessionId === mySessionId
                 const durationText = formatDuration(item.duration)
+                const isActive = isRoomPlaylist && index === roomPlaylistIndex
 
                 return (
-                  <div key={item.id} className="row">
+                  <div key={item.id} className={isActive ? 'row active' : 'row'}>
                     <div className="title">{item.title}</div>
                     <div className="meta">
                       @{displayName}

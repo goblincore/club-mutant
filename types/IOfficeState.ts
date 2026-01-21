@@ -64,6 +64,8 @@ export interface IMusicStream extends Schema {
   currentBooth: number
   startTime: number
   duration: number
+  isRoomPlaylist: boolean
+  roomPlaylistIndex: number
 }
 
 export interface IOfficeState extends Schema {

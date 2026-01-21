@@ -367,6 +367,10 @@ export default class Network {
     this.room?.send(Message.ROOM_PLAYLIST_SKIP, {})
   }
 
+  playRoomPlaylist() {
+    this.room?.send(Message.ROOM_PLAYLIST_PLAY, {})
+  }
+
   addMyPlaylistItem(item: PlaylistItem) {
     console.log('Add playlist item, item', item)
     this.room?.send(Message.ADD_PLAYLIST_ITEM, { item })

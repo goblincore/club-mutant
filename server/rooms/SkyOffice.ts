@@ -55,6 +55,65 @@ export class SkyOffice extends Room<OfficeState> {
 
     this.setState(new OfficeState())
 
+    const setStoppedMusicStream = () => {
+      const musicStream = this.state.musicStream
+
+      musicStream.status = 'waiting'
+      musicStream.currentLink = null
+      musicStream.currentTitle = null
+      musicStream.startTime = Date.now()
+      musicStream.duration = 0
+    }
+
+    const startRoomPlaylistAtIndex = (requestedIndex: number) => {
+      const musicStream = this.state.musicStream
+
+      const djSessionId = this.state.musicBooths[0]?.connectedUser
+      if (!djSessionId) return
+
+      const djPlayer = this.state.players.get(djSessionId)
+      if (!djPlayer) return
+
+      const list = this.state.roomPlaylist
+      if (list.length === 0) {
+        musicStream.isRoomPlaylist = true
+        musicStream.roomPlaylistIndex = 0
+        musicStream.currentBooth = 0
+        setStoppedMusicStream()
+        this.broadcast(Message.STOP_MUSIC_STREAM, {})
+        return
+      }
+
+      const clampedIndex =
+        requestedIndex < 0 ? 0 : requestedIndex >= list.length ? 0 : requestedIndex
+
+      const current = list[clampedIndex]
+      if (!current) {
+        musicStream.isRoomPlaylist = true
+        musicStream.roomPlaylistIndex = 0
+        musicStream.currentBooth = 0
+        setStoppedMusicStream()
+        this.broadcast(Message.STOP_MUSIC_STREAM, {})
+        return
+      }
+
+      const djInfo = new DJUserInfo()
+      djInfo.name = djPlayer.name
+      djInfo.sessionId = djSessionId
+
+      musicStream.isRoomPlaylist = true
+      musicStream.roomPlaylistIndex = clampedIndex
+      musicStream.currentBooth = 0
+      musicStream.status = 'playing'
+      musicStream.currentLink = current.link
+      musicStream.currentTitle = current.title
+      musicStream.currentDj = djInfo
+      musicStream.startTime = Date.now()
+      musicStream.duration = current.duration
+
+      this.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
+    }
+
     this.state.musicBooths.push(new MusicBooth())
 
     this.onMessage(
@@ -87,43 +146,58 @@ export class SkyOffice extends Room<OfficeState> {
           id: string
         }
       ) => {
-        const index = this.state.roomPlaylist.findIndex((i) => i.id === message.id)
+        const index = this.state.roomPlaylist.findIndex(
+          (i: RoomPlaylistItem) => i.id === message.id
+        )
         if (index < 0) return
 
         const item = this.state.roomPlaylist[index]
         if (item.addedBySessionId !== client.sessionId) return
+
+        const musicStream = this.state.musicStream
+        if (musicStream.isRoomPlaylist) {
+          if (index < musicStream.roomPlaylistIndex) {
+            musicStream.roomPlaylistIndex -= 1
+          } else if (
+            index === musicStream.roomPlaylistIndex &&
+            musicStream.roomPlaylistIndex >= this.state.roomPlaylist.length - 1
+          ) {
+            musicStream.roomPlaylistIndex = this.state.roomPlaylist.length - 2
+          }
+
+          if (musicStream.roomPlaylistIndex < 0) {
+            musicStream.roomPlaylistIndex = 0
+          }
+        }
 
         this.state.roomPlaylist.splice(index, 1)
       }
     )
 
     this.onMessage(Message.ROOM_PLAYLIST_SKIP, (client) => {
-      const next = this.state.roomPlaylist.splice(0, 1)[0]
+      if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
+
       const musicStream = this.state.musicStream
+      const nextIndex = musicStream.isRoomPlaylist ? musicStream.roomPlaylistIndex + 1 : 0
 
-      if (!next) {
-        musicStream.status = 'waiting'
-        musicStream.currentLink = null
-        musicStream.currentTitle = null
-        musicStream.startTime = Date.now()
-        musicStream.duration = 0
-
+      if (nextIndex >= this.state.roomPlaylist.length) {
+        musicStream.isRoomPlaylist = true
+        musicStream.roomPlaylistIndex = this.state.roomPlaylist.length
+        musicStream.currentBooth = 0
+        setStoppedMusicStream()
         this.broadcast(Message.STOP_MUSIC_STREAM, {})
         return
       }
 
-      const djInfo = new DJUserInfo()
-      djInfo.name = 'Room'
-      djInfo.sessionId = ''
+      startRoomPlaylistAtIndex(nextIndex)
+    })
 
-      musicStream.status = 'playing'
-      musicStream.currentLink = next.link
-      musicStream.currentTitle = next.title
-      musicStream.currentDj = djInfo
-      musicStream.startTime = Date.now()
-      musicStream.duration = next.duration
+    this.onMessage(Message.ROOM_PLAYLIST_PLAY, (client) => {
+      if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
 
-      this.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
+      const musicStream = this.state.musicStream
+      const index = musicStream.isRoomPlaylist ? musicStream.roomPlaylistIndex : 0
+      startRoomPlaylistAtIndex(index)
     })
 
     // when a player starts playing a song
@@ -150,7 +224,13 @@ export class SkyOffice extends Room<OfficeState> {
             this.state.musicStream.status === 'seeking') &&
           this.state.musicBooths[musicBoothIndex]?.connectedUser === client.sessionId
         ) {
-          this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+          if (this.state.roomPlaylist.length > 0) {
+            const musicStream = this.state.musicStream
+            const index = musicStream.isRoomPlaylist ? musicStream.roomPlaylistIndex : 0
+            startRoomPlaylistAtIndex(index)
+          } else {
+            this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+          }
         }
       }
     )
@@ -165,7 +245,14 @@ export class SkyOffice extends Room<OfficeState> {
           musicBoothIndex,
         })
         if (this.state.musicStream.currentBooth === musicBoothIndex) {
-          this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+          if (this.state.musicStream.isRoomPlaylist) {
+            this.state.musicStream.isRoomPlaylist = true
+            this.state.musicStream.roomPlaylistIndex = this.state.musicStream.roomPlaylistIndex ?? 0
+            setStoppedMusicStream()
+            this.broadcast(Message.STOP_MUSIC_STREAM, {})
+          } else {
+            this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+          }
         }
       }
     )
