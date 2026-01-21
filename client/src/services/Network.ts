@@ -22,6 +22,7 @@ import {
   setAvailableRooms,
   addAvailableRooms,
   removeAvailableRooms,
+  setJoinedRoomType,
 } from '../stores/RoomStore'
 import {
   pushChatMessage,
@@ -92,12 +93,14 @@ export default class Network {
   // method to join the public lobby
   async joinOrCreatePublic() {
     this.room = await this.client.joinOrCreate(RoomType.PUBLIC)
+    store.dispatch(setJoinedRoomType(RoomType.PUBLIC))
     this.initialize()
   }
 
   // method to join a custom room
   async joinCustomById(roomId: string, password: string | null) {
     this.room = await this.client.joinById(roomId, { password })
+    store.dispatch(setJoinedRoomType(RoomType.CUSTOM))
     this.initialize()
   }
 
@@ -110,6 +113,7 @@ export default class Network {
       password,
       autoDispose,
     })
+    store.dispatch(setJoinedRoomType(RoomType.CUSTOM))
     this.initialize()
   }
 

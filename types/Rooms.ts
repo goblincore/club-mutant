@@ -9,4 +9,5 @@ export interface IRoomData {
   description: string
   password: string | null
   autoDispose: boolean
+  isPublic?: boolean
 }

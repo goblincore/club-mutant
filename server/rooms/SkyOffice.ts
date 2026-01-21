@@ -38,12 +38,14 @@ export class SkyOffice extends Room<OfficeState> {
   private description: string
   private password: string | null = null
   private musicBoothQueue: Queue | null = null
+  private isPublic = false
 
   async onCreate(options: IRoomData) {
-    const { name, description, password, autoDispose } = options
+    const { name, description, password, autoDispose, isPublic } = options
     this.name = name
     this.description = description
     this.autoDispose = autoDispose
+    this.isPublic = Boolean(isPublic)
 
     let hasPassword = false
     if (password) {
@@ -261,17 +263,28 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(
       Message.UPDATE_PLAYER_ACTION,
       (client, message: { x: number; y: number; anim: string }) => {
+        const sanitizedAnim =
+          this.isPublic && typeof message.anim === 'string'
+            ? (() => {
+                const parts = message.anim.split('_')
+                if (parts.length < 2) return 'adam_idle_down'
+                parts[0] = 'adam'
+                return parts.join('_')
+              })()
+            : message.anim
+
         this.dispatcher.dispatch(new PlayerUpdateActionCommand(), {
           client,
           x: message.x,
           y: message.y,
-          anim: message.anim,
+          anim: sanitizedAnim,
         })
       }
     )
 
     // when receiving updatePlayerName message, call the PlayerUpdateNameCommand
     this.onMessage(Message.UPDATE_PLAYER_NAME, (client, message: { name: string }) => {
+      if (this.isPublic) return
       this.dispatcher.dispatch(new PlayerUpdateNameCommand(), {
         client,
         name: message.name,
@@ -343,7 +356,15 @@ export class SkyOffice extends Room<OfficeState> {
   // when a new player joins, send room data
   onJoin(client: Client, options: any) {
     console.log('////onJoin, client', client)
-    this.state.players.set(client.sessionId, new Player())
+
+    const player = new Player()
+
+    if (this.isPublic) {
+      player.name = `mutant-${client.sessionId}`
+      player.anim = 'adam_idle_down'
+    }
+
+    this.state.players.set(client.sessionId, player)
     client.send(Message.SEND_ROOM_DATA, {
       id: this.roomId,
       name: this.name,

@@ -21,8 +21,11 @@ import Network from '../services/Network'
 import store from '../stores'
 import { setFocused, setShowChat } from '../stores/ChatStore'
 import { setMusicStream } from '../stores/MusicStreamStore'
+import { setLoggedIn } from '../stores/UserStore'
 
 import { findPathAStar } from '../utils/pathfinding'
+
+import { RoomType } from '../../../types/Rooms'
 
 export default class Game extends Phaser.Scene {
   network!: Network
@@ -221,6 +224,17 @@ export default class Game extends Phaser.Scene {
     this.groundLayer = groundLayer
 
     this.myPlayer = this.add.myPlayer(705, 500, 'adam', this.network.mySessionId)
+
+    const state = store.getState()
+    if (!state.user.loggedIn && state.room.roomType === RoomType.PUBLIC) {
+      const generatedName = `mutant-${this.network.mySessionId}`
+
+      this.myPlayer.setPlayerTexture('adam')
+      this.myPlayer.setPlayerName(generatedName)
+      this.network.readyToConnect()
+      store.dispatch(setLoggedIn(true))
+    }
+
     this.playerSelector = new PlayerSelector(this, 0, 0, 16, 16)
 
     // import music booth objects from Tiled map to Phaser

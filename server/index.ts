@@ -28,6 +28,7 @@ gameServer.define(RoomType.PUBLIC, SkyOffice, {
   description: 'For making friends and familiarizing yourself with the controls',
   password: null,
   autoDispose: false,
+  isPublic: true,
 })
 gameServer.define(RoomType.CUSTOM, SkyOffice).enableRealtimeListing()
 
