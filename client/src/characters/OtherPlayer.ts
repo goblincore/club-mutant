@@ -78,6 +78,9 @@ export default class OtherPlayer extends Player {
   preUpdate(t: number, dt: number) {
     super.preUpdate(t, dt)
 
+    const body = this.body as Phaser.Physics.Arcade.Body | null
+    if (!body) return
+
     // if Phaser has not updated the canvas (when the game tab is not active) for more than 1 sec
     // directly snap player to their current locations
     if (this.lastUpdateTimestamp && t - this.lastUpdateTimestamp > 750) {
@@ -90,8 +93,15 @@ export default class OtherPlayer extends Player {
     }
 
     this.lastUpdateTimestamp = t
-    this.setDepth(this.y) // change player.depth based on player.y
-    const animParts = this.anims.currentAnim.key.split('_')
+    const currentAnimKey = this.anims.currentAnim?.key
+
+    if (currentAnimKey === 'adam_boombox') {
+      this.setDepth(100000)
+    } else {
+      this.setDepth(this.y) // change player.depth based on player.y
+    }
+
+    const animParts = (currentAnimKey ?? '').split('_')
     const animState = animParts[1]
     if (animState === 'sit') {
       const animDir = animParts[2]
@@ -129,7 +139,7 @@ export default class OtherPlayer extends Player {
 
     // update character velocity
     this.setVelocity(vx, vy)
-    this.body.velocity.setLength(speed)
+    body.velocity.setLength(speed)
     // also update playerNameContainer velocity
     this.playContainerBody.setVelocity(vx, vy)
     this.playContainerBody.velocity.setLength(speed)
@@ -139,8 +149,8 @@ export default class OtherPlayer extends Player {
     this.connectionBufferTime += dt
     if (
       this.connected &&
-      !this.body.embedded &&
-      this.body.touching.none &&
+      !body.embedded &&
+      body.touching.none &&
       this.connectionBufferTime >= 750
     ) {
       if (this.x < 610 && this.y > 515 && this.myPlayer!.x < 610 && this.myPlayer!.y > 515) return
@@ -185,12 +195,15 @@ Phaser.GameObjects.GameObjectFactory.register(
     this.scene.physics.world.enableBody(sprite, Phaser.Physics.Arcade.DYNAMIC_BODY)
 
     const collisionScale = [6, 4]
-    sprite.body
-      .setSize(sprite.width * collisionScale[0], sprite.height * collisionScale[1])
-      .setOffset(
-        sprite.width * (1 - collisionScale[0]) * 0.5,
-        sprite.height * (1 - collisionScale[1]) * 0.5 + 17
-      )
+    const body = sprite.body as Phaser.Physics.Arcade.Body | null
+    if (body) {
+      body
+        .setSize(sprite.width * collisionScale[0], sprite.height * collisionScale[1])
+        .setOffset(
+          sprite.width * (1 - collisionScale[0]) * 0.5,
+          sprite.height * (1 - collisionScale[1]) * 0.5 + 17
+        )
+    }
 
     return sprite
   }

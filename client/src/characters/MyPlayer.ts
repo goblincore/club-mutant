@@ -130,6 +130,7 @@ export default class MyPlayer extends Player {
               this.djBoothDepth = this.depth
               if (this.playerTexture === 'adam') {
                 this.play('adam_boombox', true)
+                network.updatePlayerAction(this.x, this.y, 'adam_boombox')
               }
               this.setDepth(100000)
               this.playerBehavior = PlayerBehavior.SITTING
@@ -243,9 +244,9 @@ export default class MyPlayer extends Player {
               this.musicBoothOnSit?.closeDialog(network)
               this.musicBoothOnSit?.clearDialogBox()
               this.musicBoothOnSit?.setDialogBox('Press R to be the DJ')
-              if (this.playerTexture === 'adam') {
-                this.play('adam_idle_down', true)
-              }
+              const idleAnimKey = `${this.playerTexture}_idle_down`
+              this.play(idleAnimKey, true)
+              network.updatePlayerAction(this.x, this.y, idleAnimKey)
               if (this.djBoothDepth !== null) {
                 this.setDepth(this.djBoothDepth)
                 this.djBoothDepth = null
