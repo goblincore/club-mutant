@@ -9,6 +9,7 @@ import { phaserEvents, Event } from '../events/EventCenter'
 import store from '../stores'
 import { pushPlayerJoinedMessage } from '../stores/ChatStore'
 import { ItemType } from '../../../types/Items'
+import { RoomType } from '../../../types/Rooms'
 
 export default class MyPlayer extends Player {
   private playerContainerBody: Phaser.Physics.Arcade.Body
@@ -135,8 +136,10 @@ export default class MyPlayer extends Player {
               this.musicBoothOnSit = musicBootItem
               this.djBoothDepth = this.depth
               if (this.playerTexture === 'adam') {
-                this.play('adam_boombox', true)
-                network.updatePlayerAction(this.x, this.y, 'adam_boombox')
+                const roomType = store.getState().room.roomType
+                const boothAnimKey = roomType === RoomType.PUBLIC ? 'adam_djwip' : 'adam_boombox'
+                this.play(boothAnimKey, true)
+                network.updatePlayerAction(this.x, this.y, boothAnimKey)
               }
               this.setDepth(100000)
               this.playerBehavior = PlayerBehavior.SITTING

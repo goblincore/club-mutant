@@ -516,4 +516,13 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
     repeat: -1,
     frameRate: animsFrameRate * 0.5,
   })
+
+  anims.create({
+    key: 'adam_djwip',
+    frames: anims.generateFrameNumbers('adam_djwip', {
+      frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14],
+    }),
+    repeat: -1,
+    frameRate: animsFrameRate * 0.25,
+  })
 }
