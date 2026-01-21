@@ -24,7 +24,6 @@ export default class Bootstrap extends Phaser.Scene {
       'assets/background/cloud_night.json'
     )
 
-
     this.load.image('backdrop_night', 'assets/background/backdrop_night.png')
     this.load.image('sun_moon', 'assets/background/sun_moon.png')
 
@@ -78,11 +77,12 @@ export default class Bootstrap extends Phaser.Scene {
       frameHeight: 48,
     })
 
-    this.load.atlas(
-      'adam',
-      'assets/character/MutantWalk.png',
-      'assets/character/MutantWalk.json'
-    )
+    this.load.atlas('adam', 'assets/character/MutantWalk.png', 'assets/character/MutantWalk.json')
+
+    this.load.spritesheet('adam_boombox', 'assets/character/MutantBoomboxTest.png', {
+      frameWidth: 60,
+      frameHeight: 88,
+    })
   }
 
   init() {

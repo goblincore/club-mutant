@@ -18,6 +18,7 @@ export default class MyPlayer extends Player {
   private movePathIndex = 0
   private navLastPos: { x: number; y: number } | null = null
   private navNoProgressMs = 0
+  private djBoothDepth: number | null = null
 
   constructor(
     scene: Phaser.Scene,
@@ -112,6 +113,9 @@ export default class MyPlayer extends Player {
 
     const item = playerSelector.selectedItem
 
+    this.playerContainer.x = this.x
+    this.playerContainer.y = this.y - 30
+
     switch (this.playerBehavior) {
       case PlayerBehavior.IDLE:
         if (Phaser.Input.Keyboard.JustDown(keyR)) {
@@ -123,6 +127,11 @@ export default class MyPlayer extends Player {
               musicBootItem.clearDialogBox()
               musicBootItem.setDialogBox('Press R to leave the DJ booth')
               this.musicBoothOnSit = musicBootItem
+              this.djBoothDepth = this.depth
+              if (this.playerTexture === 'adam') {
+                this.play('adam_boombox', true)
+              }
+              this.setDepth(100000)
               this.playerBehavior = PlayerBehavior.SITTING
               break
           }
@@ -234,6 +243,15 @@ export default class MyPlayer extends Player {
               this.musicBoothOnSit?.closeDialog(network)
               this.musicBoothOnSit?.clearDialogBox()
               this.musicBoothOnSit?.setDialogBox('Press R to be the DJ')
+              if (this.playerTexture === 'adam') {
+                this.play('adam_idle_down', true)
+              }
+              if (this.djBoothDepth !== null) {
+                this.setDepth(this.djBoothDepth)
+                this.djBoothDepth = null
+              } else {
+                this.setDepth(this.y)
+              }
               this.playerBehavior = PlayerBehavior.IDLE
               break
           }
