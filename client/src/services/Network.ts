@@ -204,10 +204,15 @@ export default class Network {
       // track changes on every child object's connectedUser
       musicBooth.onChange = (changes) => {
         changes.forEach((change) => {
-          const { field, value } = change
+          const { field, value, previousValue } = change as {
+            field: string
+            value: unknown
+            previousValue?: unknown
+          }
           if (field === 'connectedUser') {
             if (value === null) {
-              phaserEvents.emit(Event.ITEM_USER_REMOVED, index, ItemType.MUSIC_BOOTH)
+              const removedUserId = typeof previousValue === 'string' ? previousValue : ''
+              phaserEvents.emit(Event.ITEM_USER_REMOVED, removedUserId, index, ItemType.MUSIC_BOOTH)
 
               const connectedIndex = store.getState().musicBooth.musicBoothIndex
               if (connectedIndex === index) {
@@ -215,7 +220,7 @@ export default class Network {
               }
             } else {
               console.log('USER JOINED MUSICBOOTH field', field, 'value', value)
-              phaserEvents.emit(Event.ITEM_USER_ADDED, value, index, ItemType.MUSIC_BOOTH)
+              phaserEvents.emit(Event.ITEM_USER_ADDED, value as string, index, ItemType.MUSIC_BOOTH)
 
               if (value === this.mySessionId) {
                 store.dispatch(connectToMusicBooth(index))
