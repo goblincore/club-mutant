@@ -185,11 +185,14 @@ export default class MyPlayer extends Player {
 
             if (this.navNoProgressMs >= 650) {
               this.clearMoveNavigation()
+              if (!this.moveTarget) break
             }
           } else {
             this.navNoProgressMs = 0
             this.navLastPos = { x: this.x, y: this.y }
           }
+
+          if (!this.moveTarget) break
 
           const dx = this.moveTarget.x - this.x
           const dy = this.moveTarget.y - this.y
