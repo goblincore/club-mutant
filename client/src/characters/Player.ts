@@ -38,18 +38,18 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.anims.play(`${this.playerTexture}_idle_down`, true)
 
-    this.playerContainer = this.scene.add.container(this.x, this.y - 30).setDepth(5000)
+    this.playerContainer = this.scene.add.container(this.x, this.y).setDepth(5000)
 
     // add dialogBubble to playerContainer
-    this.playerDialogBubble = this.scene.add.container(0, 0).setDepth(5000)
+    this.playerDialogBubble = this.scene.add.container(0, -this.height * 0.5 - 24).setDepth(5000)
     this.playerContainer.add(this.playerDialogBubble)
 
     // add playerName to playerContainer
     this.playerName = this.scene.add
-      .text(0, 0, '')
+      .text(0, this.height * 0.5 + 10, '')
       .setFontFamily('Arial')
-      .setFontSize(12)
-      .setColor('#000000')
+      .setFontSize(10)
+      .setColor('#ffffff')
       .setOrigin(0.5)
     this.playerContainer.add(this.playerName)
 
@@ -78,7 +78,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     const innerTextHeight = innerText.height
     const innerTextWidth = innerText.width
 
-    innerText.setY(-innerTextHeight / 2 - this.playerName.height / 2)
+    innerText.setY(0)
     const dialogBoxWidth = innerTextWidth + 10
     const dialogBoxHeight = innerTextHeight + 3
     const dialogBoxX = innerText.x - innerTextWidth / 2 - 5

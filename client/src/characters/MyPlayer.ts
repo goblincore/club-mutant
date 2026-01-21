@@ -114,7 +114,7 @@ export default class MyPlayer extends Player {
     const item = playerSelector.selectedItem
 
     this.playerContainer.x = this.x
-    this.playerContainer.y = this.y - 30
+    this.playerContainer.y = this.y
 
     switch (this.playerBehavior) {
       case PlayerBehavior.IDLE:
