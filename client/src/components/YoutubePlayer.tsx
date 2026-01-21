@@ -23,6 +23,7 @@ import {
   shiftMyPlaylist,
 } from '../stores/MyPlaylistStore'
 import store from '../stores'
+import { RoomType } from '../../../types/Rooms'
 
 const Backdrop = styled.div`
   position: fixed;
@@ -78,10 +79,12 @@ const MarqueeInner = styled.div`
 const Wrapper = styled.div`
   width: 100%;
   height: 100%;
-  background: #eee;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(8px);
   border-radius: 16px;
   padding: 0;
-  color: #666;
+  color: rgba(255, 255, 255, 0.9);
   display: flex;
   flex-direction: column;
 
@@ -97,14 +100,14 @@ const Controls = styled.div`
   padding: 8px;
 
   button {
-    color: #222;
+    color: rgba(255, 255, 255, 0.9);
   }
 `
 
 const RoomInfo = styled.div`
   padding: 0 8px 8px 8px;
   font-size: 12px;
-  color: #666;
+  color: rgba(255, 255, 255, 0.8);
 `
 
 const EmptyVideo = styled.div`
@@ -113,15 +116,15 @@ const EmptyVideo = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #ddd;
-  color: #666;
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(255, 255, 255, 0.8);
   font-size: 12px;
 `
 
 const RoomPlaylist = styled.div`
   padding: 0 8px 8px 8px;
   font-size: 12px;
-  color: #444;
+  color: rgba(255, 255, 255, 0.85);
   max-height: 180px;
   overflow-y: auto;
 
@@ -130,11 +133,11 @@ const RoomPlaylist = styled.div`
     justify-content: space-between;
     gap: 8px;
     padding: 6px 0;
-    border-top: 1px solid #ddd;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
   }
 
   .row.active {
-    background: #ddd;
+    background: rgba(255, 255, 255, 0.12);
   }
 
   .title {
@@ -146,17 +149,18 @@ const RoomPlaylist = styled.div`
 
   .meta {
     white-space: nowrap;
-    color: #777;
+    color: rgba(255, 255, 255, 0.6);
   }
 
   button {
-    color: #222;
+    color: rgba(255, 255, 255, 0.9);
   }
 `
 
 export default function YoutubePlayer() {
   const dispatch = useAppDispatch()
   const game = phaserGame.scene.keys.game as Game
+  const roomType = useAppSelector((state) => state.room.roomType)
   const link = useAppSelector((state) => state.musicStream.link)
   const startTime = useAppSelector((state) => state.musicStream.startTime)
   const title = useAppSelector((state) => state.musicStream.title)
@@ -174,6 +178,16 @@ export default function YoutubePlayer() {
   const [minimized, setMinimized] = useState(false)
   const [ambientMuted, setAmbientMuted] = useState(true)
   const currentPlaylist = useAppSelector((state) => state.myPlaylist)
+
+  const isPublicRoom = roomType === RoomType.PUBLIC
+  const isDj = connectedBoothIndex !== null
+  const isNonDjPublic = isPublicRoom && !isDj && !isAmbient
+
+  useEffect(() => {
+    if (isNonDjPublic) {
+      setMinimized(true)
+    }
+  }, [isNonDjPublic])
 
   useEffect(() => {
     if (!isAmbient) {
@@ -337,58 +351,62 @@ export default function YoutubePlayer() {
                 <OpenInFullIcon fontSize="inherit" />
               </IconButton>
 
-              <IconButton
-                aria-label="previous track"
-                size="small"
-                disabled={!canControlRoomPlaylist}
-                onClick={() => {
-                  setIsPlaying(true)
-                  game.network.prevRoomPlaylist()
-                }}
-              >
-                <SkipPreviousIcon fontSize="inherit" />
-              </IconButton>
+              {!isNonDjPublic ? (
+                <>
+                  <IconButton
+                    aria-label="previous track"
+                    size="small"
+                    disabled={!canControlRoomPlaylist}
+                    onClick={() => {
+                      setIsPlaying(true)
+                      game.network.prevRoomPlaylist()
+                    }}
+                  >
+                    <SkipPreviousIcon fontSize="inherit" />
+                  </IconButton>
 
-              <IconButton
-                aria-label={isPlaying ? 'pause' : 'play'}
-                size="small"
-                disabled={!isStreaming && !canControlRoomPlaylist}
-                onClick={() => {
-                  if (isPlaying) {
-                    setIsPlaying(false)
-                    return
-                  }
+                  <IconButton
+                    aria-label={isPlaying ? 'pause' : 'play'}
+                    size="small"
+                    disabled={!isStreaming && !canControlRoomPlaylist}
+                    onClick={() => {
+                      if (isPlaying) {
+                        setIsPlaying(false)
+                        return
+                      }
 
-                  setIsPlaying(true)
+                      setIsPlaying(true)
 
-                  if (!isStreaming) {
-                    game.network.playRoomPlaylist()
-                    return
-                  }
+                      if (!isStreaming) {
+                        game.network.playRoomPlaylist()
+                        return
+                      }
 
-                  const currentTime: number = Date.now()
-                  const nextSyncTime = (currentTime - startTime) / 1000
-                  playerRef.current?.seekTo(nextSyncTime, 'seconds')
-                }}
-              >
-                {isPlaying ? (
-                  <PauseIcon fontSize="inherit" />
-                ) : (
-                  <PlayArrowIcon fontSize="inherit" />
-                )}
-              </IconButton>
+                      const currentTime: number = Date.now()
+                      const nextSyncTime = (currentTime - startTime) / 1000
+                      playerRef.current?.seekTo(nextSyncTime, 'seconds')
+                    }}
+                  >
+                    {isPlaying ? (
+                      <PauseIcon fontSize="inherit" />
+                    ) : (
+                      <PlayArrowIcon fontSize="inherit" />
+                    )}
+                  </IconButton>
 
-              <IconButton
-                aria-label="next track"
-                size="small"
-                disabled={!canControlRoomPlaylist}
-                onClick={() => {
-                  setIsPlaying(true)
-                  game.network.skipRoomPlaylist()
-                }}
-              >
-                <SkipNextIcon fontSize="inherit" />
-              </IconButton>
+                  <IconButton
+                    aria-label="next track"
+                    size="small"
+                    disabled={!canControlRoomPlaylist}
+                    onClick={() => {
+                      setIsPlaying(true)
+                      game.network.skipRoomPlaylist()
+                    }}
+                  >
+                    <SkipNextIcon fontSize="inherit" />
+                  </IconButton>
+                </>
+              ) : null}
 
               <Marquee>
                 <MarqueeInner>{displayTitle}</MarqueeInner>
@@ -413,19 +431,21 @@ export default function YoutubePlayer() {
             }
           >
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <IconButton
-                aria-label={
-                  videoBackgroundEnabled ? 'disable video background' : 'enable video background'
-                }
-                className="close"
-                disabled={!canToggleVideoBackground}
-                onClick={() => {
-                  game.network.setVideoBackgroundEnabled(!videoBackgroundEnabled)
-                }}
-                size="small"
-              >
-                {videoBackgroundEnabled ? <FullscreenExitIcon /> : <FullscreenIcon />}
-              </IconButton>
+              {!isNonDjPublic ? (
+                <IconButton
+                  aria-label={
+                    videoBackgroundEnabled ? 'disable video background' : 'enable video background'
+                  }
+                  className="close"
+                  disabled={!canToggleVideoBackground}
+                  onClick={() => {
+                    game.network.setVideoBackgroundEnabled(!videoBackgroundEnabled)
+                  }}
+                  size="small"
+                >
+                  {videoBackgroundEnabled ? <FullscreenExitIcon /> : <FullscreenIcon />}
+                </IconButton>
+              ) : null}
 
               <IconButton
                 aria-label="minimize dj player"
@@ -440,63 +460,82 @@ export default function YoutubePlayer() {
             </div>
 
             {link !== null ? (
-              <ReactPlayer
-                ref={playerRef}
-                onReady={handleReady}
-                onEnded={handleOnEnded}
-                onBufferEnd={handleOnBufferEnd}
-                width={'200px'}
-                height={'130px'}
-                playing={isPlaying}
-                url={url}
-              />
-            ) : (
+              <div
+                style={
+                  isNonDjPublic
+                    ? {
+                        position: 'fixed',
+                        left: -10000,
+                        top: 0,
+                        width: 1,
+                        height: 1,
+                        opacity: 0,
+                        pointerEvents: 'none',
+                        overflow: 'hidden',
+                      }
+                    : undefined
+                }
+              >
+                <ReactPlayer
+                  ref={playerRef}
+                  onReady={handleReady}
+                  onEnded={handleOnEnded}
+                  onBufferEnd={handleOnBufferEnd}
+                  width={'200px'}
+                  height={'130px'}
+                  playing={isPlaying}
+                  url={url}
+                />
+              </div>
+            ) : !isNonDjPublic ? (
               <EmptyVideo>Room Stream</EmptyVideo>
-            )}
+            ) : null}
 
             <RoomInfo>
               <div>{link !== null ? `Room Playing: ${title}` : 'Room is not playing yet'}</div>
             </RoomInfo>
 
-            <Controls>
-              <button
-                disabled={link === null}
-                onClick={() => {
-                  setIsPlaying(false)
-                }}
-              >
-                Pause
-              </button>
-              <button
-                disabled={link === null}
-                onClick={() => {
-                  setIsPlaying(true)
-                  const currentTime: number = Date.now()
-                  const nextSyncTime = (currentTime - startTime) / 1000
-                  playerRef.current?.seekTo(nextSyncTime, 'seconds')
-                }}
-              >
-                Resume
-              </button>
-              <button
-                disabled={connectedBoothIndex === null || roomPlaylist.length === 0}
-                onClick={() => {
-                  setIsPlaying(true)
-                  game.network.playRoomPlaylist()
-                }}
-              >
-                Play
-              </button>
-              <button
-                disabled={connectedBoothIndex === null || roomPlaylist.length === 0}
-                onClick={() => {
-                  setIsPlaying(true)
-                  game.network.skipRoomPlaylist()
-                }}
-              >
-                Skip
-              </button>
-            </Controls>
+            {!isNonDjPublic ? (
+              <Controls>
+                <button
+                  disabled={link === null}
+                  onClick={() => {
+                    setIsPlaying(false)
+                  }}
+                >
+                  Pause
+                </button>
+                <button
+                  disabled={link === null}
+                  onClick={() => {
+                    setIsPlaying(true)
+                    const currentTime: number = Date.now()
+                    const nextSyncTime = (currentTime - startTime) / 1000
+                    playerRef.current?.seekTo(nextSyncTime, 'seconds')
+                  }}
+                >
+                  Resume
+                </button>
+                <button
+                  disabled={connectedBoothIndex === null || roomPlaylist.length === 0}
+                  onClick={() => {
+                    setIsPlaying(true)
+                    game.network.playRoomPlaylist()
+                  }}
+                >
+                  Play
+                </button>
+                <button
+                  disabled={connectedBoothIndex === null || roomPlaylist.length === 0}
+                  onClick={() => {
+                    setIsPlaying(true)
+                    game.network.skipRoomPlaylist()
+                  }}
+                >
+                  Skip
+                </button>
+              </Controls>
+            ) : null}
 
             <RoomPlaylist>
               {roomPlaylist.length === 0 ? (
@@ -518,7 +557,7 @@ export default function YoutubePlayer() {
                         @{displayName}
                         {durationText ? ` · ${durationText}` : ''}
                       </div>
-                      {canRemove ? (
+                      {canRemove && !isNonDjPublic ? (
                         <button
                           onClick={() => {
                             game.network.removeRoomPlaylistItem(item.id)

@@ -29,12 +29,18 @@ const Backdrop = styled.div`
 const Wrapper = styled.div`
   width: 100%;
   height: 100%;
-  background: #eee;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(8px);
   border-radius: 16px;
   padding: 0;
-  color: #eee;
+  color: rgba(255, 255, 255, 0.9);
   display: flex;
   flex-direction: column;
+
+  button {
+    color: rgba(255, 255, 255, 0.9);
+  }
 
   .close {
     margin: 0 0 0 auto;
@@ -45,7 +51,7 @@ const Wrapper = styled.div`
 const MyPlaylistWrapper = styled.div`
   flex: 1;
   border-radius: 0px;
-  border-top: 1px solid #aaa;
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
   overflow-y: auto;
   padding: 5px 5px;
   width: 100%;
@@ -55,10 +61,12 @@ const MyPlaylistWrapper = styled.div`
 const FabWrapper = styled.div`
   button {
     font-size: 14px;
-    color: #666;
+    color: rgba(255, 255, 255, 0.9);
     text-transform: lowercase !important;
     line-height: 100%;
-    background-color: white !important;
+    background: rgba(0, 0, 0, 0.35) !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    backdrop-filter: blur(8px);
   }
 `
 export default function PlaylistDialog() {
@@ -124,7 +132,7 @@ export default function PlaylistDialog() {
                   margin: '5px 0',
                   flexGrow: 1,
                   textAlign: 'center',
-                  color: '#888',
+                  color: 'rgba(255, 255, 255, 0.9)',
                   fontSize: '16px',
                 }}
               >
@@ -165,7 +173,8 @@ export default function PlaylistDialog() {
 }
 
 const InputWrapper = styled.form`
-  border: 1px solid #42eacb;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.25);
   border-radius: 10px;
   display: flex;
   flex-direction: row;
@@ -173,17 +182,24 @@ const InputWrapper = styled.form`
 
 const InputTextField = styled(InputBase)`
   border-radius: 10px;
+
   input {
     padding: 5px;
-    color: #222;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  input::placeholder {
+    color: rgba(255, 255, 255, 0.6);
+    opacity: 1;
   }
 `
 
 const Tab = styled.ul`
   padding: 0px;
   margin: 0px;
+
   button {
-    color: #222;
+    color: rgba(255, 255, 255, 0.9);
   }
 `
 
@@ -332,10 +348,10 @@ const MusicSearch = () => {
         />
       </InputWrapper>
 
-      <button style={{ color: '#222' }} onClick={() => setTab('search')}>
+      <button style={{ color: 'rgba(255, 255, 255, 0.9)' }} onClick={() => setTab('search')}>
         Search
       </button>
-      <button style={{ color: '#222' }} onClick={() => setTab('playlist')}>
+      <button style={{ color: 'rgba(255, 255, 255, 0.9)' }} onClick={() => setTab('playlist')}>
         Playlist
       </button>
 
@@ -354,13 +370,17 @@ const ListItem = styled.li`
   border-radius: 0px;
   padding: 10px;
   display: flex;
-  color: #666;
+  color: rgba(255, 255, 255, 0.85);
   flex-direction: row;
-  border-bottom: 1px solid grey;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   justify-content: space-between;
 
+  span {
+    color: rgba(255, 255, 255, 0.75);
+  }
+
   h4 {
-    color: #666;
+    color: rgba(255, 255, 255, 0.85);
   }
 `
 
