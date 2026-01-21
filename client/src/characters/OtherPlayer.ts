@@ -95,11 +95,7 @@ export default class OtherPlayer extends Player {
     this.lastUpdateTimestamp = t
     const currentAnimKey = this.anims.currentAnim?.key
 
-    if (
-      currentAnimKey === 'adam_boombox' ||
-      currentAnimKey === 'adam_djwip' ||
-      currentAnimKey === 'adam_djwip2'
-    ) {
+    if (currentAnimKey === 'adam_boombox' || currentAnimKey === 'adam_djwip') {
       this.setDepth(this.y + 1)
     } else {
       this.setDepth(this.y) // change player.depth based on player.y

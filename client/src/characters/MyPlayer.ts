@@ -101,9 +101,9 @@ export default class MyPlayer extends Player {
     },
     keyE: Phaser.Input.Keyboard.Key,
     keyR: Phaser.Input.Keyboard.Key,
-    keyT: Phaser.Input.Keyboard.Key,
     network: Network,
-    dt: number
+    dt: number,
+    _unusedKeyT?: Phaser.Input.Keyboard.Key
   ) {
     if (!cursors) return
 
@@ -242,20 +242,6 @@ export default class MyPlayer extends Player {
         break
 
       case PlayerBehavior.SITTING:
-        if (Phaser.Input.Keyboard.JustDown(keyT)) {
-          if (this.playerTexture === 'adam') {
-            const roomType = store.getState().room.roomType
-            if (roomType === RoomType.PUBLIC) {
-              const nextAnimKey =
-                this.anims.currentAnim?.key === 'adam_djwip2' ? 'adam_djwip' : 'adam_djwip2'
-
-              this.play(nextAnimKey, true)
-              this.updatePhysicsBodyForAnim(nextAnimKey)
-              network.updatePlayerAction(this.x, this.y, nextAnimKey)
-            }
-          }
-        }
-
         // back to idle if player press E while sitting
         if (Phaser.Input.Keyboard.JustDown(keyR)) {
           console.log('////MyPlayer, update, switch, PlayerBehavior.SITTING, JustDown')

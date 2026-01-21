@@ -66,16 +66,17 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     if (!body) return
 
     const key = animKey ?? this.anims.currentAnim?.key ?? ''
-    const isDjAnim = key === 'adam_boombox' || key === 'adam_djwip' || key === 'adam_djwip2'
+    const isDjAnim = key === 'adam_boombox' || key === 'adam_djwip'
 
-    const widthScale = isDjAnim ? 0.85 : 0.5
-    const heightScale = isDjAnim ? 0.82 : 0.25
+    const widthScale = isDjAnim ? 0.44 : 0.5
+    const heightScale = isDjAnim ? 0.2 : 0.25
 
-    const collisionWidth = Math.min(this.width, Math.max(this.width * widthScale, 10))
-    const collisionHeight = Math.min(this.height, Math.max(this.height * heightScale, 8))
+    const collisionWidth = Math.min(this.width, Math.max(this.width * widthScale, 18))
+    const collisionHeight = Math.min(this.height, Math.max(this.height * heightScale, 12))
 
     const baseOffsetX = (this.width - collisionWidth) * 0.5
-    const offsetX = isDjAnim ? baseOffsetX + this.width * 0.42 : baseOffsetX
+    const djFeetRightEdgeX = this.width * 0.72
+    const offsetX = isDjAnim ? djFeetRightEdgeX - collisionWidth : baseOffsetX
 
     body.setSize(collisionWidth, collisionHeight)
     body.setOffset(offsetX, this.height - collisionHeight)
