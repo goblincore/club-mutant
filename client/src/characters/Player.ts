@@ -61,8 +61,30 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       .setOffset(-8, this.height * (1 - collisionScale[1]) + 6)
   }
 
-  updateDialogBubble(content: string) {
+  updatePhysicsBodyForAnim(animKey?: string) {
+    const body = this.body as Phaser.Physics.Arcade.Body | null
+    if (!body) return
+
+    const key = animKey ?? this.anims.currentAnim?.key ?? ''
+    const isDjAnim = key === 'adam_boombox' || key === 'adam_djwip' || key === 'adam_djwip2'
+
+    const widthScale = isDjAnim ? 0.85 : 0.5
+    const heightScale = isDjAnim ? 0.82 : 0.25
+
+    const collisionWidth = Math.min(this.width, Math.max(this.width * widthScale, 10))
+    const collisionHeight = Math.min(this.height, Math.max(this.height * heightScale, 8))
+
+    const baseOffsetX = (this.width - collisionWidth) * 0.5
+    const offsetX = isDjAnim ? baseOffsetX + this.width * 0.42 : baseOffsetX
+
+    body.setSize(collisionWidth, collisionHeight)
+    body.setOffset(offsetX, this.height - collisionHeight)
+  }
+
+  updateDialogBubble(content: string, scale = 1) {
     this.clearDialogBubble()
+
+    this.playerDialogBubble.setScale(scale)
 
     // preprocessing for dialog bubble text (maximum 70 characters)
     const dialogBubbleText = content.length <= 70 ? content : content.substring(0, 70).concat('...')
@@ -103,5 +125,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   private clearDialogBubble() {
     clearTimeout(this.timeoutID)
     this.playerDialogBubble.removeAll(true)
+    this.playerDialogBubble.setScale(1)
   }
 }

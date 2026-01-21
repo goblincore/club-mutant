@@ -95,8 +95,12 @@ export default class OtherPlayer extends Player {
     this.lastUpdateTimestamp = t
     const currentAnimKey = this.anims.currentAnim?.key
 
-    if (currentAnimKey === 'adam_boombox' || currentAnimKey === 'adam_djwip') {
-      this.setDepth(100000)
+    if (
+      currentAnimKey === 'adam_boombox' ||
+      currentAnimKey === 'adam_djwip' ||
+      currentAnimKey === 'adam_djwip2'
+    ) {
+      this.setDepth(this.y + 1)
     } else {
       this.setDepth(this.y) // change player.depth based on player.y
     }
@@ -194,16 +198,18 @@ Phaser.GameObjects.GameObjectFactory.register(
 
     this.scene.physics.world.enableBody(sprite, Phaser.Physics.Arcade.DYNAMIC_BODY)
 
-    const collisionScale = [6, 4]
     const body = sprite.body as Phaser.Physics.Arcade.Body | null
     if (body) {
-      body
-        .setSize(sprite.width * collisionScale[0], sprite.height * collisionScale[1])
-        .setOffset(
-          sprite.width * (1 - collisionScale[0]) * 0.5,
-          sprite.height * (1 - collisionScale[1]) * 0.5 + 17
-        )
+      const collisionWidth = Math.max(sprite.width * 0.5, 10)
+      const collisionHeight = Math.max(sprite.height * 0.25, 8)
+
+      body.setImmovable(true)
+      ;(body as unknown as { pushable: boolean }).pushable = false
+      body.setSize(collisionWidth, collisionHeight)
+      body.setOffset((sprite.width - collisionWidth) * 0.5, sprite.height - collisionHeight)
     }
+
+    sprite.updatePhysicsBodyForAnim()
 
     return sprite
   }

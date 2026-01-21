@@ -229,6 +229,15 @@ export default class Network {
           }
         })
       }
+
+      const connectedUser = (musicBooth as unknown as { connectedUser?: unknown }).connectedUser
+      if (typeof connectedUser === 'string' && connectedUser !== '') {
+        phaserEvents.emit(Event.ITEM_USER_ADDED, connectedUser, index, ItemType.MUSIC_BOOTH)
+
+        if (connectedUser === this.mySessionId) {
+          store.dispatch(connectToMusicBooth(index))
+        }
+      }
     }
 
     // new instance added to the chatMessages ArraySchema
@@ -337,6 +346,19 @@ export default class Network {
     context?: any
   ) {
     phaserEvents.on(Event.ITEM_USER_ADDED, callback, context)
+
+    if (!this.room) return
+
+    this.room.state.musicBooths.forEach((booth, index) => {
+      const connectedUser = (booth as unknown as { connectedUser?: unknown }).connectedUser
+      if (typeof connectedUser !== 'string' || connectedUser === '') return
+
+      if (context) {
+        callback.call(context, connectedUser, index, ItemType.MUSIC_BOOTH)
+      } else {
+        callback(connectedUser, index, ItemType.MUSIC_BOOTH)
+      }
+    })
   }
 
   // method to register event listener and call back function when a item user removed

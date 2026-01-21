@@ -72,14 +72,7 @@ export default class MyPlayer extends Player {
   }
 
   updateCollisionBody() {
-    const body = this.body as Phaser.Physics.Arcade.Body | null
-    if (!body) return
-
-    const collisionWidth = Math.max(this.width * 0.5, 10)
-    const collisionHeight = Math.max(this.height * 0.25, 8)
-
-    body.setSize(collisionWidth, collisionHeight)
-    body.setOffset((this.width - collisionWidth) * 0.5, this.height - collisionHeight)
+    this.updatePhysicsBodyForAnim()
   }
 
   setPlayerName(name: string) {
@@ -108,6 +101,7 @@ export default class MyPlayer extends Player {
     },
     keyE: Phaser.Input.Keyboard.Key,
     keyR: Phaser.Input.Keyboard.Key,
+    keyT: Phaser.Input.Keyboard.Key,
     network: Network,
     dt: number
   ) {
@@ -133,15 +127,18 @@ export default class MyPlayer extends Player {
               musicBootItem.openDialog(network)
               musicBootItem.clearDialogBox()
               musicBootItem.setDialogBox('Press R to leave the DJ booth')
+              musicBootItem.setVisible(false)
               this.musicBoothOnSit = musicBootItem
               this.djBoothDepth = this.depth
               if (this.playerTexture === 'adam') {
                 const roomType = store.getState().room.roomType
                 const boothAnimKey = roomType === RoomType.PUBLIC ? 'adam_djwip' : 'adam_boombox'
                 this.play(boothAnimKey, true)
+                this.updatePhysicsBodyForAnim(boothAnimKey)
                 network.updatePlayerAction(this.x, this.y, boothAnimKey)
               }
-              this.setDepth(100000)
+              body.setImmovable(true)
+              this.setDepth(musicBootItem.depth + 1)
               this.playerBehavior = PlayerBehavior.SITTING
               break
           }
@@ -245,6 +242,20 @@ export default class MyPlayer extends Player {
         break
 
       case PlayerBehavior.SITTING:
+        if (Phaser.Input.Keyboard.JustDown(keyT)) {
+          if (this.playerTexture === 'adam') {
+            const roomType = store.getState().room.roomType
+            if (roomType === RoomType.PUBLIC) {
+              const nextAnimKey =
+                this.anims.currentAnim?.key === 'adam_djwip2' ? 'adam_djwip' : 'adam_djwip2'
+
+              this.play(nextAnimKey, true)
+              this.updatePhysicsBodyForAnim(nextAnimKey)
+              network.updatePlayerAction(this.x, this.y, nextAnimKey)
+            }
+          }
+        }
+
         // back to idle if player press E while sitting
         if (Phaser.Input.Keyboard.JustDown(keyR)) {
           console.log('////MyPlayer, update, switch, PlayerBehavior.SITTING, JustDown')
@@ -253,9 +264,12 @@ export default class MyPlayer extends Player {
               this.musicBoothOnSit?.closeDialog(network)
               this.musicBoothOnSit?.clearDialogBox()
               this.musicBoothOnSit?.setDialogBox('Press R to be the DJ')
+              this.musicBoothOnSit?.setVisible(true)
               const idleAnimKey = `${this.playerTexture}_idle_down`
               this.play(idleAnimKey, true)
+              this.updatePhysicsBodyForAnim(idleAnimKey)
               network.updatePlayerAction(this.x, this.y, idleAnimKey)
+              body.setImmovable(false)
               if (this.djBoothDepth !== null) {
                 this.setDepth(this.djBoothDepth)
                 this.djBoothDepth = null

@@ -187,8 +187,11 @@ export default function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const chatMessages = useAppSelector((state) => state.chat.chatMessages)
-  const focused = useAppSelector((state) => state.chat.focused)
   const showChat = useAppSelector((state) => state.chat.showChat)
+  const focused = useAppSelector((state) => state.chat.focused)
+  const currentDjSessionId = useAppSelector((state) => state.musicStream.currentDj.sessionId)
+  const connectedBoothIndex = useAppSelector((state) => state.musicBooth.musicBoothIndex)
+  const mySessionId = useAppSelector((state) => state.user.sessionId)
   const dispatch = useAppDispatch()
   const game = phaserGame.scene.keys.game as Game
 
@@ -240,7 +243,10 @@ export default function Chat() {
     setInputValue('')
     if (val) {
       game.network.addChatMessage(val)
-      game.myPlayer.updateDialogBubble(val)
+      const isDj =
+        connectedBoothIndex !== null ||
+        (currentDjSessionId !== null && mySessionId !== null && currentDjSessionId === mySessionId)
+      game.myPlayer.updateDialogBubble(val, isDj ? 1.5 : 1)
     }
 
     dispatch(setFocused(true))

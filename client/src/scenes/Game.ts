@@ -36,6 +36,7 @@ export default class Game extends Phaser.Scene {
   private keyD!: Phaser.Input.Keyboard.Key
   private keyE!: Phaser.Input.Keyboard.Key
   private keyR!: Phaser.Input.Keyboard.Key
+  private keyT!: Phaser.Input.Keyboard.Key
   private map!: Phaser.Tilemaps.Tilemap
   private groundLayer!: Phaser.Tilemaps.TilemapLayer
   private pathObstacles: Array<{ getBounds: () => Phaser.Geom.Rectangle }> = []
@@ -103,6 +104,7 @@ export default class Game extends Phaser.Scene {
     this.keyD = keyboard.addKey('D')
     this.keyE = keyboard.addKey('E')
     this.keyR = keyboard.addKey('R')
+    this.keyT = keyboard.addKey('T')
     keyboard.disableGlobalCapture()
     keyboard.on('keydown-ESC', (event) => {
       store.dispatch(setShowChat(false))
@@ -311,13 +313,7 @@ export default class Game extends Phaser.Scene {
       this
     )
 
-    this.physics.add.overlap(
-      this.myPlayer,
-      this.otherPlayers,
-      this.handlePlayersOverlap,
-      undefined,
-      this
-    )
+    this.physics.add.collider(this.myPlayer, this.otherPlayers)
     // Youtube embed test
     // const youtubePlayerProps = {
     //   scene: this,
@@ -457,8 +453,22 @@ export default class Game extends Phaser.Scene {
 
   private handleChatMessageAdded(playerId: string, content: string) {
     console.log('////handleChatMessageAdded')
+    const currentDjSessionId = store.getState().musicStream.currentDj.sessionId
+    const boothDjSessionId = this.musicBoothMap.get(0)?.currentUser ?? null
+    const resolvedDjSessionId = currentDjSessionId ?? boothDjSessionId
+    const connectedBoothIndex = store.getState().musicBooth.musicBoothIndex
+    const isDj =
+      (resolvedDjSessionId !== null && playerId === resolvedDjSessionId) ||
+      (connectedBoothIndex !== null && playerId === this.network.mySessionId)
+    const bubbleScale = isDj ? 1.5 : 1
+
+    if (this.myPlayer.playerId === playerId) {
+      this.myPlayer.updateDialogBubble(content, bubbleScale)
+      return
+    }
+
     const otherPlayer = this.otherPlayerMap.get(playerId)
-    otherPlayer?.updateDialogBubble(content)
+    otherPlayer?.updateDialogBubble(content, bubbleScale)
   }
 
   private handleStartMusicStream(musicStream: IMusicStream, offset: number) {
@@ -604,6 +614,7 @@ export default class Game extends Phaser.Scene {
         },
         this.keyE,
         this.keyR,
+        this.keyT,
         this.network,
         dt
       )
