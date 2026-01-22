@@ -229,15 +229,17 @@ export default class MyPlayer extends Player {
         this.playerContainerBody.velocity.setLength(speed)
 
         // update animation according to velocity and send new location and anim to server
-        if (vx !== 0 || vy !== 0) network.updatePlayerAction(this.x, this.y, currentAnimKey)
-        if (vx > 0) {
-          this.play(`${this.playerTexture}_run_right`, true)
-        } else if (vx < 0) {
-          this.play(`${this.playerTexture}_run_left`, true)
-        } else if (vy > 0) {
-          this.play(`${this.playerTexture}_run_down`, true)
-        } else if (vy < 0) {
-          this.play(`${this.playerTexture}_run_up`, true)
+        if (vx !== 0 || vy !== 0) {
+          const absVx = Math.abs(vx)
+          const absVy = Math.abs(vy)
+
+          const nextAnimKey =
+            absVx >= absVy
+              ? `${this.playerTexture}_${vx >= 0 ? 'run_right' : 'run_left'}`
+              : `${this.playerTexture}_${vy >= 0 ? 'run_down' : 'run_up'}`
+
+          this.play(nextAnimKey, true)
+          network.updatePlayerAction(this.x, this.y, nextAnimKey)
         } else {
           const parts = currentAnimKey.split('_')
           parts[1] = 'idle'
