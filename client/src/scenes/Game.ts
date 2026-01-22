@@ -110,11 +110,17 @@ export default class Game extends Phaser.Scene {
   }
 
   disableKeys() {
-    this.input.keyboard.enabled = false
+    const keyboard = this.input.keyboard
+    if (!keyboard) return
+
+    keyboard.enabled = false
   }
 
   enableKeys() {
-    this.input.keyboard.enabled = true
+    const keyboard = this.input.keyboard
+    if (!keyboard) return
+
+    keyboard.enabled = true
   }
 
   private buildBlockedGrid(): { width: number; height: number; blocked: Uint8Array } {
@@ -247,6 +253,10 @@ export default class Game extends Phaser.Scene {
     // import music booth objects from Tiled map to Phaser
     const musicBooths = this.physics.add.staticGroup({ classType: MusicBooth })
     const musicBoothLayer = this.map.getObjectLayer('MusicBooth')
+    if (!musicBoothLayer) {
+      throw new Error('missing object layer MusicBooth')
+    }
+
     musicBoothLayer.objects.forEach((obj, index) => {
       if (index !== 0) return
       const item = this.addObjectFromTiled(
