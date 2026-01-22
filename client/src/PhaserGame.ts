@@ -4,7 +4,7 @@ import Background from './scenes/Background'
 import Bootstrap from './scenes/Bootstrap'
 
 const config: Phaser.Types.Core.GameConfig = {
-  type: Phaser.AUTO,
+  type: Phaser.WEBGL,
   parent: 'phaser-container',
   dom: {
     createContainer: true,
