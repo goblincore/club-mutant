@@ -177,7 +177,6 @@ export default class MyPlayer extends Player {
               musicBootItem.openDialog(network)
               musicBootItem.clearDialogBox()
               musicBootItem.setDialogBox('Press R to leave the DJ booth')
-              musicBootItem.setVisible(false)
               this.musicBoothOnSit = musicBootItem
               this.djBoothDepth = this.depth
               if (this.playerTexture === 'adam') {
@@ -188,7 +187,7 @@ export default class MyPlayer extends Player {
                 network.updatePlayerAction(this.x, this.y, boothAnimKey)
               }
               body.setImmovable(true)
-              this.setDepth(musicBootItem.depth + 1)
+              this.setDepth(musicBootItem.depth - 1)
               this.playerBehavior = PlayerBehavior.SITTING
               break
           }
@@ -353,7 +352,6 @@ export default class MyPlayer extends Player {
               this.musicBoothOnSit?.closeDialog(network)
               this.musicBoothOnSit?.clearDialogBox()
               this.musicBoothOnSit?.setDialogBox('Press R to be the DJ')
-              this.musicBoothOnSit?.setVisible(true)
               const idleAnimKey = `${this.playerTexture}_idle_down`
               this.play(idleAnimKey, true)
               this.updatePhysicsBodyForAnim(idleAnimKey)
