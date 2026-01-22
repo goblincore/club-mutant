@@ -163,10 +163,10 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 ### DJ “boombox” animation
 
 - Asset:
-  - `client/public/assets/character/MutantBoomboxTest.png`
+  - `client/public/assets/character/MutantBoomboxTest2.gif`
 
 - Bootstrapping:
-  - `client/src/scenes/Bootstrap.ts` preloads the spritesheet with frame size `60x88`.
+  - `client/src/scenes/Bootstrap.ts` preloads the spritesheet with frame size `72x105`.
 
 - Animation creation:
   - `client/src/anims/CharacterAnims.ts` creates `adam_boombox` (frames 0–11), repeat `-1`, frameRate `animsFrameRate * 0.5`.
@@ -184,9 +184,12 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 ### DJ “desk” / djmutant3 animation (public room)
 
 - Asset:
-  - `client/public/assets/character/djmutant3.gif`
+  - `client/public/assets/character/djmutant3-solo-2.gif`
   - Dimensions: `376x704` (2 columns x 6 rows)
   - Frame size: `188x117`
+
+- Desk (booth) asset:
+  - `client/public/assets/items/thinkpaddesk.gif` (loaded under key `musicBooths`)
 
 - Bootstrapping:
   - `client/src/scenes/Bootstrap.ts` preloads the spritesheet under key `adam_djwip`.
@@ -200,8 +203,31 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 
 - Desk visibility:
   - The booth sprite is treated as a placeholder “desk”.
-  - While a DJ is active, the booth sprite is hidden via `MusicBooth.setVisible(false)`.
-  - Late joiners must “replay” booth occupancy state (see Network gotchas below).
+  - The desk stays visible even while a DJ is active.
+
+### DJ transform transition (enter + exit)
+
+- Asset:
+  - `client/public/assets/character/dj-transform.png`
+  - Frame size: `90x140` (3 columns x 2 rows)
+
+- Animation keys:
+  - `adam_transform` (frames `0..5`, repeat `0`, frameRate `animsFrameRate * 0.5`)
+  - `adam_transform_reverse` (frames `5..0`, repeat `0`, frameRate `animsFrameRate * 0.5`)
+
+- Entering the booth (press `R`):
+  - `MyPlayer` snaps the player to a booth “stand spot” and forces facing down.
+  - Plays `adam_transform` once, then switches to the booth anim (`adam_djwip` in public rooms, otherwise `adam_boombox`).
+  - Sync is done by calling `network.updatePlayerAction(..., animKey)` for both the transform and the final booth anim.
+
+- Leaving the booth (press `R` again):
+  - Plays `adam_transform_reverse` once, then switches back to `${playerTexture}_idle_down` and restores movement.
+  - Reverse transition is also synced via `network.updatePlayerAction`.
+
+- Depth ordering:
+  - DJ + transform animations render behind the desk:
+    - `MyPlayer` uses `this.setDepth(musicBooth.depth - 1)` on booth entry.
+    - `OtherPlayer` uses `this.setDepth(this.y - 1)` when `anim` is `adam_djwip` / `adam_transform` / `adam_transform_reverse`.
 
 ### Player collision + DJ hitbox gotchas
 
@@ -210,6 +236,8 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 - The DJ animation frames include the whole desk/table, so collision cannot be frame-wide.
   - `client/src/characters/Player.ts` implements a special DJ-only “feet” hitbox in `updatePhysicsBodyForAnim()`.
   - It uses a narrow, low hitbox and anchors it using a right-edge reference so it can be widened leftward.
+
+- The transform animations (`adam_transform`, `adam_transform_reverse`) are treated like DJ anims for collision sizing.
 
 - Late-join collision mismatch:
   - When an `OtherPlayer` is spawned with `newPlayer.anim` already set (e.g. DJ), `Game.handlePlayerJoined()` must call:
