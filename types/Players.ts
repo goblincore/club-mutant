@@ -3,4 +3,5 @@ export enum PlayerBehavior {
   SITTING,
   DANCING,
   BOOMBOX,
+  TRANSFORMING,
 }

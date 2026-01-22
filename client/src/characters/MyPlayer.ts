@@ -23,6 +23,8 @@ export default class MyPlayer extends Player {
   private moveAnimDir: 'left' | 'right' | 'up' | 'down' | null = null
   private djBoothDepth: number | null = null
 
+  private djTransitionTarget: { x: number; y: number } | null = null
+
   constructor(
     scene: Phaser.Scene,
     x: number,
@@ -174,6 +176,17 @@ export default class MyPlayer extends Player {
               this.playerContainerBody.setVelocity(0, 0)
 
               const musicBootItem = item as MusicBooth
+
+              const standX = musicBootItem.x - 20
+              const standY = musicBootItem.y + musicBootItem.height * 0.25 - 70
+
+              this.x = standX
+              this.y = standY
+              body.reset(standX, standY)
+              this.playerContainer.x = standX
+              this.playerContainer.y = standY
+              this.djTransitionTarget = { x: standX, y: standY }
+
               musicBootItem.openDialog(network)
               musicBootItem.clearDialogBox()
               musicBootItem.setDialogBox('Press R to leave the DJ booth')
@@ -182,13 +195,38 @@ export default class MyPlayer extends Player {
               if (this.playerTexture === 'adam') {
                 const roomType = store.getState().room.roomType
                 const boothAnimKey = roomType === RoomType.PUBLIC ? 'adam_djwip' : 'adam_boombox'
-                this.play(boothAnimKey, true)
-                this.updatePhysicsBodyForAnim(boothAnimKey)
-                network.updatePlayerAction(this.x, this.y, boothAnimKey)
+
+                const faceDownKey = `${this.playerTexture}_idle_down`
+                this.play(faceDownKey, true)
+
+                const transformKey = 'adam_transform'
+                this.play(transformKey, true)
+                this.updatePhysicsBodyForAnim(transformKey)
+                network.updatePlayerAction(this.x, this.y, transformKey)
+
+                this.playerBehavior = PlayerBehavior.TRANSFORMING
+
+                this.once(`animationcomplete-${transformKey}`, () => {
+                  if (this.playerBehavior !== PlayerBehavior.TRANSFORMING) return
+
+                  const target = this.djTransitionTarget
+                  if (target) {
+                    this.x = target.x
+                    this.y = target.y
+                    body.reset(target.x, target.y)
+                    this.playerContainer.x = target.x
+                    this.playerContainer.y = target.y
+                  }
+
+                  this.play(boothAnimKey, true)
+                  this.updatePhysicsBodyForAnim(boothAnimKey)
+                  network.updatePlayerAction(this.x, this.y, boothAnimKey)
+                  this.playerBehavior = PlayerBehavior.SITTING
+                  this.djTransitionTarget = null
+                })
               }
               body.setImmovable(true)
               this.setDepth(musicBootItem.depth - 1)
-              this.playerBehavior = PlayerBehavior.SITTING
               break
           }
           return
@@ -352,6 +390,7 @@ export default class MyPlayer extends Player {
               this.musicBoothOnSit?.closeDialog(network)
               this.musicBoothOnSit?.clearDialogBox()
               this.musicBoothOnSit?.setDialogBox('Press R to be the DJ')
+              this.djTransitionTarget = null
               const idleAnimKey = `${this.playerTexture}_idle_down`
               this.play(idleAnimKey, true)
               this.updatePhysicsBodyForAnim(idleAnimKey)
@@ -366,6 +405,41 @@ export default class MyPlayer extends Player {
               this.playerBehavior = PlayerBehavior.IDLE
               break
           }
+        }
+
+        if (this.moveTarget) {
+          this.clearMoveNavigation()
+        }
+        break
+
+      case PlayerBehavior.TRANSFORMING:
+        this.setVelocity(0, 0)
+        body.setVelocity(0, 0)
+
+        this.playerContainerBody.setVelocity(0, 0)
+
+        if (Phaser.Input.Keyboard.JustDown(keyR)) {
+          this.musicBoothOnSit?.closeDialog(network)
+          this.musicBoothOnSit?.clearDialogBox()
+          this.musicBoothOnSit?.setDialogBox('Press R to be the DJ')
+          this.djTransitionTarget = null
+
+          const idleAnimKey = `${this.playerTexture}_idle_down`
+          this.play(idleAnimKey, true)
+          this.updatePhysicsBodyForAnim(idleAnimKey)
+          network.updatePlayerAction(this.x, this.y, idleAnimKey)
+
+          body.setImmovable(false)
+
+          if (this.djBoothDepth !== null) {
+            this.setDepth(this.djBoothDepth)
+            this.djBoothDepth = null
+          } else {
+            this.setDepth(this.y)
+          }
+
+          this.playerBehavior = PlayerBehavior.IDLE
+          break
         }
 
         if (this.moveTarget) {
