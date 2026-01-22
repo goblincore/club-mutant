@@ -387,7 +387,11 @@ export default class Game extends Phaser.Scene {
       throw new Error(`missing tileset ${tilesetName}`)
     }
 
-    const obj = group.get(actualX, actualY, key, object.gid! - tileset.firstgid).setDepth(actualY)
+    const rawFrame = object.gid! - tileset.firstgid
+    const texture = this.textures.get(key)
+    const safeFrame = texture.has(String(rawFrame)) ? rawFrame : 0
+
+    const obj = group.get(actualX, actualY, key, safeFrame).setDepth(actualY)
     return obj
   }
 
