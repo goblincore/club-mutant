@@ -229,6 +229,19 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
   - `Network.onItemUserAdded()` replays any already-occupied `musicBooths[*].connectedUser` when registering the listener.
   - This prevents late joiners from seeing the placeholder desk when the booth is already occupied.
 
+- **Colyseus 0.16 state listeners: use the root callback proxy**
+  - Colyseus `0.16.x` replaced the old `onChange` ergonomics with `getStateCallbacks(room)`.
+  - To avoid “connected but not syncing” / missed events, prefer:
+    - `const stateCallbacks = getStateCallbacks(room)(room.state)`
+    - `stateCallbacks.players.onAdd(...)`, `stateCallbacks.chatMessages.onAdd(...)`, etc.
+  - Avoid wiring listeners directly off `callbacks(room.state.players)` during `initialize()`. On first join, the initial patch can land after listeners are registered, and the underlying collection reference can be in an incomplete/transition state.
+
+- **Colyseus 0.16 timing: don’t read nested schema fields during join**
+  - Right after `joinOrCreate`, `room.state.musicStream` / `room.state.roomPlaylist` may be temporarily `undefined` before the first patch.
+  - Fix pattern:
+    - Default Redux/UI state to safe values
+    - Listen via `stateCallbacks.musicStream.listen(...)` and resync once fields arrive
+
 - **Avoid “toggle debug anim” drift**
   - Keeping a single authoritative DJ anim key (`adam_djwip`) avoids hitbox/asset confusion.
 
@@ -238,6 +251,16 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
     - `mix-blend-mode: hard-light` on the `iframe`
     - dark overlay + scanlines via `::before`/`::after`
     - zoom/crop by rendering the iframe at ~`200%` and centering it (overflow hidden)
+
+- **Schema collections: mutate in-place (don’t replace) to preserve `$changes`**
+  - Avoid assigning a new array to a Schema collection (e.g. `state.musicBoothQueue = state.musicBoothQueue.filter(...)`).
+  - Use in-place ops instead (reverse loop + `splice`, `shift()` + `push()`) so Colyseus change tracking stays intact.
+  - Replacing collections can lead to server crashes like `Cannot read properties of undefined (reading '$changes')`.
+
+- **Vite + colyseus.js: force browser httpie implementation**
+  - Without an alias, Vite may pull `@colyseus/httpie/node` which depends on Node-only `url.parse` and breaks the client build.
+  - Fix in `client/vite.config.ts`:
+    - `resolve.alias['@colyseus/httpie'] = '@colyseus/httpie/xhr'`
 
 ## Important files (high touch)
 
