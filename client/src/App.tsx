@@ -9,6 +9,7 @@ import RoomSelectionDialog from './components/RoomSelectionDialog'
 import LoginDialog from './components/LoginDialog'
 import ChatPanel from './components/ChatPanel'
 import MyPlaylistPanel from './components/MyPlaylistPanel'
+import MuteButton from './components/MuteButton'
 import YoutubePlayer from './components/YoutubePlayer'
 
 import { RoomType } from '../../types/Rooms'
@@ -164,6 +165,7 @@ function App() {
       <>
         <ChatPanel />
         <MyPlaylistPanel />
+        <MuteButton />
         <YoutubePlayer />
       </>
     )

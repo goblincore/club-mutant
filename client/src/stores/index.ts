@@ -8,6 +8,7 @@ import myPlaylistReducer from './MyPlaylistStore'
 import roomPlaylistReducer from './RoomPlaylistStore'
 import musicBoothReducer from './MusicBoothStore'
 import musicStreamReducer from './MusicStreamStore'
+import audioReducer from './AudioStore'
 
 enableMapSet()
 
@@ -19,6 +20,7 @@ const store = configureStore({
     roomPlaylist: roomPlaylistReducer,
     musicBooth: musicBoothReducer,
     musicStream: musicStreamReducer,
+    audio: audioReducer,
     chat: chatReducer,
     room: roomReducer,
   },

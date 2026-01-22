@@ -161,6 +161,7 @@ export default function YoutubePlayer() {
   const dispatch = useAppDispatch()
   const game = phaserGame.scene.keys.game as Game
   const roomType = useAppSelector((state) => state.room.roomType)
+  const globallyMuted = useAppSelector((state) => state.audio.muted)
   const link = useAppSelector((state) => state.musicStream.link)
   const startTime = useAppSelector((state) => state.musicStream.startTime)
   const title = useAppSelector((state) => state.musicStream.title)
@@ -200,6 +201,12 @@ export default function YoutubePlayer() {
     setAmbientMuted(true)
 
     const kick = () => {
+      if (globallyMuted) {
+        window.removeEventListener('pointerdown', kick)
+        window.removeEventListener('keydown', kick)
+        return
+      }
+
       const currentTime: number = Date.now()
       const syncTime = (currentTime - startTime) / 1000
 
@@ -222,7 +229,7 @@ export default function YoutubePlayer() {
       window.removeEventListener('pointerdown', kick)
       window.removeEventListener('keydown', kick)
     }
-  }, [isAmbient])
+  }, [globallyMuted, isAmbient])
 
   const canControlRoomPlaylist = Boolean(connectedBoothIndex !== null && roomPlaylist.length > 0)
   const isStreaming = link !== null
@@ -261,7 +268,7 @@ export default function YoutubePlayer() {
     const syncTime = (currentTime - startTime) / 1000
     playerRef.current?.seekTo(syncTime, 'seconds')
 
-    if (isAmbient && ambientMuted) {
+    if (isAmbient && ambientMuted && !globallyMuted) {
       window.setTimeout(() => {
         const internalPlayer = playerRef.current?.getInternalPlayer?.()
         internalPlayer?.unMute?.()
@@ -333,7 +340,7 @@ export default function YoutubePlayer() {
             width={'200px'}
             height={'130px'}
             playing={isPlaying}
-            muted={ambientMuted}
+            muted={ambientMuted || globallyMuted}
             url={url}
           />
         </Wrapper>
@@ -484,6 +491,7 @@ export default function YoutubePlayer() {
                   width={'200px'}
                   height={'130px'}
                   playing={isPlaying}
+                  muted={globallyMuted}
                   url={url}
                 />
               </div>

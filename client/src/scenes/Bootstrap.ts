@@ -44,9 +44,9 @@ export default class Bootstrap extends Phaser.Scene {
       frameWidth: 64,
       frameHeight: 64,
     })
-    this.load.spritesheet('musicBooths', 'assets/items/musicBooth.png', {
-      frameWidth: 82,
-      frameHeight: 55,
+    this.load.spritesheet('musicBooths', 'assets/items/thinkpaddesk.gif', {
+      frameWidth: 145,
+      frameHeight: 104,
     })
     this.load.spritesheet('vendingmachines', 'assets/items/vendingmachine.png', {
       frameWidth: 48,
@@ -79,12 +79,17 @@ export default class Bootstrap extends Phaser.Scene {
 
     this.load.atlas('adam', 'assets/character/MutantWalk.png', 'assets/character/MutantWalk.json')
 
-    this.load.spritesheet('adam_boombox', 'assets/character/MutantBoomboxTest.png', {
-      frameWidth: 60,
-      frameHeight: 88,
+    this.load.spritesheet('adam_boombox', 'assets/character/MutantBoomboxTest2.gif', {
+      frameWidth: 72,
+      frameHeight: 105,
     })
 
-    this.load.spritesheet('adam_djwip', 'assets/character/djmutant3.gif', {
+    this.load.spritesheet('adam_transform', 'assets/character/dj-transform.png', {
+      frameWidth: 90,
+      frameHeight: 140,
+    })
+
+    this.load.spritesheet('adam_djwip', 'assets/character/djmutant3-solo-2.gif', {
       frameWidth: 188,
       frameHeight: 117,
     })

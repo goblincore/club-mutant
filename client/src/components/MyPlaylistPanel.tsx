@@ -163,7 +163,11 @@ export default function PlaylistDialog() {
                 dispatch(setFocused(true))
               }}
             >
-              My Playlist
+              <img
+                src="/assets/items/spin_cd_broken.gif"
+                alt="My Playlist"
+                style={{ width: 44, height: 44, display: 'block' }}
+              />
             </Fab>
           </FabWrapper>
         </div>

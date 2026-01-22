@@ -526,4 +526,26 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
     repeat: -1,
     frameRate: animsFrameRate * 0.25,
   })
+
+  anims.create({
+    key: 'adam_transform',
+    frames: anims.generateFrameNumbers('adam_transform', {
+      start: 0,
+      end: 5,
+    }),
+    repeat: 0,
+    frameRate: animsFrameRate * 0.5,
+  })
+
+  anims.create({
+    key: 'adam_transform_reverse',
+    frames: anims
+      .generateFrameNumbers('adam_transform', {
+        start: 0,
+        end: 5,
+      })
+      .reverse(),
+    repeat: 0,
+    frameRate: animsFrameRate * 0.5,
+  })
 }

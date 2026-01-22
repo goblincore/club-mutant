@@ -27,19 +27,22 @@ export default class MusicBooth extends Item {
   addCurrentUser(userId: string) {
     console.log('////addCurrentUser userId', userId)
     if (this.currentUser) {
-      this.setVisible(false)
       return
     }
     this.currentUser = userId
     this.clearStatusBox()
-    this.setVisible(false)
   }
 
   removeCurrentUser(userId: string) {
+    if (!userId) {
+      this.currentUser = null
+      this.clearStatusBox()
+      return
+    }
+
     if (this.currentUser === userId) {
       this.currentUser = null
       this.clearStatusBox()
-      this.setVisible(true)
     }
   }
 

@@ -256,7 +256,7 @@ export default class Network {
       boothCallbacks.listen(
         'connectedUser',
         (value, previousValue) => {
-          if (value === null) {
+          if (value === null || value === '') {
             if (previousValue === undefined) return
 
             const removedUserId = typeof previousValue === 'string' ? previousValue : ''
@@ -268,6 +268,8 @@ export default class Network {
             }
             return
           }
+
+          if (typeof value !== 'string' || value === '') return
 
           console.log('USER JOINED MUSICBOOTH value', value)
           phaserEvents.emit(Event.ITEM_USER_ADDED, value, index, ItemType.MUSIC_BOOTH)
@@ -403,7 +405,17 @@ export default class Network {
 
     if (!this.room) return
 
-    this.room.state.musicBooths.forEach((booth, index) => {
+    const musicBooths = (
+      this.room.state as unknown as {
+        musicBooths?: {
+          forEach?: (cb: (value: unknown, index: number) => void) => void
+        }
+      }
+    ).musicBooths
+
+    if (!musicBooths || typeof musicBooths.forEach !== 'function') return
+
+    musicBooths.forEach((booth, index) => {
       const connectedUser = (booth as unknown as { connectedUser?: unknown }).connectedUser
       if (typeof connectedUser !== 'string' || connectedUser === '') return
 
@@ -429,7 +441,17 @@ export default class Network {
 
     if (!this.room) return
 
-    this.room.state.players.forEach((player, key) => {
+    const players = (
+      this.room.state as unknown as {
+        players?: {
+          forEach?: (cb: (player: IPlayer, key: string) => void) => void
+        }
+      }
+    ).players
+
+    if (!players || typeof players.forEach !== 'function') return
+
+    players.forEach((player, key) => {
       if (key === this.mySessionId) return
       if (player.name === '') return
 

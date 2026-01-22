@@ -163,10 +163,10 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 ### DJ “boombox” animation
 
 - Asset:
-  - `client/public/assets/character/MutantBoomboxTest.png`
+  - `client/public/assets/character/MutantBoomboxTest2.gif`
 
 - Bootstrapping:
-  - `client/src/scenes/Bootstrap.ts` preloads the spritesheet with frame size `60x88`.
+  - `client/src/scenes/Bootstrap.ts` preloads the spritesheet with frame size `72x105`.
 
 - Animation creation:
   - `client/src/anims/CharacterAnims.ts` creates `adam_boombox` (frames 0–11), repeat `-1`, frameRate `animsFrameRate * 0.5`.
@@ -184,9 +184,12 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 ### DJ “desk” / djmutant3 animation (public room)
 
 - Asset:
-  - `client/public/assets/character/djmutant3.gif`
+  - `client/public/assets/character/djmutant3-solo-2.gif`
   - Dimensions: `376x704` (2 columns x 6 rows)
   - Frame size: `188x117`
+
+- Desk (booth) asset:
+  - `client/public/assets/items/thinkpaddesk.gif` (loaded under key `musicBooths`)
 
 - Bootstrapping:
   - `client/src/scenes/Bootstrap.ts` preloads the spritesheet under key `adam_djwip`.
@@ -200,8 +203,31 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 
 - Desk visibility:
   - The booth sprite is treated as a placeholder “desk”.
-  - While a DJ is active, the booth sprite is hidden via `MusicBooth.setVisible(false)`.
-  - Late joiners must “replay” booth occupancy state (see Network gotchas below).
+  - The desk stays visible even while a DJ is active.
+
+### DJ transform transition (enter + exit)
+
+- Asset:
+  - `client/public/assets/character/dj-transform.png`
+  - Frame size: `90x140` (3 columns x 2 rows)
+
+- Animation keys:
+  - `adam_transform` (frames `0..5`, repeat `0`, frameRate `animsFrameRate * 0.5`)
+  - `adam_transform_reverse` (frames `5..0`, repeat `0`, frameRate `animsFrameRate * 0.5`)
+
+- Entering the booth (press `R`):
+  - `MyPlayer` snaps the player to a booth “stand spot” and forces facing down.
+  - Plays `adam_transform` once, then switches to the booth anim (`adam_djwip` in public rooms, otherwise `adam_boombox`).
+  - Sync is done by calling `network.updatePlayerAction(..., animKey)` for both the transform and the final booth anim.
+
+- Leaving the booth (press `R` again):
+  - Plays `adam_transform_reverse` once, then switches back to `${playerTexture}_idle_down` and restores movement.
+  - Reverse transition is also synced via `network.updatePlayerAction`.
+
+- Depth ordering:
+  - DJ + transform animations render behind the desk:
+    - `MyPlayer` uses `this.setDepth(musicBooth.depth - 1)` on booth entry.
+    - `OtherPlayer` uses `this.setDepth(this.y - 1)` when `anim` is `adam_djwip` / `adam_transform` / `adam_transform_reverse`.
 
 ### Player collision + DJ hitbox gotchas
 
@@ -210,6 +236,8 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 - The DJ animation frames include the whole desk/table, so collision cannot be frame-wide.
   - `client/src/characters/Player.ts` implements a special DJ-only “feet” hitbox in `updatePhysicsBodyForAnim()`.
   - It uses a narrow, low hitbox and anchors it using a right-edge reference so it can be widened leftward.
+
+- The transform animations (`adam_transform`, `adam_transform_reverse`) are treated like DJ anims for collision sizing.
 
 - Late-join collision mismatch:
   - When an `OtherPlayer` is spawned with `newPlayer.anim` already set (e.g. DJ), `Game.handlePlayerJoined()` must call:
@@ -229,6 +257,19 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
   - `Network.onItemUserAdded()` replays any already-occupied `musicBooths[*].connectedUser` when registering the listener.
   - This prevents late joiners from seeing the placeholder desk when the booth is already occupied.
 
+- **Colyseus 0.16 state listeners: use the root callback proxy**
+  - Colyseus `0.16.x` replaced the old `onChange` ergonomics with `getStateCallbacks(room)`.
+  - To avoid “connected but not syncing” / missed events, prefer:
+    - `const stateCallbacks = getStateCallbacks(room)(room.state)`
+    - `stateCallbacks.players.onAdd(...)`, `stateCallbacks.chatMessages.onAdd(...)`, etc.
+  - Avoid wiring listeners directly off `callbacks(room.state.players)` during `initialize()`. On first join, the initial patch can land after listeners are registered, and the underlying collection reference can be in an incomplete/transition state.
+
+- **Colyseus 0.16 timing: don’t read nested schema fields during join**
+  - Right after `joinOrCreate`, `room.state.musicStream` / `room.state.roomPlaylist` may be temporarily `undefined` before the first patch.
+  - Fix pattern:
+    - Default Redux/UI state to safe values
+    - Listen via `stateCallbacks.musicStream.listen(...)` and resync once fields arrive
+
 - **Avoid “toggle debug anim” drift**
   - Keeping a single authoritative DJ anim key (`adam_djwip`) avoids hitbox/asset confusion.
 
@@ -238,6 +279,16 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
     - `mix-blend-mode: hard-light` on the `iframe`
     - dark overlay + scanlines via `::before`/`::after`
     - zoom/crop by rendering the iframe at ~`200%` and centering it (overflow hidden)
+
+- **Schema collections: mutate in-place (don’t replace) to preserve `$changes`**
+  - Avoid assigning a new array to a Schema collection (e.g. `state.musicBoothQueue = state.musicBoothQueue.filter(...)`).
+  - Use in-place ops instead (reverse loop + `splice`, `shift()` + `push()`) so Colyseus change tracking stays intact.
+  - Replacing collections can lead to server crashes like `Cannot read properties of undefined (reading '$changes')`.
+
+- **Vite + colyseus.js: force browser httpie implementation**
+  - Without an alias, Vite may pull `@colyseus/httpie/node` which depends on Node-only `url.parse` and breaks the client build.
+  - Fix in `client/vite.config.ts`:
+    - `resolve.alias['@colyseus/httpie'] = '@colyseus/httpie/xhr'`
 
 ## Important files (high touch)
 
