@@ -391,18 +391,33 @@ export default class MyPlayer extends Player {
               this.musicBoothOnSit?.clearDialogBox()
               this.musicBoothOnSit?.setDialogBox('Press R to be the DJ')
               this.djTransitionTarget = null
-              const idleAnimKey = `${this.playerTexture}_idle_down`
-              this.play(idleAnimKey, true)
-              this.updatePhysicsBodyForAnim(idleAnimKey)
-              network.updatePlayerAction(this.x, this.y, idleAnimKey)
-              body.setImmovable(false)
-              if (this.djBoothDepth !== null) {
-                this.setDepth(this.djBoothDepth)
-                this.djBoothDepth = null
-              } else {
-                this.setDepth(this.y)
-              }
-              this.playerBehavior = PlayerBehavior.IDLE
+
+              const reverseKey = 'adam_transform_reverse'
+              this.play(reverseKey, true)
+              this.updatePhysicsBodyForAnim(reverseKey)
+              network.updatePlayerAction(this.x, this.y, reverseKey)
+
+              body.setImmovable(true)
+              this.playerBehavior = PlayerBehavior.TRANSFORMING
+
+              this.once(`animationcomplete-${reverseKey}`, () => {
+                if (this.playerBehavior !== PlayerBehavior.TRANSFORMING) return
+
+                const idleAnimKey = `${this.playerTexture}_idle_down`
+                this.play(idleAnimKey, true)
+                this.updatePhysicsBodyForAnim(idleAnimKey)
+                network.updatePlayerAction(this.x, this.y, idleAnimKey)
+
+                body.setImmovable(false)
+                if (this.djBoothDepth !== null) {
+                  this.setDepth(this.djBoothDepth)
+                  this.djBoothDepth = null
+                } else {
+                  this.setDepth(this.y)
+                }
+                this.playerBehavior = PlayerBehavior.IDLE
+              })
+
               break
           }
         }
