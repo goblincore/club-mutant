@@ -256,7 +256,7 @@ export default class Network {
       boothCallbacks.listen(
         'connectedUser',
         (value, previousValue) => {
-          if (value === null) {
+          if (value === null || value === '') {
             if (previousValue === undefined) return
 
             const removedUserId = typeof previousValue === 'string' ? previousValue : ''
@@ -268,6 +268,8 @@ export default class Network {
             }
             return
           }
+
+          if (typeof value !== 'string' || value === '') return
 
           console.log('USER JOINED MUSICBOOTH value', value)
           phaserEvents.emit(Event.ITEM_USER_ADDED, value, index, ItemType.MUSIC_BOOTH)
