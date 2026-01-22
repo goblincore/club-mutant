@@ -1,12 +1,15 @@
-import { Client, Room } from 'colyseus.js'
+import { Client, Room, getStateCallbacks } from 'colyseus.js'
+import type { CollectionCallback, CallbackProxy } from '@colyseus/schema'
 
 import {
   IOfficeState,
   IPlayer,
   IMusicBooth,
+  IChatMessage,
   IPlaylistItem,
   PlaylistItem,
   IMusicStream,
+  IRoomPlaylistItem,
 } from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
@@ -14,12 +17,14 @@ import { ItemType } from '../../../types/Items'
 import { phaserEvents, Event } from '../events/EventCenter'
 import store from '../stores'
 import { setSessionId, setPlayerNameMap, removePlayerNameMap } from '../stores/UserStore'
+import { connectToMusicBooth, disconnectFromMusicBooth } from '../stores/MusicBoothStore'
 import {
   setLobbyJoined,
   setJoinedRoomData,
   setAvailableRooms,
   addAvailableRooms,
   removeAvailableRooms,
+  setJoinedRoomType,
 } from '../stores/RoomStore'
 import {
   pushChatMessage,
@@ -32,6 +37,13 @@ import {
   syncPlayQueue,
   removeFromPlayQueue,
 } from '../stores/MyPlaylistStore'
+import { setMusicStream, setVideoBackgroundEnabled } from '../stores/MusicStreamStore'
+import {
+  addRoomPlaylistItem,
+  removeRoomPlaylistItem,
+  setRoomPlaylist,
+  type RoomPlaylistItem as RoomPlaylistItemState,
+} from '../stores/RoomPlaylistStore'
 
 // This class centralizes the handling of network events from the server
 // mostly the socket events
@@ -84,12 +96,14 @@ export default class Network {
   // method to join the public lobby
   async joinOrCreatePublic() {
     this.room = await this.client.joinOrCreate(RoomType.PUBLIC)
+    store.dispatch(setJoinedRoomType(RoomType.PUBLIC))
     this.initialize()
   }
 
   // method to join a custom room
   async joinCustomById(roomId: string, password: string | null) {
     this.room = await this.client.joinById(roomId, { password })
+    store.dispatch(setJoinedRoomType(RoomType.CUSTOM))
     this.initialize()
   }
 
@@ -102,6 +116,7 @@ export default class Network {
       password,
       autoDispose,
     })
+    store.dispatch(setJoinedRoomType(RoomType.CUSTOM))
     this.initialize()
   }
 
@@ -109,64 +124,189 @@ export default class Network {
   initialize() {
     if (!this.room) return
 
+    const syncMusicStreamFromState = () => {
+      if (!this.room) return
+
+      const ms = (this.room.state as unknown as { musicStream?: IMusicStream }).musicStream
+
+      if (!ms) {
+        store.dispatch(setMusicStream(null))
+        store.dispatch(setVideoBackgroundEnabled(false))
+        phaserEvents.emit(Event.STOP_PLAYING_MEDIA)
+        return
+      }
+
+      if (ms.status !== 'playing' || !ms.currentLink) {
+        store.dispatch(setMusicStream(null))
+        phaserEvents.emit(Event.STOP_PLAYING_MEDIA)
+        return
+      }
+
+      const currentTime: number = Date.now()
+      const offset = (currentTime - ms.startTime) / 1000
+
+      store.dispatch(
+        setMusicStream({
+          url: ms.currentLink,
+          title: ms.currentTitle,
+          startTime: ms.startTime,
+          currentDj: ms.currentDj,
+          isRoomPlaylist: ms.isRoomPlaylist,
+          roomPlaylistIndex: ms.roomPlaylistIndex,
+          videoBackgroundEnabled: ms.videoBackgroundEnabled,
+          isAmbient: ms.isAmbient,
+        })
+      )
+
+      phaserEvents.emit(Event.START_PLAYING_MEDIA, ms, offset)
+    }
+
     this.lobby.leave()
     this.mySessionId = this.room.sessionId
     store.dispatch(setSessionId(this.room.sessionId))
 
+    const callbacks = getStateCallbacks(this.room)
+
+    const stateCallbacks = callbacks(this.room.state) as unknown as CallbackProxy<IOfficeState>
+
+    const playersCallbacks = stateCallbacks.players as unknown as CollectionCallback<
+      string,
+      IPlayer
+    >
+
+    const musicBoothsCallbacks = stateCallbacks.musicBooths as unknown as CollectionCallback<
+      number,
+      IMusicBooth
+    >
+
+    const chatMessagesCallbacks = stateCallbacks.chatMessages as unknown as CollectionCallback<
+      number,
+      IChatMessage
+    >
+
+    const roomPlaylistCallbacks = stateCallbacks.roomPlaylist as unknown as CollectionCallback<
+      number,
+      IRoomPlaylistItem
+    >
+
     // new instance added to the players MapSchema
-    this.room.state.players.onAdd = (player: IPlayer, key: string) => {
+    playersCallbacks.onAdd((player: IPlayer, key: string) => {
       if (key === this.mySessionId) {
-        player.nextTwoPlaylist.onRemove = (item, index) => {
+        callbacks(player.nextTwoPlaylist).onRemove((_item, _index) => {
           console.log('////*player next two playlist onchange item', player.nextTwoPlaylist)
           // store.dispatch(removeFromPlayQueue(item))
-        }
+        })
         return
       }
 
-      // track changes on every child object inside the players MapSchema
-      player.onChange = (changes) => {
-        changes.forEach((change) => {
-          const { field, value } = change
-          phaserEvents.emit(Event.PLAYER_UPDATED, field, value, key)
+      let hasEmittedJoined = false
 
-          // when a new player finished setting up player name
-          if (field === 'name' && value !== '') {
-            phaserEvents.emit(Event.PLAYER_JOINED, player, key)
-            store.dispatch(setPlayerNameMap({ id: key, name: value }))
-            store.dispatch(pushPlayerJoinedMessage(value))
-          }
-        })
+      if (player.name !== '') {
+        hasEmittedJoined = true
+        phaserEvents.emit(Event.PLAYER_JOINED, player, key)
+        store.dispatch(setPlayerNameMap({ id: key, name: player.name }))
+        store.dispatch(pushPlayerJoinedMessage(player.name))
       }
-    }
 
-    // when a player left the room, this instance wiill be removed from the players MapSchema
-    this.room.state.players.onRemove = (player: IPlayer, key: string) => {
+      const playerCallbacks = callbacks(player)
+
+      playerCallbacks.listen('x', (value) => {
+        phaserEvents.emit(Event.PLAYER_UPDATED, 'x', value, key)
+      })
+
+      playerCallbacks.listen('y', (value) => {
+        phaserEvents.emit(Event.PLAYER_UPDATED, 'y', value, key)
+      })
+
+      playerCallbacks.listen('anim', (value) => {
+        phaserEvents.emit(Event.PLAYER_UPDATED, 'anim', value, key)
+      })
+
+      playerCallbacks.listen('readyToConnect', (value) => {
+        phaserEvents.emit(Event.PLAYER_UPDATED, 'readyToConnect', value, key)
+      })
+
+      playerCallbacks.listen('videoConnected', (value) => {
+        phaserEvents.emit(Event.PLAYER_UPDATED, 'videoConnected', value, key)
+      })
+
+      playerCallbacks.listen('name', (value) => {
+        phaserEvents.emit(Event.PLAYER_UPDATED, 'name', value, key)
+
+        if (!hasEmittedJoined && value !== '') {
+          hasEmittedJoined = true
+          phaserEvents.emit(Event.PLAYER_JOINED, player, key)
+          store.dispatch(setPlayerNameMap({ id: key, name: value }))
+          store.dispatch(pushPlayerJoinedMessage(value))
+        }
+      })
+    }, true)
+
+    // when a player left the room, this instance will be removed from the players MapSchema
+    playersCallbacks.onRemove((player: IPlayer, key: string) => {
       phaserEvents.emit(Event.PLAYER_LEFT, key)
       store.dispatch(pushPlayerLeftMessage(player.name))
       store.dispatch(removePlayerNameMap(key))
-    }
+    })
 
     // new instance added to the music booth MapSchema
-    this.room.state.musicBooths.onAdd = (musicBooth: IMusicBooth, index) => {
-      // track changes on every child object's connectedUser
-      musicBooth.onChange = (changes) => {
-        changes.forEach((change) => {
-          const { field, value } = change
-          if (field === 'connectedUser') {
-            if (value === null) {
-              phaserEvents.emit(Event.ITEM_USER_REMOVED, index, ItemType.MUSIC_BOOTH)
-            } else {
-              console.log('USER JOINED MUSICBOOTH field', field, 'value', value)
-              phaserEvents.emit(Event.ITEM_USER_ADDED, value, index, ItemType.MUSIC_BOOTH)
+    musicBoothsCallbacks.onAdd((musicBooth: IMusicBooth, index: number) => {
+      const boothCallbacks = callbacks(musicBooth)
+
+      boothCallbacks.listen(
+        'connectedUser',
+        (value, previousValue) => {
+          if (value === null) {
+            if (previousValue === undefined) return
+
+            const removedUserId = typeof previousValue === 'string' ? previousValue : ''
+            phaserEvents.emit(Event.ITEM_USER_REMOVED, removedUserId, index, ItemType.MUSIC_BOOTH)
+
+            const connectedIndex = store.getState().musicBooth.musicBoothIndex
+            if (connectedIndex === index) {
+              store.dispatch(disconnectFromMusicBooth())
             }
+            return
           }
-        })
-      }
-    }
+
+          console.log('USER JOINED MUSICBOOTH value', value)
+          phaserEvents.emit(Event.ITEM_USER_ADDED, value, index, ItemType.MUSIC_BOOTH)
+
+          if (value === this.mySessionId) {
+            store.dispatch(connectToMusicBooth(index))
+          }
+        },
+        true
+      )
+    }, true)
 
     // new instance added to the chatMessages ArraySchema
-    this.room.state.chatMessages.onAdd = (item, index) => {
+    chatMessagesCallbacks.onAdd((item: IChatMessage, _index: number) => {
       store.dispatch(pushChatMessage(item))
+    }, true)
+
+    const toRoomPlaylistItem = (item: IRoomPlaylistItem): RoomPlaylistItemState => ({
+      id: item.id,
+      title: item.title,
+      link: item.link,
+      duration: item.duration,
+      addedAtMs: item.addedAtMs,
+      addedBySessionId: item.addedBySessionId,
+    })
+
+    const roomPlaylist = (this.room.state as unknown as { roomPlaylist?: Array<IRoomPlaylistItem> })
+      .roomPlaylist
+
+    store.dispatch(setRoomPlaylist(roomPlaylist ? roomPlaylist.map(toRoomPlaylistItem) : []))
+
+    if (stateCallbacks.roomPlaylist) {
+      roomPlaylistCallbacks.onAdd((item: IRoomPlaylistItem, _index: number) => {
+        store.dispatch(addRoomPlaylistItem(toRoomPlaylistItem(item)))
+      }, true)
+
+      roomPlaylistCallbacks.onRemove((item: IRoomPlaylistItem, _index: number) => {
+        store.dispatch(removeRoomPlaylistItem(item.id))
+      })
     }
 
     // when the server sends room data
@@ -183,6 +323,47 @@ export default class Network {
     // when the server sends room data
     this.room.onMessage(Message.STOP_MUSIC_STREAM, () => {
       phaserEvents.emit(Event.STOP_PLAYING_MEDIA)
+    })
+
+    store.dispatch(setVideoBackgroundEnabled(false))
+    store.dispatch(setMusicStream(null))
+
+    syncMusicStreamFromState()
+
+    stateCallbacks.musicStream.listen(
+      'videoBackgroundEnabled',
+      (value) => {
+        store.dispatch(setVideoBackgroundEnabled(Boolean(value)))
+      },
+      true
+    )
+
+    stateCallbacks.musicStream.listen('status', () => {
+      syncMusicStreamFromState()
+    })
+
+    stateCallbacks.musicStream.listen('currentLink', () => {
+      syncMusicStreamFromState()
+    })
+
+    stateCallbacks.musicStream.listen('currentTitle', () => {
+      syncMusicStreamFromState()
+    })
+
+    stateCallbacks.musicStream.listen('startTime', () => {
+      syncMusicStreamFromState()
+    })
+
+    stateCallbacks.musicStream.listen('isRoomPlaylist', () => {
+      syncMusicStreamFromState()
+    })
+
+    stateCallbacks.musicStream.listen('roomPlaylistIndex', () => {
+      syncMusicStreamFromState()
+    })
+
+    stateCallbacks.musicStream.listen('isAmbient', () => {
+      syncMusicStreamFromState()
     })
 
     // when the server sends room data
@@ -219,6 +400,19 @@ export default class Network {
     context?: any
   ) {
     phaserEvents.on(Event.ITEM_USER_ADDED, callback, context)
+
+    if (!this.room) return
+
+    this.room.state.musicBooths.forEach((booth, index) => {
+      const connectedUser = (booth as unknown as { connectedUser?: unknown }).connectedUser
+      if (typeof connectedUser !== 'string' || connectedUser === '') return
+
+      if (context) {
+        callback.call(context, connectedUser, index, ItemType.MUSIC_BOOTH)
+      } else {
+        callback(connectedUser, index, ItemType.MUSIC_BOOTH)
+      }
+    })
   }
 
   // method to register event listener and call back function when a item user removed
@@ -232,6 +426,19 @@ export default class Network {
   // method to register event listener and call back function when a player joined
   onPlayerJoined(callback: (Player: IPlayer, key: string) => void, context?: any) {
     phaserEvents.on(Event.PLAYER_JOINED, callback, context)
+
+    if (!this.room) return
+
+    this.room.state.players.forEach((player, key) => {
+      if (key === this.mySessionId) return
+      if (player.name === '') return
+
+      if (context) {
+        callback.call(context, player, key)
+      } else {
+        callback(player, key)
+      }
+    })
   }
 
   // method to register event listener and call back function when a player left
@@ -289,6 +496,35 @@ export default class Network {
   syncMusicStream(item?: PlaylistItem) {
     console.log('Synchronize music stream', item)
     this.room?.send(Message.SYNC_MUSIC_STREAM, { item })
+  }
+
+  addRoomPlaylistItem(item: Pick<PlaylistItem, 'title' | 'link' | 'duration'>) {
+    if (!item.link) return
+    this.room?.send(Message.ROOM_PLAYLIST_ADD, {
+      title: item.title,
+      link: item.link,
+      duration: item.duration,
+    })
+  }
+
+  removeRoomPlaylistItem(id: string) {
+    this.room?.send(Message.ROOM_PLAYLIST_REMOVE, { id })
+  }
+
+  skipRoomPlaylist() {
+    this.room?.send(Message.ROOM_PLAYLIST_SKIP, {})
+  }
+
+  prevRoomPlaylist() {
+    this.room?.send(Message.ROOM_PLAYLIST_PREV, {})
+  }
+
+  playRoomPlaylist() {
+    this.room?.send(Message.ROOM_PLAYLIST_PLAY, {})
+  }
+
+  setVideoBackgroundEnabled(enabled: boolean) {
+    this.room?.send(Message.SET_VIDEO_BACKGROUND, { enabled })
   }
 
   addMyPlaylistItem(item: PlaylistItem) {

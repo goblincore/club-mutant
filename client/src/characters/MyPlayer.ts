@@ -9,11 +9,20 @@ import { phaserEvents, Event } from '../events/EventCenter'
 import store from '../stores'
 import { pushPlayerJoinedMessage } from '../stores/ChatStore'
 import { ItemType } from '../../../types/Items'
+import { RoomType } from '../../../types/Rooms'
 
 export default class MyPlayer extends Player {
   private playerContainerBody: Phaser.Physics.Arcade.Body
   private musicBoothOnSit?: MusicBooth
-  
+  private moveTarget: { x: number; y: number } | null = null
+  private movePath: Array<{ x: number; y: number }> | null = null
+  private movePathIndex = 0
+  private navLastPos: { x: number; y: number } | null = null
+  private navNoProgressMs = 0
+  private moveAnimAxis: 'x' | 'y' | null = null
+  private moveAnimDir: 'left' | 'right' | 'up' | 'down' | null = null
+  private djBoothDepth: number | null = null
+
   constructor(
     scene: Phaser.Scene,
     x: number,
@@ -26,6 +35,50 @@ export default class MyPlayer extends Player {
     this.playerContainerBody = this.playerContainer.body as Phaser.Physics.Arcade.Body
   }
 
+  setMoveTarget(x: number, y: number) {
+    this.movePath = null
+    this.movePathIndex = 0
+    this.moveTarget = { x, y }
+    this.navLastPos = { x: this.x, y: this.y }
+    this.navNoProgressMs = 0
+  }
+
+  setMovePath(path: Array<{ x: number; y: number }>) {
+    this.movePath = path
+    this.movePathIndex = 0
+
+    if (path.length > 0) {
+      this.moveTarget = path[0]
+    } else {
+      this.moveTarget = null
+    }
+
+    this.navLastPos = { x: this.x, y: this.y }
+    this.navNoProgressMs = 0
+  }
+
+  clearMoveTarget() {
+    this.moveTarget = null
+  }
+
+  clearMovePath() {
+    this.movePath = null
+    this.movePathIndex = 0
+  }
+
+  private clearMoveNavigation() {
+    this.clearMoveTarget()
+    this.clearMovePath()
+    this.navLastPos = null
+    this.navNoProgressMs = 0
+    this.moveAnimAxis = null
+    this.moveAnimDir = null
+  }
+
+  updateCollisionBody() {
+    this.updatePhysicsBodyForAnim()
+  }
+
   setPlayerName(name: string) {
     this.playerName.setText(name)
     this.setName(name)
@@ -35,92 +88,251 @@ export default class MyPlayer extends Player {
 
   setPlayerTexture(texture: string) {
     this.playerTexture = texture
-    this.anims.play(`${this.playerTexture}_idle_down`, true)
-    phaserEvents.emit(Event.MY_PLAYER_TEXTURE_CHANGE, this.x, this.y, this.anims.currentAnim.key)
+    const idleKey = `${this.playerTexture}_idle_down`
+    this.anims.play(idleKey, true)
+    this.updateCollisionBody()
+    phaserEvents.emit(Event.MY_PLAYER_TEXTURE_CHANGE, this.x, this.y, idleKey)
   }
 
   update(
     playerSelector: PlayerSelector,
     cursors: Phaser.Types.Input.Keyboard.CursorKeys,
+    wasd: {
+      up: Phaser.Input.Keyboard.Key
+      down: Phaser.Input.Keyboard.Key
+      left: Phaser.Input.Keyboard.Key
+      right: Phaser.Input.Keyboard.Key
+    },
     keyE: Phaser.Input.Keyboard.Key,
     keyR: Phaser.Input.Keyboard.Key,
-    network: Network
+    network: Network,
+    dt: number,
+    _unusedKeyT?: Phaser.Input.Keyboard.Key
   ) {
     if (!cursors) return
 
+    const body = this.body as Phaser.Physics.Arcade.Body | null
+    if (!body) return
+
+    const currentAnimKey = this.anims.currentAnim?.key ?? `${this.playerTexture}_idle_down`
+
     const item = playerSelector.selectedItem
-    
+
+    this.playerContainer.x = this.x
+    this.playerContainer.y = this.y
+
     switch (this.playerBehavior) {
       case PlayerBehavior.IDLE:
         if (Phaser.Input.Keyboard.JustDown(keyR)) {
-          console.log("////MyPlayer, update, switch, PlayerBehavior.IDLE, JustDown")
+          console.log('////MyPlayer, update, switch, PlayerBehavior.IDLE, JustDown')
           switch (item?.itemType) {
             case ItemType.MUSIC_BOOTH:
+              this.clearMoveNavigation()
+
+              this.setVelocity(0, 0)
+              body.setVelocity(0, 0)
+
+              this.playerContainerBody.setVelocity(0, 0)
+
               const musicBootItem = item as MusicBooth
               musicBootItem.openDialog(network)
               musicBootItem.clearDialogBox()
               musicBootItem.setDialogBox('Press R to leave the DJ booth')
+              musicBootItem.setVisible(false)
               this.musicBoothOnSit = musicBootItem
+              this.djBoothDepth = this.depth
+              if (this.playerTexture === 'adam') {
+                const roomType = store.getState().room.roomType
+                const boothAnimKey = roomType === RoomType.PUBLIC ? 'adam_djwip' : 'adam_boombox'
+                this.play(boothAnimKey, true)
+                this.updatePhysicsBodyForAnim(boothAnimKey)
+                network.updatePlayerAction(this.x, this.y, boothAnimKey)
+              }
+              body.setImmovable(true)
+              this.setDepth(musicBootItem.depth + 1)
               this.playerBehavior = PlayerBehavior.SITTING
               break
           }
           return
         }
         const speed = 200
+
+        const leftDown = Boolean(cursors.left?.isDown || wasd.left.isDown)
+        const rightDown = Boolean(cursors.right?.isDown || wasd.right.isDown)
+        const upDown = Boolean(cursors.up?.isDown || wasd.up.isDown)
+        const downDown = Boolean(cursors.down?.isDown || wasd.down.isDown)
+
+        const hasKeyboardInput = Boolean(leftDown || rightDown || upDown || downDown)
+
+        if (hasKeyboardInput && this.moveTarget) {
+          this.clearMoveNavigation()
+        }
+
         let vx = 0
         let vy = 0
-        if (cursors.left?.isDown) vx -= speed
-        if (cursors.right?.isDown) vx += speed
-        if (cursors.up?.isDown) {
-          vy -= speed
-          this.setDepth(this.y) //change player.depth if player.y changes
+
+        if (hasKeyboardInput) {
+          if (leftDown) vx -= speed
+          if (rightDown) vx += speed
+          if (upDown) {
+            vy -= speed
+            this.setDepth(this.y) //change player.depth if player.y changes
+          }
+          if (downDown) {
+            vy += speed
+            this.setDepth(this.y) //change player.depth if player.y changes
+          }
+        } else if (this.moveTarget) {
+          if (!this.navLastPos) {
+            this.navLastPos = { x: this.x, y: this.y }
+          }
+
+          const movedDx = this.x - this.navLastPos.x
+          const movedDy = this.y - this.navLastPos.y
+          const movedSq = movedDx * movedDx + movedDy * movedDy
+
+          if (movedSq < 0.5 * 0.5) {
+            this.navNoProgressMs += dt
+
+            if (this.navNoProgressMs >= 650) {
+              this.clearMoveNavigation()
+              if (!this.moveTarget) break
+            }
+          } else {
+            this.navNoProgressMs = 0
+            this.navLastPos = { x: this.x, y: this.y }
+          }
+
+          if (!this.moveTarget) break
+
+          const arriveDistanceSq = 10 * 10
+          let guard = 0
+
+          while (this.moveTarget && guard < 5) {
+            guard += 1
+
+            const dx = this.moveTarget.x - this.x
+            const dy = this.moveTarget.y - this.y
+            const distanceSq = dx * dx + dy * dy
+
+            if (distanceSq <= arriveDistanceSq) {
+              if (this.movePath && this.movePathIndex < this.movePath.length - 1) {
+                this.movePathIndex += 1
+                this.moveTarget = this.movePath[this.movePathIndex]
+                continue
+              }
+
+              this.clearMoveNavigation()
+              break
+            }
+
+            const distance = Math.sqrt(distanceSq)
+            vx = (dx / distance) * speed
+            vy = (dy / distance) * speed
+            break
+          }
         }
-        if (cursors.down?.isDown) {
-          vy += speed
-          this.setDepth(this.y) //change player.depth if player.y changes
-        }
+
+        this.setDepth(this.y)
+
         // update character velocity
         this.setVelocity(vx, vy)
-        this.body.velocity.setLength(speed)
+        body.velocity.setLength(speed)
         // also update playerNameContainer velocity
         this.playerContainerBody.setVelocity(vx, vy)
         this.playerContainerBody.velocity.setLength(speed)
 
         // update animation according to velocity and send new location and anim to server
-        if (vx !== 0 || vy !== 0) network.updatePlayerAction(this.x, this.y, this.anims.currentAnim.key)
-        if (vx > 0) {
-          this.play(`${this.playerTexture}_run_right`, true)
-        } else if (vx < 0) {
-          this.play(`${this.playerTexture}_run_left`, true)
-        } else if (vy > 0) {
-          this.play(`${this.playerTexture}_run_down`, true)
-        } else if (vy < 0) {
-          this.play(`${this.playerTexture}_run_up`, true)
+        if (vx !== 0 || vy !== 0) {
+          const absVx = Math.abs(vx)
+          const absVy = Math.abs(vy)
+
+          const shouldLockAxis = Boolean(!hasKeyboardInput && this.moveTarget)
+          const axisSwitchRatio = 0.25
+
+          const suggestedAxis: 'x' | 'y' = absVx >= absVy ? 'x' : 'y'
+
+          let axis = suggestedAxis
+          if (shouldLockAxis) {
+            if (!this.moveAnimAxis) {
+              this.moveAnimAxis = suggestedAxis
+            } else if (this.moveAnimAxis === 'x') {
+              if (absVy > absVx * (1 + axisSwitchRatio)) {
+                this.moveAnimAxis = 'y'
+              }
+            } else {
+              if (absVx > absVy * (1 + axisSwitchRatio)) {
+                this.moveAnimAxis = 'x'
+              }
+            }
+
+            axis = this.moveAnimAxis
+          }
+
+          let dir: 'left' | 'right' | 'up' | 'down'
+          if (axis === 'x') {
+            dir = vx >= 0 ? 'right' : 'left'
+          } else {
+            dir = vy >= 0 ? 'down' : 'up'
+          }
+
+          if (shouldLockAxis) {
+            this.moveAnimDir = dir
+          }
+
+          const nextAnimKey = `${this.playerTexture}_run_${dir}`
+
+          this.play(nextAnimKey, true)
+          network.updatePlayerAction(this.x, this.y, nextAnimKey)
         } else {
-          const parts = this.anims.currentAnim.key.split('_')
+          this.moveAnimAxis = null
+          this.moveAnimDir = null
+
+          const parts = currentAnimKey.split('_')
           parts[1] = 'idle'
           const newAnim = parts.join('_')
           // this prevents idle animation keeps getting called
-          if (this.anims.currentAnim.key !== newAnim) {
+          if (currentAnimKey !== newAnim) {
             this.play(parts.join('_'), true)
             // send new location and anim to server
-            network.updatePlayerAction(this.x, this.y, this.anims.currentAnim.key)
+            network.updatePlayerAction(this.x, this.y, newAnim)
           }
         }
         break
 
       case PlayerBehavior.SITTING:
+        this.setVelocity(0, 0)
+        body.setVelocity(0, 0)
+
+        this.playerContainerBody.setVelocity(0, 0)
+
         // back to idle if player press E while sitting
         if (Phaser.Input.Keyboard.JustDown(keyR)) {
-          console.log("////MyPlayer, update, switch, PlayerBehavior.SITTING, JustDown")
+          console.log('////MyPlayer, update, switch, PlayerBehavior.SITTING, JustDown')
           switch (item?.itemType) {
             case ItemType.MUSIC_BOOTH:
               this.musicBoothOnSit?.closeDialog(network)
               this.musicBoothOnSit?.clearDialogBox()
               this.musicBoothOnSit?.setDialogBox('Press R to be the DJ')
+              this.musicBoothOnSit?.setVisible(true)
+              const idleAnimKey = `${this.playerTexture}_idle_down`
+              this.play(idleAnimKey, true)
+              this.updatePhysicsBodyForAnim(idleAnimKey)
+              network.updatePlayerAction(this.x, this.y, idleAnimKey)
+              body.setImmovable(false)
+              if (this.djBoothDepth !== null) {
+                this.setDepth(this.djBoothDepth)
+                this.djBoothDepth = null
+              } else {
+                this.setDepth(this.y)
+              }
               this.playerBehavior = PlayerBehavior.IDLE
               break
           }
+        }
+
+        if (this.moveTarget) {
+          this.clearMoveNavigation()
         }
         break
     }
@@ -152,13 +364,7 @@ Phaser.GameObjects.GameObjectFactory.register(
 
     this.scene.physics.world.enableBody(sprite, Phaser.Physics.Arcade.DYNAMIC_BODY)
 
-    const collisionScale = [0.5, 0.2]
-    sprite.body
-      .setSize(sprite.width * collisionScale[0], sprite.height * collisionScale[1])
-      .setOffset(
-        sprite.width * (1 - collisionScale[0]) * 0.5,
-        sprite.height * (1 - collisionScale[1])
-      )
+    sprite.updateCollisionBody()
 
     return sprite
   }

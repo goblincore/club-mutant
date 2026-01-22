@@ -16,7 +16,10 @@ export class MusicBoothConnectUserCommand extends Command<IOfficeState, Payload>
     if (musicBooth.connectedUser !== null) return
     musicBooth.connectedUser = clientId
     console.log('////MusicBoothConnect musicboth index', musicBoothIndex)
-    console.log('////MusicBoothConnectUserCommand, musicBooth.connectedUser', musicBooth.connectedUser)
+    console.log(
+      '////MusicBoothConnectUserCommand, musicBooth.connectedUser',
+      musicBooth.connectedUser
+    )
   }
 }
 
@@ -25,9 +28,16 @@ export class MusicBoothDisconnectUserCommand extends Command<IOfficeState, Paylo
     const { client, musicBoothIndex } = data
     const clientId = client.sessionId
     const musicBooth = this.state.musicBooths[musicBoothIndex]
-    this.state.musicBoothQueue = this.state.musicBoothQueue.filter(id => id !== musicBoothIndex)
+    for (let i = this.state.musicBoothQueue.length - 1; i >= 0; i -= 1) {
+      if (this.state.musicBoothQueue[i] === musicBoothIndex) {
+        this.state.musicBoothQueue.splice(i, 1)
+      }
+    }
     console.log('////MusicBoothDisconnectUserCommand, musicBooth', musicBooth)
-    console.log('////MusicBoothDisconnectUserCommand, this.state.musicQueue', this.state.musicBoothQueue)
+    console.log(
+      '////MusicBoothDisconnectUserCommand, this.state.musicQueue',
+      this.state.musicBoothQueue
+    )
 
     if (musicBooth.connectedUser === clientId) {
       musicBooth.connectedUser = null

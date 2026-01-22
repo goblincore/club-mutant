@@ -369,7 +369,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 16,
       end: 31,
       prefix: 'mutant-idle-',
-      suffix: '.png'
+      suffix: '.png',
     }),
     repeat: -1,
     frameRate: animsFrameRate * 0.6,
@@ -381,7 +381,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 80,
       end: 95,
       prefix: 'mutant-idle-',
-      suffix: '.png'
+      suffix: '.png',
     }),
     repeat: -1,
     frameRate: animsFrameRate * 0.6,
@@ -393,7 +393,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 64,
       end: 79,
       prefix: 'mutant-idle-',
-      suffix: '.png'
+      suffix: '.png',
     }),
     repeat: -1,
     frameRate: animsFrameRate * 0.6,
@@ -405,7 +405,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 48,
       end: 63,
       prefix: 'mutant-idle-',
-      suffix: '.png'
+      suffix: '.png',
     }),
     repeat: -1,
     frameRate: animsFrameRate * 0.6,
@@ -417,7 +417,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 10,
       end: 19,
       prefix: 'mutant-walk-',
-      suffix: '.png'
+      suffix: '.png',
     }),
     repeat: -1,
     frameRate: animsFrameRate,
@@ -429,7 +429,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 50,
       end: 59,
       prefix: 'mutant-walk-',
-      suffix: '.png'
+      suffix: '.png',
     }),
     repeat: -1,
     frameRate: animsFrameRate,
@@ -441,8 +441,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 40,
       end: 49,
       prefix: 'mutant-walk-',
-      suffix: '.png'
-      
+      suffix: '.png',
     }),
     repeat: -1,
     frameRate: animsFrameRate,
@@ -454,7 +453,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 20,
       end: 29,
       prefix: 'mutant-walk-',
-      suffix: '.png'
+      suffix: '.png',
     }),
     repeat: -1,
     frameRate: animsFrameRate,
@@ -466,7 +465,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 48,
       end: 48,
       prefix: 'mutant-idle-',
-      suffix: '.png'
+      suffix: '.png',
     }),
     repeat: 0,
     frameRate: animsFrameRate,
@@ -478,7 +477,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 49,
       end: 49,
       prefix: 'mutant-idle-',
-      suffix: '.png'
+      suffix: '.png',
     }),
     repeat: 0,
     frameRate: animsFrameRate,
@@ -490,7 +489,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 50,
       end: 50,
       prefix: 'mutant-idle-',
-      suffix: '.png'
+      suffix: '.png',
     }),
     repeat: 0,
     frameRate: animsFrameRate,
@@ -502,9 +501,29 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 51,
       end: 51,
       prefix: 'mutant-idle-',
-      suffix: '.png'
+      suffix: '.png',
     }),
     repeat: 0,
     frameRate: animsFrameRate,
+  })
+
+  anims.create({
+    key: 'adam_boombox',
+    frames: anims.generateFrameNumbers('adam_boombox', {
+      start: 0,
+      end: 11,
+    }),
+    repeat: -1,
+    frameRate: animsFrameRate * 0.5,
+  })
+
+  anims.create({
+    key: 'adam_djwip',
+    frames: anims.generateFrameNumbers('adam_djwip', {
+      start: 0,
+      end: 4,
+    }),
+    repeat: -1,
+    frameRate: animsFrameRate * 0.25,
   })
 }

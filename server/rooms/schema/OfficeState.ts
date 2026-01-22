@@ -7,6 +7,7 @@ import {
   IChatMessage,
   IPlaylistItem,
   IDJUserInfo,
+  IRoomPlaylistItem,
 } from '../../../types/IOfficeState'
 
 export class PlaylistItem extends Schema implements IPlaylistItem {
@@ -15,6 +16,15 @@ export class PlaylistItem extends Schema implements IPlaylistItem {
   @type('string') title = ''
   @type('string') link = null
   @type('number') duration = 0
+}
+
+export class RoomPlaylistItem extends Schema implements IRoomPlaylistItem {
+  @type('string') id = ''
+  @type('string') title = ''
+  @type('string') link = ''
+  @type('number') duration = 0
+  @type('number') addedAtMs = 0
+  @type('string') addedBySessionId = ''
 }
 
 export class Player extends Schema implements IPlayer {
@@ -28,7 +38,7 @@ export class Player extends Schema implements IPlayer {
   @type('boolean') videoConnected = false
   @type(PlaylistItem) currentPlaylistItem = new PlaylistItem()
   @type(PlaylistItem) nextPlaylistItem = new PlaylistItem()
-  @type([PlaylistItem]) 
+  @type([PlaylistItem])
   nextTwoPlaylist = new ArraySchema<PlaylistItem>()
 }
 
@@ -39,18 +49,22 @@ export class ChatMessage extends Schema implements IChatMessage {
 }
 
 export class DJUserInfo extends Schema implements IDJUserInfo {
-  @type('string') name = null
-  @type('string') sessionId = null
+  @type('string') name = ''
+  @type('string') sessionId = ''
 }
 
 export class MusicStream extends Schema implements IMusicStream {
   @type('string') status = 'waiting' // waiting or seeking or playing
-  @type('string') currentLink = null
-  @type('string') currentTitle = null
+  @type('string') currentLink: string | null = null
+  @type('string') currentTitle: string | null = null
   @type('number') currentBooth = 0
   @type(DJUserInfo) currentDj = new DJUserInfo()
   @type('number') startTime = Date.now()
   @type('number') duration = 0
+  @type('boolean') isRoomPlaylist = false
+  @type('number') roomPlaylistIndex = 0
+  @type('boolean') videoBackgroundEnabled = false
+  @type('boolean') isAmbient = false
 }
 
 export class MusicBooth extends Schema implements IMusicBooth {
@@ -75,6 +89,9 @@ export class OfficeState extends Schema implements IOfficeState {
 
   @type(MusicStream)
   nextStream = new MusicStream()
+
+  @type([RoomPlaylistItem])
+  roomPlaylist = new ArraySchema<RoomPlaylistItem>()
 }
 
 // const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'

@@ -4,12 +4,12 @@ import Background from './scenes/Background'
 import Bootstrap from './scenes/Bootstrap'
 
 const config: Phaser.Types.Core.GameConfig = {
-  type: Phaser.AUTO,
+  type: Phaser.WEBGL,
   parent: 'phaser-container',
   dom: {
     createContainer: true,
   },
-  backgroundColor: '#93cbee',
+  transparent: true,
   pixelArt: false,
   scale: {
     mode: Phaser.Scale.ScaleModes.RESIZE,
@@ -19,7 +19,7 @@ const config: Phaser.Types.Core.GameConfig = {
   physics: {
     default: 'arcade',
     arcade: {
-      gravity: { y: 0 },
+      gravity: { x: 0, y: 0 },
       debug: false,
     },
   },

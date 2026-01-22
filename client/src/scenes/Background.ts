@@ -18,14 +18,13 @@ export default class Background extends Phaser.Scene {
     if (data.backgroundMode === BackgroundMode.DAY) {
       this.backdropKey = 'backdrop_day'
       this.cloudKey = 'cloud_day'
-      this.cameras.main.setBackgroundColor('#FFFFFF')
+      this.cameras.main.setBackgroundColor('rgba(0,0,0,0)')
     } else {
       this.backdropKey = 'backdrop_night'
       this.cloudKey = 'cloud_night'
-      this.cameras.main.setBackgroundColor('#FFFFFF')
+      this.cameras.main.setBackgroundColor('rgba(0,0,0,0)')
     }
   }
 
-  update(t: number, dt: number) {
-  }
+  update(t: number, dt: number) {}
 }

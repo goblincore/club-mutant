@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
@@ -22,6 +22,8 @@ import { getAvatarString, getColorByString } from '../util'
 
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
+
+import { RoomType } from '../../../types/Rooms'
 
 SwiperCore.use([Navigation])
 
@@ -163,9 +165,34 @@ export default function LoginDialog() {
   const [nameFieldEmpty, setNameFieldEmpty] = useState<boolean>(false)
   const dispatch = useAppDispatch()
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
+  const roomType = useAppSelector((state) => state.room.roomType)
   const roomName = useAppSelector((state) => state.room.roomName)
   const roomDescription = useAppSelector((state) => state.room.roomDescription)
+  const sessionId = useAppSelector((state) => state.user.sessionId)
   const game = phaserGame.scene.keys.game as Game
+
+  const hasAutoJoinedPublic = useRef(false)
+
+  useEffect(() => {
+    if (hasAutoJoinedPublic.current) return
+    if (!roomJoined) return
+    if (roomType !== RoomType.PUBLIC) return
+    if (!sessionId) return
+    if (!game?.myPlayer) return
+
+    hasAutoJoinedPublic.current = true
+
+    const generatedName = `mutant-${sessionId}`
+
+    game.myPlayer.setPlayerTexture('adam')
+    game.myPlayer.setPlayerName(generatedName)
+    game.network.readyToConnect()
+    dispatch(setLoggedIn(true))
+  }, [dispatch, game, roomJoined, roomType, sessionId])
+
+  if (roomJoined && roomType === RoomType.PUBLIC) {
+    return <></>
+  }
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()

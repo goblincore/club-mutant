@@ -1,8 +1,16 @@
 import bcrypt from 'bcrypt'
 import { Room, Client, ServerError } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
+import { v4 as uuidv4 } from 'uuid'
 
-import { Player, OfficeState, MusicBooth, PlaylistItem } from './schema/OfficeState'
+import {
+  Player,
+  OfficeState,
+  MusicBooth,
+  PlaylistItem,
+  RoomPlaylistItem,
+  DJUserInfo,
+} from './schema/OfficeState'
 import { IRoomData } from '../../types/Rooms'
 import { Message } from '../../types/Messages'
 
@@ -22,7 +30,7 @@ import {
 import { MusicStreamNextCommand } from './commands/MusicStreamUpdateCommand'
 
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
-import Queue from '../Queue';
+import Queue from '../Queue'
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
@@ -30,12 +38,67 @@ export class SkyOffice extends Room<OfficeState> {
   private description: string
   private password: string | null = null
   private musicBoothQueue: Queue | null = null
+  private isPublic = false
+  private publicBackgroundSeed: number | null = null
+
+  private ambientPublicVideoId = 'CAWJ2PO1V_g'
+
+  private setStoppedMusicStream() {
+    const musicStream = this.state.musicStream
+
+    musicStream.status = 'waiting'
+    musicStream.currentLink = null
+    musicStream.currentTitle = null
+    musicStream.startTime = Date.now()
+    musicStream.duration = 0
+    musicStream.isAmbient = false
+  }
+
+  private startAmbientIfNeeded() {
+    if (!this.isPublic) return
+
+    const djSessionId = this.state.musicBooths[0]?.connectedUser
+    if (djSessionId) return
+
+    if (this.state.players.size === 0) return
+
+    const musicStream = this.state.musicStream
+    if (musicStream.isAmbient && musicStream.status === 'playing') return
+
+    musicStream.isAmbient = true
+    musicStream.isRoomPlaylist = false
+    musicStream.roomPlaylistIndex = 0
+    musicStream.currentBooth = 0
+    musicStream.status = 'playing'
+    musicStream.currentLink = this.ambientPublicVideoId
+    musicStream.currentTitle = null
+    musicStream.currentDj.name = ''
+    musicStream.currentDj.sessionId = ''
+    musicStream.startTime = Date.now()
+    musicStream.duration = 0
+    musicStream.videoBackgroundEnabled = false
+
+    this.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
+  }
+
+  private stopAmbientIfNeeded() {
+    const musicStream = this.state.musicStream
+    if (!musicStream.isAmbient) return
+
+    this.setStoppedMusicStream()
+    this.broadcast(Message.STOP_MUSIC_STREAM, {})
+  }
 
   async onCreate(options: IRoomData) {
-    const { name, description, password, autoDispose } = options
+    const { name, description, password, autoDispose, isPublic } = options
     this.name = name
     this.description = description
     this.autoDispose = autoDispose
+    this.isPublic = Boolean(isPublic)
+
+    if (this.isPublic) {
+      this.publicBackgroundSeed = 3
+    }
 
     let hasPassword = false
     if (password) {
@@ -47,14 +110,164 @@ export class SkyOffice extends Room<OfficeState> {
 
     this.setState(new OfficeState())
 
-    // add 3 musicbooths in a room
-    for (let i = 0; i < 3; i++) {
-      this.state.musicBooths.push(new MusicBooth())
+    const setStoppedMusicStream = () => {
+      this.setStoppedMusicStream()
     }
+
+    const startRoomPlaylistAtIndex = (requestedIndex: number) => {
+      const musicStream = this.state.musicStream
+
+      const djSessionId = this.state.musicBooths[0]?.connectedUser
+      if (!djSessionId) return
+
+      const djPlayer = this.state.players.get(djSessionId)
+      if (!djPlayer) return
+
+      const list = this.state.roomPlaylist
+      if (list.length === 0) {
+        musicStream.isRoomPlaylist = true
+        musicStream.roomPlaylistIndex = 0
+        musicStream.currentBooth = 0
+        setStoppedMusicStream()
+        this.broadcast(Message.STOP_MUSIC_STREAM, {})
+        return
+      }
+
+      const clampedIndex =
+        requestedIndex < 0 ? 0 : requestedIndex >= list.length ? 0 : requestedIndex
+
+      const current = list[clampedIndex]
+      if (!current) {
+        musicStream.isRoomPlaylist = true
+        musicStream.roomPlaylistIndex = 0
+        musicStream.currentBooth = 0
+        setStoppedMusicStream()
+        this.broadcast(Message.STOP_MUSIC_STREAM, {})
+        return
+      }
+
+      const djInfo = new DJUserInfo()
+      djInfo.name = djPlayer.name
+      djInfo.sessionId = djSessionId
+
+      musicStream.isRoomPlaylist = true
+      musicStream.roomPlaylistIndex = clampedIndex
+      musicStream.currentBooth = 0
+      musicStream.status = 'playing'
+      musicStream.currentLink = current.link
+      musicStream.currentTitle = current.title
+      musicStream.currentDj = djInfo
+      musicStream.startTime = Date.now()
+      musicStream.duration = current.duration
+
+      this.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
+    }
+
+    this.state.musicBooths.push(new MusicBooth())
+
+    this.onMessage(
+      Message.ROOM_PLAYLIST_ADD,
+      (
+        client,
+        message: {
+          title: string
+          link: string
+          duration: number
+        }
+      ) => {
+        const item = new RoomPlaylistItem()
+        item.id = uuidv4()
+        item.title = message.title
+        item.link = message.link
+        item.duration = message.duration
+        item.addedAtMs = Date.now()
+        item.addedBySessionId = client.sessionId
+
+        this.state.roomPlaylist.push(item)
+      }
+    )
+
+    this.onMessage(
+      Message.ROOM_PLAYLIST_REMOVE,
+      (
+        client,
+        message: {
+          id: string
+        }
+      ) => {
+        const index = this.state.roomPlaylist.findIndex(
+          (i: RoomPlaylistItem) => i.id === message.id
+        )
+        if (index < 0) return
+
+        const item = this.state.roomPlaylist[index]
+        if (item.addedBySessionId !== client.sessionId) return
+
+        const musicStream = this.state.musicStream
+        if (musicStream.isRoomPlaylist) {
+          if (index < musicStream.roomPlaylistIndex) {
+            musicStream.roomPlaylistIndex -= 1
+          } else if (
+            index === musicStream.roomPlaylistIndex &&
+            musicStream.roomPlaylistIndex >= this.state.roomPlaylist.length - 1
+          ) {
+            musicStream.roomPlaylistIndex = this.state.roomPlaylist.length - 2
+          }
+
+          if (musicStream.roomPlaylistIndex < 0) {
+            musicStream.roomPlaylistIndex = 0
+          }
+        }
+
+        this.state.roomPlaylist.splice(index, 1)
+      }
+    )
+
+    this.onMessage(Message.SET_VIDEO_BACKGROUND, (client, message: { enabled: boolean }) => {
+      if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
+
+      this.state.musicStream.videoBackgroundEnabled = Boolean(message.enabled)
+    })
+
+    this.onMessage(Message.ROOM_PLAYLIST_SKIP, (client) => {
+      if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
+
+      const musicStream = this.state.musicStream
+      const nextIndex = musicStream.isRoomPlaylist ? musicStream.roomPlaylistIndex + 1 : 0
+
+      if (nextIndex >= this.state.roomPlaylist.length) {
+        musicStream.isRoomPlaylist = true
+        musicStream.roomPlaylistIndex = this.state.roomPlaylist.length
+        musicStream.currentBooth = 0
+        setStoppedMusicStream()
+        this.broadcast(Message.STOP_MUSIC_STREAM, {})
+        return
+      }
+
+      startRoomPlaylistAtIndex(nextIndex)
+    })
+
+    this.onMessage(Message.ROOM_PLAYLIST_PREV, (client) => {
+      if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
+
+      if (this.state.roomPlaylist.length === 0) return
+
+      const musicStream = this.state.musicStream
+      const nextIndex = musicStream.isRoomPlaylist ? musicStream.roomPlaylistIndex - 1 : 0
+
+      startRoomPlaylistAtIndex(Math.max(0, nextIndex))
+    })
+
+    this.onMessage(Message.ROOM_PLAYLIST_PLAY, (client) => {
+      if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
+
+      const musicStream = this.state.musicStream
+      const index = musicStream.isRoomPlaylist ? musicStream.roomPlaylistIndex : 0
+      startRoomPlaylistAtIndex(index)
+    })
 
     // when a player starts playing a song
     this.onMessage(Message.SYNC_MUSIC_STREAM, (client, message: { item?: PlaylistItem }) => {
-  
       console.log('///ON MESSSAGE SYNYC MUSIC STREAM', message?.item)
       console.log('///ON MESSSAGE SYNC USER PLAYLIST QUEUE', message?.item)
 
@@ -65,26 +278,32 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(
       Message.CONNECT_TO_MUSIC_BOOTH,
       (client, message: { musicBoothIndex: number }) => {
-        console.log('////onMessage, CONNECT_TO_USER_BOOth client sesiondId', client.sessionId)
-        console.log(
-          '////onMessage, CONNECT_TO_MUSIC_BOOTH, message.musicBoothIndex',
-          message.musicBoothIndex
-        )
+        const musicBoothIndex = 0
+
         this.dispatcher.dispatch(new MusicBoothConnectUserCommand(), {
           client,
-          musicBoothIndex: message.musicBoothIndex,
+          musicBoothIndex,
         })
 
-        this.state.musicBoothQueue.push(message.musicBoothIndex)
-       
-        console.log('////connectToMusicBooth client', client.sessionId)
-        console.log(
-          '////onMessage, CONNECT_TO_MUSIC_BOOTH, musicStream.status',
-          this.state.musicStream.status
-        )
-        if ((this.state.musicStream.status === 'waiting') || this.state.musicStream.status === 'seeking') {
-          console.log('////MUSIC STREAM NEXT COMMAND INVOKE')
-          this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+        if (
+          this.isPublic &&
+          this.state.musicBooths[musicBoothIndex]?.connectedUser === client.sessionId
+        ) {
+          this.stopAmbientIfNeeded()
+        }
+
+        if (
+          (this.state.musicStream.status === 'waiting' ||
+            this.state.musicStream.status === 'seeking') &&
+          this.state.musicBooths[musicBoothIndex]?.connectedUser === client.sessionId
+        ) {
+          if (this.state.roomPlaylist.length > 0) {
+            const musicStream = this.state.musicStream
+            const index = musicStream.isRoomPlaylist ? musicStream.roomPlaylistIndex : 0
+            startRoomPlaylistAtIndex(index)
+          } else {
+            this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+          }
         }
       }
     )
@@ -93,12 +312,25 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(
       Message.DISCONNECT_FROM_MUSIC_BOOTH,
       (client, message: { musicBoothIndex: number }) => {
+        const musicBoothIndex = 0
         this.dispatcher.dispatch(new MusicBoothDisconnectUserCommand(), {
           client,
-          musicBoothIndex: message.musicBoothIndex,
+          musicBoothIndex,
         })
-        if (this.state.musicStream.currentBooth === message.musicBoothIndex) {
-          this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+
+        if (this.isPublic && !this.state.musicBooths[musicBoothIndex]?.connectedUser) {
+          this.startAmbientIfNeeded()
+          return
+        }
+        if (this.state.musicStream.currentBooth === musicBoothIndex) {
+          if (this.state.musicStream.isRoomPlaylist) {
+            this.state.musicStream.isRoomPlaylist = true
+            this.state.musicStream.roomPlaylistIndex = this.state.musicStream.roomPlaylistIndex ?? 0
+            setStoppedMusicStream()
+            this.broadcast(Message.STOP_MUSIC_STREAM, {})
+          } else {
+            this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+          }
         }
       }
     )
@@ -107,17 +339,28 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(
       Message.UPDATE_PLAYER_ACTION,
       (client, message: { x: number; y: number; anim: string }) => {
+        const sanitizedAnim =
+          this.isPublic && typeof message.anim === 'string'
+            ? (() => {
+                const parts = message.anim.split('_')
+                if (parts.length < 2) return 'adam_idle_down'
+                parts[0] = 'adam'
+                return parts.join('_')
+              })()
+            : message.anim
+
         this.dispatcher.dispatch(new PlayerUpdateActionCommand(), {
           client,
           x: message.x,
           y: message.y,
-          anim: message.anim,
+          anim: sanitizedAnim,
         })
       }
     )
 
     // when receiving updatePlayerName message, call the PlayerUpdateNameCommand
     this.onMessage(Message.UPDATE_PLAYER_NAME, (client, message: { name: string }) => {
+      if (this.isPublic) return
       this.dispatcher.dispatch(new PlayerUpdateNameCommand(), {
         client,
         name: message.name,
@@ -188,26 +431,36 @@ export class SkyOffice extends Room<OfficeState> {
 
   // when a new player joins, send room data
   onJoin(client: Client, options: any) {
-    console.log("////onJoin, client", client)
-    this.state.players.set(client.sessionId, new Player())
+    console.log('////onJoin, client', client)
+
+    const player = new Player()
+
+    if (this.isPublic) {
+      player.name = `mutant-${client.sessionId}`
+      player.anim = 'adam_idle_down'
+    }
+
+    this.state.players.set(client.sessionId, player)
     client.send(Message.SEND_ROOM_DATA, {
       id: this.roomId,
       name: this.name,
       description: this.description,
+      backgroundSeed: this.isPublic ? this.publicBackgroundSeed : null,
     })
-    console.log("////onJoin, Message.SEND_ROOM_DATA")
+    console.log('////onJoin, Message.SEND_ROOM_DATA')
 
+    this.startAmbientIfNeeded()
 
     const musicStream = this.state.musicStream
-    console.log('this state musicStream', musicStream);
+    console.log('this state musicStream', musicStream)
     if (musicStream.status === 'playing') {
       const currentTime: number = Date.now()
       client.send(Message.START_MUSIC_STREAM, {
         musicStream: musicStream,
-        offset: (currentTime - musicStream.startTime) / 1000
+        offset: (currentTime - musicStream.startTime) / 1000,
       })
     }
-    console.log("////onJoin, musicStream.status", musicStream.status)
+    console.log('////onJoin, musicStream.status', musicStream.status)
   }
 
   onLeave(client: Client, consented: boolean) {
@@ -220,6 +473,12 @@ export class SkyOffice extends Room<OfficeState> {
           client,
           musicBoothIndex: index,
         })
+
+        if (this.isPublic) {
+          this.startAmbientIfNeeded()
+          return
+        }
+
         if (this.state.musicStream.currentBooth === index) {
           this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
         }

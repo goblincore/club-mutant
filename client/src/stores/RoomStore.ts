@@ -2,14 +2,10 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { RoomAvailable } from 'colyseus.js'
 import { RoomType } from '../../../types/Rooms'
 
-interface RoomInterface extends RoomAvailable {
-  name?: string
-}
-
 /**
  * Colyseus' real time room list always includes the public lobby so we have to remove it manually.
  */
-const isCustomRoom = (room: RoomInterface) => {
+const isCustomRoom = (room: RoomAvailable) => {
   return room.name === RoomType.CUSTOM
 }
 
@@ -18,9 +14,12 @@ export const roomSlice = createSlice({
   initialState: {
     lobbyJoined: false,
     roomJoined: false,
+    roomType: null as RoomType | null,
     roomId: '',
     roomName: '',
     roomDescription: '',
+    backgroundGif: null as string | null,
+    backgroundSeed: null as number | null,
     availableRooms: new Array<RoomAvailable>(),
   },
   reducers: {
@@ -30,13 +29,24 @@ export const roomSlice = createSlice({
     setRoomJoined: (state, action: PayloadAction<boolean>) => {
       state.roomJoined = action.payload
     },
+    setJoinedRoomType: (state, action: PayloadAction<RoomType | null>) => {
+      state.roomType = action.payload
+    },
     setJoinedRoomData: (
       state,
-      action: PayloadAction<{ id: string; name: string; description: string }>
+      action: PayloadAction<{
+        id: string
+        name: string
+        description: string
+        backgroundGif?: string | null
+        backgroundSeed?: number | null
+      }>
     ) => {
       state.roomId = action.payload.id
       state.roomName = action.payload.name
       state.roomDescription = action.payload.description
+      state.backgroundGif = action.payload.backgroundGif ?? null
+      state.backgroundSeed = action.payload.backgroundSeed ?? null
     },
     setAvailableRooms: (state, action: PayloadAction<RoomAvailable[]>) => {
       state.availableRooms = action.payload.filter((room) => isCustomRoom(room))
@@ -61,6 +71,7 @@ export const roomSlice = createSlice({
 export const {
   setLobbyJoined,
   setRoomJoined,
+  setJoinedRoomType,
   setJoinedRoomData,
   setAvailableRooms,
   addAvailableRooms,
