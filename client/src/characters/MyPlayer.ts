@@ -107,7 +107,7 @@ export default class MyPlayer extends Player {
     keyR: Phaser.Input.Keyboard.Key,
     network: Network,
     dt: number,
-    _unusedKeyT?: Phaser.Input.Keyboard.Key
+    keyT?: Phaser.Input.Keyboard.Key
   ) {
     if (!cursors) return
 
@@ -120,6 +120,45 @@ export default class MyPlayer extends Player {
 
     this.playerContainer.x = this.x
     this.playerContainer.y = this.y
+
+    if (keyT && Phaser.Input.Keyboard.JustDown(keyT)) {
+      const connectedIndex = store.getState().musicBooth.musicBoothIndex
+      const isDj = connectedIndex !== null
+
+      if (this.playerBehavior === PlayerBehavior.IDLE) {
+        if (!isDj && this.playerTexture === 'adam') {
+          this.clearMoveNavigation()
+
+          this.setVelocity(0, 0)
+          body.setVelocity(0, 0)
+          this.playerContainerBody.setVelocity(0, 0)
+
+          const boomboxAnimKey = 'adam_boombox'
+          this.play(boomboxAnimKey, true)
+          this.updatePhysicsBodyForAnim(boomboxAnimKey)
+          network.updatePlayerAction(this.x, this.y, boomboxAnimKey)
+
+          body.setImmovable(true)
+          this.playerBehavior = PlayerBehavior.BOOMBOX
+          return
+        }
+      } else if (this.playerBehavior === PlayerBehavior.BOOMBOX) {
+        this.clearMoveNavigation()
+
+        this.setVelocity(0, 0)
+        body.setVelocity(0, 0)
+        this.playerContainerBody.setVelocity(0, 0)
+
+        const idleAnimKey = `${this.playerTexture}_idle_down`
+        this.play(idleAnimKey, true)
+        this.updatePhysicsBodyForAnim(idleAnimKey)
+        network.updatePlayerAction(this.x, this.y, idleAnimKey)
+
+        body.setImmovable(false)
+        this.playerBehavior = PlayerBehavior.IDLE
+        return
+      }
+    }
 
     switch (this.playerBehavior) {
       case PlayerBehavior.IDLE:
@@ -330,6 +369,16 @@ export default class MyPlayer extends Player {
               break
           }
         }
+
+        if (this.moveTarget) {
+          this.clearMoveNavigation()
+        }
+        break
+
+      case PlayerBehavior.BOOMBOX:
+        this.setVelocity(0, 0)
+        body.setVelocity(0, 0)
+        this.playerContainerBody.setVelocity(0, 0)
 
         if (this.moveTarget) {
           this.clearMoveNavigation()

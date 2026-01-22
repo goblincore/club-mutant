@@ -79,9 +79,9 @@ export default class Bootstrap extends Phaser.Scene {
 
     this.load.atlas('adam', 'assets/character/MutantWalk.png', 'assets/character/MutantWalk.json')
 
-    this.load.spritesheet('adam_boombox', 'assets/character/MutantBoomboxTest.png', {
-      frameWidth: 60,
-      frameHeight: 88,
+    this.load.spritesheet('adam_boombox', 'assets/character/MutantBoomboxTest2.gif', {
+      frameWidth: 72,
+      frameHeight: 105,
     })
 
     this.load.spritesheet('adam_djwip', 'assets/character/djmutant3.gif', {

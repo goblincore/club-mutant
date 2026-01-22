@@ -28,7 +28,10 @@ export default class PlayerSelector extends Phaser.GameObjects.Zone {
     }
 
     // no need to update player selection while sitting
-    if (player.playerBehavior === PlayerBehavior.SITTING) {
+    if (
+      player.playerBehavior === PlayerBehavior.SITTING ||
+      player.playerBehavior === PlayerBehavior.BOOMBOX
+    ) {
       return
     }
 
