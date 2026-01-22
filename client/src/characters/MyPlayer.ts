@@ -19,6 +19,8 @@ export default class MyPlayer extends Player {
   private movePathIndex = 0
   private navLastPos: { x: number; y: number } | null = null
   private navNoProgressMs = 0
+  private moveAnimAxis: 'x' | 'y' | null = null
+  private moveAnimDir: 'left' | 'right' | 'up' | 'down' | null = null
   private djBoothDepth: number | null = null
 
   constructor(
@@ -69,6 +71,8 @@ export default class MyPlayer extends Player {
     this.clearMovePath()
     this.navLastPos = null
     this.navNoProgressMs = 0
+    this.moveAnimAxis = null
+    this.moveAnimDir = null
   }
 
   updateCollisionBody() {
@@ -201,21 +205,31 @@ export default class MyPlayer extends Player {
 
           if (!this.moveTarget) break
 
-          const dx = this.moveTarget.x - this.x
-          const dy = this.moveTarget.y - this.y
+          const arriveDistanceSq = 10 * 10
+          let guard = 0
 
-          const distanceSq = dx * dx + dy * dy
-          if (distanceSq <= 10 * 10) {
-            if (this.movePath && this.movePathIndex < this.movePath.length - 1) {
-              this.movePathIndex += 1
-              this.moveTarget = this.movePath[this.movePathIndex]
-            } else {
+          while (this.moveTarget && guard < 5) {
+            guard += 1
+
+            const dx = this.moveTarget.x - this.x
+            const dy = this.moveTarget.y - this.y
+            const distanceSq = dx * dx + dy * dy
+
+            if (distanceSq <= arriveDistanceSq) {
+              if (this.movePath && this.movePathIndex < this.movePath.length - 1) {
+                this.movePathIndex += 1
+                this.moveTarget = this.movePath[this.movePathIndex]
+                continue
+              }
+
               this.clearMoveNavigation()
+              break
             }
-          } else {
+
             const distance = Math.sqrt(distanceSq)
             vx = (dx / distance) * speed
             vy = (dy / distance) * speed
+            break
           }
         }
 
@@ -233,14 +247,47 @@ export default class MyPlayer extends Player {
           const absVx = Math.abs(vx)
           const absVy = Math.abs(vy)
 
-          const nextAnimKey =
-            absVx >= absVy
-              ? `${this.playerTexture}_${vx >= 0 ? 'run_right' : 'run_left'}`
-              : `${this.playerTexture}_${vy >= 0 ? 'run_down' : 'run_up'}`
+          const shouldLockAxis = Boolean(!hasKeyboardInput && this.moveTarget)
+          const axisSwitchRatio = 0.25
+
+          const suggestedAxis: 'x' | 'y' = absVx >= absVy ? 'x' : 'y'
+
+          let axis = suggestedAxis
+          if (shouldLockAxis) {
+            if (!this.moveAnimAxis) {
+              this.moveAnimAxis = suggestedAxis
+            } else if (this.moveAnimAxis === 'x') {
+              if (absVy > absVx * (1 + axisSwitchRatio)) {
+                this.moveAnimAxis = 'y'
+              }
+            } else {
+              if (absVx > absVy * (1 + axisSwitchRatio)) {
+                this.moveAnimAxis = 'x'
+              }
+            }
+
+            axis = this.moveAnimAxis
+          }
+
+          let dir: 'left' | 'right' | 'up' | 'down'
+          if (axis === 'x') {
+            dir = vx >= 0 ? 'right' : 'left'
+          } else {
+            dir = vy >= 0 ? 'down' : 'up'
+          }
+
+          if (shouldLockAxis) {
+            this.moveAnimDir = dir
+          }
+
+          const nextAnimKey = `${this.playerTexture}_run_${dir}`
 
           this.play(nextAnimKey, true)
           network.updatePlayerAction(this.x, this.y, nextAnimKey)
         } else {
+          this.moveAnimAxis = null
+          this.moveAnimDir = null
+
           const parts = currentAnimKey.split('_')
           parts[1] = 'idle'
           const newAnim = parts.join('_')
