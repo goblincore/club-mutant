@@ -123,6 +123,13 @@ export default class MyPlayer extends Player {
           console.log('////MyPlayer, update, switch, PlayerBehavior.IDLE, JustDown')
           switch (item?.itemType) {
             case ItemType.MUSIC_BOOTH:
+              this.clearMoveNavigation()
+
+              this.setVelocity(0, 0)
+              body.setVelocity(0, 0)
+
+              this.playerContainerBody.setVelocity(0, 0)
+
               const musicBootItem = item as MusicBooth
               musicBootItem.openDialog(network)
               musicBootItem.clearDialogBox()
@@ -245,6 +252,11 @@ export default class MyPlayer extends Player {
         break
 
       case PlayerBehavior.SITTING:
+        this.setVelocity(0, 0)
+        body.setVelocity(0, 0)
+
+        this.playerContainerBody.setVelocity(0, 0)
+
         // back to idle if player press E while sitting
         if (Phaser.Input.Keyboard.JustDown(keyR)) {
           console.log('////MyPlayer, update, switch, PlayerBehavior.SITTING, JustDown')
