@@ -19,6 +19,7 @@ export default defineConfig({
   resolve: {
     alias: {
       types: path.resolve(__dirname, '../types'),
+      '@colyseus/httpie': '@colyseus/httpie/xhr',
     },
   },
 })
