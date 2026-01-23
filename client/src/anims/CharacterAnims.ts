@@ -722,6 +722,17 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
   })
 
   anims.create({
+    key: 'mutant_punch_up_right',
+    frames: anims.generateFrameNames('mutant', {
+      start: 0,
+      end: 10,
+      prefix: 'mut_punch-',
+    }),
+    repeat: 0,
+    frameRate: animsFrameRate,
+  })
+
+  anims.create({
     key: 'mutant_punch_right',
     frames: anims.generateFrameNames('mutant', {
       start: 11,
@@ -757,6 +768,17 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
   anims.create({
     key: 'mutant_punch_down_left',
     frames: anims.generateFrameNames('mutant', {
+      start: 33,
+      end: 43,
+      prefix: 'mut_punch-',
+    }),
+    repeat: 0,
+    frameRate: animsFrameRate,
+  })
+
+  anims.create({
+    key: 'mutant_punch_left',
+    frames: anims.generateFrameNames('mutant', {
       start: 44,
       end: 54,
       prefix: 'mut_punch-',
@@ -766,7 +788,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
   })
 
   anims.create({
-    key: 'mutant_punch_left',
+    key: 'mutant_punch_up_left',
     frames: anims.generateFrameNames('mutant', {
       start: 55,
       end: 65,

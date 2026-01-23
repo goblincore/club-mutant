@@ -27,6 +27,7 @@ export default class MyPlayer extends Player {
 
   private djTransitionTarget: { x: number; y: number } | null = null
   private playingDebugAnim = false
+  private debugAnimKey: string | null = null
 
   private pendingAutoEnterMusicBooth: MusicBooth | null = null
 
@@ -144,6 +145,11 @@ export default class MyPlayer extends Player {
 
     const currentAnimKey = this.anims.currentAnim?.key ?? `${this.playerTexture}_idle_down`
 
+    if (this.playingDebugAnim && this.debugAnimKey && currentAnimKey !== this.debugAnimKey) {
+      this.playingDebugAnim = false
+      this.debugAnimKey = null
+    }
+
     const item = playerSelector.selectedItem
 
     this.playerContainer.x = this.x
@@ -159,43 +165,39 @@ export default class MyPlayer extends Player {
       const animParts = currentAnimKey.split('_')
       const currentDir = animParts.slice(2).join('_') || 'down'
 
-      if (Phaser.Input.Keyboard.JustDown(debugKeys.key1)) {
-        const burnKey = `mutant_burn_${currentDir}`
+      const playDebugAnim = (animKey: string) => {
+        if (!this.scene.anims.exists(animKey)) return
+
         this.playingDebugAnim = true
-        this.play(burnKey, true)
-        network.updatePlayerAction(this.x, this.y, burnKey)
-        this.once(`animationcomplete-${burnKey}`, () => {
-          this.playingDebugAnim = false
+        this.debugAnimKey = animKey
+        this.play(animKey, true)
+        network.updatePlayerAction(this.x, this.y, animKey)
+
+        this.once(`animationcomplete-${animKey}`, () => {
+          if (this.debugAnimKey === animKey) {
+            this.playingDebugAnim = false
+            this.debugAnimKey = null
+          }
+
           const idleKey = `${this.playerTexture}_idle_${currentDir}`
           this.play(idleKey, true)
           network.updatePlayerAction(this.x, this.y, idleKey)
         })
+      }
+
+      if (Phaser.Input.Keyboard.JustDown(debugKeys.key1)) {
+        const burnKey = `mutant_burn_${currentDir}`
+        playDebugAnim(burnKey)
       }
 
       if (Phaser.Input.Keyboard.JustDown(debugKeys.key2)) {
         const flameKey = `mutant_flamethrower_${currentDir}`
-        this.playingDebugAnim = true
-        this.play(flameKey, true)
-        network.updatePlayerAction(this.x, this.y, flameKey)
-        this.once(`animationcomplete-${flameKey}`, () => {
-          this.playingDebugAnim = false
-          const idleKey = `${this.playerTexture}_idle_${currentDir}`
-          this.play(idleKey, true)
-          network.updatePlayerAction(this.x, this.y, idleKey)
-        })
+        playDebugAnim(flameKey)
       }
 
       if (Phaser.Input.Keyboard.JustDown(debugKeys.key3)) {
         const punchKey = `mutant_punch_${currentDir}`
-        this.playingDebugAnim = true
-        this.play(punchKey, true)
-        network.updatePlayerAction(this.x, this.y, punchKey)
-        this.once(`animationcomplete-${punchKey}`, () => {
-          this.playingDebugAnim = false
-          const idleKey = `${this.playerTexture}_idle_${currentDir}`
-          this.play(idleKey, true)
-          network.updatePlayerAction(this.x, this.y, idleKey)
-        })
+        playDebugAnim(punchKey)
       }
     }
 
