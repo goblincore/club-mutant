@@ -385,6 +385,7 @@ def extract_blocks(
     bg_s_max: int,
     alpha_blur: int,
     export_frames: bool,
+    export_frames_flat: bool,
     frames_trim: bool,
     frames_alpha_threshold: int,
     frames_trim_pad: int,
@@ -451,8 +452,11 @@ def extract_blocks(
         )
 
         if export_frames:
-            block_frames_dir = frames_dir / key
-            _ensure_dir(block_frames_dir)
+            if export_frames_flat:
+                block_frames_dir = frames_dir
+            else:
+                block_frames_dir = frames_dir / key
+                _ensure_dir(block_frames_dir)
 
             for row in range(int(rows)):
                 for col in range(int(cols)):
@@ -494,7 +498,10 @@ def extract_blocks(
                             pad=frames_trim_pad,
                         )
 
-                    frame_name = f"r{row:02d}_c{col:02d}.png"
+                    if export_frames_flat:
+                        frame_name = f"{key}_r{row:02d}_c{col:02d}.png"
+                    else:
+                        frame_name = f"r{row:02d}_c{col:02d}.png"
                     cv2.imwrite(str(block_frames_dir / frame_name), frame_out)
 
         blocks.append(
@@ -605,6 +612,11 @@ def main() -> None:
         help="Export individual frame PNGs per detected block (out_dir/frames/<block_key>/rXX_cYY.png)",
     )
     parser.add_argument(
+        "--export-frames-flat",
+        action="store_true",
+        help="Export frames into a single folder with globally unique names (out_dir/frames/block_XXX_rYY_cZZ.png)",
+    )
+    parser.add_argument(
         "--frames-trim",
         action="store_true",
         help="Trim transparent border around each exported frame (requires --transparent-bg)",
@@ -654,6 +666,7 @@ def main() -> None:
         bg_s_max=args.bg_s_max,
         alpha_blur=args.alpha_blur,
         export_frames=bool(args.export_frames),
+        export_frames_flat=bool(args.export_frames_flat),
         frames_trim=bool(args.frames_trim),
         frames_alpha_threshold=int(args.frames_alpha_threshold),
         frames_trim_pad=int(args.frames_trim_pad),
