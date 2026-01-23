@@ -11,6 +11,7 @@ import ChatPanel from './components/ChatPanel'
 import MyPlaylistPanel from './components/MyPlaylistPanel'
 import MuteButton from './components/MuteButton'
 import YoutubePlayer from './components/YoutubePlayer'
+import DjStatusPill from './components/DjStatusPill'
 
 import { RoomType } from '../../types/Rooms'
 
@@ -164,6 +165,7 @@ function App() {
   if (loggedIn) {
     ui = (
       <>
+        <DjStatusPill />
         <ChatPanel />
         <MyPlaylistPanel />
         <MuteButton />

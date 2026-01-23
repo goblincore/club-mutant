@@ -253,6 +253,43 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 
 ## Recent learnings / gotchas (Jan 2026)
 
+### Click-to-move pathfinding
+
+- **Camera zoom breaks `pointer.worldX/Y`**
+  - With camera zoom (e.g. `this.cameras.main.zoom = 1.5`), `pointer.worldX` and `pointer.worldY` give WRONG coordinates.
+  - **Always use `this.cameras.main.getWorldPoint(pointer.x, pointer.y)`** to convert screen coords to world coords.
+  - This affects both click-to-move and hover detection.
+
+- **UI click-through prevention**
+  - React UI overlays on top of the Phaser canvas can receive clicks that also propagate to Phaser.
+  - Fix: In `isPointerOverCanvas()`, check that `event.target === canvas` before allowing movement.
+  - This prevents clicking playlist icons, chat, etc. from moving the character.
+
+- **Pathfinding coordinate flow**
+  - Click screen position → `camera.getWorldPoint()` → world coords
+  - World coords → `map.worldToTileX/Y()` → tile coords
+  - A\* pathfinding on tile grid → tile path
+  - Tile path → `map.tileToWorldX/Y() + tileWidth/2` → world waypoints
+  - Player follows waypoints via `setMovePath()`
+
+- **Arrival threshold matters**
+  - Original 10px threshold caused noticeable "stopping short" of destination.
+  - Reduced to 4px and added snap-to-target on final arrival for precise positioning.
+
+- **Blocked tile expansion**
+  - `buildBlockedGrid()` expands blocked tiles by 1 in all directions to prevent player from hugging walls.
+  - If clicked tile is in the expanded zone, `findNearestOpenTile()` finds the closest walkable tile.
+
+### DJ booth interaction
+
+- **Single-click activation when highlighted**
+  - When a MusicBooth is the `highlightedInteractable` (via hover or keyboard selector), single-click triggers auto-walk + enter.
+  - No double-click needed for highlighted items.
+
+- **Booth approach point**
+  - When auto-entering booth, character paths to `boothBounds.bottom + 8` (just below the desk).
+  - Uses `queueAutoEnterMusicBooth()` to enter DJ mode upon arrival.
+
 - **Booth occupancy must be replayed on join**
   - `Network.onItemUserAdded()` replays any already-occupied `musicBooths[*].connectedUser` when registering the listener.
   - This prevents late joiners from seeing the placeholder desk when the booth is already occupied.
@@ -314,7 +351,6 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 - Implement shared Room Playlist (server-authoritative, remove-own-only)
 - Stabilize legacy music booth/music stream code to prevent server errors during transition
 - Replace random-spawned pathfinding obstacles with Tiled-placed items (chairs/vending) + proper item classes/object layers
-- Pathfinding improvements: diagonal movement + corner-cutting rules + waypoint smoothing
 - Cache walkability grid (and expanded clearance grid) instead of rebuilding each click; recompute only when map/obstacles change
 - Add path debug rendering (waypoints/polyline and optionally blocked tiles overlay) for easier tuning
 - Get client TypeScript build (tsc) passing under Vite (fix nullable Phaser tilemap layer types, etc.)
@@ -330,3 +366,7 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 - Added DJ-synced fullscreen YouTube video background toggle.
 - Synced DJ boombox animation to other players via `updatePlayerAction`.
 - Public lobby: skip login, server-enforced mutant identity, and reliable auto-login in `Game.create()`.
+- Fixed click-to-move pathfinding: use `camera.getWorldPoint()` instead of broken `pointer.worldX/Y` with zoom.
+- Fixed UI click-through: check `event.target === canvas` to prevent movement when clicking UI elements.
+- Changed DJ booth activation to single-click when highlighted (removed double-click requirement).
+- A\* pathfinding now supports 8-directional movement with octile heuristic and no corner-cutting.

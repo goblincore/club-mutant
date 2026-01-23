@@ -3,6 +3,7 @@ import store from '../stores'
 import Item from './Item'
 import Network from '../services/Network'
 import { openMyPlaylistPanel, closeMyPlaylistPanel, setFocused } from '../stores/MyPlaylistStore'
+import { disconnectFromMusicBooth } from '../stores/MusicBoothStore'
 
 export default class MusicBooth extends Item {
   id?: number
@@ -59,6 +60,8 @@ export default class MusicBooth extends Item {
     if (this.id === undefined) return
     store.dispatch(setFocused(false))
     store.dispatch(closeMyPlaylistPanel())
+    store.dispatch(disconnectFromMusicBooth())
+    this.currentUser = null
     network.disconnectFromMusicBooth(this.id)
   }
 }
