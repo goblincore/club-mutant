@@ -136,6 +136,7 @@ export default class MyPlayer extends Player {
       key1: Phaser.Input.Keyboard.Key
       key2: Phaser.Input.Keyboard.Key
       key3: Phaser.Input.Keyboard.Key
+      key4: Phaser.Input.Keyboard.Key
     }
   ) {
     if (!cursors) return
@@ -198,6 +199,11 @@ export default class MyPlayer extends Player {
       if (Phaser.Input.Keyboard.JustDown(debugKeys.key3)) {
         const punchKey = `mutant_punch_${currentDir}`
         playDebugAnim(punchKey)
+      }
+
+      if (Phaser.Input.Keyboard.JustDown(debugKeys.key4)) {
+        const hitKey = `mutant_hit1_${currentDir}`
+        playDebugAnim(hitKey)
       }
     }
 

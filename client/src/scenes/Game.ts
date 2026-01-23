@@ -40,6 +40,7 @@ export default class Game extends Phaser.Scene {
   private key1!: Phaser.Input.Keyboard.Key
   private key2!: Phaser.Input.Keyboard.Key
   private key3!: Phaser.Input.Keyboard.Key
+  private key4!: Phaser.Input.Keyboard.Key
   private map!: Phaser.Tilemaps.Tilemap
   private groundLayer!: Phaser.Tilemaps.TilemapLayer
   private pathObstacles: Array<{ getBounds: () => Phaser.Geom.Rectangle }> = []
@@ -209,6 +210,7 @@ export default class Game extends Phaser.Scene {
     this.key1 = keyboard.addKey('ONE')
     this.key2 = keyboard.addKey('TWO')
     this.key3 = keyboard.addKey('THREE')
+    this.key4 = keyboard.addKey('FOUR')
     keyboard.disableGlobalCapture()
     keyboard.on('keydown-ESC', (event) => {
       store.dispatch(setShowChat(false))
@@ -790,6 +792,7 @@ export default class Game extends Phaser.Scene {
           key1: this.key1,
           key2: this.key2,
           key3: this.key3,
+          key4: this.key4,
         }
       )
     }

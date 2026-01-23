@@ -905,4 +905,92 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
     repeat: 0,
     frameRate: animsFrameRate,
   })
+
+  anims.create({
+    key: 'mutant_hit1_up',
+    frames: anims.generateFrameNames('mutant', {
+      start: 0,
+      end: 5,
+      prefix: 'mut_hit1-',
+    }),
+    repeat: 0,
+    frameRate: animsFrameRate,
+  })
+
+  anims.create({
+    key: 'mutant_hit1_up_right',
+    frames: anims.generateFrameNames('mutant', {
+      start: 0,
+      end: 5,
+      prefix: 'mut_hit1-',
+    }),
+    repeat: 0,
+    frameRate: animsFrameRate,
+  })
+
+  anims.create({
+    key: 'mutant_hit1_right',
+    frames: anims.generateFrameNames('mutant', {
+      start: 6,
+      end: 11,
+      prefix: 'mut_hit1-',
+    }),
+    repeat: 0,
+    frameRate: animsFrameRate,
+  })
+
+  anims.create({
+    key: 'mutant_hit1_down_right',
+    frames: anims.generateFrameNames('mutant', {
+      start: 12,
+      end: 17,
+      prefix: 'mut_hit1-',
+    }),
+    repeat: 0,
+    frameRate: animsFrameRate,
+  })
+
+  anims.create({
+    key: 'mutant_hit1_down',
+    frames: anims.generateFrameNames('mutant', {
+      start: 18,
+      end: 23,
+      prefix: 'mut_hit1-',
+    }),
+    repeat: 0,
+    frameRate: animsFrameRate,
+  })
+
+  anims.create({
+    key: 'mutant_hit1_down_left',
+    frames: anims.generateFrameNames('mutant', {
+      start: 24,
+      end: 29,
+      prefix: 'mut_hit1-',
+    }),
+    repeat: 0,
+    frameRate: animsFrameRate,
+  })
+
+  anims.create({
+    key: 'mutant_hit1_left',
+    frames: anims.generateFrameNames('mutant', {
+      start: 30,
+      end: 35,
+      prefix: 'mut_hit1-',
+    }),
+    repeat: 0,
+    frameRate: animsFrameRate,
+  })
+
+  anims.create({
+    key: 'mutant_hit1_up_left',
+    frames: anims.generateFrameNames('mutant', {
+      start: 30,
+      end: 35,
+      prefix: 'mut_hit1-',
+    }),
+    repeat: 0,
+    frameRate: animsFrameRate,
+  })
 }
