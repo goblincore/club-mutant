@@ -69,6 +69,37 @@ def _sprite_mask(image_bgr: np.ndarray) -> np.ndarray:
     return mask.astype(np.uint8)
 
 
+def _apply_background_transparency(
+    crop_bgr: np.ndarray,
+    bg_v_max: int,
+    bg_s_max: int,
+    alpha_blur: int,
+) -> np.ndarray:
+    hsv = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2HSV)
+    s = hsv[:, :, 1]
+    v = hsv[:, :, 2]
+
+    bg_v_max = int(max(0, min(255, bg_v_max)))
+    bg_s_max = int(max(0, min(255, bg_s_max)))
+
+    background = (v <= bg_v_max) & (s <= bg_s_max)
+    foreground = (~background).astype(np.uint8) * 255
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    foreground = cv2.morphologyEx(foreground, cv2.MORPH_CLOSE, kernel, iterations=1)
+    foreground = cv2.dilate(foreground, kernel, iterations=1)
+
+    alpha_blur = int(max(0, alpha_blur))
+    if alpha_blur > 0:
+        if alpha_blur % 2 == 0:
+            alpha_blur += 1
+        foreground = cv2.GaussianBlur(foreground, (alpha_blur, alpha_blur), 0)
+
+    b, g, r = cv2.split(crop_bgr)
+    rgba = cv2.merge([b, g, r, foreground])
+    return rgba
+
+
 def _connected_components_non_magenta(magenta_mask: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
     non_magenta = (magenta_mask == 0).astype(np.uint8)
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
@@ -221,6 +252,10 @@ def extract_blocks(
     min_sprite_pixels: int,
     grid_kernel: int,
     grid_close_k: int,
+    transparent_bg: bool,
+    bg_v_max: int,
+    bg_s_max: int,
+    alpha_blur: int,
 ) -> tuple[list[BlockInfo], Path]:
     image = _read_image(input_path)
     image_bgr = _bgr(image)
@@ -249,7 +284,19 @@ def extract_blocks(
         file_rel = f"blocks/{filename}"
 
         crop = image[y : y + bh, x : x + bw]
-        cv2.imwrite(str(blocks_dir / filename), crop)
+        crop_bgr = _bgr(crop)
+
+        if transparent_bg:
+            crop_out = _apply_background_transparency(
+                crop_bgr,
+                bg_v_max=bg_v_max,
+                bg_s_max=bg_s_max,
+                alpha_blur=alpha_blur,
+            )
+        else:
+            crop_out = crop
+
+        cv2.imwrite(str(blocks_dir / filename), crop_out)
 
         block_bgr = image_bgr[y : y + bh, x : x + bw]
         rows, cols, frame_w, frame_h, needs_review = _infer_grid(
@@ -313,6 +360,29 @@ def main() -> None:
         default=7,
         help="1D close window size used to stabilize row/col content bands",
     )
+    parser.add_argument(
+        "--transparent-bg",
+        action="store_true",
+        help="Write RGBA PNGs with dark background made transparent",
+    )
+    parser.add_argument(
+        "--bg-v-max",
+        type=int,
+        default=40,
+        help="HSV Value threshold for background pixels (lower = more aggressive transparency)",
+    )
+    parser.add_argument(
+        "--bg-s-max",
+        type=int,
+        default=80,
+        help="HSV Saturation threshold for background pixels (lower = more aggressive transparency)",
+    )
+    parser.add_argument(
+        "--alpha-blur",
+        type=int,
+        default=0,
+        help="Gaussian blur kernel size for alpha feathering (0 disables)",
+    )
 
     args = parser.parse_args()
 
@@ -321,6 +391,8 @@ def main() -> None:
     if args.out_dir is None:
         sheet_name = input_path.stem
         repo_root = Path(__file__).resolve().parents[2]
+        if args.transparent_bg:
+            sheet_name = f"{sheet_name}-transparent"
         out_dir = (repo_root / "conversion" / "out" / sheet_name).resolve()
     else:
         out_dir = Path(args.out_dir).resolve()
@@ -335,6 +407,10 @@ def main() -> None:
         min_sprite_pixels=args.min_sprite_pixels,
         grid_kernel=args.grid_kernel,
         grid_close_k=args.grid_close_k,
+        transparent_bg=bool(args.transparent_bg),
+        bg_v_max=args.bg_v_max,
+        bg_s_max=args.bg_s_max,
+        alpha_blur=args.alpha_blur,
     )
 
     needs_review = sum(1 for b in blocks if b.needsReview)
