@@ -37,6 +37,9 @@ export default class Game extends Phaser.Scene {
   private keyE!: Phaser.Input.Keyboard.Key
   private keyR!: Phaser.Input.Keyboard.Key
   private keyT!: Phaser.Input.Keyboard.Key
+  private key1!: Phaser.Input.Keyboard.Key
+  private key2!: Phaser.Input.Keyboard.Key
+  private key3!: Phaser.Input.Keyboard.Key
   private map!: Phaser.Tilemaps.Tilemap
   private groundLayer!: Phaser.Tilemaps.TilemapLayer
   private pathObstacles: Array<{ getBounds: () => Phaser.Geom.Rectangle }> = []
@@ -203,6 +206,9 @@ export default class Game extends Phaser.Scene {
     this.keyE = keyboard.addKey('E')
     this.keyR = keyboard.addKey('R')
     this.keyT = keyboard.addKey('T')
+    this.key1 = keyboard.addKey('ONE')
+    this.key2 = keyboard.addKey('TWO')
+    this.key3 = keyboard.addKey('THREE')
     keyboard.disableGlobalCapture()
     keyboard.on('keydown-ESC', (event) => {
       store.dispatch(setShowChat(false))
@@ -351,7 +357,7 @@ export default class Game extends Phaser.Scene {
     if (!state.user.loggedIn && state.room.roomType === RoomType.PUBLIC) {
       const generatedName = `mutant-${this.network.mySessionId}`
 
-      this.myPlayer.setPlayerTexture('adam')
+      this.myPlayer.setPlayerTexture('mutant')
       this.myPlayer.setPlayerName(generatedName)
       this.network.readyToConnect()
       store.dispatch(setLoggedIn(true))
@@ -779,7 +785,12 @@ export default class Game extends Phaser.Scene {
         this.keyR,
         this.network,
         dt,
-        this.keyT
+        this.keyT,
+        {
+          key1: this.key1,
+          key2: this.key2,
+          key3: this.key3,
+        }
       )
     }
   }

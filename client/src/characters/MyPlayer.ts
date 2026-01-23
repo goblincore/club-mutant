@@ -129,7 +129,12 @@ export default class MyPlayer extends Player {
     keyR: Phaser.Input.Keyboard.Key,
     network: Network,
     dt: number,
-    keyT?: Phaser.Input.Keyboard.Key
+    keyT?: Phaser.Input.Keyboard.Key,
+    debugKeys?: {
+      key1: Phaser.Input.Keyboard.Key
+      key2: Phaser.Input.Keyboard.Key
+      key3: Phaser.Input.Keyboard.Key
+    }
   ) {
     if (!cursors) return
 
@@ -143,12 +148,56 @@ export default class MyPlayer extends Player {
     this.playerContainer.x = this.x
     this.playerContainer.y = this.y
 
+    // Debug keys for testing burn (1), flamethrower (2), and punch (3) animations
+    if (
+      debugKeys &&
+      this.playerTexture === 'mutant' &&
+      this.playerBehavior === PlayerBehavior.IDLE
+    ) {
+      // Extract current direction from animation key (e.g., "mutant_idle_down" -> "down")
+      const animParts = currentAnimKey.split('_')
+      const currentDir = animParts.slice(2).join('_') || 'down'
+
+      if (Phaser.Input.Keyboard.JustDown(debugKeys.key1)) {
+        const burnKey = `mutant_burn_${currentDir}`
+        this.play(burnKey, true)
+        network.updatePlayerAction(this.x, this.y, burnKey)
+        this.once(`animationcomplete-${burnKey}`, () => {
+          const idleKey = `${this.playerTexture}_idle_${currentDir}`
+          this.play(idleKey, true)
+          network.updatePlayerAction(this.x, this.y, idleKey)
+        })
+      }
+
+      if (Phaser.Input.Keyboard.JustDown(debugKeys.key2)) {
+        const flameKey = `mutant_flamethrower_${currentDir}`
+        this.play(flameKey, true)
+        network.updatePlayerAction(this.x, this.y, flameKey)
+        this.once(`animationcomplete-${flameKey}`, () => {
+          const idleKey = `${this.playerTexture}_idle_${currentDir}`
+          this.play(idleKey, true)
+          network.updatePlayerAction(this.x, this.y, idleKey)
+        })
+      }
+
+      if (Phaser.Input.Keyboard.JustDown(debugKeys.key3)) {
+        const punchKey = `mutant_punch_${currentDir}`
+        this.play(punchKey, true)
+        network.updatePlayerAction(this.x, this.y, punchKey)
+        this.once(`animationcomplete-${punchKey}`, () => {
+          const idleKey = `${this.playerTexture}_idle_${currentDir}`
+          this.play(idleKey, true)
+          network.updatePlayerAction(this.x, this.y, idleKey)
+        })
+      }
+    }
+
     if (keyT && Phaser.Input.Keyboard.JustDown(keyT)) {
       const connectedIndex = store.getState().musicBooth.musicBoothIndex
       const isDj = connectedIndex !== null
 
       if (this.playerBehavior === PlayerBehavior.IDLE) {
-        if (!isDj && this.playerTexture === 'adam') {
+        if (!isDj && (this.playerTexture === 'adam' || this.playerTexture === 'mutant')) {
           this.clearMoveNavigation()
 
           this.setVelocity(0, 0)
@@ -329,37 +378,27 @@ export default class MyPlayer extends Player {
           const absVx = Math.abs(vx)
           const absVy = Math.abs(vy)
 
-          const shouldLockAxis = Boolean(!hasKeyboardInput && this.moveTarget)
-          const axisSwitchRatio = 0.25
+          // 8-direction calculation: up_right, right, down_right, down, down_left, left, up_left
+          // Diagonals trigger when both axes have significant velocity
+          const diagonalThreshold = 0.5
+          const isDiagonal =
+            absVx > 0 &&
+            absVy > 0 &&
+            absVx / absVy > diagonalThreshold &&
+            absVy / absVx > diagonalThreshold
 
-          const suggestedAxis: 'x' | 'y' = absVx >= absVy ? 'x' : 'y'
+          let dir: 'left' | 'right' | 'down' | 'down_left' | 'down_right' | 'up_left' | 'up_right'
 
-          let axis = suggestedAxis
-          if (shouldLockAxis) {
-            if (!this.moveAnimAxis) {
-              this.moveAnimAxis = suggestedAxis
-            } else if (this.moveAnimAxis === 'x') {
-              if (absVy > absVx * (1 + axisSwitchRatio)) {
-                this.moveAnimAxis = 'y'
-              }
+          if (isDiagonal) {
+            if (vy > 0) {
+              dir = vx >= 0 ? 'down_right' : 'down_left'
             } else {
-              if (absVx > absVy * (1 + axisSwitchRatio)) {
-                this.moveAnimAxis = 'x'
-              }
+              dir = vx >= 0 ? 'up_right' : 'up_left'
             }
-
-            axis = this.moveAnimAxis
-          }
-
-          let dir: 'left' | 'right' | 'up' | 'down'
-          if (axis === 'x') {
+          } else if (absVx >= absVy) {
             dir = vx >= 0 ? 'right' : 'left'
           } else {
-            dir = vy >= 0 ? 'down' : 'up'
-          }
-
-          if (shouldLockAxis) {
-            this.moveAnimDir = dir
+            dir = vy >= 0 ? 'down' : 'up_right'
           }
 
           const nextAnimKey = `${this.playerTexture}_run_${dir}`
@@ -522,7 +561,7 @@ export default class MyPlayer extends Player {
     musicBoothItem.setDialogBox('Press R to leave the DJ booth')
     this.musicBoothOnSit = musicBoothItem
     this.djBoothDepth = this.depth
-    if (this.playerTexture === 'adam') {
+    if (this.playerTexture === 'adam' || this.playerTexture === 'mutant') {
       const roomType = store.getState().room.roomType
       const boothAnimKey = roomType === RoomType.PUBLIC ? 'adam_djwip' : 'adam_boombox'
 

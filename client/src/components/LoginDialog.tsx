@@ -186,7 +186,7 @@ export default function LoginDialog() {
 
     const generatedName = `mutant-${sessionId}`
 
-    game.myPlayer.setPlayerTexture('adam')
+    game.myPlayer.setPlayerTexture('mutant')
     game.myPlayer.setPlayerName(generatedName)
     game.network.readyToConnect()
     dispatch(setLoggedIn(true))
