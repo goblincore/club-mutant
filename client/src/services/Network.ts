@@ -327,6 +327,11 @@ export default class Network {
       phaserEvents.emit(Event.STOP_PLAYING_MEDIA)
     })
 
+    this.room.onMessage(Message.PUNCH_PLAYER, (payload: { anim: string }) => {
+      if (!payload || typeof payload.anim !== 'string') return
+      phaserEvents.emit(Event.MY_PLAYER_FORCED_ANIM, payload.anim)
+    })
+
     store.dispatch(setVideoBackgroundEnabled(false))
     store.dispatch(setMusicStream(null))
 
@@ -367,21 +372,7 @@ export default class Network {
     stateCallbacks.musicStream.listen('isAmbient', () => {
       syncMusicStreamFromState()
     })
-
-    // when the server sends room data
-    this.room.onMessage(Message.SYNC_MUSIC_STREAM, (item) => {
-      console.log('SERVER NETWORK SEND ON MESSAGE SYNC MUSIC', item)
-      this.syncMusicStream()
-    })
-
-    // when a user sends a message
-    this.room.onMessage(Message.ADD_CHAT_MESSAGE, ({ clientId, content }) => {
-      phaserEvents.emit(Event.UPDATE_DIALOG_BUBBLE, clientId, content)
-    })
   }
-
-  /* The below are commands that can be accessed and invoked from a component, the above are handlers for when
-  the message type is recieved from the functions below, what to do, eg update store, update in game etc */
 
   // method to register event listener and call back function when a item user added
   onChatMessageAdded(callback: (playerId: string, content: string) => void, context?: any) {
@@ -473,6 +464,10 @@ export default class Network {
     phaserEvents.on(Event.MY_PLAYER_READY, callback, context)
   }
 
+  onMyPlayerForcedAnim(callback: (animKey: string) => void, context?: any) {
+    phaserEvents.on(Event.MY_PLAYER_FORCED_ANIM, callback, context)
+  }
+
   // method to register event listener and call back function when a player updated
   onPlayerUpdated(
     callback: (field: string, value: number | string, key: string) => void,
@@ -485,6 +480,11 @@ export default class Network {
   updatePlayerAction(currentX: number, currentY: number, currentAnim: string) {
     // console.log('Update player action')
     this.room?.send(Message.UPDATE_PLAYER_ACTION, { x: currentX, y: currentY, anim: currentAnim })
+  }
+
+  punchPlayer(targetId: string) {
+    if (!targetId) return
+    this.room?.send(Message.PUNCH_PLAYER, { targetId })
   }
 
   // method to send player name to Colyseus server

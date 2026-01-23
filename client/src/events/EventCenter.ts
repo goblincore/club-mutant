@@ -7,8 +7,9 @@ export enum Event {
   PLAYER_UPDATED = 'player-updated',
   PLAYER_LEFT = 'player-left',
   PLAYER_DISCONNECTED = 'player-disconnected',
-  
+
   MY_PLAYER_READY = 'my-player-ready',
+  MY_PLAYER_FORCED_ANIM = 'my-player-forced-anim',
   MY_PLAYER_NAME_CHANGE = 'my-player-name-change',
   MY_PLAYER_TEXTURE_CHANGE = 'my-player-texture-change',
 

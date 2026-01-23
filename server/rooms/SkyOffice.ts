@@ -352,9 +352,18 @@ export class SkyOffice extends Room<OfficeState> {
         const sanitizedAnim =
           this.isPublic && typeof message.anim === 'string'
             ? (() => {
+                const allowedSpecialAnims = new Set([
+                  'adam_boombox',
+                  'adam_djwip',
+                  'adam_transform',
+                  'adam_transform_reverse',
+                ])
+
+                if (allowedSpecialAnims.has(message.anim)) return message.anim
+
                 const parts = message.anim.split('_')
-                if (parts.length < 2) return 'adam_idle_down'
-                parts[0] = 'adam'
+                if (parts.length < 2) return 'mutant_idle_down'
+                parts[0] = 'mutant'
                 return parts.join('_')
               })()
             : message.anim
@@ -367,6 +376,65 @@ export class SkyOffice extends Room<OfficeState> {
         })
       }
     )
+
+    this.onMessage(Message.PUNCH_PLAYER, (client, message: { targetId: string }) => {
+      if (this.isPublic) return
+
+      const attacker = this.state.players.get(client.sessionId)
+      if (!attacker) return
+
+      const targetId = typeof message.targetId === 'string' ? message.targetId : ''
+      if (!targetId) return
+
+      if (targetId === client.sessionId) return
+
+      const victim = this.state.players.get(targetId)
+      if (!victim) return
+
+      const dx = attacker.x - victim.x
+      const dy = attacker.y - victim.y
+      const distanceSq = dx * dx + dy * dy
+
+      const punchRangePx = 56
+      if (distanceSq > punchRangePx * punchRangePx) return
+
+      const absDx = Math.abs(dx)
+      const absDy = Math.abs(dy)
+
+      const diagonalThreshold = 0.5
+      const isDiagonal =
+        absDx > 0 &&
+        absDy > 0 &&
+        absDx / absDy > diagonalThreshold &&
+        absDy / absDx > diagonalThreshold
+
+      let dir: 'left' | 'right' | 'down' | 'down_left' | 'down_right' | 'up_left' | 'up_right'
+
+      if (isDiagonal) {
+        if (dy > 0) {
+          dir = dx >= 0 ? 'down_right' : 'down_left'
+        } else {
+          dir = dx >= 0 ? 'up_right' : 'up_left'
+        }
+      } else if (absDx >= absDy) {
+        dir = dx >= 0 ? 'right' : 'left'
+      } else {
+        dir = dy >= 0 ? 'down' : 'up_right'
+      }
+
+      const victimTexture =
+        typeof victim.anim === 'string' && victim.anim.includes('_')
+          ? victim.anim.split('_')[0]
+          : ''
+
+      if (victimTexture !== 'mutant') return
+
+      const hitAnimKey = `mutant_hit1_${dir}`
+      victim.anim = hitAnimKey
+
+      const victimClient = this.clients.find((c) => c.sessionId === targetId)
+      victimClient?.send(Message.PUNCH_PLAYER, { anim: hitAnimKey })
+    })
 
     // when receiving updatePlayerName message, call the PlayerUpdateNameCommand
     this.onMessage(Message.UPDATE_PLAYER_NAME, (client, message: { name: string }) => {
@@ -447,7 +515,7 @@ export class SkyOffice extends Room<OfficeState> {
 
     if (this.isPublic) {
       player.name = `mutant-${client.sessionId}`
-      player.anim = 'adam_idle_down'
+      player.anim = 'mutant_idle_down'
     }
 
     this.state.players.set(client.sessionId, player)

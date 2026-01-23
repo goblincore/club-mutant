@@ -54,6 +54,7 @@ export default class Game extends Phaser.Scene {
   private playerSelector!: PlayerSelector
   private otherPlayers!: Phaser.Physics.Arcade.Group
   private otherPlayerMap = new Map<string, OtherPlayer>()
+  private pendingPunchTargetId: string | null = null
   private musicBoothMap = new Map<number, MusicBooth>()
   private myYoutubePlayer?: MyYoutubePlayer
 
@@ -353,7 +354,7 @@ export default class Game extends Phaser.Scene {
     groundLayer.setCollisionByProperty({ collides: true })
     this.groundLayer = groundLayer
 
-    this.myPlayer = this.add.myPlayer(705, 500, 'adam', this.network.mySessionId)
+    this.myPlayer = this.add.myPlayer(705, 500, 'mutant', this.network.mySessionId)
 
     const state = store.getState()
     if (!state.user.loggedIn && state.room.roomType === RoomType.PUBLIC) {
@@ -469,6 +470,7 @@ export default class Game extends Phaser.Scene {
     this.network.onPlayerJoined(this.handlePlayerJoined, this)
     this.network.onPlayerLeft(this.handlePlayerLeft, this)
     this.network.onMyPlayerReady(this.handleMyPlayerReady, this)
+    this.network.onMyPlayerForcedAnim(this.handleMyPlayerForcedAnim, this)
     this.network.onPlayerUpdated(this.handlePlayerUpdated, this)
     this.network.onItemUserAdded(this.handleItemUserAdded, this)
     this.network.onItemUserRemoved(this.handleItemUserRemoved, this)
@@ -525,7 +527,7 @@ export default class Game extends Phaser.Scene {
     const initialTexture =
       typeof newPlayer.anim === 'string' && newPlayer.anim.includes('_')
         ? newPlayer.anim.split('_')[0]
-        : 'adam'
+        : 'mutant'
 
     const otherPlayer = this.add.otherPlayer(
       newPlayer.x,
@@ -536,8 +538,7 @@ export default class Game extends Phaser.Scene {
     )
 
     if (typeof newPlayer.anim === 'string' && newPlayer.anim !== '') {
-      otherPlayer.anims.play(newPlayer.anim, true)
-      otherPlayer.updatePhysicsBodyForAnim(newPlayer.anim)
+      otherPlayer.updateOtherPlayer('anim', newPlayer.anim)
     }
 
     this.otherPlayers.add(otherPlayer)
@@ -562,6 +563,12 @@ export default class Game extends Phaser.Scene {
   private handlePlayerUpdated(field: string, value: number | string, id: string) {
     const otherPlayer = this.otherPlayerMap.get(id)
     otherPlayer?.updateOtherPlayer(field, value)
+  }
+
+  private handleMyPlayerForcedAnim(animKey: string) {
+    if (!this.myPlayer || !this.network) return
+    this.myPlayer.cancelMoveNavigation()
+    this.myPlayer.playActionAnim(animKey, this.network, { syncToServer: false })
   }
 
   private handlePlayersOverlap(myPlayer, otherPlayer) {}
@@ -668,6 +675,26 @@ export default class Game extends Phaser.Scene {
           const x = worldPoint.x
           const y = worldPoint.y
 
+          const clickedOtherPlayer = (() => {
+            let topMost: OtherPlayer | null = null
+            let topDepth = -Infinity
+
+            for (const otherPlayer of this.otherPlayerMap.values()) {
+              if (!otherPlayer.active || !otherPlayer.visible) continue
+              if (!otherPlayer.getBounds().contains(x, y)) continue
+              if (otherPlayer.depth >= topDepth) {
+                topDepth = otherPlayer.depth
+                topMost = otherPlayer
+              }
+            }
+
+            return topMost
+          })()
+
+          if (!clickedOtherPlayer) {
+            this.pendingPunchTargetId = null
+          }
+
           const clickedItem = this.findTopInteractableAt({ x, y })
 
           const moveToWorld = (targetX: number, targetY: number, maxRadius?: number) => {
@@ -756,7 +783,63 @@ export default class Game extends Phaser.Scene {
             return
           }
 
+          if (clickedOtherPlayer) {
+            const approachX = clickedOtherPlayer.x
+            const approachY = clickedOtherPlayer.y + 8
+
+            moveToWorld(approachX, approachY, 12)
+            this.pendingPunchTargetId = clickedOtherPlayer.playerId
+            return
+          }
+
           moveToWorld(x, y)
+        }
+      }
+
+      if (this.pendingPunchTargetId) {
+        const target = this.otherPlayerMap.get(this.pendingPunchTargetId)
+        if (!target) {
+          this.pendingPunchTargetId = null
+        } else {
+          const dx = target.x - this.myPlayer.x
+          const dy = target.y - this.myPlayer.y
+          const distanceSq = dx * dx + dy * dy
+
+          const punchRangePx = 56
+          if (distanceSq <= punchRangePx * punchRangePx) {
+            this.myPlayer.cancelMoveNavigation()
+
+            const absDx = Math.abs(dx)
+            const absDy = Math.abs(dy)
+            const diagonalThreshold = 0.5
+            const isDiagonal =
+              absDx > 0 &&
+              absDy > 0 &&
+              absDx / absDy > diagonalThreshold &&
+              absDy / absDx > diagonalThreshold
+
+            let dir: 'left' | 'right' | 'down' | 'down_left' | 'down_right' | 'up_left' | 'up_right'
+
+            if (isDiagonal) {
+              if (dy > 0) {
+                dir = dx >= 0 ? 'down_right' : 'down_left'
+              } else {
+                dir = dx >= 0 ? 'up_right' : 'up_left'
+              }
+            } else if (absDx >= absDy) {
+              dir = dx >= 0 ? 'right' : 'left'
+            } else {
+              dir = dy >= 0 ? 'down' : 'up_right'
+            }
+
+            if (this.myPlayer.playerTexture === 'mutant') {
+              const punchAnimKey = `mutant_punch_${dir}`
+              this.myPlayer.playActionAnim(punchAnimKey, this.network)
+            }
+
+            this.network.punchPlayer(target.playerId)
+            this.pendingPunchTargetId = null
+          }
         }
       }
 

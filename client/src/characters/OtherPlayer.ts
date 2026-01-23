@@ -50,7 +50,41 @@ export default class OtherPlayer extends Player {
 
       case 'anim':
         if (typeof value === 'string') {
-          this.anims.play(value, true)
+          const requestedKey = value
+
+          const requestedParts = requestedKey.split('_')
+          const requestedTexture = requestedParts[0]
+
+          if (
+            requestedTexture &&
+            requestedTexture !== this.playerTexture &&
+            this.scene.textures.exists(requestedTexture)
+          ) {
+            this.playerTexture = requestedTexture
+            this.setTexture(requestedTexture)
+          }
+
+          if (this.scene.anims.exists(requestedKey)) {
+            this.anims.play(requestedKey, true)
+            this.updatePhysicsBodyForAnim(requestedKey)
+            return
+          }
+
+          const requestedDir =
+            requestedParts.length >= 3 ? requestedParts.slice(2).join('_') : 'down'
+
+          const fallbackCandidates = [
+            `${this.playerTexture}_idle_${requestedDir}`,
+            `${this.playerTexture}_walk_${requestedDir}`,
+            `${this.playerTexture}_idle_down`,
+          ]
+
+          const fallbackKey = fallbackCandidates.find((k) => this.scene.anims.exists(k))
+
+          if (fallbackKey) {
+            this.anims.play(fallbackKey, true)
+            this.updatePhysicsBodyForAnim(fallbackKey)
+          }
         }
         break
 

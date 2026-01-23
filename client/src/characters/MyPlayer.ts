@@ -29,6 +29,9 @@ export default class MyPlayer extends Player {
   private playingDebugAnim = false
   private debugAnimKey: string | null = null
 
+  private playingActionAnim = false
+  private actionAnimKey: string | null = null
+
   private pendingAutoEnterMusicBooth: MusicBooth | null = null
 
   private pendingAutoEnterTarget: { x: number; y: number } | null = null
@@ -74,6 +77,50 @@ export default class MyPlayer extends Player {
   clearMovePath() {
     this.movePath = null
     this.movePathIndex = 0
+  }
+
+  cancelMoveNavigation() {
+    this.cancelPendingAutoEnterMusicBooth()
+    this.clearMoveNavigation()
+  }
+
+  playActionAnim(animKey: string, network: Network, options?: { syncToServer?: boolean }) {
+    if (!this.scene.anims.exists(animKey)) return
+
+    const syncToServer = options?.syncToServer !== false
+
+    const parts = animKey.split('_')
+    const dir = parts.slice(2).join('_')
+    const currentDir = dir || 'down'
+
+    this.playingActionAnim = true
+    this.actionAnimKey = animKey
+
+    this.play(animKey, true)
+    this.updatePhysicsBodyForAnim(animKey)
+
+    if (syncToServer) {
+      network.updatePlayerAction(this.x, this.y, animKey)
+    }
+
+    this.once(`animationcomplete-${animKey}`, () => {
+      if (this.actionAnimKey === animKey) {
+        this.playingActionAnim = false
+        this.actionAnimKey = null
+      }
+
+      const idleKeyCandidate = `${this.playerTexture}_idle_${currentDir}`
+      const idleKey = this.scene.anims.exists(idleKeyCandidate)
+        ? idleKeyCandidate
+        : `${this.playerTexture}_idle_down`
+
+      this.play(idleKey, true)
+      this.updatePhysicsBodyForAnim(idleKey)
+
+      if (syncToServer) {
+        network.updatePlayerAction(this.x, this.y, idleKey)
+      }
+    })
   }
 
   requestLeaveMusicBooth() {
@@ -149,6 +196,11 @@ export default class MyPlayer extends Player {
     if (this.playingDebugAnim && this.debugAnimKey && currentAnimKey !== this.debugAnimKey) {
       this.playingDebugAnim = false
       this.debugAnimKey = null
+    }
+
+    if (this.playingActionAnim && this.actionAnimKey && currentAnimKey !== this.actionAnimKey) {
+      this.playingActionAnim = false
+      this.actionAnimKey = null
     }
 
     const item = playerSelector.selectedItem
@@ -428,8 +480,8 @@ export default class MyPlayer extends Player {
           parts[1] = 'idle'
           const newAnim = parts.join('_')
           // this prevents idle animation keeps getting called
-          // also skip if a debug animation is playing
-          if (currentAnimKey !== newAnim && !this.playingDebugAnim) {
+          // also skip if a one-shot animation is playing
+          if (currentAnimKey !== newAnim && !this.playingDebugAnim && !this.playingActionAnim) {
             this.play(parts.join('_'), true)
             // send new location and anim to server
             network.updatePlayerAction(this.x, this.y, newAnim)
