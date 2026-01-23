@@ -26,6 +26,7 @@ const Backdrop = styled.div`
   flex-direction: column;
   gap: 60px;
   align-items: center;
+  pointer-events: auto;
 `
 
 const Wrapper = styled.div`

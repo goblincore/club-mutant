@@ -41,7 +41,13 @@ export default class Game extends Phaser.Scene {
   private groundLayer!: Phaser.Tilemaps.TilemapLayer
   private pathObstacles: Array<{ getBounds: () => Phaser.Geom.Rectangle }> = []
   private lastPointerDownTime = 0
-  private pendingMoveClick: { downTime: number; x: number; y: number } | null = null
+  private pendingMoveClick: { downTime: number; x: number; y: number; item: Item | null } | null =
+    null
+  private interactables: Item[] = []
+  private hoveredInteractable: Item | null = null
+  private selectorInteractable: Item | null = null
+  private highlightedInteractable: Item | null = null
+  private hoverGlowFx = new WeakMap<Item, Phaser.FX.Glow>()
   myPlayer!: MyPlayer
   private playerSelector!: PlayerSelector
   private otherPlayers!: Phaser.Physics.Arcade.Group
@@ -51,6 +57,24 @@ export default class Game extends Phaser.Scene {
 
   constructor() {
     super('game')
+  }
+
+  private findTopInteractableAt(worldPoint: { x: number; y: number }): Item | null {
+    let topMost: Item | null = null
+    let topDepth = -Infinity
+
+    for (const item of this.interactables) {
+      if (!item.active || !item.visible) continue
+
+      if (!item.getBounds().contains(worldPoint.x, worldPoint.y)) continue
+
+      if (item.depth >= topDepth) {
+        topDepth = item.depth
+        topMost = item
+      }
+    }
+
+    return topMost
   }
 
   private isPointerOverCanvas(pointer: Phaser.Input.Pointer): boolean {
@@ -91,6 +115,75 @@ export default class Game extends Phaser.Scene {
   }
 
   preload() {}
+
+  private clearHoverHighlight(item: Item) {
+    const glow = this.hoverGlowFx.get(item)
+    if (glow && item.postFX) {
+      item.postFX.remove(glow)
+      this.hoverGlowFx.delete(item)
+    }
+
+    item.clearTint()
+  }
+
+  private applyHoverHighlight(item: Item) {
+    const shouldUseFx = this.game.renderer.type === Phaser.WEBGL
+    if (shouldUseFx && item.postFX && !this.hoverGlowFx.has(item)) {
+      item.postFX.setPadding(12)
+      const glow = item.postFX.addGlow(0xffffff, 3, 0, false, 0.2, 12)
+      this.hoverGlowFx.set(item, glow)
+      return
+    }
+
+    item.setTint(0xf2f2f2)
+  }
+
+  private updateHighlightedInteractable() {
+    const next = this.hoveredInteractable ?? this.selectorInteractable
+
+    if (this.highlightedInteractable === next) return
+
+    if (this.highlightedInteractable) {
+      this.clearHoverHighlight(this.highlightedInteractable)
+    }
+
+    this.highlightedInteractable = next
+
+    if (next) {
+      this.applyHoverHighlight(next)
+    }
+  }
+
+  private setHoveredInteractable(next: Item | null) {
+    if (this.hoveredInteractable === next) return
+
+    this.hoveredInteractable = next
+    this.updateHighlightedInteractable()
+  }
+
+  private setSelectorInteractable(next: Item | null) {
+    if (this.selectorInteractable === next) return
+
+    this.selectorInteractable = next
+    this.updateHighlightedInteractable()
+  }
+
+  private handlePointerMove(pointer: Phaser.Input.Pointer) {
+    if (!this.isPointerOverCanvas(pointer)) {
+      this.setHoveredInteractable(null)
+      return
+    }
+
+    const event = pointer.event
+    if (event && 'target' in event && event.target && event.target !== this.game.canvas) {
+      this.setHoveredInteractable(null)
+      return
+    }
+
+    const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+
+    this.setHoveredInteractable(this.findTopInteractableAt(worldPoint))
+  }
 
   registerKeys() {
     const keyboard = this.input.keyboard
@@ -188,12 +281,15 @@ export default class Game extends Phaser.Scene {
     x: number
 
     y: number
+
+    maxRadius?: number
   }): { x: number; y: number } | null {
-    const { width, height, blocked, x, y } = params
+    const { width, height, blocked, x, y, maxRadius = 12 } = params
 
     const inBounds = (tx: number, ty: number) => tx >= 0 && tx < width && ty >= 0 && ty < height
 
-    const maxRadius = 12
+    let best: { x: number; y: number } | null = null
+    let bestDistSq = Number.POSITIVE_INFINITY
 
     for (let r = 0; r <= maxRadius; r += 1) {
       for (let dy = -r; dy <= r; dy += 1) {
@@ -203,10 +299,16 @@ export default class Game extends Phaser.Scene {
           if (!inBounds(tx, ty)) continue
 
           if (blocked[ty * width + tx] === 0) {
-            return { x: tx, y: ty }
+            const distSq = dx * dx + dy * dy
+            if (distSq < bestDistSq) {
+              bestDistSq = distSq
+              best = { x: tx, y: ty }
+            }
           }
         }
       }
+
+      if (best) return best
     }
 
     return null
@@ -252,6 +354,8 @@ export default class Game extends Phaser.Scene {
 
     this.playerSelector = new PlayerSelector(this, 0, 0, 16, 16)
 
+    this.input.on('pointermove', this.handlePointerMove, this)
+
     // import music booth objects from Tiled map to Phaser
     const musicBooths = this.physics.add.staticGroup({ classType: MusicBooth })
     const musicBoothLayer = this.map.getObjectLayer('MusicBooth')
@@ -270,6 +374,8 @@ export default class Game extends Phaser.Scene {
       item.id = index
       item.itemDirection = 'up'
       this.musicBoothMap.set(index, item)
+
+      this.interactables.push(item)
     })
 
     this.otherPlayers = this.physics.add.group({ classType: OtherPlayer })
@@ -373,6 +479,8 @@ export default class Game extends Phaser.Scene {
     // set selected item and set up new dialog
     playerSelector.selectedItem = selectionItem
     selectionItem.onOverlapDialog()
+
+    this.setSelectorInteractable(selectionItem)
   }
 
   private addObjectFromTiled(
@@ -532,83 +640,175 @@ export default class Game extends Phaser.Scene {
         this.lastPointerDownTime = pointer.downTime
 
         const state = store.getState()
-        if (
+
+        const canMove =
           !state.chat.focused &&
           !state.myPlaylist.focused &&
           !state.myPlaylist.myPlaylistPanelOpen &&
           this.myPlayer.playerBehavior === PlayerBehavior.IDLE &&
           !pointer.rightButtonDown() &&
           this.isPointerOverCanvas(pointer)
-        ) {
+
+        if (!canMove) {
+          this.pendingMoveClick = null
+        } else {
           const downTime = pointer.downTime
-          const x = pointer.worldX
-          const y = pointer.worldY
+          const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+          const x = worldPoint.x
+          const y = worldPoint.y
+
+          const clickedItem = this.findTopInteractableAt({ x, y })
+
+          const moveToWorld = (targetX: number, targetY: number, maxRadius?: number) => {
+            const startX = this.map.worldToTileX(this.myPlayer.x)
+            const startY = this.map.worldToTileY(this.myPlayer.y)
+            const goalX = this.map.worldToTileX(targetX)
+            const goalY = this.map.worldToTileY(targetY)
+
+            const camWorld = this.cameras.main.getWorldPoint(
+              this.input.activePointer.x,
+              this.input.activePointer.y
+            )
+            console.log('[PATHFIND] pointer.world:', { targetX, targetY })
+            console.log('[PATHFIND] camera.getWorldPoint:', { x: camWorld.x, y: camWorld.y })
+            console.log('[PATHFIND] click tile:', { goalX, goalY })
+            console.log('[PATHFIND] player tile:', { startX, startY })
+
+            if (startX === null || startY === null || goalX === null || goalY === null) {
+              console.log('[PATHFIND] null tile coords, falling back to direct move')
+              this.myPlayer.setMoveTarget(targetX, targetY)
+              return { x: targetX, y: targetY }
+            }
+
+            const { width, height, blocked } = this.buildBlockedGrid()
+
+            const isStartBlocked = blocked[startY * width + startX] === 1
+            const isGoalBlocked = blocked[goalY * width + goalX] === 1
+            console.log('[PATHFIND] blocked status:', { isStartBlocked, isGoalBlocked })
+
+            const startOpen = !isStartBlocked
+              ? { x: startX, y: startY }
+              : this.findNearestOpenTile({ width, height, blocked, x: startX, y: startY })
+
+            const goalOpen = !isGoalBlocked
+              ? { x: goalX, y: goalY }
+              : this.findNearestOpenTile({
+                  width,
+                  height,
+                  blocked,
+                  x: goalX,
+                  y: goalY,
+                  maxRadius,
+                })
+
+            console.log('[PATHFIND] resolved tiles:', { startOpen, goalOpen })
+
+            if (!startOpen || !goalOpen) {
+              this.myPlayer.setMoveTarget(targetX, targetY)
+              return { x: targetX, y: targetY }
+            }
+
+            const tilePath = findPathAStar({
+              width,
+              height,
+              blocked,
+              start: startOpen,
+              goal: goalOpen,
+            })
+
+            console.log('[PATHFIND] A* result:', tilePath ? `${tilePath.length} tiles` : 'null')
+            if (tilePath) {
+              console.log(
+                '[PATHFIND] path:',
+                tilePath.slice(0, 5),
+                tilePath.length > 5 ? '...' : ''
+              )
+            }
+
+            const tileWidth = this.map.tileWidth || 32
+            const tileHeight = this.map.tileHeight || 32
+
+            const goalWorld = {
+              x: (this.map.tileToWorldX(goalOpen.x) ?? 0) + tileWidth * 0.5,
+              y: (this.map.tileToWorldY(goalOpen.y) ?? 0) + tileHeight * 0.5,
+            }
+
+            console.log('[PATHFIND] goalWorld:', goalWorld)
+
+            if (tilePath && tilePath.length > 0) {
+              const waypoints = tilePath.slice(1).map((p) => ({
+                x: (this.map.tileToWorldX(p.x) ?? 0) + tileWidth * 0.5,
+                y: (this.map.tileToWorldY(p.y) ?? 0) + tileHeight * 0.5,
+              }))
+
+              if (waypoints.length === 0) {
+                this.myPlayer.setMoveTarget(goalWorld.x, goalWorld.y)
+              } else {
+                this.myPlayer.setMovePath(waypoints)
+              }
+            } else {
+              this.myPlayer.setMoveTarget(goalWorld.x, goalWorld.y)
+            }
+
+            return goalWorld
+          }
 
           if (this.pendingMoveClick) {
             const timeDelta = downTime - this.pendingMoveClick.downTime
+            const withinTime = timeDelta > 0 && timeDelta <= 300
+
             const dx = x - this.pendingMoveClick.x
             const dy = y - this.pendingMoveClick.y
             const distanceSq = dx * dx + dy * dy
 
-            if (timeDelta > 0 && timeDelta <= 300 && distanceSq <= 24 * 24) {
+            const pendingItem = this.pendingMoveClick.item
+            const pendingBooth = pendingItem instanceof MusicBooth ? pendingItem : null
+            const clickedBooth = clickedItem instanceof MusicBooth ? clickedItem : null
+            const boothCandidate = pendingBooth ?? clickedBooth
+
+            let isBoothDoubleClick = false
+            if (withinTime && boothCandidate && pendingBooth && boothCandidate === pendingBooth) {
+              const bounds = boothCandidate.getBounds()
+              const boothPadding = 64
+
+              const hit = (px: number, py: number) =>
+                px >= bounds.left - boothPadding &&
+                px <= bounds.right + boothPadding &&
+                py >= bounds.top - boothPadding &&
+                py <= bounds.bottom + boothPadding
+
+              const hitFirst = hit(this.pendingMoveClick.x, this.pendingMoveClick.y)
+              const hitSecond = hit(x, y)
+              const secondCloseToFirst = distanceSq <= 120 * 120
+
+              isBoothDoubleClick = hitFirst && (hitSecond || secondCloseToFirst)
+            }
+
+            if (withinTime && (isBoothDoubleClick || distanceSq <= 24 * 24)) {
               this.pendingMoveClick = null
 
-              const startX = this.map.worldToTileX(this.myPlayer.x)
-              const startY = this.map.worldToTileY(this.myPlayer.y)
-              const goalX = this.map.worldToTileX(x)
-              const goalY = this.map.worldToTileY(y)
+              if (isBoothDoubleClick && boothCandidate && boothCandidate.currentUser === null) {
+                const boothBounds = boothCandidate.getBounds()
+                const approachX = boothBounds.centerX
+                const approachY = boothBounds.bottom + 8
 
-              if (startX === null || startY === null || goalX === null || goalY === null) {
-                this.myPlayer.setMoveTarget(x, y)
+                const standTarget = moveToWorld(approachX, approachY, 12)
+                this.myPlayer.queueAutoEnterMusicBooth(boothCandidate, standTarget)
                 return
               }
 
-              const { width, height, blocked } = this.buildBlockedGrid()
-
-              const startOpen =
-                blocked[startY * width + startX] === 0
-                  ? { x: startX, y: startY }
-                  : this.findNearestOpenTile({ width, height, blocked, x: startX, y: startY })
-
-              const goalOpen =
-                blocked[goalY * width + goalX] === 0
-                  ? { x: goalX, y: goalY }
-                  : this.findNearestOpenTile({ width, height, blocked, x: goalX, y: goalY })
-
-              if (!startOpen || !goalOpen) {
-                this.myPlayer.setMoveTarget(x, y)
-                return
-              }
-
-              const tilePath = findPathAStar({
-                width,
-                height,
-                blocked,
-                start: startOpen,
-                goal: goalOpen,
-              })
-
-              if (tilePath && tilePath.length > 0) {
-                const tileWidth = this.map.tileWidth || 32
-                const tileHeight = this.map.tileHeight || 32
-
-                const waypoints = tilePath.slice(1).map((p) => ({
-                  x: (this.map.tileToWorldX(p.x) ?? 0) + tileWidth * 0.5,
-                  y: (this.map.tileToWorldY(p.y) ?? 0) + tileHeight * 0.5,
-                }))
-
-                this.myPlayer.setMovePath(waypoints)
-              } else {
-                this.myPlayer.setMoveTarget(x, y)
-              }
-            } else {
-              this.pendingMoveClick = { downTime, x, y }
+              moveToWorld(x, y)
+              return
             }
-          } else {
-            this.pendingMoveClick = { downTime, x, y }
+
+            this.pendingMoveClick = { downTime, x, y, item: clickedItem }
+            moveToWorld(x, y)
+            return
           }
-        } else {
-          this.pendingMoveClick = null
+
+          this.pendingMoveClick = { downTime, x, y, item: clickedItem }
+          moveToWorld(x, y)
+          return
         }
       }
 
@@ -618,6 +818,14 @@ export default class Game extends Phaser.Scene {
         left: this.keyA,
         right: this.keyD,
       })
+
+      if (
+        this.myPlayer.playerBehavior !== PlayerBehavior.IDLE ||
+        !this.playerSelector.selectedItem
+      ) {
+        this.setSelectorInteractable(null)
+      }
+
       this.myPlayer.update(
         this.playerSelector,
         this.cursors,
