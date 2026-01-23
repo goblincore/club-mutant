@@ -42,7 +42,6 @@ export default class MyPlayer extends Player {
   }
 
   setMoveTarget(x: number, y: number) {
-    console.log('[MOVE] setMoveTarget:', { x, y })
     this.movePath = null
     this.movePathIndex = 0
     this.moveTarget = { x, y }
@@ -51,14 +50,6 @@ export default class MyPlayer extends Player {
   }
 
   setMovePath(path: Array<{ x: number; y: number }>) {
-    console.log(
-      '[MOVE] setMovePath:',
-      path.length,
-      'waypoints, first:',
-      path[0],
-      'last:',
-      path[path.length - 1]
-    )
     this.movePath = path
     this.movePathIndex = 0
 
@@ -87,16 +78,11 @@ export default class MyPlayer extends Player {
   }
 
   private cancelPendingAutoEnterMusicBooth() {
-    console.log('[MOVE] cancelPendingAutoEnterMusicBooth called, current pos:', {
-      x: this.x,
-      y: this.y,
-    })
     this.pendingAutoEnterMusicBooth = null
     this.pendingAutoEnterTarget = null
   }
 
   private clearMoveNavigation() {
-    console.log('[MOVE] clearMoveNavigation called, current pos:', { x: this.x, y: this.y })
     this.clearMoveTarget()
     this.clearMovePath()
     this.navLastPos = null
