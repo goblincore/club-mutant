@@ -183,6 +183,71 @@ There are two parallel playback modes:
 - If you change a player animation locally and want others to see it, you must update `player.anim` via `Network.updatePlayerAction(...)`.
 - For shared state, prefer adding explicit fields to the server schema + shared interfaces in `types/` and use those on the client.
 
+## Spritesheet extraction / atlas workflow (Mutant / `adam`)
+
+The preferred pipeline for new character animations is **texture atlas** (TexturePacker).
+
+- Source images live under `conversion/base/`.
+- Extraction script: `conversion/scripts/extract_anim_blocks.py`
+- Notes/how-to: `docs/spritesheet-extraction.md`
+
+### Output structure
+
+The extractor writes an output folder containing:
+
+- `manifest.json`: detected blocks and inferred grid metadata
+- `blocks/`: per-block crops
+- `labels/`: per-block label crops (for mapping)
+- `frames/`: individual frame PNGs suitable for atlas packing
+
+### Label-based mapping (no manual guessing)
+
+The original boxed spritesheet includes left-aligned labels under each block. The script can:
+
+- Export the label crops:
+  - `--export-labels`
+- Generate a starter mapping file:
+  - `--write-frames-map <path>`
+  - Produces per-block entries including `labelFile` for quick manual mapping.
+
+OCR is optional:
+
+- `--label-ocr` uses `tesseract` if present on the system.
+
+### Exporting atlas-friendly frames
+
+Key options:
+
+- `--export-frames`: export individual frame PNGs
+- `--export-frames-flat`: export into a single folder with globally-unique names (recommended for TexturePacker)
+- `--frames-trim`: trim transparent borders from each frame
+- `--frames-trim-pad <n>`: add a small pad after trimming
+- `--frames-map <path>`: provide a mapping file to name blocks into animation buckets
+- `--frames-map-strict`: fail if a block has no mapping entry
+
+Mapping file convention:
+
+- Blocks are named `block_XXX` and mapped to an animation `name` (e.g. `idle`, `walk`, `punch`, etc.).
+- Directions are a per-row list (defaults used in prior work):
+  - `up_right`, `right`, `down_right`, `down_left`, `left`, `up_left`
+
+The goal is exported frame names like:
+
+- `idle_up_right_000.png`
+- `walk_left_009.png`
+
+These are then packed into a single atlas with offsets (TexturePacker “trim + offsets” workflow).
+
+### Guide modes (magenta lines)
+
+Block detection relies on magenta guide lines:
+
+- `--guide-mode closed` (default): works well when guides form closed rectangles
+- `--guide-mode open`: intended for sheets where only bottom + right vertical lines exist (left may be shared)
+- `--guide-mode auto`: attempts `closed` first, falls back to `open`
+
+Open-guide support is still experimental; if blocks look mis-cropped, it likely needs further tuning.
+
 ## Recent noteworthy commits (Jan 2026)
 
 - Added DJ boombox spritesheet + animation + slowed playback.

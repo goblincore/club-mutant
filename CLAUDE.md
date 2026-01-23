@@ -345,6 +345,51 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 - If you change a player animation locally and want others to see it, you must update `player.anim` via `Network.updatePlayerAction(...)`.
 - For shared state, prefer adding explicit fields to the server schema + shared interfaces in `types/` and use those on the client.
 
+## Spritesheet extraction / atlas workflow (Mutant / `adam`)
+
+Preferred pipeline is **TexturePacker atlas** rather than loading many individual spritesheets.
+
+### Inputs and script
+
+- Source sheets: `conversion/base/*`
+- Extractor: `conversion/scripts/extract_anim_blocks.py`
+- Usage notes: `docs/spritesheet-extraction.md`
+
+### Mapping blocks to animations
+
+The extractor can export per-block label crops and auto-generate a starter map:
+
+- `--export-labels`
+- `--write-frames-map <path>`
+
+This produces:
+
+- `labels/block_XXX.png` (cropped label text)
+- `frames-map.json` with `blocks.block_XXX.labelFile` entries
+
+OCR is optional:
+
+- `--label-ocr` will only work if `tesseract` is installed.
+
+### Exporting frames for atlas packing
+
+Core flags:
+
+- `--export-frames`
+- `--export-frames-flat` (recommended)
+- `--frames-trim` and `--frames-trim-pad`
+- `--frames-map <path>` and `--frames-map-strict`
+
+Goal is filenames like `idle_up_right_000.png` that can be packed into one atlas.
+
+### Magenta guide interpretation
+
+- `--guide-mode closed` (default): expects closed rectangles around blocks.
+- `--guide-mode open`: intended for sheets where only bottom + right vertical guides exist (left can be shared).
+- `--guide-mode auto`: tries closed, then falls back.
+
+Open guide-mode is still under active development; if blocks are mis-cropped, expect further tuning.
+
 ## Current tasks
 
 - Fix dev duplication: prevent multiple Phaser/Network instances (multiple connects / duplicated chat) under Vite HMR/refresh

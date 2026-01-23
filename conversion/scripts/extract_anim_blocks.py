@@ -252,146 +252,111 @@ def _filter_candidate_boxes_open_guides(
 ) -> list[tuple[int, int, int, int]]:
     h, w = image_bgr.shape[:2]
     shrink_px = int(max(0, shrink_px))
-
     open_v_len = int(max(8, open_v_len))
-    open_group_y_tol = int(max(1, open_group_y_tol))
+    y_tol = int(max(15, open_group_y_tol))
 
-    # The open-guide sheet uses bottom horizontal magenta lines and right-side vertical magenta lines.
-    # Those lines may be discontinuous, so we use 1D closing to bridge small gaps.
     mag = (magenta_mask > 0).astype(np.uint8)
-
     sprite_mask = _sprite_mask(image_bgr)
 
-    def close_1d(arr: np.ndarray, k: int, vertical: bool) -> np.ndarray:
-        k = int(max(1, k))
-        if vertical:
-            ker = cv2.getStructuringElement(cv2.MORPH_RECT, (1, k))
-        else:
-            ker = cv2.getStructuringElement(cv2.MORPH_RECT, (k, 1))
-        out = cv2.morphologyEx(arr, cv2.MORPH_CLOSE, ker, iterations=1)
-        return out
+    # Detect horizontal bottom line segments.
+    h_close_k = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 1))
+    h_close = cv2.morphologyEx(mag, cv2.MORPH_CLOSE, h_close_k, iterations=1)
+    h_open_k = cv2.getStructuringElement(cv2.MORPH_RECT, (30, 1))
+    h_lines = cv2.morphologyEx(h_close, cv2.MORPH_OPEN, h_open_k, iterations=1)
 
-    # Detect horizontal bottom-line candidates.
-    # We find rows with long magenta runs after closing.
-    h_close = close_1d(mag, k=21, vertical=False)
-    row_counts = np.sum(h_close > 0, axis=1)
+    num_h, _, h_stats, _ = cv2.connectedComponentsWithStats(h_lines, connectivity=8)
 
-    # Keep rows that have enough magenta pixels to represent a bottom line.
-    # Threshold is relative to image width (lines are long).
-    row_thr = max(60, int(w * 0.10))
-    candidate_rows = np.where(row_counts >= row_thr)[0].tolist()
-
-    if not candidate_rows:
-        return []
-
-    # Group candidate rows by y (line thickness / jitter).
-    candidate_rows.sort()
-    row_groups: list[list[int]] = []
-    for y in candidate_rows:
-        if not row_groups or abs(int(y) - int(row_groups[-1][-1])) > open_group_y_tol:
-            row_groups.append([int(y)])
-        else:
-            row_groups[-1].append(int(y))
-
-    bottom_lines: list[int] = [int(round(np.median(g))) for g in row_groups]
-
-    # Detect vertical boundary columns by scanning columns for long magenta runs after closing.
-    v_close = close_1d(mag, k=15, vertical=True)
-    col_counts = np.sum(v_close > 0, axis=0)
-
-    # Candidate boundary columns must have a lot of magenta pixels.
-    col_thr = max(30, int(h * 0.02))
-    candidate_cols = np.where(col_counts >= col_thr)[0].tolist()
-    candidate_cols.sort()
-
-    # Deduplicate near columns (thickness).
-    boundary_cols: list[int] = []
-    for x in candidate_cols:
-        if not boundary_cols or abs(int(x) - int(boundary_cols[-1])) > 2:
-            boundary_cols.append(int(x))
-
-    if not boundary_cols:
-        return []
-
-    # For each boundary column, estimate its vertical extent (top Y).
-    # We'll use this to infer block tops.
-    boundary_tops: dict[int, int] = {}
-    for x in boundary_cols:
-        col = v_close[:, x]
-        ys = np.where(col > 0)[0]
-        if ys.size == 0:
+    h_segments: list[tuple[int, int, int]] = []  # (bottom_y, x0, x1)
+    for label in range(1, int(num_h)):
+        x, y, bw, bh, area = h_stats[label]
+        if bw < 30 or bh > 8:
             continue
-        boundary_tops[x] = int(ys.min())
+        bottom_y = int(y + bh - 1)
+        if 0 < bottom_y < h - 1:
+            h_segments.append((bottom_y, int(x), int(x + bw)))
 
-    # Helper to find horizontal line segments at a given y.
-    def horizontal_segments_at_y(y: int) -> list[tuple[int, int]]:
-        row = h_close[y, :]
-        segs: list[tuple[int, int]] = []
-        in_seg = False
-        start = 0
-        for x in range(w):
-            on = bool(row[x])
-            if on and not in_seg:
-                in_seg = True
-                start = x
-            if not on and in_seg:
-                end = x
-                if end - start >= max(50, int(w * 0.02)):
-                    segs.append((int(start), int(end)))
-                in_seg = False
-        if in_seg:
-            end = w
-            if end - start >= max(50, int(w * 0.02)):
-                segs.append((int(start), int(end)))
-        return segs
+    if not h_segments:
+        return []
 
+    # Detect vertical line segments.
+    v_close_k = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 11))
+    v_close = cv2.morphologyEx(mag, cv2.MORPH_CLOSE, v_close_k, iterations=1)
+    v_open_k = cv2.getStructuringElement(cv2.MORPH_RECT, (1, open_v_len))
+    v_lines = cv2.morphologyEx(v_close, cv2.MORPH_OPEN, v_open_k, iterations=1)
+
+    num_v, _, v_stats, _ = cv2.connectedComponentsWithStats(v_lines, connectivity=8)
+
+    v_segments: list[tuple[int, int, int]] = []  # (x, y_top, y_bottom)
+    for label in range(1, int(num_v)):
+        x, y, bw, bh, area = v_stats[label]
+        if bh < open_v_len or bw > 8:
+            continue
+        v_segments.append((int(x), int(y), int(y + bh - 1)))
+
+    if not v_segments:
+        return []
+
+    # For each horizontal segment, find vertical lines whose bottom is near its Y.
+    # Then partition the horizontal segment using those vertical X positions.
     boxes: list[tuple[int, int, int, int]] = []
 
-    # For each bottom line, partition its horizontal segments by boundary columns.
-    for bottom_y in bottom_lines:
-        segs = horizontal_segments_at_y(int(bottom_y))
-        if not segs:
+    for (bottom_y, h_x0, h_x1) in h_segments:
+        if h_x1 - h_x0 < 30:
             continue
 
-        for (seg_x0, seg_x1) in segs:
-            # boundaries within this bottom segment define right edges.
-            rights = [x for x in boundary_cols if seg_x0 + 2 <= x <= seg_x1 - 2]
-            if not rights:
+        # Find vertical lines that end near this bottom_y and are within or near the x-span.
+        matching_verts: list[tuple[int, int]] = []  # (x, y_top)
+        for (v_x, v_y_top, v_y_bottom) in v_segments:
+            # Check if vertical line bottom is near the horizontal line y.
+            if abs(v_y_bottom - bottom_y) <= y_tol:
+                # Check if x is within or near the horizontal segment.
+                if h_x0 - 10 <= v_x <= h_x1 + 10:
+                    matching_verts.append((v_x, v_y_top))
+
+        if not matching_verts:
+            continue
+
+        # Sort by x and deduplicate.
+        matching_verts.sort(key=lambda v: v[0])
+        deduped: list[tuple[int, int]] = []
+        for v_x, v_y_top in matching_verts:
+            if not deduped or abs(v_x - deduped[-1][0]) > 3:
+                deduped.append((v_x, v_y_top))
+            elif v_y_top < deduped[-1][1]:
+                deduped[-1] = (deduped[-1][0], v_y_top)
+
+        # Build blocks: from segment start (or previous vertical) to each vertical.
+        prev_x = h_x0
+        for v_x, v_y_top in deduped:
+            if v_x <= prev_x + 10:
+                prev_x = v_x
                 continue
 
-            prev_x = int(seg_x0)
-            for x_right in rights:
-                x_left = int(prev_x)
+            x1c = int(prev_x + shrink_px)
+            x2c = int(v_x - shrink_px)
+            y1c = int(v_y_top + shrink_px)
+            y2c = int(bottom_y - shrink_px)
 
-                # If there's no explicit left boundary line, we still use the bottom segment start.
-                y_top = boundary_tops.get(int(x_right))
-                if y_top is None:
-                    prev_x = int(x_right)
-                    continue
+            if x2c <= x1c or y2c <= y1c:
+                prev_x = v_x
+                continue
 
-                x1 = int(x_left + shrink_px)
-                x2 = int(x_right - shrink_px)
-                y1 = int(y_top + shrink_px)
-                y2 = int(bottom_y - shrink_px)
+            bw = x2c - x1c
+            bh = y2c - y1c
 
-                if x2 <= x1 or y2 <= y1:
-                    prev_x = int(x_right)
-                    continue
+            # Skip blocks that are too short (likely labels), too narrow, or have extreme aspect ratio.
+            aspect = max(bw / bh, bh / bw) if bh > 0 and bw > 0 else 999
+            if bh < 200 or bw < 50 or bw * bh < min_area or aspect > 6:
+                prev_x = v_x
+                continue
 
-                bw = int(x2 - x1)
-                bh = int(y2 - y1)
+            region_sprite = sprite_mask[y1c:y2c, x1c:x2c]
+            if int(np.count_nonzero(region_sprite)) < min_sprite_pixels:
+                prev_x = v_x
+                continue
 
-                if int(bw * bh) < int(min_area):
-                    prev_x = int(x_right)
-                    continue
-
-                region_sprite = sprite_mask[y1:y2, x1:x2]
-                if int(np.count_nonzero(region_sprite)) < int(min_sprite_pixels):
-                    prev_x = int(x_right)
-                    continue
-
-                boxes.append((x1, y1, bw, bh))
-                prev_x = int(x_right)
+            boxes.append((x1c, y1c, bw, bh))
+            prev_x = v_x
 
     boxes.sort(key=lambda b: (b[1], b[0]))
     return boxes
@@ -1110,7 +1075,7 @@ def main() -> None:
     parser.add_argument(
         "--open-v-len",
         type=int,
-        default=40,
+        default=12,
         help="(open guide mode) minimum vertical guide length in pixels",
     )
     parser.add_argument(
