@@ -278,7 +278,12 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(
       Message.CONNECT_TO_MUSIC_BOOTH,
       (client, message: { musicBoothIndex: number }) => {
-        const musicBoothIndex = 0
+        const musicBoothIndex =
+          typeof message.musicBoothIndex === 'number' && Number.isFinite(message.musicBoothIndex)
+            ? message.musicBoothIndex
+            : 0
+
+        if (musicBoothIndex < 0 || musicBoothIndex >= this.state.musicBooths.length) return
 
         this.dispatcher.dispatch(new MusicBoothConnectUserCommand(), {
           client,
@@ -312,7 +317,12 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(
       Message.DISCONNECT_FROM_MUSIC_BOOTH,
       (client, message: { musicBoothIndex: number }) => {
-        const musicBoothIndex = 0
+        const musicBoothIndex =
+          typeof message.musicBoothIndex === 'number' && Number.isFinite(message.musicBoothIndex)
+            ? message.musicBoothIndex
+            : 0
+
+        if (musicBoothIndex < 0 || musicBoothIndex >= this.state.musicBooths.length) return
         this.dispatcher.dispatch(new MusicBoothDisconnectUserCommand(), {
           client,
           musicBoothIndex,

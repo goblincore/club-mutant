@@ -8,12 +8,14 @@ import MusicBooth from '../items/MusicBooth'
 import { phaserEvents, Event } from '../events/EventCenter'
 import store from '../stores'
 import { pushPlayerJoinedMessage } from '../stores/ChatStore'
+import { disconnectFromMusicBooth } from '../stores/MusicBoothStore'
 import { ItemType } from '../../../types/Items'
 import { RoomType } from '../../../types/Rooms'
 
 export default class MyPlayer extends Player {
   private playerContainerBody: Phaser.Physics.Arcade.Body
   private musicBoothOnSit?: MusicBooth
+  private pendingLeaveMusicBooth = false
   private moveTarget: { x: number; y: number } | null = null
   private movePath: Array<{ x: number; y: number }> | null = null
   private movePathIndex = 0
@@ -70,6 +72,10 @@ export default class MyPlayer extends Player {
   clearMovePath() {
     this.movePath = null
     this.movePathIndex = 0
+  }
+
+  requestLeaveMusicBooth() {
+    this.pendingLeaveMusicBooth = true
   }
 
   queueAutoEnterMusicBooth(musicBooth: MusicBooth, target: { x: number; y: number }) {
@@ -178,6 +184,9 @@ export default class MyPlayer extends Player {
 
     switch (this.playerBehavior) {
       case PlayerBehavior.IDLE:
+        if (this.pendingLeaveMusicBooth) {
+          this.pendingLeaveMusicBooth = false
+        }
         if (this.pendingAutoEnterMusicBooth && this.pendingAutoEnterTarget) {
           if (this.pendingAutoEnterMusicBooth.currentUser !== null) {
             this.cancelPendingAutoEnterMusicBooth()
@@ -380,43 +389,47 @@ export default class MyPlayer extends Player {
         this.playerContainerBody.setVelocity(0, 0)
 
         // back to idle if player press E while sitting
-        if (Phaser.Input.Keyboard.JustDown(keyR)) {
+        if (Phaser.Input.Keyboard.JustDown(keyR) || this.pendingLeaveMusicBooth) {
+          this.pendingLeaveMusicBooth = false
           console.log('////MyPlayer, update, switch, PlayerBehavior.SITTING, JustDown')
-          switch (item?.itemType) {
-            case ItemType.MUSIC_BOOTH:
-              this.musicBoothOnSit?.closeDialog(network)
-              this.musicBoothOnSit?.clearDialogBox()
-              this.musicBoothOnSit?.setDialogBox('Press R to be the DJ')
-              this.djTransitionTarget = null
 
-              const reverseKey = 'adam_transform_reverse'
-              this.play(reverseKey, true)
-              this.updatePhysicsBodyForAnim(reverseKey)
-              network.updatePlayerAction(this.x, this.y, reverseKey)
+          if (!this.musicBoothOnSit) return
 
-              body.setImmovable(true)
-              this.playerBehavior = PlayerBehavior.TRANSFORMING
+          this.musicBoothOnSit.currentUser = null
+          store.dispatch(disconnectFromMusicBooth())
 
-              this.once(`animationcomplete-${reverseKey}`, () => {
-                if (this.playerBehavior !== PlayerBehavior.TRANSFORMING) return
+          this.musicBoothOnSit.closeDialog(network)
+          this.musicBoothOnSit.clearDialogBox()
+          this.musicBoothOnSit.setDialogBox('Press R to be the DJ')
+          this.djTransitionTarget = null
 
-                const idleAnimKey = `${this.playerTexture}_idle_down`
-                this.play(idleAnimKey, true)
-                this.updatePhysicsBodyForAnim(idleAnimKey)
-                network.updatePlayerAction(this.x, this.y, idleAnimKey)
+          const reverseKey = 'adam_transform_reverse'
+          this.play(reverseKey, true)
+          this.updatePhysicsBodyForAnim(reverseKey)
+          network.updatePlayerAction(this.x, this.y, reverseKey)
 
-                body.setImmovable(false)
-                if (this.djBoothDepth !== null) {
-                  this.setDepth(this.djBoothDepth)
-                  this.djBoothDepth = null
-                } else {
-                  this.setDepth(this.y)
-                }
-                this.playerBehavior = PlayerBehavior.IDLE
-              })
+          body.setImmovable(true)
+          this.playerBehavior = PlayerBehavior.TRANSFORMING
 
-              break
-          }
+          this.once(`animationcomplete-${reverseKey}`, () => {
+            if (this.playerBehavior !== PlayerBehavior.TRANSFORMING) return
+
+            const idleAnimKey = `${this.playerTexture}_idle_down`
+            this.play(idleAnimKey, true)
+            this.updatePhysicsBodyForAnim(idleAnimKey)
+            network.updatePlayerAction(this.x, this.y, idleAnimKey)
+
+            body.setImmovable(false)
+            if (this.djBoothDepth !== null) {
+              this.setDepth(this.djBoothDepth)
+              this.djBoothDepth = null
+            } else {
+              this.setDepth(this.y)
+            }
+
+            this.musicBoothOnSit = undefined
+            this.playerBehavior = PlayerBehavior.IDLE
+          })
         }
 
         if (this.moveTarget) {
@@ -430,7 +443,12 @@ export default class MyPlayer extends Player {
 
         this.playerContainerBody.setVelocity(0, 0)
 
-        if (Phaser.Input.Keyboard.JustDown(keyR)) {
+        if (Phaser.Input.Keyboard.JustDown(keyR) || this.pendingLeaveMusicBooth) {
+          this.pendingLeaveMusicBooth = false
+          if (this.musicBoothOnSit) {
+            this.musicBoothOnSit.currentUser = null
+          }
+          store.dispatch(disconnectFromMusicBooth())
           this.musicBoothOnSit?.closeDialog(network)
           this.musicBoothOnSit?.clearDialogBox()
           this.musicBoothOnSit?.setDialogBox('Press R to be the DJ')
@@ -450,6 +468,7 @@ export default class MyPlayer extends Player {
             this.setDepth(this.y)
           }
 
+          this.musicBoothOnSit = undefined
           this.playerBehavior = PlayerBehavior.IDLE
           break
         }
