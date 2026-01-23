@@ -27,11 +27,17 @@ The extractor writes to:
 
 The extractor uses Python with OpenCV.
 
-- `python3 -m pip install opencv-python pillow numpy`
+On macOS/Homebrew Python you may see `error: externally-managed-environment` (PEP 668) if you try to install packages system-wide.
+
+Use a repo-local virtualenv instead:
+
+- `python3 -m venv .venv`
+- `./.venv/bin/python -m pip install --upgrade pip`
+- `./.venv/bin/python -m pip install opencv-python pillow numpy`
 
 ## Run
 
-- `python3 conversion/scripts/extract_anim_blocks.py --input conversion/base/supermutant-basicanimations.png`
+- `./.venv/bin/python conversion/scripts/extract_anim_blocks.py --input conversion/base/supermutant-basicanimations.png`
 
 This will write outputs under:
 
@@ -53,3 +59,8 @@ Load each extracted block as a Phaser spritesheet using the manifest metadata.
 
 - The script extracts the full interior of each magenta rectangle (minus a small configurable border shrink).
 - Grid slicing assumes each extracted block is a fully-populated uniform grid with padding between cells.
+
+## Troubleshooting
+
+- If you see `ModuleNotFoundError: No module named 'cv2'`, the dependencies were not installed into the Python you are using. Prefer running via `./.venv/bin/python ...`.
+- If you see `No module named python3`, you likely ran a command shaped like `python -m python3 -m pip ...`. The correct form is `python -m pip ...`.
