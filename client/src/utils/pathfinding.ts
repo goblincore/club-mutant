@@ -81,6 +81,15 @@ const manhattan = (ax: number, ay: number, bx: number, by: number) => {
   return Math.abs(ax - bx) + Math.abs(ay - by)
 }
 
+const octile = (ax: number, ay: number, bx: number, by: number) => {
+  const dx = Math.abs(ax - bx)
+  const dy = Math.abs(ay - by)
+
+  const F = Math.SQRT2 - 1
+
+  return dx < dy ? F * dx + dy : F * dy + dx
+}
+
 export const findPathAStar = (params: {
   width: number
 
@@ -114,14 +123,19 @@ export const findPathAStar = (params: {
   const heap = new MinHeap()
   heap.push({
     idx: startIdx,
-    f: manhattan(start.x, start.y, goal.x, goal.y),
+    f: octile(start.x, start.y, goal.x, goal.y),
   })
+
+  const closed = new Uint8Array(width * height)
 
   while (heap.size > 0) {
     const current = heap.pop()
     if (!current) break
 
     const currentIdx = current.idx
+
+    if (closed[currentIdx] === 1) continue
+    closed[currentIdx] = 1
 
     if (currentIdx === goalIdx) {
       const path: TilePoint[] = []
@@ -143,11 +157,15 @@ export const findPathAStar = (params: {
     const currentY = Math.floor(currentIdx / width)
     const currentG = gScore[currentIdx]
 
-    const neighbors: Array<{ x: number; y: number }> = [
-      { x: currentX + 1, y: currentY },
-      { x: currentX - 1, y: currentY },
-      { x: currentX, y: currentY + 1 },
-      { x: currentX, y: currentY - 1 },
+    const neighbors: Array<{ x: number; y: number; cost: number; dx: number; dy: number }> = [
+      { x: currentX + 1, y: currentY, cost: 1, dx: 1, dy: 0 },
+      { x: currentX - 1, y: currentY, cost: 1, dx: -1, dy: 0 },
+      { x: currentX, y: currentY + 1, cost: 1, dx: 0, dy: 1 },
+      { x: currentX, y: currentY - 1, cost: 1, dx: 0, dy: -1 },
+      { x: currentX + 1, y: currentY + 1, cost: Math.SQRT2, dx: 1, dy: 1 },
+      { x: currentX - 1, y: currentY + 1, cost: Math.SQRT2, dx: -1, dy: 1 },
+      { x: currentX + 1, y: currentY - 1, cost: Math.SQRT2, dx: 1, dy: -1 },
+      { x: currentX - 1, y: currentY - 1, cost: Math.SQRT2, dx: -1, dy: -1 },
     ]
 
     for (const n of neighbors) {
@@ -156,13 +174,20 @@ export const findPathAStar = (params: {
       const nIdx = toIdx(n.x, n.y)
       if (blocked[nIdx] === 1) continue
 
-      const tentativeG = currentG + 1
+      if (n.dx !== 0 && n.dy !== 0) {
+        const sideAIdx = toIdx(currentX + n.dx, currentY)
+        const sideBIdx = toIdx(currentX, currentY + n.dy)
+
+        if (blocked[sideAIdx] === 1 || blocked[sideBIdx] === 1) continue
+      }
+
+      const tentativeG = currentG + n.cost
       if (tentativeG >= gScore[nIdx]) continue
 
       cameFrom[nIdx] = currentIdx
       gScore[nIdx] = tentativeG
 
-      const f = tentativeG + manhattan(n.x, n.y, goal.x, goal.y)
+      const f = tentativeG + octile(n.x, n.y, goal.x, goal.y)
       heap.push({ idx: nIdx, f })
     }
   }

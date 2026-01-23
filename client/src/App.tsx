@@ -18,6 +18,7 @@ const Backdrop = styled.div`
   position: fixed;
   inset: 0;
   z-index: 2;
+  pointer-events: none;
 `
 
 const PublicLobbyBackground = styled.img`

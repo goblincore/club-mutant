@@ -26,6 +26,7 @@ const Backdrop = styled.div<{ $expanded: boolean }>`
   width: 500px;
   max-height: 50%;
   max-width: 50%;
+  pointer-events: auto;
 `
 
 const Wrapper = styled.div`

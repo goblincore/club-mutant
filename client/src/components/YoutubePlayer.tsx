@@ -32,6 +32,7 @@ const Backdrop = styled.div`
   background: transparent;
   overflow: hidden;
   padding: 16px 16px 16px 16px;
+  pointer-events: auto;
 `
 
 const MiniBar = styled.div`

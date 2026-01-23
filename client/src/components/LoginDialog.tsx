@@ -37,6 +37,8 @@ const Wrapper = styled.form`
   padding: 36px 60px;
   box-shadow: 0px 0px 5px #0000006f;
 
+  pointer-events: auto;
+
   width: min(760px, 92vw);
   max-height: 92vh;
   overflow: auto;

@@ -25,6 +25,7 @@ const Backdrop = styled.div`
   overflow: hidden;
   max-width: 400px;
   padding: 16px 16px 16px 16px;
+  pointer-events: auto;
 `
 const Wrapper = styled.div`
   width: 100%;

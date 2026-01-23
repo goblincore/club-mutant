@@ -25,6 +25,10 @@ export default class MyPlayer extends Player {
 
   private djTransitionTarget: { x: number; y: number } | null = null
 
+  private pendingAutoEnterMusicBooth: MusicBooth | null = null
+
+  private pendingAutoEnterTarget: { x: number; y: number } | null = null
+
   constructor(
     scene: Phaser.Scene,
     x: number,
@@ -66,6 +70,16 @@ export default class MyPlayer extends Player {
   clearMovePath() {
     this.movePath = null
     this.movePathIndex = 0
+  }
+
+  queueAutoEnterMusicBooth(musicBooth: MusicBooth, target: { x: number; y: number }) {
+    this.pendingAutoEnterMusicBooth = musicBooth
+    this.pendingAutoEnterTarget = target
+  }
+
+  private cancelPendingAutoEnterMusicBooth() {
+    this.pendingAutoEnterMusicBooth = null
+    this.pendingAutoEnterTarget = null
   }
 
   private clearMoveNavigation() {
@@ -164,69 +178,31 @@ export default class MyPlayer extends Player {
 
     switch (this.playerBehavior) {
       case PlayerBehavior.IDLE:
+        if (this.pendingAutoEnterMusicBooth && this.pendingAutoEnterTarget) {
+          if (this.pendingAutoEnterMusicBooth.currentUser !== null) {
+            this.cancelPendingAutoEnterMusicBooth()
+          } else {
+            const dx = this.pendingAutoEnterTarget.x - this.x
+            const dy = this.pendingAutoEnterTarget.y - this.y
+            const distanceSq = dx * dx + dy * dy
+
+            if (distanceSq <= 24 * 24) {
+              const booth = this.pendingAutoEnterMusicBooth
+              this.cancelPendingAutoEnterMusicBooth()
+              this.enterMusicBooth(booth, network, body)
+              return
+            }
+
+            if (!this.moveTarget) {
+              this.setMoveTarget(this.pendingAutoEnterTarget.x, this.pendingAutoEnterTarget.y)
+            }
+          }
+        }
+
         if (Phaser.Input.Keyboard.JustDown(keyR)) {
-          console.log('////MyPlayer, update, switch, PlayerBehavior.IDLE, JustDown')
           switch (item?.itemType) {
             case ItemType.MUSIC_BOOTH:
-              this.clearMoveNavigation()
-
-              this.setVelocity(0, 0)
-              body.setVelocity(0, 0)
-
-              this.playerContainerBody.setVelocity(0, 0)
-
-              const musicBootItem = item as MusicBooth
-
-              const standX = musicBootItem.x - 20
-              const standY = musicBootItem.y + musicBootItem.height * 0.25 - 70
-
-              this.x = standX
-              this.y = standY
-              body.reset(standX, standY)
-              this.playerContainer.x = standX
-              this.playerContainer.y = standY
-              this.djTransitionTarget = { x: standX, y: standY }
-
-              musicBootItem.openDialog(network)
-              musicBootItem.clearDialogBox()
-              musicBootItem.setDialogBox('Press R to leave the DJ booth')
-              this.musicBoothOnSit = musicBootItem
-              this.djBoothDepth = this.depth
-              if (this.playerTexture === 'adam') {
-                const roomType = store.getState().room.roomType
-                const boothAnimKey = roomType === RoomType.PUBLIC ? 'adam_djwip' : 'adam_boombox'
-
-                const faceDownKey = `${this.playerTexture}_idle_down`
-                this.play(faceDownKey, true)
-
-                const transformKey = 'adam_transform'
-                this.play(transformKey, true)
-                this.updatePhysicsBodyForAnim(transformKey)
-                network.updatePlayerAction(this.x, this.y, transformKey)
-
-                this.playerBehavior = PlayerBehavior.TRANSFORMING
-
-                this.once(`animationcomplete-${transformKey}`, () => {
-                  if (this.playerBehavior !== PlayerBehavior.TRANSFORMING) return
-
-                  const target = this.djTransitionTarget
-                  if (target) {
-                    this.x = target.x
-                    this.y = target.y
-                    body.reset(target.x, target.y)
-                    this.playerContainer.x = target.x
-                    this.playerContainer.y = target.y
-                  }
-
-                  this.play(boothAnimKey, true)
-                  this.updatePhysicsBodyForAnim(boothAnimKey)
-                  network.updatePlayerAction(this.x, this.y, boothAnimKey)
-                  this.playerBehavior = PlayerBehavior.SITTING
-                  this.djTransitionTarget = null
-                })
-              }
-              body.setImmovable(true)
-              this.setDepth(musicBootItem.depth - 1)
+              this.enterMusicBooth(item as MusicBooth, network, body)
               break
           }
           return
@@ -241,6 +217,7 @@ export default class MyPlayer extends Player {
         const hasKeyboardInput = Boolean(leftDown || rightDown || upDown || downDown)
 
         if (hasKeyboardInput && this.moveTarget) {
+          this.cancelPendingAutoEnterMusicBooth()
           this.clearMoveNavigation()
         }
 
@@ -281,7 +258,7 @@ export default class MyPlayer extends Player {
 
           if (!this.moveTarget) break
 
-          const arriveDistanceSq = 10 * 10
+          const arriveDistanceSq = 4 * 4
           let guard = 0
 
           while (this.moveTarget && guard < 5) {
@@ -298,7 +275,27 @@ export default class MyPlayer extends Player {
                 continue
               }
 
+              if (
+                this.pendingAutoEnterMusicBooth &&
+                this.pendingAutoEnterTarget &&
+                this.pendingAutoEnterMusicBooth.currentUser === null
+              ) {
+                const pdx = this.pendingAutoEnterTarget.x - this.x
+                const pdy = this.pendingAutoEnterTarget.y - this.y
+                const pendingDistanceSq = pdx * pdx + pdy * pdy
+
+                if (pendingDistanceSq <= 24 * 24) {
+                  const booth = this.pendingAutoEnterMusicBooth
+                  this.cancelPendingAutoEnterMusicBooth()
+                  this.enterMusicBooth(booth, network, body)
+                  return
+                }
+              }
+
+              const finalTarget = this.moveTarget
               this.clearMoveNavigation()
+              this.setPosition(finalTarget.x, finalTarget.y)
+              this.setDepth(finalTarget.y)
               break
             }
 
@@ -472,6 +469,75 @@ export default class MyPlayer extends Player {
         }
         break
     }
+  }
+
+  private enterMusicBooth(
+    musicBoothItem: MusicBooth,
+    network: Network,
+    body: Phaser.Physics.Arcade.Body,
+    standTarget?: { x: number; y: number }
+  ) {
+    if (musicBoothItem.currentUser !== null) return
+
+    this.cancelPendingAutoEnterMusicBooth()
+
+    this.clearMoveNavigation()
+
+    this.setVelocity(0, 0)
+    body.setVelocity(0, 0)
+
+    this.playerContainerBody.setVelocity(0, 0)
+
+    const standX = standTarget?.x ?? musicBoothItem.x - 20
+    const standY = standTarget?.y ?? musicBoothItem.y + musicBoothItem.height * 0.25 - 70
+
+    this.x = standX
+    this.y = standY
+    body.reset(standX, standY)
+    this.playerContainer.x = standX
+    this.playerContainer.y = standY
+    this.djTransitionTarget = { x: standX, y: standY }
+
+    musicBoothItem.openDialog(network)
+    musicBoothItem.clearDialogBox()
+    musicBoothItem.setDialogBox('Press R to leave the DJ booth')
+    this.musicBoothOnSit = musicBoothItem
+    this.djBoothDepth = this.depth
+    if (this.playerTexture === 'adam') {
+      const roomType = store.getState().room.roomType
+      const boothAnimKey = roomType === RoomType.PUBLIC ? 'adam_djwip' : 'adam_boombox'
+
+      const faceDownKey = `${this.playerTexture}_idle_down`
+      this.play(faceDownKey, true)
+
+      const transformKey = 'adam_transform'
+      this.play(transformKey, true)
+      this.updatePhysicsBodyForAnim(transformKey)
+      network.updatePlayerAction(this.x, this.y, transformKey)
+
+      this.playerBehavior = PlayerBehavior.TRANSFORMING
+
+      this.once(`animationcomplete-${transformKey}`, () => {
+        if (this.playerBehavior !== PlayerBehavior.TRANSFORMING) return
+
+        const target = this.djTransitionTarget
+        if (target) {
+          this.x = target.x
+          this.y = target.y
+          body.reset(target.x, target.y)
+          this.playerContainer.x = target.x
+          this.playerContainer.y = target.y
+        }
+
+        this.play(boothAnimKey, true)
+        this.updatePhysicsBodyForAnim(boothAnimKey)
+        network.updatePlayerAction(this.x, this.y, boothAnimKey)
+        this.playerBehavior = PlayerBehavior.SITTING
+        this.djTransitionTarget = null
+      })
+    }
+    body.setImmovable(true)
+    this.setDepth(musicBoothItem.depth - 1)
   }
 }
 

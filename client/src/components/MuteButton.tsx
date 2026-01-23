@@ -12,6 +12,7 @@ const Wrapper = styled.div`
   right: 12px;
   bottom: 12px;
   z-index: 20;
+  pointer-events: auto;
 
   button {
     background: rgba(0, 0, 0, 0.35);
