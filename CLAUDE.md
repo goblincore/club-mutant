@@ -283,6 +283,14 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 - **Debug animation interruption fix**
   - Debug keys `1/2/3` (burn/flamethrower/punch) were getting interrupted by the idle transition logic.
   - Fix: guard the idle transition while a debug anim is playing via `playingDebugAnim` in `client/src/characters/MyPlayer.ts`.
+  - Additional hardening:
+    - Only lock debug mode if `scene.anims.exists(animKey)`.
+    - Track the active debug anim key in `debugAnimKey` and clear the lock if the current anim changes (e.g. movement interrupts the debug anim).
+
+- **Punch direction keys**
+  - Added explicit keys for diagonal-up punch:
+    - `mutant_punch_up_right` (frames `0..10`)
+    - `mutant_punch_up_left` (frames `55..65`)
 
 ### Click-to-move pathfinding
 
