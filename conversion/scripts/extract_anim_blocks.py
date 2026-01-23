@@ -100,6 +100,31 @@ def _apply_background_transparency_hsv(
     return rgba
 
 
+def _trim_rgba(
+    image_rgba: np.ndarray,
+    alpha_threshold: int,
+    pad: int,
+) -> tuple[np.ndarray, tuple[int, int, int, int]]:
+    if image_rgba.ndim != 3 or image_rgba.shape[2] != 4:
+        raise ValueError("Expected RGBA image")
+
+    alpha_threshold = int(max(0, min(255, alpha_threshold)))
+    pad = int(max(0, pad))
+
+    alpha = image_rgba[:, :, 3]
+    ys, xs = np.where(alpha > alpha_threshold)
+    if ys.size == 0 or xs.size == 0:
+        h, w = image_rgba.shape[:2]
+        return image_rgba, (0, 0, w, h)
+
+    x1 = int(max(0, xs.min() - pad))
+    y1 = int(max(0, ys.min() - pad))
+    x2 = int(min(image_rgba.shape[1], xs.max() + 1 + pad))
+    y2 = int(min(image_rgba.shape[0], ys.max() + 1 + pad))
+
+    return image_rgba[y1:y2, x1:x2], (x1, y1, x2 - x1, y2 - y1)
+
+
 def _estimate_background_centers_lab(
     crop_bgr: np.ndarray,
     border_px: int,
@@ -359,6 +384,10 @@ def extract_blocks(
     bg_v_max: int,
     bg_s_max: int,
     alpha_blur: int,
+    export_frames: bool,
+    frames_trim: bool,
+    frames_alpha_threshold: int,
+    frames_trim_pad: int,
 ) -> tuple[list[BlockInfo], Path]:
     image = _read_image(input_path)
     image_bgr = _bgr(image)
@@ -378,6 +407,10 @@ def extract_blocks(
 
     blocks_dir = out_dir / "blocks"
     _ensure_dir(blocks_dir)
+
+    frames_dir = out_dir / "frames"
+    if export_frames:
+        _ensure_dir(frames_dir)
 
     blocks: list[BlockInfo] = []
 
@@ -416,6 +449,53 @@ def extract_blocks(
             grid_kernel=grid_kernel,
             grid_close_k=grid_close_k,
         )
+
+        if export_frames:
+            block_frames_dir = frames_dir / key
+            _ensure_dir(block_frames_dir)
+
+            for row in range(int(rows)):
+                for col in range(int(cols)):
+                    cx1 = int(col * frame_w)
+                    cy1 = int(row * frame_h)
+                    cx2 = int(min(int((col + 1) * frame_w), crop_bgr.shape[1]))
+                    cy2 = int(min(int((row + 1) * frame_h), crop_bgr.shape[0]))
+
+                    if cx2 <= cx1 or cy2 <= cy1:
+                        continue
+
+                    frame_bgr = crop_bgr[cy1:cy2, cx1:cx2]
+
+                    if transparent_bg:
+                        if transparent_mode == "hsv":
+                            frame_out = _apply_background_transparency_hsv(
+                                frame_bgr,
+                                bg_v_max=bg_v_max,
+                                bg_s_max=bg_s_max,
+                                alpha_blur=alpha_blur,
+                            )
+                        else:
+                            frame_out = _apply_background_transparency_colorkey(
+                                frame_bgr,
+                                bg_delta=bg_delta,
+                                border_px=bg_border_px,
+                                bg_k=bg_k,
+                                alpha_blur=alpha_blur,
+                            )
+                    else:
+                        frame_out = frame_bgr
+
+                    if frames_trim:
+                        if frame_out.ndim != 3 or frame_out.shape[2] != 4:
+                            raise ValueError("--frames-trim requires --transparent-bg")
+                        frame_out, _ = _trim_rgba(
+                            frame_out,
+                            alpha_threshold=frames_alpha_threshold,
+                            pad=frames_trim_pad,
+                        )
+
+                    frame_name = f"r{row:02d}_c{col:02d}.png"
+                    cv2.imwrite(str(block_frames_dir / frame_name), frame_out)
 
         blocks.append(
             BlockInfo(
@@ -519,6 +599,28 @@ def main() -> None:
         default=0,
         help="Gaussian blur kernel size for alpha feathering (0 disables)",
     )
+    parser.add_argument(
+        "--export-frames",
+        action="store_true",
+        help="Export individual frame PNGs per detected block (out_dir/frames/<block_key>/rXX_cYY.png)",
+    )
+    parser.add_argument(
+        "--frames-trim",
+        action="store_true",
+        help="Trim transparent border around each exported frame (requires --transparent-bg)",
+    )
+    parser.add_argument(
+        "--frames-alpha-threshold",
+        type=int,
+        default=0,
+        help="Alpha threshold for trimming frames (higher trims more; only used with --frames-trim)",
+    )
+    parser.add_argument(
+        "--frames-trim-pad",
+        type=int,
+        default=0,
+        help="Padding to keep around trimmed frames (only used with --frames-trim)",
+    )
 
     args = parser.parse_args()
 
@@ -551,6 +653,10 @@ def main() -> None:
         bg_v_max=args.bg_v_max,
         bg_s_max=args.bg_s_max,
         alpha_blur=args.alpha_blur,
+        export_frames=bool(args.export_frames),
+        frames_trim=bool(args.frames_trim),
+        frames_alpha_threshold=int(args.frames_alpha_threshold),
+        frames_trim_pad=int(args.frames_trim_pad),
     )
 
     needs_review = sum(1 for b in blocks if b.needsReview)
