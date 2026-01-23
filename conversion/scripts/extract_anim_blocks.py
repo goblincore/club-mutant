@@ -69,7 +69,7 @@ def _sprite_mask(image_bgr: np.ndarray) -> np.ndarray:
     return mask.astype(np.uint8)
 
 
-def _apply_background_transparency(
+def _apply_background_transparency_hsv(
     crop_bgr: np.ndarray,
     bg_v_max: int,
     bg_s_max: int,
@@ -83,20 +83,119 @@ def _apply_background_transparency(
     bg_s_max = int(max(0, min(255, bg_s_max)))
 
     background = (v <= bg_v_max) & (s <= bg_s_max)
-    foreground = (~background).astype(np.uint8) * 255
+    alpha = (~background).astype(np.uint8) * 255
 
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    foreground = cv2.morphologyEx(foreground, cv2.MORPH_CLOSE, kernel, iterations=1)
-    foreground = cv2.dilate(foreground, kernel, iterations=1)
+    alpha = cv2.morphologyEx(alpha, cv2.MORPH_CLOSE, kernel, iterations=1)
+    alpha = cv2.dilate(alpha, kernel, iterations=1)
 
     alpha_blur = int(max(0, alpha_blur))
     if alpha_blur > 0:
         if alpha_blur % 2 == 0:
             alpha_blur += 1
-        foreground = cv2.GaussianBlur(foreground, (alpha_blur, alpha_blur), 0)
+        alpha = cv2.GaussianBlur(alpha, (alpha_blur, alpha_blur), 0)
 
     b, g, r = cv2.split(crop_bgr)
-    rgba = cv2.merge([b, g, r, foreground])
+    rgba = cv2.merge([b, g, r, alpha])
+    return rgba
+
+
+def _estimate_background_centers_lab(
+    crop_bgr: np.ndarray,
+    border_px: int,
+    k: int,
+) -> np.ndarray:
+    h, w = crop_bgr.shape[:2]
+    border_px = int(max(1, min(min(h, w) // 2, border_px)))
+
+    border = np.zeros((h, w), dtype=np.uint8)
+    border[:border_px, :] = 1
+    border[-border_px:, :] = 1
+    border[:, :border_px] = 1
+    border[:, -border_px:] = 1
+
+    candidates_mask = border.astype(bool)
+
+    if int(np.count_nonzero(candidates_mask)) < 250:
+        crop_lab = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2LAB)
+        median = np.median(crop_lab.reshape(-1, 3).astype(np.float32), axis=0)
+        return median.reshape(1, 3)
+
+    crop_lab = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
+    samples = crop_lab[candidates_mask]
+
+    k = int(max(1, min(6, k)))
+    if samples.shape[0] < k * 200:
+        median = np.median(samples, axis=0)
+        return median.reshape(1, 3)
+
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.5)
+    flags = cv2.KMEANS_PP_CENTERS
+    compactness, labels, centers = cv2.kmeans(samples, k, None, criteria, 3, flags)
+
+    counts = np.bincount(labels.reshape(-1), minlength=k)
+    order = np.argsort(-counts)
+    centers = centers[order]
+    return centers
+
+
+def _apply_background_transparency_colorkey(
+    crop_bgr: np.ndarray,
+    bg_delta: float,
+    border_px: int,
+    bg_k: int,
+    alpha_blur: int,
+) -> np.ndarray:
+    centers = _estimate_background_centers_lab(crop_bgr, border_px=border_px, k=bg_k)
+
+    crop_lab = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
+    centers = centers.astype(np.float32)
+
+    h, w = crop_lab.shape[:2]
+    pixels = crop_lab.reshape(-1, 3)
+
+    diffs = pixels[:, None, :] - centers[None, :, :]
+    dist2 = np.sum(diffs * diffs, axis=2)
+    min_dist2 = np.min(dist2, axis=1).reshape(h, w)
+
+    bg_delta = float(max(0.0, bg_delta))
+    bg_candidate = (min_dist2 <= (bg_delta * bg_delta)).astype(np.uint8)
+
+    h2, w2 = bg_candidate.shape[:2]
+    border_px = int(max(1, min(min(h2, w2) // 2, border_px)))
+
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(bg_candidate, connectivity=8)
+
+    touches = np.zeros((num_labels,), dtype=np.uint8)
+
+    touches[labels[0, :]] = 1
+    touches[labels[-1, :]] = 1
+    touches[labels[:, 0]] = 1
+    touches[labels[:, -1]] = 1
+
+    if border_px > 1:
+        touches[labels[:border_px, :].reshape(-1)] = 1
+        touches[labels[-border_px:, :].reshape(-1)] = 1
+        touches[labels[:, :border_px].reshape(-1)] = 1
+        touches[labels[:, -border_px:].reshape(-1)] = 1
+
+    touches[0] = 0
+
+    bg_final = touches[labels].astype(bool)
+    alpha = (~bg_final).astype(np.uint8) * 255
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    alpha = cv2.morphologyEx(alpha, cv2.MORPH_CLOSE, kernel, iterations=1)
+    alpha = cv2.dilate(alpha, kernel, iterations=1)
+
+    alpha_blur = int(max(0, alpha_blur))
+    if alpha_blur > 0:
+        if alpha_blur % 2 == 0:
+            alpha_blur += 1
+        alpha = cv2.GaussianBlur(alpha, (alpha_blur, alpha_blur), 0)
+
+    b, g, r = cv2.split(crop_bgr)
+    rgba = cv2.merge([b, g, r, alpha])
     return rgba
 
 
@@ -253,6 +352,10 @@ def extract_blocks(
     grid_kernel: int,
     grid_close_k: int,
     transparent_bg: bool,
+    transparent_mode: str,
+    bg_delta: float,
+    bg_border_px: int,
+    bg_k: int,
     bg_v_max: int,
     bg_s_max: int,
     alpha_blur: int,
@@ -287,12 +390,21 @@ def extract_blocks(
         crop_bgr = _bgr(crop)
 
         if transparent_bg:
-            crop_out = _apply_background_transparency(
-                crop_bgr,
-                bg_v_max=bg_v_max,
-                bg_s_max=bg_s_max,
-                alpha_blur=alpha_blur,
-            )
+            if transparent_mode == "hsv":
+                crop_out = _apply_background_transparency_hsv(
+                    crop_bgr,
+                    bg_v_max=bg_v_max,
+                    bg_s_max=bg_s_max,
+                    alpha_blur=alpha_blur,
+                )
+            else:
+                crop_out = _apply_background_transparency_colorkey(
+                    crop_bgr,
+                    bg_delta=bg_delta,
+                    border_px=bg_border_px,
+                    bg_k=bg_k,
+                    alpha_blur=alpha_blur,
+                )
         else:
             crop_out = crop
 
@@ -366,6 +478,30 @@ def main() -> None:
         help="Write RGBA PNGs with dark background made transparent",
     )
     parser.add_argument(
+        "--transparent-mode",
+        choices=["colorkey", "hsv"],
+        default="colorkey",
+        help="Transparency mode: 'colorkey' (recommended) removes pixels similar to the block background; 'hsv' uses fixed V/S thresholds",
+    )
+    parser.add_argument(
+        "--bg-delta",
+        type=float,
+        default=22.0,
+        help="(colorkey) Max Lab distance to treat a pixel as background (lower = less removed)",
+    )
+    parser.add_argument(
+        "--bg-border-px",
+        type=int,
+        default=12,
+        help="(colorkey) Border thickness used to sample background pixels",
+    )
+    parser.add_argument(
+        "--bg-k",
+        type=int,
+        default=2,
+        help="(colorkey) Number of background clusters to fit from border pixels",
+    )
+    parser.add_argument(
         "--bg-v-max",
         type=int,
         default=40,
@@ -392,7 +528,7 @@ def main() -> None:
         sheet_name = input_path.stem
         repo_root = Path(__file__).resolve().parents[2]
         if args.transparent_bg:
-            sheet_name = f"{sheet_name}-transparent"
+            sheet_name = f"{sheet_name}-transparent-{args.transparent_mode}"
         out_dir = (repo_root / "conversion" / "out" / sheet_name).resolve()
     else:
         out_dir = Path(args.out_dir).resolve()
@@ -408,6 +544,10 @@ def main() -> None:
         grid_kernel=args.grid_kernel,
         grid_close_k=args.grid_close_k,
         transparent_bg=bool(args.transparent_bg),
+        transparent_mode=str(args.transparent_mode),
+        bg_delta=float(args.bg_delta),
+        bg_border_px=int(args.bg_border_px),
+        bg_k=int(args.bg_k),
         bg_v_max=args.bg_v_max,
         bg_s_max=args.bg_s_max,
         alpha_blur=args.alpha_blur,
