@@ -26,6 +26,7 @@ export default class MyPlayer extends Player {
   private djBoothDepth: number | null = null
 
   private djTransitionTarget: { x: number; y: number } | null = null
+  private playingDebugAnim = false
 
   private pendingAutoEnterMusicBooth: MusicBooth | null = null
 
@@ -160,9 +161,11 @@ export default class MyPlayer extends Player {
 
       if (Phaser.Input.Keyboard.JustDown(debugKeys.key1)) {
         const burnKey = `mutant_burn_${currentDir}`
+        this.playingDebugAnim = true
         this.play(burnKey, true)
         network.updatePlayerAction(this.x, this.y, burnKey)
         this.once(`animationcomplete-${burnKey}`, () => {
+          this.playingDebugAnim = false
           const idleKey = `${this.playerTexture}_idle_${currentDir}`
           this.play(idleKey, true)
           network.updatePlayerAction(this.x, this.y, idleKey)
@@ -171,9 +174,11 @@ export default class MyPlayer extends Player {
 
       if (Phaser.Input.Keyboard.JustDown(debugKeys.key2)) {
         const flameKey = `mutant_flamethrower_${currentDir}`
+        this.playingDebugAnim = true
         this.play(flameKey, true)
         network.updatePlayerAction(this.x, this.y, flameKey)
         this.once(`animationcomplete-${flameKey}`, () => {
+          this.playingDebugAnim = false
           const idleKey = `${this.playerTexture}_idle_${currentDir}`
           this.play(idleKey, true)
           network.updatePlayerAction(this.x, this.y, idleKey)
@@ -182,9 +187,11 @@ export default class MyPlayer extends Player {
 
       if (Phaser.Input.Keyboard.JustDown(debugKeys.key3)) {
         const punchKey = `mutant_punch_${currentDir}`
+        this.playingDebugAnim = true
         this.play(punchKey, true)
         network.updatePlayerAction(this.x, this.y, punchKey)
         this.once(`animationcomplete-${punchKey}`, () => {
+          this.playingDebugAnim = false
           const idleKey = `${this.playerTexture}_idle_${currentDir}`
           this.play(idleKey, true)
           network.updatePlayerAction(this.x, this.y, idleKey)
@@ -413,7 +420,8 @@ export default class MyPlayer extends Player {
           parts[1] = 'idle'
           const newAnim = parts.join('_')
           // this prevents idle animation keeps getting called
-          if (currentAnimKey !== newAnim) {
+          // also skip if a debug animation is playing
+          if (currentAnimKey !== newAnim && !this.playingDebugAnim) {
             this.play(parts.join('_'), true)
             // send new location and anim to server
             network.updatePlayerAction(this.x, this.y, newAnim)

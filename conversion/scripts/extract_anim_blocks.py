@@ -582,10 +582,15 @@ def _infer_grid(
     block_bgr: np.ndarray,
     grid_kernel: int,
     grid_close_k: int,
+    block_alpha: Optional[np.ndarray] = None,
 ) -> tuple[int, int, int, int, bool]:
     h, w = block_bgr.shape[:2]
 
-    mask = _sprite_mask(block_bgr)
+    # Use alpha channel if available (more reliable for transparent PNGs)
+    if block_alpha is not None and block_alpha.shape[:2] == (h, w):
+        mask = (block_alpha > 10).astype(np.uint8) * 255
+    else:
+        mask = _sprite_mask(block_bgr)
 
     grid_kernel = max(1, int(grid_kernel))
     if grid_kernel % 2 == 0:
@@ -783,10 +788,12 @@ def extract_blocks(
         cv2.imwrite(str(blocks_dir / filename), crop_out)
 
         block_bgr = image_bgr[y : y + bh, x : x + bw]
+        block_alpha = crop_out[:, :, 3] if crop_out.shape[2] == 4 else None
         rows, cols, frame_w, frame_h, needs_review = _infer_grid(
             block_bgr,
             grid_kernel=grid_kernel,
             grid_close_k=grid_close_k,
+            block_alpha=block_alpha,
         )
 
         if export_labels or write_frames_map is not None:
