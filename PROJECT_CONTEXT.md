@@ -63,7 +63,7 @@ Public lobby differs from custom/private rooms:
 
 - **Goal**
   - Skip avatar/name selection UI
-  - Always use the Mutant character (`adam`)
+  - Always use the Mutant character
   - Auto-assign a unique username that contains `mutant`
 
 - **Server enforcement (authoritative)**
@@ -83,11 +83,40 @@ Public lobby differs from custom/private rooms:
     - `client/src/services/Network.ts` dispatches `setJoinedRoomType(RoomType.PUBLIC|CUSTOM)`.
   - Public auto-login is executed in Phaser (reliable timing):
     - `client/src/scenes/Game.ts` `create()` sets:
-      - `myPlayer` texture to `adam`
+      - `myPlayer` texture to `adam` (public rooms currently enforce `adam_*` anim keys server-side)
       - `myPlayer` name to `mutant-${sessionId}`
       - calls `network.readyToConnect()`
       - dispatches `setLoggedIn(true)` so Chat/Playlist UI renders
   - `client/src/components/LoginDialog.tsx` returns empty for public rooms (no UI).
+
+## Mutant character animations (atlas)
+
+- **Assets**
+  - Texture atlas: `client/public/assets/character/mutant.png`
+  - Atlas JSON: `client/public/assets/character/mutant.json`
+  - Animation definitions: `client/src/anims/CharacterAnims.ts`
+
+- **Animation key convention**
+  - Local player drives animation via `network.updatePlayerAction(x, y, animKey)`.
+  - Keys are strings like:
+    - `mutant_idle_<dir>`
+    - `mutant_run_<dir>`
+    - `mutant_burn_<dir>`
+    - `mutant_flamethrower_<dir>`
+    - `mutant_punch_<dir>`
+
+- **Walk direction order is sprite-dependent**
+  - The mutant walk sheet is ordered:
+    - `NE(0-9)`, `E(10-19)`, `SE(20-29)`, `SW(30-39)`, `W(40-49)`, `NW(50-59)`
+
+- **Movement directions added (NW/NE)**
+  - `MyPlayer` now supports diagonal-up facings:
+    - `up_right` (NE)
+    - `up_left` (NW)
+
+- **Debug animation interruption fix**
+  - Debug keys `1/2/3` (burn/flamethrower/punch) were getting interrupted by idle transition logic.
+  - Fix: guard idle transition while a debug anim is playing via `playingDebugAnim` in `client/src/characters/MyPlayer.ts`.
 
 ## Music + room playlist (current implementation)
 

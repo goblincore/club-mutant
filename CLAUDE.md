@@ -63,7 +63,7 @@ Public lobby differs from custom/private rooms:
 
 - **Goal**
   - Skip avatar/name selection UI
-  - Always use the Mutant character (`adam`)
+  - Always use the Mutant character
   - Auto-assign a unique username that contains `mutant`
 
 - **Server enforcement (authoritative)**
@@ -78,16 +78,16 @@ Public lobby differs from custom/private rooms:
     - Sanitizes `Message.UPDATE_PLAYER_ACTION` animation keys to `adam_*` when public.
 
 - **Client behavior**
-  - Tracks `roomType` in Redux:
-    - `client/src/stores/RoomStore.ts` adds `roomType` + `setJoinedRoomType`.
-    - `client/src/services/Network.ts` dispatches `setJoinedRoomType(RoomType.PUBLIC|CUSTOM)`.
-  - Public auto-login is executed in Phaser (reliable timing):
-    - `client/src/scenes/Game.ts` `create()` sets:
-      - `myPlayer` texture to `adam`
-      - `myPlayer` name to `mutant-${sessionId}`
-      - calls `network.readyToConnect()`
-      - dispatches `setLoggedIn(true)` so Chat/Playlist UI renders
-  - `client/src/components/LoginDialog.tsx` returns empty for public rooms (no UI).
+- Tracks `roomType` in Redux:
+  - `client/src/stores/RoomStore.ts` adds `roomType` + `setJoinedRoomType`.
+  - `client/src/services/Network.ts` dispatches `setJoinedRoomType(RoomType.PUBLIC|CUSTOM)`.
+- Public auto-login is executed in Phaser (reliable timing):
+  - `client/src/scenes/Game.ts` `create()` sets:
+    - `myPlayer` texture to `adam` (public rooms currently enforce `adam_*` anim keys server-side)
+    - `myPlayer` name to `mutant-${sessionId}`
+    - calls `network.readyToConnect()`
+    - dispatches `setLoggedIn(true)` so Chat/Playlist UI renders
+- `client/src/components/LoginDialog.tsx` returns empty for public rooms (no UI).
 
 ## Music + room playlist (current implementation)
 
@@ -143,7 +143,7 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 - **Server state**: `musicStream.videoBackgroundEnabled` (Colyseus schema)
 - **Message**: `Message.SET_VIDEO_BACKGROUND` (DJ-only; booth connected user)
 - **Client rendering**:
-  - `client/src/App.tsx` portals a muted `ReactPlayer` fullscreen behind Phaser when enabled.
+  - `client/src/App.tsx` uses a portal to render a fullscreen `ReactPlayer` behind Phaser.
   - Background video is forced to stretch/distort to cover the full viewport.
 
 ## DJ booth (music booth) behavior
@@ -252,6 +252,37 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
   - `client/src/components/ChatPanel.tsx` also scales the local immediate bubble (since it renders before the server echo).
 
 ## Recent learnings / gotchas (Jan 2026)
+
+### Mutant character animations (atlas)
+
+- **Assets**
+  - Texture atlas: `client/public/assets/character/mutant.png`
+  - Atlas JSON: `client/public/assets/character/mutant.json`
+  - Animation definitions: `client/src/anims/CharacterAnims.ts`
+
+- **Animation key convention**
+  - Local player drives animation via `network.updatePlayerAction(x, y, animKey)`.
+  - Keys are strings like:
+    - `mutant_idle_<dir>`
+    - `mutant_run_<dir>`
+    - `mutant_burn_<dir>`
+    - `mutant_flamethrower_<dir>`
+    - `mutant_punch_<dir>`
+
+- **Walk direction order is sprite-dependent**
+  - The mutant walk sheet is ordered:
+    - `NE(0-9)`, `E(10-19)`, `SE(20-29)`, `SW(30-39)`, `W(40-49)`, `NW(50-59)`
+  - This does not include a true `S`/`N` direction; code maps gameplay directions onto the closest available sprite-facing.
+
+- **Movement directions added (NW/NE)**
+  - `MyPlayer` now supports diagonal-up facings:
+    - `up_right` (NE)
+    - `up_left` (NW)
+  - These drive `mutant_run_up_right` / `mutant_run_up_left` animations.
+
+- **Debug animation interruption fix**
+  - Debug keys `1/2/3` (burn/flamethrower/punch) were getting interrupted by the idle transition logic.
+  - Fix: guard the idle transition while a debug anim is playing via `playingDebugAnim` in `client/src/characters/MyPlayer.ts`.
 
 ### Click-to-move pathfinding
 

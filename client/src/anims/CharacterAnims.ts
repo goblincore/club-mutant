@@ -599,8 +599,8 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
   anims.create({
     key: 'mutant_idle_down_left',
     frames: anims.generateFrameNames('mutant', {
-      start: 64,
-      end: 79,
+      start: 48,
+      end: 63,
       prefix: 'mut_idle-',
     }),
     repeat: -1,
@@ -610,8 +610,8 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
   anims.create({
     key: 'mutant_idle_left',
     frames: anims.generateFrameNames('mutant', {
-      start: 80,
-      end: 95,
+      start: 64,
+      end: 79,
       prefix: 'mut_idle-',
     }),
     repeat: -1,
