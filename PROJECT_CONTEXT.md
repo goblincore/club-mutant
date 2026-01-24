@@ -188,20 +188,20 @@ There are two parallel playback modes:
   - `client/public/assets/character/MutantBoomboxTest.png`
 
 - Bootstrapping:
-  - `client/src/scenes/Bootstrap.ts` preloads the spritesheet with frame size `60x88`.
+  - `client/src/scenes/Bootstrap.ts` preloads the spritesheet with frame size `72x105`.
 
 - Animation creation:
-  - `client/src/anims/CharacterAnims.ts` creates `adam_boombox` (frames 0–11), repeat `-1`, frameRate `animsFrameRate * 0.5`.
+  - `client/src/anims/CharacterAnims.ts` creates `mutant_boombox` (frames 0–11), repeat `-1`, frameRate `animsFrameRate * 0.5`.
 
 - Local + network sync:
   - When entering booth:
-    - `MyPlayer` plays `adam_boombox` and calls `network.updatePlayerAction(..., 'adam_boombox')`.
+    - `MyPlayer` plays `mutant_boombox` and calls `network.updatePlayerAction(..., 'mutant_boombox')`.
   - When leaving booth:
     - `MyPlayer` plays idle and calls `network.updatePlayerAction(..., idleAnimKey)`.
 
 - Other players:
   - `OtherPlayer` plays the synced anim key.
-  - If `currentAnimKey === 'adam_boombox'`, it forces high depth so the DJ renders above the booth.
+  - If `currentAnimKey === 'mutant_boombox'`, it forces high depth so the DJ renders above the booth.
 
 ## Important files (high touch)
 
@@ -217,7 +217,7 @@ There are two parallel playback modes:
 
 ## Conventions / tips
 
-- Animation keys are plain strings like `adam_idle_down`, `adam_boombox`.
+- Animation keys are plain strings like `mutant_idle_down`, `mutant_boombox`.
 - If you change a player animation locally and want others to see it, you must update `player.anim` via `Network.updatePlayerAction(...)`.
 - For shared state, prefer adding explicit fields to the server schema + shared interfaces in `types/` and use those on the client.
 

@@ -180,7 +180,7 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 
 - Other players:
   - `OtherPlayer` plays the synced anim key.
-  - If `currentAnimKey === 'adam_boombox'`, it forces high depth so the DJ renders above the booth.
+  - If `currentAnimKey === 'mutant_boombox'`, it forces high depth so the DJ renders above the booth.
 
 ### DJ “desk” / djmutant3 animation (public room)
 
@@ -239,6 +239,7 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
   - It uses a narrow, low hitbox and anchors it using a right-edge reference so it can be widened leftward.
 
 - The transform animations (`adam_transform`, `adam_transform_reverse`) are treated like DJ anims for collision sizing.
+- The transform animations (`mutant_transform`, `mutant_transform_reverse`) are treated like DJ anims for collision sizing.
 
 - Late-join collision mismatch:
   - When an `OtherPlayer` is spawned with `newPlayer.anim` already set (e.g. DJ), `Game.handlePlayerJoined()` must call:
@@ -348,7 +349,7 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
     - Listen via `stateCallbacks.musicStream.listen(...)` and resync once fields arrive
 
 - **Avoid “toggle debug anim” drift**
-  - Keeping a single authoritative DJ anim key (`adam_djwip`) avoids hitbox/asset confusion.
+  - Keeping a single authoritative DJ anim key (`mutant_djwip`) avoids hitbox/asset confusion.
 
 - **Fullscreen YouTube background styling lives in React (not Phaser)**
   - `client/src/App.tsx` uses a portal to render a fullscreen `ReactPlayer` behind Phaser.
@@ -381,7 +382,7 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 
 ## Conventions / tips
 
-- Animation keys are plain strings like `adam_idle_down`, `adam_boombox`.
+- Animation keys are plain strings like `mutant_idle_down`, `mutant_boombox`.
 - If you change a player animation locally and want others to see it, you must update `player.anim` via `Network.updatePlayerAction(...)`.
 - For shared state, prefer adding explicit fields to the server schema + shared interfaces in `types/` and use those on the client.
 
