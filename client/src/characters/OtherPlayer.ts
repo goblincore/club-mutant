@@ -130,12 +130,12 @@ export default class OtherPlayer extends Player {
     const currentAnimKey = this.anims.currentAnim?.key
 
     if (
-      currentAnimKey === 'adam_djwip' ||
-      currentAnimKey === 'adam_transform' ||
-      currentAnimKey === 'adam_transform_reverse'
+      currentAnimKey === 'mutant_djwip' ||
+      currentAnimKey === 'mutant_transform' ||
+      currentAnimKey === 'mutant_transform_reverse'
     ) {
       this.setDepth(this.y - 1)
-    } else if (currentAnimKey === 'adam_boombox') {
+    } else if (currentAnimKey === 'mutant_boombox') {
       this.setDepth(this.y + 1)
     } else {
       this.setDepth(this.y) // change player.depth based on player.y

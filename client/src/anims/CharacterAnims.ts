@@ -508,8 +508,8 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
   })
 
   anims.create({
-    key: 'adam_boombox',
-    frames: anims.generateFrameNumbers('adam_boombox', {
+    key: 'mutant_boombox',
+    frames: anims.generateFrameNumbers('mutant_boombox', {
       start: 0,
       end: 11,
     }),
@@ -518,8 +518,8 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
   })
 
   anims.create({
-    key: 'adam_djwip',
-    frames: anims.generateFrameNumbers('adam_djwip', {
+    key: 'mutant_djwip',
+    frames: anims.generateFrameNumbers('mutant_djwip', {
       start: 0,
       end: 4,
     }),
@@ -528,8 +528,8 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
   })
 
   anims.create({
-    key: 'adam_transform',
-    frames: anims.generateFrameNumbers('adam_transform', {
+    key: 'mutant_transform',
+    frames: anims.generateFrameNumbers('mutant_transform', {
       start: 0,
       end: 5,
     }),
@@ -538,9 +538,9 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
   })
 
   anims.create({
-    key: 'adam_transform_reverse',
+    key: 'mutant_transform_reverse',
     frames: anims
-      .generateFrameNumbers('adam_transform', {
+      .generateFrameNumbers('mutant_transform', {
         start: 0,
         end: 5,
       })

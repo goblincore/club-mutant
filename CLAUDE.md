@@ -73,9 +73,10 @@ Public lobby differs from custom/private rooms:
     - Stores `this.isPublic`.
     - On `onJoin`, if public:
       - Sets `player.name = mutant-${client.sessionId}` (unique per connection)
-      - Sets `player.anim = adam_idle_down`
+      - Sets `player.anim = mutant_idle_down`
     - Ignores `Message.UPDATE_PLAYER_NAME` when public.
-    - Sanitizes `Message.UPDATE_PLAYER_ACTION` animation keys to `adam_*` when public.
+    - Sanitizes `Message.UPDATE_PLAYER_ACTION` animation keys to `mutant_*` when public.
+      - Allows special DJ/transition anim keys through: `mutant_djwip`, `mutant_boombox`, `mutant_transform`, `mutant_transform_reverse`.
 
 - **Client behavior**
 - Tracks `roomType` in Redux:
@@ -83,7 +84,7 @@ Public lobby differs from custom/private rooms:
   - `client/src/services/Network.ts` dispatches `setJoinedRoomType(RoomType.PUBLIC|CUSTOM)`.
 - Public auto-login is executed in Phaser (reliable timing):
   - `client/src/scenes/Game.ts` `create()` sets:
-    - `myPlayer` texture to `adam` (public rooms currently enforce `adam_*` anim keys server-side)
+    - `myPlayer` texture to `mutant`
     - `myPlayer` name to `mutant-${sessionId}`
     - calls `network.readyToConnect()`
     - dispatches `setLoggedIn(true)` so Chat/Playlist UI renders
@@ -169,11 +170,11 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
   - `client/src/scenes/Bootstrap.ts` preloads the spritesheet with frame size `72x105`.
 
 - Animation creation:
-  - `client/src/anims/CharacterAnims.ts` creates `adam_boombox` (frames 0–11), repeat `-1`, frameRate `animsFrameRate * 0.5`.
+  - `client/src/anims/CharacterAnims.ts` creates `mutant_boombox` (frames 0–11), repeat `-1`, frameRate `animsFrameRate * 0.5`.
 
 - Local + network sync:
   - When entering booth:
-    - `MyPlayer` plays `adam_boombox` and calls `network.updatePlayerAction(..., 'adam_boombox')`.
+    - `MyPlayer` plays `mutant_boombox` and calls `network.updatePlayerAction(..., 'mutant_boombox')`.
   - When leaving booth:
     - `MyPlayer` plays idle and calls `network.updatePlayerAction(..., idleAnimKey)`.
 
@@ -192,14 +193,14 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
   - `client/public/assets/items/thinkpaddesk.gif` (loaded under key `musicBooths`)
 
 - Bootstrapping:
-  - `client/src/scenes/Bootstrap.ts` preloads the spritesheet under key `adam_djwip`.
+  - `client/src/scenes/Bootstrap.ts` preloads the spritesheet under key `mutant_djwip`.
 
 - Animation creation:
-  - `client/src/anims/CharacterAnims.ts` creates `adam_djwip` (frames `0..4`), repeat `-1`.
+  - `client/src/anims/CharacterAnims.ts` creates `mutant_djwip` (frames `0..4`), repeat `-1`.
   - Frame rate is intentionally slower than the base anim rate (`animsFrameRate * 0.25`).
 
 - Local + network sync:
-  - `MyPlayer` uses `adam_djwip` when entering the booth in public rooms and calls `network.updatePlayerAction(..., 'adam_djwip')`.
+  - `MyPlayer` uses `mutant_djwip` when entering the booth in public rooms and calls `network.updatePlayerAction(..., 'mutant_djwip')`.
 
 - Desk visibility:
   - The booth sprite is treated as a placeholder “desk”.
@@ -212,22 +213,22 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
   - Frame size: `90x140` (3 columns x 2 rows)
 
 - Animation keys:
-  - `adam_transform` (frames `0..5`, repeat `0`, frameRate `animsFrameRate * 0.5`)
-  - `adam_transform_reverse` (frames `5..0`, repeat `0`, frameRate `animsFrameRate * 0.5`)
+  - `mutant_transform` (frames `0..5`, repeat `0`, frameRate `animsFrameRate * 0.5`)
+  - `mutant_transform_reverse` (frames `5..0`, repeat `0`, frameRate `animsFrameRate * 0.5`)
 
 - Entering the booth (press `R`):
   - `MyPlayer` snaps the player to a booth “stand spot” and forces facing down.
-  - Plays `adam_transform` once, then switches to the booth anim (`adam_djwip` in public rooms, otherwise `adam_boombox`).
+  - Plays `mutant_transform` once, then switches to the booth anim (`mutant_djwip` in public rooms, otherwise `mutant_boombox`).
   - Sync is done by calling `network.updatePlayerAction(..., animKey)` for both the transform and the final booth anim.
 
 - Leaving the booth (press `R` again):
-  - Plays `adam_transform_reverse` once, then switches back to `${playerTexture}_idle_down` and restores movement.
+  - Plays `mutant_transform_reverse` once, then switches back to `${playerTexture}_idle_down` and restores movement.
   - Reverse transition is also synced via `network.updatePlayerAction`.
 
 - Depth ordering:
   - DJ + transform animations render behind the desk:
     - `MyPlayer` uses `this.setDepth(musicBooth.depth - 1)` on booth entry.
-    - `OtherPlayer` uses `this.setDepth(this.y - 1)` when `anim` is `adam_djwip` / `adam_transform` / `adam_transform_reverse`.
+    - `OtherPlayer` uses `this.setDepth(this.y - 1)` when `anim` is `mutant_djwip` / `mutant_transform` / `mutant_transform_reverse`.
 
 ### Player collision + DJ hitbox gotchas
 

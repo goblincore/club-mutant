@@ -271,7 +271,7 @@ export default class MyPlayer extends Player {
           body.setVelocity(0, 0)
           this.playerContainerBody.setVelocity(0, 0)
 
-          const boomboxAnimKey = 'adam_boombox'
+          const boomboxAnimKey = 'mutant_boombox'
           this.play(boomboxAnimKey, true)
           this.updatePhysicsBodyForAnim(boomboxAnimKey)
           network.updatePlayerAction(this.x, this.y, boomboxAnimKey)
@@ -510,7 +510,7 @@ export default class MyPlayer extends Player {
           this.musicBoothOnSit.setDialogBox('Press R to be the DJ')
           this.djTransitionTarget = null
 
-          const reverseKey = 'adam_transform_reverse'
+          const reverseKey = 'mutant_transform_reverse'
           this.play(reverseKey, true)
           this.updatePhysicsBodyForAnim(reverseKey)
           network.updatePlayerAction(this.x, this.y, reverseKey)
@@ -631,12 +631,12 @@ export default class MyPlayer extends Player {
     this.djBoothDepth = this.depth
     if (this.playerTexture === 'adam' || this.playerTexture === 'mutant') {
       const roomType = store.getState().room.roomType
-      const boothAnimKey = roomType === RoomType.PUBLIC ? 'adam_djwip' : 'adam_boombox'
+      const boothAnimKey = roomType === RoomType.PUBLIC ? 'mutant_djwip' : 'mutant_boombox'
 
       const faceDownKey = `${this.playerTexture}_idle_down`
       this.play(faceDownKey, true)
 
-      const transformKey = 'adam_transform'
+      const transformKey = 'mutant_transform'
       this.play(transformKey, true)
       this.updatePhysicsBodyForAnim(transformKey)
       network.updatePlayerAction(this.x, this.y, transformKey)

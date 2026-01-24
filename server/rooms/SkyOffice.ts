@@ -353,10 +353,10 @@ export class SkyOffice extends Room<OfficeState> {
           this.isPublic && typeof message.anim === 'string'
             ? (() => {
                 const allowedSpecialAnims = new Set([
-                  'adam_boombox',
-                  'adam_djwip',
-                  'adam_transform',
-                  'adam_transform_reverse',
+                  'mutant_boombox',
+                  'mutant_djwip',
+                  'mutant_transform',
+                  'mutant_transform_reverse',
                 ])
 
                 if (allowedSpecialAnims.has(message.anim)) return message.anim

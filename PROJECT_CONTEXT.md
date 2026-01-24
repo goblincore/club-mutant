@@ -73,20 +73,21 @@ Public lobby differs from custom/private rooms:
     - Stores `this.isPublic`.
     - On `onJoin`, if public:
       - Sets `player.name = mutant-${client.sessionId}` (unique per connection)
-      - Sets `player.anim = adam_idle_down`
+      - Sets `player.anim = mutant_idle_down`
     - Ignores `Message.UPDATE_PLAYER_NAME` when public.
-    - Sanitizes `Message.UPDATE_PLAYER_ACTION` animation keys to `adam_*` when public.
+    - Sanitizes `Message.UPDATE_PLAYER_ACTION` animation keys to `mutant_*` when public.
+      - Allows special DJ/transition anim keys through: `mutant_djwip`, `mutant_boombox`, `mutant_transform`, `mutant_transform_reverse`.
 
 - **Client behavior**
   - Tracks `roomType` in Redux:
     - `client/src/stores/RoomStore.ts` adds `roomType` + `setJoinedRoomType`.
     - `client/src/services/Network.ts` dispatches `setJoinedRoomType(RoomType.PUBLIC|CUSTOM)`.
   - Public auto-login is executed in Phaser (reliable timing):
-    - `client/src/scenes/Game.ts` `create()` sets:
-      - `myPlayer` texture to `adam` (public rooms currently enforce `adam_*` anim keys server-side)
-      - `myPlayer` name to `mutant-${sessionId}`
-      - calls `network.readyToConnect()`
-      - dispatches `setLoggedIn(true)` so Chat/Playlist UI renders
+  - `client/src/scenes/Game.ts` `create()` sets:
+    - `myPlayer` texture to `mutant`
+    - `myPlayer` name to `mutant-${sessionId}`
+    - calls `network.readyToConnect()`
+    - dispatches `setLoggedIn(true)` so Chat/Playlist UI renders
   - `client/src/components/LoginDialog.tsx` returns empty for public rooms (no UI).
 
 ## Mutant character animations (atlas)
