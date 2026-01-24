@@ -238,7 +238,6 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
   - `client/src/characters/Player.ts` implements a special DJ-only “feet” hitbox in `updatePhysicsBodyForAnim()`.
   - It uses a narrow, low hitbox and anchors it using a right-edge reference so it can be widened leftward.
 
-- The transform animations (`adam_transform`, `adam_transform_reverse`) are treated like DJ anims for collision sizing.
 - The transform animations (`mutant_transform`, `mutant_transform_reverse`) are treated like DJ anims for collision sizing.
 
 - Late-join collision mismatch:
