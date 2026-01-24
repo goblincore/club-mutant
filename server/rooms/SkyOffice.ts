@@ -34,8 +34,8 @@ import Queue from '../Queue'
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
-  private name: string
-  private description: string
+  private name = ''
+  private description = ''
   private password: string | null = null
   private musicBoothQueue: Queue | null = null
   private isPublic = false
@@ -499,6 +499,10 @@ export class SkyOffice extends Room<OfficeState> {
 
   async onAuth(client: Client, options: { password: string | null }) {
     if (this.password) {
+      if (!options.password) {
+        throw new ServerError(403, 'Password is required!')
+      }
+
       const isValidPassword = await bcrypt.compare(options.password, this.password)
       if (!isValidPassword) {
         throw new ServerError(403, 'Password is incorrect!')

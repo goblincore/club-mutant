@@ -2,16 +2,17 @@ import { Command } from '@colyseus/command'
 
 import { Client } from 'colyseus'
 import { PlaylistItem, DJUserInfo } from '../schema/OfficeState'
-import { IOfficeState, IPlaylistItem, IPlayer } from '../../../types/IOfficeState'
+import type { SkyOffice } from '../SkyOffice'
+import { IPlaylistItem } from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
 
 type Payload = {
-  client: Client
-  item: IPlaylistItem
+  client?: Client
+  item?: IPlaylistItem
 }
 
-export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
-  execute(data: Payload) {
+export class MusicStreamNextCommand extends Command<SkyOffice, Payload | undefined> {
+  execute(data: Payload | undefined) {
     console.log('////MusicStreamNextCommand, Payload, data', data)
     this.clock.clear()
     const musicStream = this.state.musicStream
@@ -31,7 +32,7 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
       return
     }
 
-    const player: IPlayer = this.state.players.get(djSessionId)
+    const player = this.state.players.get(djSessionId)
     if (!player) {
       musicStream.status = 'waiting'
       musicStream.currentLink = null
@@ -40,7 +41,7 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
       return
     }
 
-    if (data.item?.link && data.item.djId === djSessionId) {
+    if (data?.item?.link && data.item.djId === djSessionId) {
       const existing = player.nextTwoPlaylist[0]
       if (!existing || existing.id !== data.item.id) {
         const newItem = new PlaylistItem()
@@ -53,7 +54,7 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
         if (player.nextTwoPlaylist.length === 0) {
           player.nextTwoPlaylist.push(newItem)
         } else {
-          player.nextTwoPlaylist.setAt(0, newItem)
+          player.nextTwoPlaylist.splice(0, 1, newItem)
         }
       }
     }

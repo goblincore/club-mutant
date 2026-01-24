@@ -1,17 +1,21 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
-import { IOfficeState } from '../../../types/IOfficeState'
+import type { SkyOffice } from '../SkyOffice'
 
 type Payload = {
   client: Client
   musicBoothIndex?: number
 }
 
-export class MusicBoothConnectUserCommand extends Command<IOfficeState, Payload> {
+export class MusicBoothConnectUserCommand extends Command<SkyOffice, Payload> {
   execute(data: Payload) {
     const { client, musicBoothIndex } = data
     const clientId = client.sessionId
+
+    if (typeof musicBoothIndex !== 'number') return
+
     const musicBooth = this.state.musicBooths[musicBoothIndex]
+    if (!musicBooth) return
 
     if (musicBooth.connectedUser !== null) return
     musicBooth.connectedUser = clientId
@@ -23,11 +27,15 @@ export class MusicBoothConnectUserCommand extends Command<IOfficeState, Payload>
   }
 }
 
-export class MusicBoothDisconnectUserCommand extends Command<IOfficeState, Payload> {
+export class MusicBoothDisconnectUserCommand extends Command<SkyOffice, Payload> {
   execute(data: Payload) {
     const { client, musicBoothIndex } = data
     const clientId = client.sessionId
+
+    if (typeof musicBoothIndex !== 'number') return
+
     const musicBooth = this.state.musicBooths[musicBoothIndex]
+    if (!musicBooth) return
     for (let i = this.state.musicBoothQueue.length - 1; i >= 0; i -= 1) {
       if (this.state.musicBoothQueue[i] === musicBoothIndex) {
         this.state.musicBoothQueue.splice(i, 1)
