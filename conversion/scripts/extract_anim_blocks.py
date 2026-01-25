@@ -72,6 +72,7 @@ def _label_crop_for_block(
     label_height: int,
     label_width_frac: float,
     label_y_offset: int,
+    label_side: str,
 ) -> np.ndarray:
     h, w = image_bgr.shape[:2]
 
@@ -128,8 +129,16 @@ def _label_crop_for_block(
 
     label_width_frac = float(max(0.1, min(1.0, label_width_frac)))
 
-    lx0 = int(max(0, x0))
-    lx1 = int(min(w, lx0 + int(round((x1 - x0) * label_width_frac))))
+    crop_w = int(round((x1 - x0) * label_width_frac))
+    crop_w = int(max(8, min(int(x1 - x0), crop_w)))
+
+    label_side = str(label_side)
+    if label_side == "right":
+        lx1 = int(min(w, x1))
+        lx0 = int(max(0, lx1 - crop_w))
+    else:
+        lx0 = int(max(0, x0))
+        lx1 = int(min(w, lx0 + crop_w))
 
     ly0 = int(label_start_y)
 
@@ -233,6 +242,19 @@ def _magenta_mask(image_bgr: np.ndarray) -> np.ndarray:
 
     lower = np.array([140, 80, 80], dtype=np.uint8)
     upper = np.array([170, 255, 255], dtype=np.uint8)
+
+    mask = cv2.inRange(hsv, lower, upper)
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+    return mask
+
+
+def _pink_mask(image_bgr: np.ndarray) -> np.ndarray:
+    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+
+    lower = np.array([150, 60, 70], dtype=np.uint8)
+    upper = np.array([179, 255, 255], dtype=np.uint8)
 
     mask = cv2.inRange(hsv, lower, upper)
 
@@ -360,6 +382,78 @@ def _filter_candidate_boxes_open_guides(
 
     boxes.sort(key=lambda b: (b[1], b[0]))
     return boxes
+
+
+def _filter_candidate_boxes_from_guide_contours(
+    image_bgr: np.ndarray,
+    guide_mask: np.ndarray,
+    shrink_px: int,
+    min_area: int,
+    min_sprite_pixels: int,
+) -> list[tuple[int, int, int, int]]:
+    h, w = image_bgr.shape[:2]
+    shrink_px = int(max(0, shrink_px))
+    min_area = int(max(1, min_area))
+    min_sprite_pixels = int(max(0, min_sprite_pixels))
+
+    sprite_mask = _sprite_mask(image_bgr)
+
+    m = (guide_mask > 0).astype(np.uint8) * 255
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+    contours, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    candidates: list[tuple[int, int, int, int]] = []
+    for cnt in contours:
+        x, y, bw, bh = cv2.boundingRect(cnt)
+
+        if bw * bh < min_area:
+            continue
+
+        x1 = int(max(0, x + shrink_px))
+        y1 = int(max(0, y + shrink_px))
+        x2 = int(min(w, x + bw - shrink_px))
+        y2 = int(min(h, y + bh - shrink_px))
+
+        if x2 <= x1 or y2 <= y1:
+            continue
+
+        region_sprite = sprite_mask[y1:y2, x1:x2]
+        if int(np.count_nonzero(region_sprite)) < min_sprite_pixels:
+            continue
+
+        candidates.append((x1, y1, x2 - x1, y2 - y1))
+
+    if not candidates:
+        return []
+
+    def contains(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
+        ax, ay, aw, ah = a
+        bx, by, bw, bh = b
+        return bx >= ax and by >= ay and (bx + bw) <= (ax + aw) and (by + bh) <= (ay + ah)
+
+    filtered: list[tuple[int, int, int, int]] = []
+    for box in candidates:
+        ax, ay, aw, ah = box
+        a_area = aw * ah
+        has_smaller_inside = False
+        for other in candidates:
+            if other == box:
+                continue
+            ox, oy, ow, oh = other
+            o_area = ow * oh
+            if o_area <= 0:
+                continue
+            if a_area > int(o_area * 4) and contains(box, other):
+                has_smaller_inside = True
+                break
+        if has_smaller_inside:
+            continue
+        filtered.append(box)
+
+    filtered.sort(key=lambda b: (b[1], b[0]))
+    return filtered
 
 
 def _sprite_mask(image_bgr: np.ndarray) -> np.ndarray:
@@ -692,6 +786,7 @@ def extract_blocks(
     bg_s_max: int,
     alpha_blur: int,
     guide_mode: str,
+    guide_color: str,
     open_v_len: int,
     open_group_y_tol: int,
     export_frames: bool,
@@ -706,13 +801,20 @@ def extract_blocks(
     label_width_frac: float,
     label_y_offset: int,
     label_ocr: bool,
+    label_side: str,
+    use_label_names: bool,
     write_frames_map: Optional[Path],
+    write_frames_index: Optional[Path],
     frames_map_default_directions: list[str],
 ) -> tuple[list[BlockInfo], Path]:
     image = _read_image(input_path)
     image_bgr = _bgr(image)
 
-    magenta_mask = _magenta_mask(image_bgr)
+    guide_color = str(guide_color)
+    if guide_color == "pink":
+        magenta_mask = _pink_mask(image_bgr)
+    else:
+        magenta_mask = _magenta_mask(image_bgr)
 
     guide_mode = str(guide_mode)
     if guide_mode not in {"closed", "open", "auto"}:
@@ -731,6 +833,15 @@ def extract_blocks(
             min_area=min_area,
             min_sprite_pixels=min_sprite_pixels,
         )
+
+        if guide_color == "pink" and len(boxes) < 4:
+            boxes = _filter_candidate_boxes_from_guide_contours(
+                image_bgr=image_bgr,
+                guide_mask=magenta_mask,
+                shrink_px=shrink_px,
+                min_area=min_area,
+                min_sprite_pixels=min_sprite_pixels,
+            )
 
     if guide_mode == "open" or (guide_mode == "auto" and len(boxes) < 6):
         boxes = _filter_candidate_boxes_open_guides(
@@ -756,7 +867,11 @@ def extract_blocks(
 
     autogen_blocks_map: dict[str, dict] = {}
 
+    frames_index_entries: list[dict] = []
+
     blocks: list[BlockInfo] = []
+
+    use_label_names = bool(use_label_names)
 
     for idx, (x, y, bw, bh) in enumerate(boxes):
         key = f"block_{idx:03d}"
@@ -796,7 +911,7 @@ def extract_blocks(
             block_alpha=block_alpha,
         )
 
-        if export_labels or write_frames_map is not None:
+        if export_labels or write_frames_map is not None or (export_frames and label_ocr and use_label_names):
             label_crop = _label_crop_for_block(
                 image_bgr=image_bgr,
                 magenta_mask=magenta_mask,
@@ -808,6 +923,7 @@ def extract_blocks(
                 label_height=int(label_height),
                 label_width_frac=float(label_width_frac),
                 label_y_offset=int(label_y_offset),
+                label_side=str(label_side),
             )
 
             label_file_rel = None
@@ -825,7 +941,7 @@ def extract_blocks(
                 if label_text_raw is not None:
                     label_name = _slugify(label_text_raw)
 
-            if write_frames_map is not None:
+            if write_frames_map is not None or use_label_names:
                 entry: dict = {
                     "name": label_name or "",
                     "colStart": 0,
@@ -963,7 +1079,35 @@ def extract_blocks(
                             frame_name = f"{key}_r{row:02d}_c{col:02d}.png"
                         else:
                             frame_name = f"r{row:02d}_c{col:02d}.png"
-                    cv2.imwrite(str(block_frames_dir / frame_name), frame_out)
+
+                    frame_path = block_frames_dir / frame_name
+                    cv2.imwrite(str(frame_path), frame_out)
+
+                    if write_frames_index is not None:
+                        rel_path = str(frame_path.relative_to(out_dir).as_posix())
+                        frames_index_entries.append(
+                            {
+                                "file": rel_path,
+                                "blockKey": key,
+                                "row": int(row),
+                                "col": int(col),
+                                "frameIndex": int(col - col_start),
+                                "animName": anim_name or "",
+                                "direction": (directions[row] if directions is not None else ""),
+                                "source": {
+                                    "x": int(x + cx1),
+                                    "y": int(y + cy1),
+                                    "width": int(cx2 - cx1),
+                                    "height": int(cy2 - cy1),
+                                },
+                                "block": {
+                                    "x": int(x),
+                                    "y": int(y),
+                                    "width": int(bw),
+                                    "height": int(bh),
+                                },
+                            }
+                        )
 
         blocks.append(
             BlockInfo(
@@ -995,6 +1139,13 @@ def extract_blocks(
             "blocks": autogen_blocks_map,
         }
         write_frames_map.write_text(json.dumps(frames_map_out, indent=2) + "\n")
+
+    if write_frames_index is not None:
+        frames_index_out = {
+            "source": str(input_path.as_posix()),
+            "frames": frames_index_entries,
+        }
+        write_frames_index.write_text(json.dumps(frames_index_out, indent=2) + "\n")
 
     return blocks, manifest_path
 
@@ -1080,6 +1231,12 @@ def main() -> None:
         help="How to interpret magenta guides: 'closed' expects fully boxed guides; 'open' expects bottom + vertical right guides; 'auto' tries closed then falls back to open",
     )
     parser.add_argument(
+        "--guide-color",
+        choices=["magenta", "pink"],
+        default="magenta",
+        help="Guide line color to detect: 'magenta' for the original boxed sheets; 'pink' for pink-grid sheets",
+    )
+    parser.add_argument(
         "--open-v-len",
         type=int,
         default=12,
@@ -1152,14 +1309,30 @@ def main() -> None:
         help="Pixels below the detected bottom magenta line to start the label crop",
     )
     parser.add_argument(
+        "--label-side",
+        choices=["left", "right"],
+        default="left",
+        help="Which side of the block to crop label text from (labels for this workflow are typically lower-left)",
+    )
+    parser.add_argument(
         "--label-ocr",
         action="store_true",
         help="Attempt OCR of label crops using the 'tesseract' CLI if installed",
     )
     parser.add_argument(
+        "--use-label-names",
+        action="store_true",
+        help="Use OCR'd label text (if available) as the animation name when exporting frames (avoids needing --frames-map)",
+    )
+    parser.add_argument(
         "--write-frames-map",
         default=None,
         help="Write an auto-generated frames-map JSON to this path (uses OCR name if available; otherwise blank names)",
+    )
+    parser.add_argument(
+        "--write-frames-index",
+        default=None,
+        help="Write a JSON index of all exported frame files to this path (requires --export-frames)",
     )
     parser.add_argument(
         "--frames-map-default-directions",
@@ -1190,6 +1363,10 @@ def main() -> None:
     if args.write_frames_map is not None:
         write_frames_map = Path(args.write_frames_map).resolve()
 
+    write_frames_index: Optional[Path] = None
+    if args.write_frames_index is not None:
+        write_frames_index = Path(args.write_frames_index).resolve()
+
     default_dirs = _parse_direction_list(str(args.frames_map_default_directions))
 
     blocks, manifest_path = extract_blocks(
@@ -1209,6 +1386,7 @@ def main() -> None:
         bg_s_max=args.bg_s_max,
         alpha_blur=args.alpha_blur,
         guide_mode=str(args.guide_mode),
+        guide_color=str(args.guide_color),
         open_v_len=int(args.open_v_len),
         open_group_y_tol=int(args.open_group_y_tol),
         export_frames=bool(args.export_frames),
@@ -1223,7 +1401,10 @@ def main() -> None:
         label_width_frac=float(args.label_width_frac),
         label_y_offset=int(args.label_y_offset),
         label_ocr=bool(args.label_ocr),
+        label_side=str(args.label_side),
+        use_label_names=bool(args.use_label_names),
         write_frames_map=write_frames_map,
+        write_frames_index=write_frames_index,
         frames_map_default_directions=list(default_dirs),
     )
 

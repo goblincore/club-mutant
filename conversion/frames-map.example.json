@@ -1,0 +1,60 @@
+{
+  "blocks": {
+    "block_000": {
+      "name": "idle",
+      "directions": ["up_right", "right", "down_right", "down_left", "left", "up_left"],
+      "colStart": 0,
+      "colEnd": null,
+      "frameIndexPad": 3
+    },
+    "block_001": {
+      "name": "walk",
+      "directions": ["up_right", "right", "down_right", "down_left", "left", "up_left"],
+      "colStart": 0,
+      "colEnd": null,
+      "frameIndexPad": 3
+    },
+    "block_002": {
+      "name": "punch",
+      "directions": ["up_right", "right", "down_right", "down_left", "left", "up_left"],
+      "colStart": 0,
+      "colEnd": null,
+      "frameIndexPad": 3
+    },
+    "block_003": {
+      "name": "hit",
+      "directions": ["up_right", "right", "down_right", "down_left", "left", "up_left"],
+      "colStart": 0,
+      "colEnd": null,
+      "frameIndexPad": 3
+    },
+    "block_004": {
+      "name": "burndeath",
+      "directions": ["up_right", "right", "down_right", "down_left", "left", "up_left"],
+      "colStart": 0,
+      "colEnd": null,
+      "frameIndexPad": 3
+    },
+    "block_005": {
+      "name": "chunkdeath",
+      "directions": ["up_right", "right", "down_right", "down_left", "left", "up_left"],
+      "colStart": 0,
+      "colEnd": null,
+      "frameIndexPad": 3
+    },
+    "block_006": {
+      "name": "throw",
+      "directions": ["up_right", "right", "down_right", "down_left", "left", "up_left"],
+      "colStart": 0,
+      "colEnd": null,
+      "frameIndexPad": 3
+    },
+    "block_007": {
+      "name": "dance",
+      "directions": ["up_right", "right", "down_right", "down_left", "left", "up_left"],
+      "colStart": 0,
+      "colEnd": null,
+      "frameIndexPad": 3
+    }
+  }
+}

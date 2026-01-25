@@ -7,6 +7,7 @@ The goal of this workflow is to automatically extract each animation rectangle i
 ## Input
 
 - `conversion/base/supermutant-basicanimations.png`
+- `conversion/base/griddedpinksupermutant.png` (pink guide lines)
 
 ## Output
 
@@ -40,6 +41,14 @@ Use a repo-local virtualenv instead:
 Default (recommended): extract blocks and manifest without modifying pixels:
 
 - `./.venv/bin/python conversion/scripts/extract_anim_blocks.py --input conversion/base/supermutant-basicanimations.png`
+
+Pink guides (gridded sheet):
+
+- `./.venv/bin/python conversion/scripts/extract_anim_blocks.py --input conversion/base/griddedpinksupermutant.png --guide-color pink`
+
+Optional: export per-frame PNGs with deterministic naming using a frames map:
+
+- `./.venv/bin/python conversion/scripts/extract_anim_blocks.py --input conversion/base/griddedpinksupermutant.png --guide-color pink --export-frames --export-frames-flat --frames-map conversion/frames-map.example.json`
 
 Optional (experimental): attempt to make the background transparent:
 
