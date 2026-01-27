@@ -660,9 +660,19 @@ export default class Game extends Phaser.Scene {
     otherPlayer?.updateOtherPlayer(field, value)
   }
 
-  private handleMyPlayerForcedAnim(animKey: string) {
+  private handleMyPlayerForcedAnim(animKey: string, x?: number, y?: number) {
     if (!this.myPlayer || !this.network) return
     this.myPlayer.cancelMoveNavigation()
+
+    if (typeof x === 'number' && typeof y === 'number') {
+      const body = this.myPlayer.body as Phaser.Physics.Arcade.Body | null
+      this.myPlayer.x = x
+      this.myPlayer.y = y
+      body?.reset(x, y)
+      this.myPlayer.playerContainer.x = x
+      this.myPlayer.playerContainer.y = y
+    }
+
     this.myPlayer.playHitAnim(animKey, this.network)
   }
 

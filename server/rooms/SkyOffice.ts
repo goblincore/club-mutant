@@ -433,13 +433,23 @@ export class SkyOffice extends Room<OfficeState> {
 
       const punchImpactDelayMs = 350
 
-      console.log(
-        `[PUNCH] Attacker ${client.sessionId} scheduled hit on Victim ${targetId} with ${hitAnimKey} (+${punchImpactDelayMs}ms)`
-      )
+      const attackerAtPunch = { x: attacker.x, y: attacker.y }
 
       this.clock.setTimeout(() => {
         const victimCurrent = this.state.players.get(targetId)
         if (!victimCurrent) return
+
+        const punchKnockbackPx = 10
+
+        const kbDx = victimCurrent.x - attackerAtPunch.x
+        const kbDy = victimCurrent.y - attackerAtPunch.y
+        const kbLen = Math.sqrt(kbDx * kbDx + kbDy * kbDy)
+
+        const kbUnitX = kbLen > 0 ? kbDx / kbLen : 0
+        const kbUnitY = kbLen > 0 ? kbDy / kbLen : 0
+
+        victimCurrent.x += kbUnitX * punchKnockbackPx
+        victimCurrent.y += kbUnitY * punchKnockbackPx
 
         victimCurrent.anim = hitAnimKey
 
@@ -459,7 +469,11 @@ export class SkyOffice extends Room<OfficeState> {
 
         // Send to the victim specifically
         if (victimClient) {
-          victimClient.send(Message.PUNCH_PLAYER, { anim: hitAnimKey })
+          victimClient.send(Message.PUNCH_PLAYER, {
+            anim: hitAnimKey,
+            x: victimCurrent.x,
+            y: victimCurrent.y,
+          })
         }
       }, punchImpactDelayMs)
     })
