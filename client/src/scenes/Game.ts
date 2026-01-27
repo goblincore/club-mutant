@@ -30,6 +30,8 @@ import { RoomType } from '../../../types/Rooms'
 
 import { phaserEvents, Event } from '../events/EventCenter'
 
+import { VHS_POSTFX_PIPELINE_KEY, VhsPostFxPipeline } from '../pipelines/VhsPostFxPipeline'
+
 export default class Game extends Phaser.Scene {
   network!: Network
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
@@ -45,6 +47,7 @@ export default class Game extends Phaser.Scene {
   private key3!: Phaser.Input.Keyboard.Key
   private key4!: Phaser.Input.Keyboard.Key
   private key5!: Phaser.Input.Keyboard.Key
+  private keyV!: Phaser.Input.Keyboard.Key
   private map!: Phaser.Tilemaps.Tilemap
   private groundLayer!: Phaser.Tilemaps.TilemapLayer
   private pathObstacles: Array<{ getBounds: () => Phaser.Geom.Rectangle }> = []
@@ -144,6 +147,26 @@ export default class Game extends Phaser.Scene {
 
   preload() {}
 
+  private toggleVhsPostFx() {
+    const camera = this.cameras.main
+    const existing = camera.getPostPipeline(VHS_POSTFX_PIPELINE_KEY)
+    const hasExisting = Array.isArray(existing) ? existing.length > 0 : !!existing
+
+    if (hasExisting) {
+      camera.removePostPipeline(VHS_POSTFX_PIPELINE_KEY)
+      return
+    }
+
+    camera.setPostPipeline(VHS_POSTFX_PIPELINE_KEY)
+
+    const pipeline = camera.getPostPipeline(VHS_POSTFX_PIPELINE_KEY)
+    const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
+
+    if (instance && instance instanceof VhsPostFxPipeline) {
+      instance.setBypass(false)
+    }
+  }
+
   private clearHoverHighlight(item: Item) {
     const glow = this.hoverGlowFx.get(item)
     if (glow && item.postFX) {
@@ -231,9 +254,15 @@ export default class Game extends Phaser.Scene {
     this.key3 = keyboard.addKey('THREE')
     this.key4 = keyboard.addKey('FOUR')
     this.key5 = keyboard.addKey('FIVE')
+    this.keyV = keyboard.addKey('V')
     keyboard.disableGlobalCapture()
     keyboard.on('keydown-ESC', (event) => {
       store.dispatch(setShowChat(false))
+    })
+
+    keyboard.on('keydown-V', () => {
+      if (this.game.renderer.type !== Phaser.WEBGL) return
+      this.toggleVhsPostFx()
     })
   }
 
