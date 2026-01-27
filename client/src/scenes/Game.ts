@@ -651,7 +651,7 @@ export default class Game extends Phaser.Scene {
   private handleMyPlayerForcedAnim(animKey: string) {
     if (!this.myPlayer || !this.network) return
     this.myPlayer.cancelMoveNavigation()
-    this.myPlayer.playActionAnim(animKey, this.network, { syncToServer: false })
+    this.myPlayer.playHitAnim(animKey, this.network)
   }
 
   private handlePlayersOverlap(myPlayer, otherPlayer) {}

@@ -327,8 +327,21 @@ export default class Network {
       phaserEvents.emit(Event.STOP_PLAYING_MEDIA)
     })
 
+    this.room.onMessage(
+      Message.UPDATE_PLAYER_ACTION,
+      (payload: { x: number; y: number; anim: string; sessionId: string }) => {
+        console.log(
+          `[NETWORK] Received UPDATE_PLAYER_ACTION for ${payload.sessionId}: ${payload.anim}`
+        )
+        phaserEvents.emit(Event.PLAYER_UPDATED, 'x', payload.x, payload.sessionId)
+        phaserEvents.emit(Event.PLAYER_UPDATED, 'y', payload.y, payload.sessionId)
+        phaserEvents.emit(Event.PLAYER_UPDATED, 'anim', payload.anim, payload.sessionId)
+      }
+    )
+
     this.room.onMessage(Message.PUNCH_PLAYER, (payload: { anim: string }) => {
       if (!payload || typeof payload.anim !== 'string') return
+      console.log(`[NETWORK] Received PUNCH_PLAYER local forced anim: ${payload.anim}`)
       phaserEvents.emit(Event.MY_PLAYER_FORCED_ANIM, payload.anim)
     })
 

@@ -65,8 +65,24 @@ export default class OtherPlayer extends Player {
           }
 
           if (this.scene.anims.exists(requestedKey)) {
-            this.anims.play(requestedKey, true)
+            // If it's a hit animation, we don't want to use 'ignoreIfPlaying' (2nd arg)
+            // because hits should always interrupt current state
+            const isHit = requestedKey.includes('_hit1_') || requestedKey.includes('_hit2_')
+            this.anims.play(requestedKey, !isHit)
             this.updatePhysicsBodyForAnim(requestedKey)
+
+            if (isHit) {
+              const parts = requestedKey.split('_')
+              const dir = parts.slice(2).join('_') || 'down'
+
+              this.once(`animationcomplete-${requestedKey}`, () => {
+                const idleKey = `${this.playerTexture}_idle_${dir}`
+                if (this.scene.anims.exists(idleKey)) {
+                  this.anims.play(idleKey, true)
+                  this.updatePhysicsBodyForAnim(idleKey)
+                }
+              })
+            }
             return
           }
 

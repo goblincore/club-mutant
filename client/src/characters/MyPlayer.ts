@@ -123,6 +123,38 @@ export default class MyPlayer extends Player {
     })
   }
 
+  playHitAnim(animKey: string, network: Network) {
+    if (!this.scene.anims.exists(animKey)) return
+
+    const parts = animKey.split('_')
+    const dir = parts.slice(2).join('_') || 'down'
+
+    // Interrupt current state
+    this.playingActionAnim = true
+    this.actionAnimKey = animKey
+
+    this.play(animKey, false) // false = do not ignore if already playing
+    this.updatePhysicsBodyForAnim(animKey)
+
+    this.once(`animationcomplete-${animKey}`, () => {
+      if (this.actionAnimKey === animKey) {
+        this.playingActionAnim = false
+        this.actionAnimKey = null
+      }
+
+      const idleKey = `${this.playerTexture}_idle_${dir}`
+      const finalIdle = this.scene.anims.exists(idleKey)
+        ? idleKey
+        : `${this.playerTexture}_idle_down`
+
+      this.play(finalIdle, true)
+      this.updatePhysicsBodyForAnim(finalIdle)
+
+      // Sync the return to idle
+      network.updatePlayerAction(this.x, this.y, finalIdle)
+    })
+  }
+
   playDebugAnim(animKey: string, network: Network, options?: { syncToServer?: boolean }) {
     if (!this.scene.anims.exists(animKey)) return
 

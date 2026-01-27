@@ -865,6 +865,29 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
     })
   }
 
+  const overrideNoLoop = (
+    key: string,
+    prefix: string,
+    start: number,
+    end: number,
+    frameRate: number
+  ) => {
+    if (anims.exists(key)) {
+      anims.remove(key)
+    }
+
+    anims.create({
+      key,
+      frames: anims.generateFrameNames('mutant_ripped', {
+        start,
+        end,
+        prefix,
+      }),
+      repeat: 0,
+      frameRate,
+    })
+  }
+
   const idlePrefix = 'mutant-unarmed-idle-'
   const walkPrefix = 'mutant-unarmed-walk-'
 
@@ -884,159 +907,34 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
   overrideLoop('mutant_run_left', walkPrefix, 40, 49, animsFrameRate)
   overrideLoop('mutant_run_up_left', walkPrefix, 50, 59, animsFrameRate)
 
-  // mut_hit1: 36 frames, 6 per direction (6 isometric directions)
-  // Order: NE(0-5), E(6-11), SE(12-17), S(18-23), SW(24-29), W(30-35)
-  anims.create({
-    key: 'mutant_hit_up',
-    frames: anims.generateFrameNames('mutant', {
-      start: 0,
-      end: 5,
-      prefix: 'mut_hit1-',
-    }),
-    repeat: 0,
-    frameRate: animsFrameRate,
-  })
+  // Unarmed Punch Override
+  const punchFrameRate = animsFrameRate * 1.6
+  overrideNoLoop('mutant_punch_up_right', 'mutant-unarmed-punch-', 0, 10, punchFrameRate)
+  overrideNoLoop('mutant_punch_right', 'mutant-unarmed-punch-', 11, 21, punchFrameRate)
+  overrideNoLoop('mutant_punch_down_right', 'mutant-unarmed-punch-', 22, 32, punchFrameRate)
+  overrideNoLoop('mutant_punch_down', 'mutant-unarmed-punch-', 33, 43, punchFrameRate)
+  overrideNoLoop('mutant_punch_down_left', 'mutant-unarmed-punch-', 33, 43, punchFrameRate)
+  overrideNoLoop('mutant_punch_left', 'mutant-unarmed-punch-', 44, 54, punchFrameRate)
+  overrideNoLoop('mutant_punch_up_left', 'mutant-unarmed-punch-', 55, 65, punchFrameRate)
+  overrideNoLoop('mutant_punch_up', 'mutant-unarmed-punch-', 55, 65, punchFrameRate)
 
-  anims.create({
-    key: 'mutant_hit_right',
-    frames: anims.generateFrameNames('mutant', {
-      start: 6,
-      end: 11,
-      prefix: 'mut_hit1-',
-    }),
-    repeat: 0,
-    frameRate: animsFrameRate,
-  })
+  // Hit1 Override
+  overrideNoLoop('mutant_hit1_up_right', 'mutant-unarmed-hit1-', 0, 5, animsFrameRate)
+  overrideNoLoop('mutant_hit1_right', 'mutant-unarmed-hit1-', 6, 11, animsFrameRate)
+  overrideNoLoop('mutant_hit1_down_right', 'mutant-unarmed-hit1-', 12, 17, animsFrameRate)
+  overrideNoLoop('mutant_hit1_down', 'mutant-unarmed-hit1-', 18, 23, animsFrameRate)
+  overrideNoLoop('mutant_hit1_down_left', 'mutant-unarmed-hit1-', 18, 23, animsFrameRate)
+  overrideNoLoop('mutant_hit1_left', 'mutant-unarmed-hit1-', 24, 29, animsFrameRate)
+  overrideNoLoop('mutant_hit1_up_left', 'mutant-unarmed-hit1-', 30, 35, animsFrameRate)
+  overrideNoLoop('mutant_hit1_up', 'mutant-unarmed-hit1-', 30, 35, animsFrameRate)
 
-  anims.create({
-    key: 'mutant_hit_down_right',
-    frames: anims.generateFrameNames('mutant', {
-      start: 12,
-      end: 17,
-      prefix: 'mut_hit1-',
-    }),
-    repeat: 0,
-    frameRate: animsFrameRate,
-  })
-
-  anims.create({
-    key: 'mutant_hit_down',
-    frames: anims.generateFrameNames('mutant', {
-      start: 18,
-      end: 23,
-      prefix: 'mut_hit1-',
-    }),
-    repeat: 0,
-    frameRate: animsFrameRate,
-  })
-
-  anims.create({
-    key: 'mutant_hit_down_left',
-    frames: anims.generateFrameNames('mutant', {
-      start: 24,
-      end: 29,
-      prefix: 'mut_hit1-',
-    }),
-    repeat: 0,
-    frameRate: animsFrameRate,
-  })
-
-  anims.create({
-    key: 'mutant_hit_left',
-    frames: anims.generateFrameNames('mutant', {
-      start: 30,
-      end: 35,
-      prefix: 'mut_hit1-',
-    }),
-    repeat: 0,
-    frameRate: animsFrameRate,
-  })
-
-  anims.create({
-    key: 'mutant_hit1_up',
-    frames: anims.generateFrameNames('mutant', {
-      start: 0,
-      end: 5,
-      prefix: 'mut_hit1-',
-    }),
-    repeat: 0,
-    frameRate: animsFrameRate,
-  })
-
-  anims.create({
-    key: 'mutant_hit1_up_right',
-    frames: anims.generateFrameNames('mutant', {
-      start: 0,
-      end: 5,
-      prefix: 'mut_hit1-',
-    }),
-    repeat: 0,
-    frameRate: animsFrameRate,
-  })
-
-  anims.create({
-    key: 'mutant_hit1_right',
-    frames: anims.generateFrameNames('mutant', {
-      start: 6,
-      end: 11,
-      prefix: 'mut_hit1-',
-    }),
-    repeat: 0,
-    frameRate: animsFrameRate,
-  })
-
-  anims.create({
-    key: 'mutant_hit1_down_right',
-    frames: anims.generateFrameNames('mutant', {
-      start: 12,
-      end: 17,
-      prefix: 'mut_hit1-',
-    }),
-    repeat: 0,
-    frameRate: animsFrameRate,
-  })
-
-  anims.create({
-    key: 'mutant_hit1_down',
-    frames: anims.generateFrameNames('mutant', {
-      start: 18,
-      end: 23,
-      prefix: 'mut_hit1-',
-    }),
-    repeat: 0,
-    frameRate: animsFrameRate,
-  })
-
-  anims.create({
-    key: 'mutant_hit1_down_left',
-    frames: anims.generateFrameNames('mutant', {
-      start: 24,
-      end: 29,
-      prefix: 'mut_hit1-',
-    }),
-    repeat: 0,
-    frameRate: animsFrameRate,
-  })
-
-  anims.create({
-    key: 'mutant_hit1_left',
-    frames: anims.generateFrameNames('mutant', {
-      start: 30,
-      end: 35,
-      prefix: 'mut_hit1-',
-    }),
-    repeat: 0,
-    frameRate: animsFrameRate,
-  })
-
-  anims.create({
-    key: 'mutant_hit1_up_left',
-    frames: anims.generateFrameNames('mutant', {
-      start: 30,
-      end: 35,
-      prefix: 'mut_hit1-',
-    }),
-    repeat: 0,
-    frameRate: animsFrameRate,
-  })
+  // Hit2 Override
+  overrideNoLoop('mutant_hit2_up_right', 'mutant-unarmed-hit2-', 0, 5, animsFrameRate)
+  overrideNoLoop('mutant_hit2_right', 'mutant-unarmed-hit2-', 6, 11, animsFrameRate)
+  overrideNoLoop('mutant_hit2_down_right', 'mutant-unarmed-hit2-', 12, 17, animsFrameRate)
+  overrideNoLoop('mutant_hit2_down', 'mutant-unarmed-hit2-', 18, 23, animsFrameRate)
+  overrideNoLoop('mutant_hit2_down_left', 'mutant-unarmed-hit2-', 18, 23, animsFrameRate)
+  overrideNoLoop('mutant_hit2_left', 'mutant-unarmed-hit2-', 24, 29, animsFrameRate)
+  overrideNoLoop('mutant_hit2_up_left', 'mutant-unarmed-hit2-', 30, 35, animsFrameRate)
+  overrideNoLoop('mutant_hit2_up', 'mutant-unarmed-hit2-', 30, 35, animsFrameRate)
 }

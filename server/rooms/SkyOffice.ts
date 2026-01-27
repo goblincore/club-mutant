@@ -378,8 +378,6 @@ export class SkyOffice extends Room<OfficeState> {
     )
 
     this.onMessage(Message.PUNCH_PLAYER, (client, message: { targetId: string }) => {
-      if (this.isPublic) return
-
       const attacker = this.state.players.get(client.sessionId)
       if (!attacker) return
 
@@ -429,11 +427,41 @@ export class SkyOffice extends Room<OfficeState> {
 
       if (victimTexture !== 'mutant') return
 
-      const hitAnimKey = `mutant_hit1_${dir}`
-      victim.anim = hitAnimKey
+      // Randomly pick hit1 or hit2
+      const hitType = Math.random() > 0.5 ? 'hit1' : 'hit2'
+      const hitAnimKey = `mutant_${hitType}_${dir}`
 
-      const victimClient = this.clients.find((c) => c.sessionId === targetId)
-      victimClient?.send(Message.PUNCH_PLAYER, { anim: hitAnimKey })
+      const punchImpactDelayMs = 350
+
+      console.log(
+        `[PUNCH] Attacker ${client.sessionId} scheduled hit on Victim ${targetId} with ${hitAnimKey} (+${punchImpactDelayMs}ms)`
+      )
+
+      this.clock.setTimeout(() => {
+        const victimCurrent = this.state.players.get(targetId)
+        if (!victimCurrent) return
+
+        victimCurrent.anim = hitAnimKey
+
+        const victimClient = this.clients.find((c) => c.sessionId === targetId)
+
+        // Broadcast to everyone ELSE (OtherPlayer instances)
+        this.broadcast(
+          Message.UPDATE_PLAYER_ACTION,
+          {
+            x: victimCurrent.x,
+            y: victimCurrent.y,
+            anim: hitAnimKey,
+            sessionId: targetId,
+          },
+          { except: victimClient }
+        )
+
+        // Send to the victim specifically
+        if (victimClient) {
+          victimClient.send(Message.PUNCH_PLAYER, { anim: hitAnimKey })
+        }
+      }, punchImpactDelayMs)
     })
 
     // when receiving updatePlayerName message, call the PlayerUpdateNameCommand
