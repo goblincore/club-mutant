@@ -97,6 +97,34 @@ Public lobby differs from custom/private rooms:
   - Atlas JSON: `client/public/assets/character/mutant.json`
   - Animation definitions: `client/src/anims/CharacterAnims.ts`
 
+## Mutant ripped multi-atlas (`mutant_ripped`)
+
+- **Assets**
+  - Multi-atlas JSON: `client/public/assets/character/mutant_ripped.json`
+  - Atlas pages: `client/public/assets/character/mutant_ripped-<n>.png`
+  - Optional WebP pages: `client/public/assets/character/mutant_ripped-<n>.webp`
+
+- **Loading**
+  - `client/src/scenes/Bootstrap.ts` preloads via:
+    - `this.load.multiatlas('mutant_ripped', 'assets/character/mutant_ripped.json', 'assets/character/')`
+  - To use WebP pages, update the `image` fields in `mutant_ripped.json` to `mutant_ripped-<n>.webp`.
+
+- **Animation defs**
+  - Generated definitions live in: `client/src/anims/MutantRippedAnims.ts`
+  - Registered in Phaser via `createMutantRippedAnims(anims)` (called inside `createCharacterAnims`).
+
+- **Replacing base mutant idle/run visuals**
+  - `client/src/anims/CharacterAnims.ts` keeps animation keys like `mutant_idle_<dir>` and `mutant_run_<dir>` intact,
+    but overrides their frames to come from the ripped atlas (unarmed idle/walk).
+  - This preserves all existing movement and networking behavior (server still syncs `mutant_idle_*` / `mutant_run_*`).
+
+- **Debug preview (React overlay)**
+  - UI component: `client/src/components/MutantRippedAnimDebug.tsx` (bottom-center `Debug` button).
+  - Event bridge:
+    - React emits `Event.MUTANT_RIPPED_DEBUG_NEXT_ANIM` via `phaserEvents`.
+    - `client/src/scenes/Game.ts` listens, plays the next `mutant_ripped_*` anim on `MyPlayer`,
+      then emits `Event.MUTANT_RIPPED_DEBUG_CURRENT_ANIM` so React can display the current key.
+
 - **Animation key convention**
   - Local player drives animation via `network.updatePlayerAction(x, y, animKey)`.
   - Keys are strings like:

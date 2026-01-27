@@ -449,6 +449,8 @@ And when run with `--pack`, it produces a Phaser 3 **multi-atlas**:
 - `client/public/assets/character/mutant_ripped.json`
 - `client/public/assets/character/mutant_ripped-<n>.png`
 
+If you have `.webp` versions of the atlas pages, you can switch Phaser to load them by changing the `image` fields inside `client/public/assets/character/mutant_ripped.json` from `mutant_ripped-<n>.png` to `mutant_ripped-<n>.webp`.
+
 Packing settings:
 
 - `--algorithm MaxRects`
@@ -468,7 +470,11 @@ Phaser integration:
 
 - Preload: `client/src/scenes/Bootstrap.ts` loads `mutant_ripped` via `load.multiatlas(...)`.
 - Animations: `client/src/anims/CharacterAnims.ts` calls `createMutantRippedAnims(anims)`.
-- Debug preview: `client/src/scenes/Game.ts` adds a small `Ripped Anims` button that cycles through `mutant_ripped_*` keys on click.
+- Debug preview: `client/src/components/MutantRippedAnimDebug.tsx` renders a bottom-center `Debug` overlay button.
+  - React emits `Event.MUTANT_RIPPED_DEBUG_NEXT_ANIM` via `phaserEvents`.
+  - `client/src/scenes/Game.ts` listens, cycles through `mutantRippedAnimKeys`, and emits `Event.MUTANT_RIPPED_DEBUG_CURRENT_ANIM` back so React can display the current key.
+
+- Mutant idle/run override: `client/src/anims/CharacterAnims.ts` overrides the existing `mutant_idle_*` and `mutant_run_*` keys to use frames from the ripped atlas (unarmed idle/walk), while keeping the same keys so networking and movement logic stay compatible.
 
 ### Magenta guide interpretation
 
