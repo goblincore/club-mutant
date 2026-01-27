@@ -7,7 +7,7 @@ import { phaserEvents, Event } from '../events/EventCenter'
 const Wrapper = styled.div`
   position: fixed;
   left: 50%;
-  top: 12px;
+  bottom: 12px;
   transform: translateX(-50%);
   z-index: 25;
   pointer-events: auto;
@@ -58,10 +58,22 @@ export default function MutantRippedAnimDebug() {
     <Wrapper>
       <Button
         size="small"
-        variant="contained"
+        variant="text"
+        disableRipple
+        disableElevation
         onClick={() => phaserEvents.emit(Event.MUTANT_RIPPED_DEBUG_NEXT_ANIM)}
+        sx={{
+          background: 'rgba(0, 0, 0, 0.35)',
+          border: '1px solid rgba(255, 255, 255, 0.25)',
+          backdropFilter: 'blur(8px)',
+          color: 'rgba(255, 255, 255, 0.9)',
+          transition: 'none',
+          '&:hover': {
+            background: 'rgba(0, 0, 0, 0.45)',
+          },
+        }}
       >
-        Ripped Anims
+        Debug
       </Button>
       <Label>{currentKey || '—'}</Label>
     </Wrapper>
