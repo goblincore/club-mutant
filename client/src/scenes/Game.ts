@@ -28,6 +28,8 @@ import { findPathAStar } from '../utils/pathfinding'
 
 import { RoomType } from '../../../types/Rooms'
 
+import { phaserEvents, Event } from '../events/EventCenter'
+
 export default class Game extends Phaser.Scene {
   network!: Network
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
@@ -64,17 +66,13 @@ export default class Game extends Phaser.Scene {
 
   private rippedAnimIndex = 0
 
-  private rippedAnimDebugButton?: Phaser.GameObjects.Text
-
-  private rippedAnimDebugLabel?: Phaser.GameObjects.Text
-
   private playNextRippedAnim() {
     if (!this.myPlayer || this.rippedAnimKeys.length === 0) return
 
     const nextKey = this.rippedAnimKeys[this.rippedAnimIndex % this.rippedAnimKeys.length]
     this.rippedAnimIndex += 1
 
-    this.rippedAnimDebugLabel?.setText(nextKey)
+    phaserEvents.emit(Event.MUTANT_RIPPED_DEBUG_CURRENT_ANIM, nextKey)
     this.myPlayer.playDebugAnim(nextKey, this.network, { syncToServer: false })
   }
 
@@ -362,36 +360,10 @@ export default class Game extends Phaser.Scene {
 
     this.rippedAnimKeys = mutantRippedAnimKeys.slice().sort()
 
-    const debugWidgetX = Math.round(this.scale.width * 0.5 - 70)
-    const debugWidgetY = Math.round(this.scale.height * 0.55)
-
-    this.rippedAnimDebugButton = this.add
-      .text(debugWidgetX, debugWidgetY, 'Ripped Anims', {
-        fontFamily: 'Arial',
-        fontSize: '14px',
-        color: '#ffffff',
-        backgroundColor: '#000000',
-      })
-      .setPadding(8, 6)
-      .setStroke('#00ffcc', 2)
-      .setShadow(0, 0, '#000000', 6, true, true)
-      .setScrollFactor(0)
-      .setDepth(100000)
-      .setInteractive({ useHandCursor: true })
-
-    this.rippedAnimDebugLabel = this.add
-      .text(debugWidgetX, debugWidgetY + 30, '', {
-        fontFamily: 'Arial',
-        fontSize: '10px',
-        color: '#ffffff',
-        backgroundColor: '#000000',
-      })
-      .setPadding(6, 4)
-      .setShadow(0, 0, '#000000', 6, true, true)
-      .setScrollFactor(0)
-      .setDepth(100000)
-
-    this.rippedAnimDebugButton.on('pointerdown', () => this.playNextRippedAnim())
+    phaserEvents.on(Event.MUTANT_RIPPED_DEBUG_NEXT_ANIM, this.playNextRippedAnim, this)
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      phaserEvents.off(Event.MUTANT_RIPPED_DEBUG_NEXT_ANIM, this.playNextRippedAnim, this)
+    })
 
     this.map = this.make.tilemap({ key: 'tilemap' })
     const FloorAndGround = this.map.addTilesetImage('FloorAndGround', 'tiles_wall')

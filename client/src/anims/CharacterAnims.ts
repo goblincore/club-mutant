@@ -3,7 +3,7 @@ import Phaser from 'phaser'
 import { createMutantRippedAnims } from './MutantRippedAnims'
 
 export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) => {
-  const animsFrameRate = 15
+  const animsFrameRate = 10
 
   anims.create({
     key: 'nancy_idle_right',
@@ -841,6 +841,48 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
   })
 
   createMutantRippedAnims(anims)
+
+  const overrideLoop = (
+    key: string,
+    prefix: string,
+    start: number,
+    end: number,
+    frameRate: number
+  ) => {
+    if (anims.exists(key)) {
+      anims.remove(key)
+    }
+
+    anims.create({
+      key,
+      frames: anims.generateFrameNames('mutant_ripped', {
+        start,
+        end,
+        prefix,
+      }),
+      repeat: -1,
+      frameRate,
+    })
+  }
+
+  const idlePrefix = 'mutant-unarmed-idle-'
+  const walkPrefix = 'mutant-unarmed-walk-'
+
+  overrideLoop('mutant_idle_up_right', idlePrefix, 0, 15, 9)
+  overrideLoop('mutant_idle_right', idlePrefix, 16, 31, 9)
+  overrideLoop('mutant_idle_down_right', idlePrefix, 32, 47, 9)
+  overrideLoop('mutant_idle_down', idlePrefix, 48, 63, 9)
+  overrideLoop('mutant_idle_down_left', idlePrefix, 48, 63, 9)
+  overrideLoop('mutant_idle_left', idlePrefix, 64, 79, 9)
+  overrideLoop('mutant_idle_up_left', idlePrefix, 80, 95, 9)
+
+  overrideLoop('mutant_run_up_right', walkPrefix, 0, 9, animsFrameRate)
+  overrideLoop('mutant_run_right', walkPrefix, 10, 19, animsFrameRate)
+  overrideLoop('mutant_run_down_right', walkPrefix, 20, 29, animsFrameRate)
+  overrideLoop('mutant_run_down', walkPrefix, 30, 39, animsFrameRate)
+  overrideLoop('mutant_run_down_left', walkPrefix, 30, 39, animsFrameRate)
+  overrideLoop('mutant_run_left', walkPrefix, 40, 49, animsFrameRate)
+  overrideLoop('mutant_run_up_left', walkPrefix, 50, 59, animsFrameRate)
 
   // mut_hit1: 36 frames, 6 per direction (6 isometric directions)
   // Order: NE(0-5), E(6-11), SE(12-17), S(18-23), SW(24-29), W(30-35)

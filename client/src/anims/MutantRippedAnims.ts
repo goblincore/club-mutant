@@ -15,7 +15,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_ashes_single_right',
@@ -23,7 +23,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_ashes_single_down_right',
@@ -31,7 +31,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_ashes_single_down',
@@ -39,7 +39,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_ashes_single_down_left',
@@ -47,7 +47,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_ashes_single_left',
@@ -55,7 +55,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_ashes_single_up_left',
@@ -63,7 +63,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_ashes_single_up',
@@ -71,7 +71,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bisectedbullets_single_up_right',
@@ -79,7 +79,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bisectedbullets_single_right',
@@ -87,7 +87,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bisectedbullets_single_down_right',
@@ -95,7 +95,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bisectedbullets_single_down',
@@ -103,7 +103,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bisectedbullets_single_down_left',
@@ -111,7 +111,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bisectedbullets_single_left',
@@ -119,7 +119,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bisectedbullets_single_up_left',
@@ -127,7 +127,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bisectedbullets_single_up',
@@ -135,7 +135,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bodychunks_single_up_right',
@@ -143,7 +143,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bodychunks_single_right',
@@ -151,7 +151,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bodychunks_single_down_right',
@@ -159,7 +159,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bodychunks_single_down',
@@ -167,7 +167,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bodychunks_single_down_left',
@@ -175,7 +175,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bodychunks_single_left',
@@ -183,7 +183,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bodychunks_single_up_left',
@@ -191,7 +191,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bodychunks_single_up',
@@ -199,7 +199,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_bodyparts_static_up_right',
@@ -271,7 +271,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 34,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_exploded_single_front_right',
@@ -279,7 +279,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 34,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_exploded_single_front_down_right',
@@ -287,7 +287,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 34,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_exploded_single_front_down',
@@ -295,7 +295,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 34,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_exploded_single_front_down_left',
@@ -303,7 +303,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 34,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_exploded_single_front_left',
@@ -311,7 +311,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 34,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_exploded_single_front_up_left',
@@ -319,7 +319,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 34,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_exploded_single_front_up',
@@ -327,7 +327,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 34,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_firedance_up_right',
@@ -335,7 +335,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 8,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_firedance_right',
@@ -343,7 +343,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 9,
     end: 17,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_firedance_down_right',
@@ -351,7 +351,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 18,
     end: 26,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_firedance_down',
@@ -359,7 +359,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 27,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_firedance_down_left',
@@ -367,7 +367,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 27,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_firedance_left',
@@ -375,7 +375,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 36,
     end: 44,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_firedance_up_left',
@@ -383,7 +383,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 45,
     end: 53,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_firedance_up',
@@ -391,7 +391,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 45,
     end: 53,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_headshotchunks_up_right',
@@ -399,7 +399,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_headshotchunks_right',
@@ -407,7 +407,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_headshotchunks_down_right',
@@ -415,7 +415,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_headshotchunks_down',
@@ -423,7 +423,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_headshotchunks_down_left',
@@ -431,7 +431,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_headshotchunks_left',
@@ -439,7 +439,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_headshotchunks_up_left',
@@ -447,7 +447,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_headshotchunks_up',
@@ -455,7 +455,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_bulletdance_up_right',
@@ -463,7 +463,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 18,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_bulletdance_right',
@@ -471,7 +471,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 18,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_bulletdance_down_right',
@@ -479,7 +479,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 18,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_bulletdance_down',
@@ -487,7 +487,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 18,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_bulletdance_down_left',
@@ -495,7 +495,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 18,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_bulletdance_left',
@@ -503,7 +503,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 18,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_bulletdance_up_left',
@@ -511,7 +511,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 18,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_bulletdance_up',
@@ -519,7 +519,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 18,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electric2_up_right',
@@ -527,7 +527,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 12,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electric2_right',
@@ -535,7 +535,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 12,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electric2_down_right',
@@ -543,7 +543,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 12,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electric2_down',
@@ -551,7 +551,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 12,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electric2_down_left',
@@ -559,7 +559,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 12,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electric2_left',
@@ -567,7 +567,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 12,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electric2_up_left',
@@ -575,7 +575,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 12,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electric2_up',
@@ -583,7 +583,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 12,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electrical_up_right',
@@ -591,7 +591,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 13,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electrical_right',
@@ -599,7 +599,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 13,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electrical_down_right',
@@ -607,7 +607,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 13,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electrical_down',
@@ -615,7 +615,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 13,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electrical_down_left',
@@ -623,7 +623,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 13,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electrical_left',
@@ -631,7 +631,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 13,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electrical_up_left',
@@ -639,7 +639,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 13,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_electrical_up',
@@ -647,7 +647,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 13,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_exploded_up_right',
@@ -655,7 +655,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 16,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_exploded_right',
@@ -663,7 +663,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 16,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_exploded_down_right',
@@ -671,7 +671,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 16,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_exploded_down',
@@ -679,7 +679,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 16,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_exploded_down_left',
@@ -687,7 +687,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 16,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_exploded_left',
@@ -695,7 +695,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 16,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_exploded_up_left',
@@ -703,7 +703,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 16,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_single_exploded_up',
@@ -711,7 +711,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 16,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_death_static_lay_ashes1_up_right',
@@ -1231,7 +1231,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 4,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_flamethrower_fire_right',
@@ -1239,7 +1239,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 5,
     end: 9,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_flamethrower_fire_down_right',
@@ -1247,7 +1247,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 10,
     end: 14,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_flamethrower_fire_down',
@@ -1255,7 +1255,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 15,
     end: 19,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_flamethrower_fire_down_left',
@@ -1263,7 +1263,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 15,
     end: 19,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_flamethrower_fire_left',
@@ -1271,7 +1271,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 20,
     end: 24,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_flamethrower_fire_up_left',
@@ -1279,7 +1279,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 25,
     end: 29,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_flamethrower_fire_up',
@@ -1287,7 +1287,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 25,
     end: 29,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_block_up_right',
@@ -1359,7 +1359,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 12,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_burst_right',
@@ -1367,7 +1367,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 13,
     end: 25,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_burst_down_right',
@@ -1375,7 +1375,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 26,
     end: 38,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_burst_down',
@@ -1383,7 +1383,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 39,
     end: 51,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_burst_down_left',
@@ -1391,7 +1391,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 39,
     end: 51,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_burst_left',
@@ -1399,7 +1399,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 52,
     end: 64,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_burst_up_left',
@@ -1407,7 +1407,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 65,
     end: 77,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_burst_up',
@@ -1415,7 +1415,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 65,
     end: 77,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_equip_up_right',
@@ -1423,7 +1423,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 6,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_equip_right',
@@ -1431,7 +1431,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 7,
     end: 13,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_equip_down_right',
@@ -1439,7 +1439,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 14,
     end: 20,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_equip_down',
@@ -1447,7 +1447,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 21,
     end: 27,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_equip_down_left',
@@ -1455,7 +1455,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 21,
     end: 27,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_equip_left',
@@ -1463,7 +1463,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 28,
     end: 34,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_equip_up_left',
@@ -1471,7 +1471,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 35,
     end: 41,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_equip_up',
@@ -1479,7 +1479,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 35,
     end: 41,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_idle_up_right',
@@ -1551,7 +1551,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 3,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_shot1_right',
@@ -1559,7 +1559,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 4,
     end: 7,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_shot1_down_right',
@@ -1567,7 +1567,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 8,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_shot1_down',
@@ -1575,7 +1575,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 12,
     end: 15,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_shot1_down_left',
@@ -1583,7 +1583,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 12,
     end: 15,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_shot1_left',
@@ -1591,7 +1591,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 16,
     end: 19,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_shot1_up_left',
@@ -1599,7 +1599,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 20,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_shot1_up',
@@ -1607,7 +1607,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 20,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_unqeuip_up_right',
@@ -1615,7 +1615,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 6,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_unqeuip_right',
@@ -1623,7 +1623,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 7,
     end: 13,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_unqeuip_down_right',
@@ -1631,7 +1631,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 14,
     end: 20,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_unqeuip_down',
@@ -1639,7 +1639,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 21,
     end: 27,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_unqeuip_down_left',
@@ -1647,7 +1647,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 21,
     end: 27,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_unqeuip_left',
@@ -1655,7 +1655,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 28,
     end: 34,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_unqeuip_up_left',
@@ -1663,7 +1663,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 35,
     end: 41,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_gatling_unqeuip_up',
@@ -1671,7 +1671,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 35,
     end: 41,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_back_single_up_right',
@@ -1679,7 +1679,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_back_single_right',
@@ -1687,7 +1687,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_back_single_down_right',
@@ -1695,7 +1695,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_back_single_down',
@@ -1703,7 +1703,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_back_single_down_left',
@@ -1711,7 +1711,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_back_single_left',
@@ -1719,7 +1719,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_back_single_up_left',
@@ -1727,7 +1727,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_back_single_up',
@@ -1735,7 +1735,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_front_getup_up_right',
@@ -1743,7 +1743,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_front_getup_right',
@@ -1751,7 +1751,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 11,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_front_getup_down_right',
@@ -1759,7 +1759,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 22,
     end: 32,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_front_getup_down',
@@ -1767,7 +1767,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 33,
     end: 43,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_front_getup_down_left',
@@ -1775,7 +1775,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 33,
     end: 43,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_front_getup_left',
@@ -1783,7 +1783,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 44,
     end: 54,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_front_getup_up_left',
@@ -1791,7 +1791,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 55,
     end: 65,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_front_getup_up',
@@ -1799,7 +1799,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 55,
     end: 65,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_onback_single_up_right',
@@ -1807,7 +1807,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 3,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_onback_single_right',
@@ -1815,7 +1815,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 3,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_onback_single_down_right',
@@ -1823,7 +1823,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 3,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_onback_single_down',
@@ -1831,7 +1831,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 3,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_onback_single_down_left',
@@ -1839,7 +1839,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 3,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_onback_single_left',
@@ -1847,7 +1847,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 3,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_onback_single_up_left',
@@ -1855,7 +1855,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 3,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_knockdown_onback_single_up',
@@ -1863,7 +1863,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 3,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot1_up_right',
@@ -1871,7 +1871,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 4,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot1_right',
@@ -1879,7 +1879,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 5,
     end: 9,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot1_down_right',
@@ -1887,7 +1887,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 10,
     end: 14,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot1_down',
@@ -1895,7 +1895,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 15,
     end: 19,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot1_down_left',
@@ -1903,7 +1903,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 15,
     end: 19,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot1_left',
@@ -1911,7 +1911,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 20,
     end: 24,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot1_up_left',
@@ -1919,7 +1919,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 25,
     end: 29,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot1_up',
@@ -1927,7 +1927,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 25,
     end: 29,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot2_up_right',
@@ -1935,7 +1935,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 7,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot2_right',
@@ -1943,7 +1943,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 8,
     end: 15,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot2_down_right',
@@ -1951,7 +1951,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 16,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot2_down',
@@ -1959,7 +1959,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 24,
     end: 31,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot2_down_left',
@@ -1967,7 +1967,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 24,
     end: 31,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot2_left',
@@ -1975,7 +1975,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 32,
     end: 39,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot2_up_left',
@@ -1983,7 +1983,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 40,
     end: 47,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_burstshoot2_up',
@@ -1991,7 +1991,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 40,
     end: 47,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_dodge_up_right',
@@ -1999,7 +1999,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 8,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_dodge_right',
@@ -2007,7 +2007,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 9,
     end: 17,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_dodge_down_right',
@@ -2015,7 +2015,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 18,
     end: 26,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_dodge_down',
@@ -2023,7 +2023,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 27,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_dodge_down_left',
@@ -2031,7 +2031,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 27,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_dodge_left',
@@ -2039,7 +2039,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 36,
     end: 44,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_dodge_up_left',
@@ -2047,7 +2047,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 45,
     end: 53,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_dodge_up',
@@ -2055,7 +2055,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 45,
     end: 53,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_equip_up_right',
@@ -2063,7 +2063,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_equip_right',
@@ -2071,7 +2071,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 12,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_equip_down_right',
@@ -2079,7 +2079,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 24,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_equip_down',
@@ -2087,7 +2087,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 36,
     end: 47,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_equip_down_left',
@@ -2095,7 +2095,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 36,
     end: 47,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_equip_left',
@@ -2103,7 +2103,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 48,
     end: 59,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_equip_up_left',
@@ -2111,7 +2111,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 60,
     end: 71,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_equip_up',
@@ -2119,7 +2119,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 60,
     end: 71,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_idle_up_right',
@@ -2191,7 +2191,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 5,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_shoot2_right',
@@ -2199,7 +2199,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 6,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_shoot2_down_right',
@@ -2207,7 +2207,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 12,
     end: 17,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_shoot2_down',
@@ -2215,7 +2215,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 18,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_shoot2_down_left',
@@ -2223,7 +2223,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 18,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_shoot2_left',
@@ -2231,7 +2231,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 24,
     end: 29,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_shoot2_up_left',
@@ -2239,7 +2239,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_shoot2_up',
@@ -2247,7 +2247,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_uneqeuip_up_right',
@@ -2255,7 +2255,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_uneqeuip_right',
@@ -2263,7 +2263,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 12,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_uneqeuip_down_right',
@@ -2271,7 +2271,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 24,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_uneqeuip_down',
@@ -2279,7 +2279,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 36,
     end: 47,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_uneqeuip_down_left',
@@ -2287,7 +2287,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 36,
     end: 47,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_uneqeuip_left',
@@ -2295,7 +2295,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 48,
     end: 59,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_uneqeuip_up_left',
@@ -2303,7 +2303,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 60,
     end: 71,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_uneqeuip_up',
@@ -2311,7 +2311,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 60,
     end: 71,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_walk_up_right',
@@ -2319,7 +2319,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 9,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_walk_right',
@@ -2327,7 +2327,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 10,
     end: 19,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_walk_down_right',
@@ -2335,7 +2335,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 20,
     end: 29,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_walk_down',
@@ -2343,7 +2343,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 39,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_walk_down_left',
@@ -2351,7 +2351,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 39,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_walk_left',
@@ -2359,7 +2359,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 40,
     end: 49,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_walk_up_left',
@@ -2367,7 +2367,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 50,
     end: 59,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machinegun_walk_up',
@@ -2375,7 +2375,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 50,
     end: 59,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machingeun_shoot1_up_right',
@@ -2383,7 +2383,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 4,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machingeun_shoot1_right',
@@ -2391,7 +2391,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 5,
     end: 9,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machingeun_shoot1_down_right',
@@ -2399,7 +2399,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 10,
     end: 14,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machingeun_shoot1_down',
@@ -2407,7 +2407,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 15,
     end: 19,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machingeun_shoot1_down_left',
@@ -2415,7 +2415,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 15,
     end: 19,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machingeun_shoot1_left',
@@ -2423,7 +2423,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 20,
     end: 24,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machingeun_shoot1_up_left',
@@ -2431,7 +2431,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 25,
     end: 29,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_machingeun_shoot1_up',
@@ -2439,7 +2439,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 25,
     end: 29,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_aim1_up_right',
@@ -2575,7 +2575,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 7,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_dodge_right',
@@ -2583,7 +2583,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 8,
     end: 15,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_dodge_down_right',
@@ -2591,7 +2591,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 16,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_dodge_down',
@@ -2599,7 +2599,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 24,
     end: 31,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_dodge_down_left',
@@ -2607,7 +2607,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 24,
     end: 31,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_dodge_left',
@@ -2615,7 +2615,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 32,
     end: 39,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_dodge_up_left',
@@ -2623,7 +2623,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 40,
     end: 47,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_dodge_up',
@@ -2631,7 +2631,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 40,
     end: 47,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_equip_up_right',
@@ -2639,7 +2639,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 5,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_equip_right',
@@ -2647,7 +2647,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 6,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_equip_down_right',
@@ -2655,7 +2655,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 12,
     end: 17,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_equip_down',
@@ -2663,7 +2663,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 18,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_equip_down_left',
@@ -2671,7 +2671,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 18,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_equip_left',
@@ -2679,7 +2679,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 24,
     end: 29,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_equip_up_left',
@@ -2687,7 +2687,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_equip_up',
@@ -2695,7 +2695,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_idle_up_right',
@@ -2767,7 +2767,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 7,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_shoot_right',
@@ -2775,7 +2775,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 8,
     end: 15,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_shoot_down_right',
@@ -2783,7 +2783,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 16,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_shoot_down',
@@ -2791,7 +2791,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 24,
     end: 31,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_shoot_down_left',
@@ -2799,7 +2799,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 24,
     end: 31,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_shoot_left',
@@ -2807,7 +2807,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 32,
     end: 39,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_shoot_up_left',
@@ -2815,7 +2815,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 40,
     end: 47,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_shoot_up',
@@ -2823,7 +2823,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 40,
     end: 47,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_unequip_up_right',
@@ -2831,7 +2831,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 5,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_unequip_right',
@@ -2839,7 +2839,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 6,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_unequip_down_right',
@@ -2847,7 +2847,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 12,
     end: 17,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_unequip_down',
@@ -2855,7 +2855,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 18,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_unequip_down_left',
@@ -2863,7 +2863,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 18,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_unequip_left',
@@ -2871,7 +2871,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 24,
     end: 29,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_unequip_up_left',
@@ -2879,7 +2879,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_unequip_up',
@@ -2887,7 +2887,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_walk_up_right',
@@ -2895,7 +2895,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 9,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_walk_right',
@@ -2903,7 +2903,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 10,
     end: 19,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_walk_down_right',
@@ -2911,7 +2911,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 20,
     end: 29,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_walk_down',
@@ -2919,7 +2919,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 39,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_walk_down_left',
@@ -2927,7 +2927,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 39,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_walk_left',
@@ -2935,7 +2935,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 40,
     end: 49,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_walk_up_left',
@@ -2943,7 +2943,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 50,
     end: 59,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_rocket_walk_up',
@@ -2951,7 +2951,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 50,
     end: 59,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_single_death_melted_up_right',
@@ -2959,7 +2959,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_single_death_melted_right',
@@ -2967,7 +2967,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_single_death_melted_down_right',
@@ -2975,7 +2975,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_single_death_melted_down',
@@ -2983,7 +2983,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_single_death_melted_down_left',
@@ -2991,7 +2991,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_single_death_melted_left',
@@ -2999,7 +2999,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_single_death_melted_up_left',
@@ -3007,7 +3007,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_single_death_melted_up',
@@ -3015,7 +3015,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_block_up_right',
@@ -3087,7 +3087,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 5,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_hit1_right',
@@ -3095,7 +3095,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 6,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_hit1_down_right',
@@ -3103,7 +3103,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 12,
     end: 17,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_hit1_down',
@@ -3111,7 +3111,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 18,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_hit1_down_left',
@@ -3119,7 +3119,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 18,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_hit1_left',
@@ -3127,7 +3127,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 24,
     end: 29,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_hit1_up_left',
@@ -3135,7 +3135,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_hit1_up',
@@ -3143,7 +3143,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_hit2_up_right',
@@ -3151,7 +3151,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 5,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_hit2_right',
@@ -3159,7 +3159,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 6,
     end: 11,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_hit2_down_right',
@@ -3167,7 +3167,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 12,
     end: 17,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_hit2_down',
@@ -3175,7 +3175,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 18,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_hit2_down_left',
@@ -3183,7 +3183,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 18,
     end: 23,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_hit2_left',
@@ -3191,7 +3191,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 24,
     end: 29,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_hit2_up_left',
@@ -3199,7 +3199,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_hit2_up',
@@ -3207,7 +3207,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_idle_up_right',
@@ -3279,7 +3279,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 8,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_pickup_right',
@@ -3287,7 +3287,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 9,
     end: 17,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_pickup_down_right',
@@ -3295,7 +3295,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 18,
     end: 26,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_pickup_down',
@@ -3303,7 +3303,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 27,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_pickup_down_left',
@@ -3311,7 +3311,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 27,
     end: 35,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_pickup_left',
@@ -3319,7 +3319,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 36,
     end: 44,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_pickup_up_left',
@@ -3327,7 +3327,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 45,
     end: 53,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_pickup_up',
@@ -3335,7 +3335,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 45,
     end: 53,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_punch_up_right',
@@ -3343,7 +3343,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_punch_right',
@@ -3351,7 +3351,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 11,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_punch_down_right',
@@ -3359,7 +3359,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 22,
     end: 32,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_punch_down',
@@ -3367,7 +3367,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 33,
     end: 43,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_punch_down_left',
@@ -3375,7 +3375,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 33,
     end: 43,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_punch_left',
@@ -3383,7 +3383,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 44,
     end: 54,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_punch_up_left',
@@ -3391,7 +3391,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 55,
     end: 65,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_punch_up',
@@ -3399,7 +3399,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 55,
     end: 65,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_throw_up_right',
@@ -3407,7 +3407,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 12,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_throw_right',
@@ -3415,7 +3415,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 13,
     end: 25,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_throw_down_right',
@@ -3423,7 +3423,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 26,
     end: 38,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_throw_down',
@@ -3431,7 +3431,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 39,
     end: 51,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_throw_down_left',
@@ -3439,7 +3439,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 39,
     end: 51,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_throw_left',
@@ -3447,7 +3447,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 52,
     end: 64,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_throw_up_left',
@@ -3455,7 +3455,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 65,
     end: 77,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_throw_up',
@@ -3463,7 +3463,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 65,
     end: 77,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_use_up_right',
@@ -3471,7 +3471,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 10,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_use_right',
@@ -3479,7 +3479,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 11,
     end: 21,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_use_down_right',
@@ -3487,7 +3487,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 22,
     end: 32,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_use_down',
@@ -3495,7 +3495,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 33,
     end: 43,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_use_down_left',
@@ -3503,7 +3503,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 33,
     end: 43,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_use_left',
@@ -3511,7 +3511,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 44,
     end: 54,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_use_up_left',
@@ -3519,7 +3519,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 55,
     end: 65,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_use_up',
@@ -3527,7 +3527,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 55,
     end: 65,
     repeat: 0,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_walk_up_right',
@@ -3535,7 +3535,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 0,
     end: 9,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_walk_right',
@@ -3543,7 +3543,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 10,
     end: 19,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_walk_down_right',
@@ -3551,7 +3551,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 20,
     end: 29,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_walk_down',
@@ -3559,7 +3559,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 39,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_walk_down_left',
@@ -3567,7 +3567,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 30,
     end: 39,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_walk_left',
@@ -3575,7 +3575,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 40,
     end: 49,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_walk_up_left',
@@ -3583,7 +3583,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 50,
     end: 59,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
   {
     key: 'mutant_ripped_unarmed_walk_up',
@@ -3591,7 +3591,7 @@ const mutantRippedAnimDefs: MutantRippedAnimDef[] = [
     start: 50,
     end: 59,
     repeat: -1,
-    frameRate: 15,
+    frameRate: 10,
   },
 ]
 

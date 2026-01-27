@@ -12,6 +12,7 @@ import MyPlaylistPanel from './components/MyPlaylistPanel'
 import MuteButton from './components/MuteButton'
 import YoutubePlayer from './components/YoutubePlayer'
 import DjStatusPill from './components/DjStatusPill'
+import MutantRippedAnimDebug from './components/MutantRippedAnimDebug'
 
 import { RoomType } from '../../types/Rooms'
 
@@ -165,6 +166,7 @@ function App() {
   if (loggedIn) {
     ui = (
       <>
+        <MutantRippedAnimDebug />
         <DjStatusPill />
         <ChatPanel />
         <MyPlaylistPanel />
