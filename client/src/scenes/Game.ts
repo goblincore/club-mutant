@@ -67,6 +67,18 @@ export default class Game extends Phaser.Scene {
   private musicBoothMap = new Map<number, MusicBooth>()
   private myYoutubePlayer?: MyYoutubePlayer
 
+  private getPlayerFeetPoint(sprite: Phaser.Physics.Arcade.Sprite): { x: number; y: number } {
+    const body = sprite.body as Phaser.Physics.Arcade.Body | null
+    if (!body) {
+      return { x: sprite.x, y: sprite.y }
+    }
+
+    return {
+      x: body.center.x,
+      y: body.bottom,
+    }
+  }
+
   private rippedAnimKeys: string[] = []
 
   private rippedAnimIndex = 0
@@ -871,8 +883,9 @@ export default class Game extends Phaser.Scene {
           }
 
           if (clickedOtherPlayer) {
-            const approachX = clickedOtherPlayer.x
-            const approachY = clickedOtherPlayer.y + 8
+            const targetFeet = this.getPlayerFeetPoint(clickedOtherPlayer)
+            const approachX = targetFeet.x
+            const approachY = targetFeet.y
 
             moveToWorld(approachX, approachY, 12)
             this.pendingPunchTargetId = clickedOtherPlayer.playerId
@@ -888,8 +901,11 @@ export default class Game extends Phaser.Scene {
         if (!target) {
           this.pendingPunchTargetId = null
         } else {
-          const dx = target.x - this.myPlayer.x
-          const dy = target.y - this.myPlayer.y
+          const myFeet = this.getPlayerFeetPoint(this.myPlayer)
+          const targetFeet = this.getPlayerFeetPoint(target)
+
+          const dx = targetFeet.x - myFeet.x
+          const dy = targetFeet.y - myFeet.y
           const punchRangePx = 56
           const punchDyWeight = 1.5
           const weightedDistanceSq = dx * dx + dy * punchDyWeight * (dy * punchDyWeight)
