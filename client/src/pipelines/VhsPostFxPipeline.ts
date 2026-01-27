@@ -209,7 +209,7 @@ const float UNSHARP_THRESHOLD = 0.0;
 const float BLACK_LEVEL = 0.1;
 const float WHITE_LEVEL = 0.9;
 const float SATURATION_LEVEL = 0.75;
-const vec3 SHADOW_TINT = vec3(0.7, 0.0, 0.9);
+const vec3 SHADOW_TINT = vec3(0.0, 0.35, 0.1);
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
@@ -362,13 +362,13 @@ vec4 WhiteNoise(const in float lineThickness, const in float opacity, const in v
 }
 
 const float TRACKING_SPEED = 8.0;
-const float WAVE_FREQUENCY = 70.0;
+const float WAVE_FREQUENCY = 18.0;
 const float TRACKING_JITTER = 20.0;
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     float TRACKING_HORIZONTAL_OFFSET = DEFINE(8.0);
-    float WAVE_OFFSET = DEFINE(1.0);
+    float WAVE_OFFSET = DEFINE(0.8);
 
     float BOTTOM_WARP_HEIGHT = DEFINE(15.0);
     float BOTTOM_WARP_OFFSET = DEFINE(100.0);
@@ -402,10 +402,12 @@ uniform float uBypass;
 #define iChannel1 uChannel1
 
 const float FINAL_BLUR_BIAS = 1.0;
+const float VIGNETTE_STRENGTH = 0.25;
 
 vec4 Televisionfy(in vec4 pixel, const in vec2 uv)
 {
     float vignette = pow(uv.x * (1.0 - uv.x) * uv.y * (1.0 - uv.y), 0.25) * 2.2;
+    vignette = mix(1.0, vignette, VIGNETTE_STRENGTH);
     return pixel * vignette;
 }
 
