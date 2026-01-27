@@ -266,6 +266,7 @@ There are two parallel playback modes:
 - **Server state schema**: `server/rooms/schema/OfficeState.ts`
 - **Client UI playback**: `client/src/components/YoutubePlayer.tsx`
 - **Shared message enum**: `types/Messages.ts`
+- **Music sync/resync plan**: `docs/music-sync-resync-plan.md`
 
 ## Conventions / tips
 
