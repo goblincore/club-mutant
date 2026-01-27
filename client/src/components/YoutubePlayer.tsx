@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import ReactPlayer from 'react-player/youtube'
 import styled from 'styled-components'
 import IconButton from '@mui/material/IconButton'
@@ -16,6 +16,8 @@ import Game from '../scenes/Game'
 import phaserGame from '../PhaserGame'
 import { useAppSelector, useAppDispatch } from '../hooks'
 import { sanitizeId } from '../util'
+import { timeSync } from '../services/TimeSync'
+import { phaserEvents, Event } from '../events/EventCenter'
 import {
   openMyPlaylistPanel,
   closeMyPlaylistPanel,
@@ -164,6 +166,7 @@ export default function YoutubePlayer() {
   const roomType = useAppSelector((state) => state.room.roomType)
   const globallyMuted = useAppSelector((state) => state.audio.muted)
   const link = useAppSelector((state) => state.musicStream.link)
+  const streamId = useAppSelector((state) => state.musicStream.streamId)
   const startTime = useAppSelector((state) => state.musicStream.startTime)
   const title = useAppSelector((state) => state.musicStream.title)
   const currentDj = useAppSelector((state) => state.musicStream.currentDj)
@@ -208,8 +211,7 @@ export default function YoutubePlayer() {
         return
       }
 
-      const currentTime: number = Date.now()
-      const syncTime = (currentTime - startTime) / 1000
+      const syncTime = (timeSync.getServerNowMs() - startTime) / 1000
 
       setAmbientMuted(false)
 
@@ -244,12 +246,127 @@ export default function YoutubePlayer() {
           ? 'Room Playlist Ready'
           : 'Room Playlist Empty'
 
-  const currentTime: number = Date.now()
-  const syncTime = (currentTime - startTime) / 1000
+  const syncTime = (timeSync.getServerNowMs() - startTime) / 1000
   const url = link ? 'https://www.youtube.com/watch?v=' + link : ''
   const startSeconds = Math.max(0, Math.floor(syncTime))
 
   const playerRef = useRef<any>()
+
+  const computeExpectedSeconds = useCallback(() => {
+    if (!link) return 0
+    return Math.max(0, (timeSync.getServerNowMs() - startTime) / 1000)
+  }, [link, startTime])
+
+  const resyncPlayer = useCallback(() => {
+    const expectedSeconds = computeExpectedSeconds()
+    playerRef.current?.seekTo(expectedSeconds, 'seconds')
+  }, [computeExpectedSeconds])
+
+  useEffect(() => {
+    if (!link) return
+
+    let hasPendingTickResync = false
+
+    const resyncWithFreshTime = (armTickResync: boolean) => {
+      game.network.requestTimeSyncNow()
+
+      // Safari often needs more than one attempt after backgrounding.
+      window.setTimeout(() => {
+        resyncPlayer()
+      }, 150)
+
+      window.setTimeout(() => {
+        resyncPlayer()
+      }, 900)
+
+      hasPendingTickResync = armTickResync
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+
+      resyncWithFreshTime(true)
+    }
+
+    const handleFocus = () => {
+      if (document.visibilityState !== 'visible') return
+      resyncWithFreshTime(true)
+    }
+
+    const handlePageShow = () => {
+      if (document.visibilityState !== 'visible') return
+      resyncWithFreshTime(true)
+    }
+
+    const handleTick = (payload: { streamId: number; startTime: number; serverNowMs: number }) => {
+      if (!hasPendingTickResync) return
+      if (document.visibilityState !== 'visible') return
+      if (!payload || payload.streamId !== streamId) return
+      if (payload.startTime !== startTime) return
+
+      hasPendingTickResync = false
+      resyncWithFreshTime(false)
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('pageshow', handlePageShow)
+    phaserEvents.on(Event.MUSIC_STREAM_TICK, handleTick)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('pageshow', handlePageShow)
+      phaserEvents.off(Event.MUSIC_STREAM_TICK, handleTick)
+    }
+  }, [game.network, link, resyncPlayer, startTime, streamId])
+
+  useEffect(() => {
+    if (!link) return
+    if (!isPlaying) return
+
+    const intervalId = window.setInterval(() => {
+      const expectedSeconds = computeExpectedSeconds()
+      const actualSeconds =
+        typeof playerRef.current?.getCurrentTime === 'function'
+          ? (playerRef.current.getCurrentTime() as number)
+          : null
+
+      if (typeof actualSeconds !== 'number' || !Number.isFinite(actualSeconds)) {
+        return
+      }
+
+      const driftSeconds = actualSeconds - expectedSeconds
+
+      if (!Number.isFinite(driftSeconds)) return
+
+      if (Math.abs(driftSeconds) < 0.25) return
+
+      if (Math.abs(driftSeconds) >= 2) {
+        resyncPlayer()
+        return
+      }
+
+      const internalPlayer = playerRef.current?.getInternalPlayer?.()
+
+      if (internalPlayer?.setPlaybackRate) {
+        const nextRate = driftSeconds > 0 ? 0.95 : 1.05
+        internalPlayer.setPlaybackRate(nextRate)
+
+        window.setTimeout(() => {
+          try {
+            internalPlayer.setPlaybackRate(1)
+          } catch {
+            // ignore
+          }
+        }, 2_000)
+      }
+    }, 2_000)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [computeExpectedSeconds, isPlaying, link, resyncPlayer, streamId])
 
   const getDisplayName = (sessionId: string) => {
     const resolved = playerNameMap.get(sanitizeId(sessionId))
@@ -265,9 +382,7 @@ export default function YoutubePlayer() {
 
   const handleReady = (e) => {
     console.log('////YoutubePlayer, handlePlay, e', e)
-    const currentTime: number = Date.now()
-    const syncTime = (currentTime - startTime) / 1000
-    playerRef.current?.seekTo(syncTime, 'seconds')
+    resyncPlayer()
 
     if (isAmbient && ambientMuted && !globallyMuted) {
       window.setTimeout(() => {
@@ -390,9 +505,7 @@ export default function YoutubePlayer() {
                         return
                       }
 
-                      const currentTime: number = Date.now()
-                      const nextSyncTime = (currentTime - startTime) / 1000
-                      playerRef.current?.seekTo(nextSyncTime, 'seconds')
+                      resyncPlayer()
                     }}
                   >
                     {isPlaying ? (
@@ -518,12 +631,18 @@ export default function YoutubePlayer() {
                   disabled={link === null}
                   onClick={() => {
                     setIsPlaying(true)
-                    const currentTime: number = Date.now()
-                    const nextSyncTime = (currentTime - startTime) / 1000
-                    playerRef.current?.seekTo(nextSyncTime, 'seconds')
+                    resyncPlayer()
                   }}
                 >
                   Resume
+                </button>
+                <button
+                  disabled={link === null}
+                  onClick={() => {
+                    resyncPlayer()
+                  }}
+                >
+                  Resync
                 </button>
                 <button
                   disabled={connectedBoothIndex === null || roomPlaylist.length === 0}

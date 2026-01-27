@@ -15,6 +15,7 @@ import { Message } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
 import { phaserEvents, Event } from '../events/EventCenter'
+import { timeSync, type TimeSyncRequestPayload, type TimeSyncResponsePayload } from './TimeSync'
 import store from '../stores'
 import { setSessionId, setPlayerNameMap, removePlayerNameMap } from '../stores/UserStore'
 import { connectToMusicBooth, disconnectFromMusicBooth } from '../stores/MusicBoothStore'
@@ -53,6 +54,8 @@ export default class Network {
   private room?: Room<IOfficeState>
   private lobby!: Room
 
+  private timeSyncIntervalId: number | null = null
+
   mySessionId!: string
 
   constructor() {
@@ -71,6 +74,13 @@ export default class Network {
 
     phaserEvents.on(Event.MY_PLAYER_NAME_CHANGE, this.updatePlayerName, this)
     phaserEvents.on(Event.MY_PLAYER_TEXTURE_CHANGE, this.updatePlayerAction, this)
+  }
+
+  requestTimeSyncNow() {
+    if (!this.room) return
+
+    const payload: TimeSyncRequestPayload = timeSync.createRequestPayload()
+    this.room.send(Message.TIME_SYNC_REQUEST, payload)
   }
 
   /**
@@ -124,6 +134,8 @@ export default class Network {
   initialize() {
     if (!this.room) return
 
+    timeSync.reset()
+
     const syncMusicStreamFromState = () => {
       if (!this.room) return
 
@@ -149,6 +161,7 @@ export default class Network {
         setMusicStream({
           url: ms.currentLink,
           title: ms.currentTitle,
+          streamId: ms.streamId,
           startTime: ms.startTime,
           currentDj: ms.currentDj,
           isRoomPlaylist: ms.isRoomPlaylist,
@@ -322,6 +335,17 @@ export default class Network {
       phaserEvents.emit(Event.START_PLAYING_MEDIA, musicStream, offset)
     })
 
+    this.room.onMessage(
+      Message.MUSIC_STREAM_TICK,
+      (payload: { streamId: number; startTime: number; serverNowMs: number }) => {
+        phaserEvents.emit(Event.MUSIC_STREAM_TICK, payload)
+      }
+    )
+
+    this.room.onMessage(Message.TIME_SYNC_RESPONSE, (payload: TimeSyncResponsePayload) => {
+      timeSync.handleResponse(payload)
+    })
+
     // when the server sends room data
     this.room.onMessage(Message.STOP_MUSIC_STREAM, () => {
       phaserEvents.emit(Event.STOP_PLAYING_MEDIA)
@@ -384,6 +408,16 @@ export default class Network {
     stateCallbacks.musicStream.listen('isAmbient', () => {
       syncMusicStreamFromState()
     })
+
+    if (this.timeSyncIntervalId !== null) {
+      window.clearInterval(this.timeSyncIntervalId)
+      this.timeSyncIntervalId = null
+    }
+
+    this.requestTimeSyncNow()
+    this.timeSyncIntervalId = window.setInterval(() => {
+      this.requestTimeSyncNow()
+    }, 15_000)
   }
 
   // method to register event listener and call back function when a item user added

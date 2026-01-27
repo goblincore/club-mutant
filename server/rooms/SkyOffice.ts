@@ -41,6 +41,8 @@ export class SkyOffice extends Room<OfficeState> {
   private isPublic = false
   private publicBackgroundSeed: number | null = null
 
+  private musicStreamTickIntervalId: NodeJS.Timeout | null = null
+
   private ambientPublicVideoId = 'CAWJ2PO1V_g'
 
   private setStoppedMusicStream() {
@@ -70,6 +72,7 @@ export class SkyOffice extends Room<OfficeState> {
     musicStream.roomPlaylistIndex = 0
     musicStream.currentBooth = 0
     musicStream.status = 'playing'
+    musicStream.streamId += 1
     musicStream.currentLink = this.ambientPublicVideoId
     musicStream.currentTitle = null
     musicStream.currentDj.name = ''
@@ -79,6 +82,29 @@ export class SkyOffice extends Room<OfficeState> {
     musicStream.videoBackgroundEnabled = false
 
     this.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
+  }
+
+  private startMusicStreamTickIfNeeded() {
+    if (this.musicStreamTickIntervalId) return
+
+    this.musicStreamTickIntervalId = setInterval(() => {
+      const musicStream = this.state.musicStream
+
+      if (musicStream.status !== 'playing' || !musicStream.currentLink) return
+
+      this.broadcast(Message.MUSIC_STREAM_TICK, {
+        streamId: musicStream.streamId,
+        startTime: musicStream.startTime,
+        serverNowMs: Date.now(),
+      })
+    }, 5_000)
+  }
+
+  private stopMusicStreamTickIfNeeded() {
+    if (!this.musicStreamTickIntervalId) return
+
+    clearInterval(this.musicStreamTickIntervalId)
+    this.musicStreamTickIntervalId = null
   }
 
   private stopAmbientIfNeeded() {
@@ -109,6 +135,8 @@ export class SkyOffice extends Room<OfficeState> {
     this.setMetadata({ name, description, hasPassword })
 
     this.setState(new OfficeState())
+
+    this.startMusicStreamTickIfNeeded()
 
     const setStoppedMusicStream = () => {
       this.setStoppedMusicStream()
@@ -154,6 +182,7 @@ export class SkyOffice extends Room<OfficeState> {
       musicStream.roomPlaylistIndex = clampedIndex
       musicStream.currentBooth = 0
       musicStream.status = 'playing'
+      musicStream.streamId += 1
       musicStream.currentLink = current.link
       musicStream.currentTitle = current.title
       musicStream.currentDj = djInfo
@@ -227,6 +256,20 @@ export class SkyOffice extends Room<OfficeState> {
       if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
 
       this.state.musicStream.videoBackgroundEnabled = Boolean(message.enabled)
+    })
+
+    this.onMessage(Message.TIME_SYNC_REQUEST, (client, message: { clientSentAtMs?: unknown }) => {
+      const clientSentAtMs =
+        typeof message?.clientSentAtMs === 'number' && Number.isFinite(message.clientSentAtMs)
+          ? message.clientSentAtMs
+          : null
+
+      if (clientSentAtMs === null) return
+
+      client.send(Message.TIME_SYNC_RESPONSE, {
+        clientSentAtMs,
+        serverNowMs: Date.now(),
+      })
     })
 
     this.onMessage(Message.ROOM_PLAYLIST_SKIP, (client) => {
@@ -612,6 +655,8 @@ export class SkyOffice extends Room<OfficeState> {
 
   onDispose() {
     console.log('room', this.roomId, 'disposing...')
+
+    this.stopMusicStreamTickIfNeeded()
     this.dispatcher.stop()
   }
 }

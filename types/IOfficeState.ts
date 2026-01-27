@@ -58,6 +58,7 @@ export type PlaylistItem = {
 
 export interface IMusicStream extends Schema {
   status: string // waiting or seeking or playing
+  streamId: number
   currentLink: string | null
   currentTitle: string | null
   currentDj: IDJUserInfo

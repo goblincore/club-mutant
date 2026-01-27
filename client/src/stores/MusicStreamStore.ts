@@ -8,6 +8,7 @@ type DJUserInfoState = {
 interface MusicStreamState {
   link: string | null
   title: string | null
+  streamId: number
   startTime: number
   currentDj: DJUserInfoState
   isRoomPlaylist: boolean
@@ -19,6 +20,7 @@ interface MusicStreamState {
 const initialState: MusicStreamState = {
   link: null,
   title: null,
+  streamId: 0,
   startTime: 0,
   currentDj: {
     name: null,
@@ -39,6 +41,7 @@ export const musicStreamSlice = createSlice({
       action: PayloadAction<{
         url: string | null
         title: string | null
+        streamId?: number
         startTime: number
         currentDj: DJUserInfoState
         isRoomPlaylist?: boolean
@@ -51,6 +54,7 @@ export const musicStreamSlice = createSlice({
       if (!action.payload) {
         state.link = null
         state.title = null
+        state.streamId = 0
         state.startTime = 0
         state.currentDj = {
           name: null,
@@ -66,6 +70,7 @@ export const musicStreamSlice = createSlice({
       try {
         state.link = action.payload.url
         state.title = action.payload.title
+        state.streamId = action.payload.streamId ?? 0
         state.startTime = action.payload.startTime
         state.currentDj = action.payload.currentDj
         state.isRoomPlaylist = action.payload.isRoomPlaylist ?? false

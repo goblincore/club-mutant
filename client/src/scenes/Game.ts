@@ -727,6 +727,7 @@ export default class Game extends Phaser.Scene {
     const {
       currentLink: url,
       currentTitle: title,
+      streamId,
       currentDj,
       startTime,
       isRoomPlaylist,
@@ -741,6 +742,7 @@ export default class Game extends Phaser.Scene {
       setMusicStream({
         url,
         title,
+        streamId,
         currentDj,
         startTime,
         isRoomPlaylist,

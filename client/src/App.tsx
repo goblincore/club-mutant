@@ -14,6 +14,8 @@ import YoutubePlayer from './components/YoutubePlayer'
 import DjStatusPill from './components/DjStatusPill'
 import MutantRippedAnimDebug from './components/MutantRippedAnimDebug'
 
+import { timeSync } from './services/TimeSync'
+
 import { RoomType } from '../../types/Rooms'
 
 const Backdrop = styled.div`
@@ -188,7 +190,7 @@ function App() {
         <VideoBackgroundPortal
           url={`https://www.youtube.com/watch?v=${streamLink}#t=${Math.max(
             0,
-            (Date.now() - streamStartTime) / 1000
+            (timeSync.getServerNowMs() - streamStartTime) / 1000
           )}s`}
         />
       ) : null}

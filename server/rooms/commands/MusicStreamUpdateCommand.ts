@@ -66,6 +66,7 @@ export class MusicStreamNextCommand extends Command<SkyOffice, Payload | undefin
       djInfo.sessionId = playbackItem.djId
 
       musicStream.status = 'playing'
+      musicStream.streamId += 1
       musicStream.currentLink = playbackItem.link
       musicStream.currentBooth = musicBoothIndex
       musicStream.currentDj = djInfo

@@ -14,7 +14,7 @@ export class PlaylistItem extends Schema implements IPlaylistItem {
   @type('string') id = ''
   @type('string') djId = ''
   @type('string') title = ''
-  @type('string') link = null
+  @type('string') link: string | null = null
   @type('number') duration = 0
 }
 
@@ -28,8 +28,8 @@ export class RoomPlaylistItem extends Schema implements IRoomPlaylistItem {
 }
 
 export class Player extends Schema implements IPlayer {
-  @type('string') id = null
-  @type('string') djId = null
+  @type('string') id: string | null = null
+  @type('string') djId: string | null = null
   @type('string') name = ''
   @type('number') x = 705
   @type('number') y = 500
@@ -55,6 +55,7 @@ export class DJUserInfo extends Schema implements IDJUserInfo {
 
 export class MusicStream extends Schema implements IMusicStream {
   @type('string') status = 'waiting' // waiting or seeking or playing
+  @type('number') streamId = 0
   @type('string') currentLink: string | null = null
   @type('string') currentTitle: string | null = null
   @type('number') currentBooth = 0
@@ -68,7 +69,7 @@ export class MusicStream extends Schema implements IMusicStream {
 }
 
 export class MusicBooth extends Schema implements IMusicBooth {
-  @type('string') connectedUser = null
+  @type('string') connectedUser: string | null = null
 }
 
 export class OfficeState extends Schema implements IOfficeState {
