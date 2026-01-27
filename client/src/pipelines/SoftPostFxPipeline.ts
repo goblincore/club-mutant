@@ -16,6 +16,9 @@ uniform float uIntensity;
 uniform float uBlurAmount;
 uniform float uNoiseAmount;
 uniform float uGradeAmount;
+uniform float uWarpAmount;
+uniform float uWarpFrequency;
+uniform float uWarpSpeed;
 
 float hash21(vec2 p)
 {
@@ -71,9 +74,13 @@ void main()
   vec2 uv = outTexCoord;
   vec2 texel = 1.0 / uResolution.xy;
 
-  vec4 baseTex = texture2D(uMainSampler, uv);
+  float phase = (uv.y * uWarpFrequency + iTime * uWarpSpeed) * 6.28318530718;
+  float warp = sin(phase) * (uWarpAmount / uResolution.x);
+  vec2 warpedUv = uv + vec2(warp, 0.0);
 
-  vec3 color = blur9(uMainSampler, uv, texel, uBlurAmount);
+  vec4 baseTex = texture2D(uMainSampler, warpedUv);
+
+  vec3 color = blur9(uMainSampler, warpedUv, texel, uBlurAmount);
 
   color = applyColorGrade(color, uGradeAmount);
 
@@ -99,6 +106,12 @@ export class SoftPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPi
   private noiseAmount = 0.07
 
   private gradeAmount = 0.6
+
+  private warpAmount = 2.5
+
+  private warpFrequency = 2.0
+
+  private warpSpeed = 0.35
 
   constructor(game: Phaser.Game) {
     super({
@@ -129,6 +142,18 @@ export class SoftPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPi
     this.gradeAmount = Phaser.Math.Clamp(next, 0, 1)
   }
 
+  setWarpAmount(next: number) {
+    this.warpAmount = Phaser.Math.Clamp(next, 0, 20)
+  }
+
+  setWarpFrequency(next: number) {
+    this.warpFrequency = Phaser.Math.Clamp(next, 0, 20)
+  }
+
+  setWarpSpeed(next: number) {
+    this.warpSpeed = Phaser.Math.Clamp(next, 0, 5)
+  }
+
   bootFX() {
     super.bootFX()
 
@@ -156,6 +181,10 @@ export class SoftPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPi
     this.set1f('uBlurAmount', this.blurAmount)
     this.set1f('uNoiseAmount', this.noiseAmount)
     this.set1f('uGradeAmount', this.gradeAmount)
+
+    this.set1f('uWarpAmount', this.warpAmount)
+    this.set1f('uWarpFrequency', this.warpFrequency)
+    this.set1f('uWarpSpeed', this.warpSpeed)
 
     this.bindAndDraw(inputFrame)
   }
