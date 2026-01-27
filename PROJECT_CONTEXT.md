@@ -249,6 +249,27 @@ There are two parallel playback modes:
 - If you change a player animation locally and want others to see it, you must update `player.anim` via `Network.updatePlayerAction(...)`.
 - For shared state, prefer adding explicit fields to the server schema + shared interfaces in `types/` and use those on the client.
 
+## VHS PostFX (Shadertoy port)
+
+- **Implementation**
+  - Post-process shader is implemented as a Phaser WebGL `PostFXPipeline`:
+    - `client/src/pipelines/VhsPostFxPipeline.ts`
+  - Pipeline registration happens once in:
+    - `client/src/scenes/Bootstrap.ts`
+  - Toggle hotkey lives in:
+    - `client/src/scenes/Game.ts` (key: `V`)
+
+- **Key WebGL gotchas encountered**
+  - **Render targets do not have mipmaps**
+    - The Shadertoy source uses `texture(iChannelX, uv, bias)` (LOD bias).
+    - Sampling Phaser render targets with LOD bias can return black.
+    - Fix: in the port, `tex2DBias(...)` always samples LOD0 via `texture2D(...)`.
+  - **Framebuffer / texture feedback loops**
+    - Symptom: black output and console spam like:
+      - `GL_INVALID_OPERATION: glDrawArrays: Feedback loop formed between Framebuffer and active Texture.`
+    - Cause: rendering into a framebuffer whose attached texture is also bound as the active sampler.
+    - Fix: copy the incoming `renderTarget` into `fullFrame1` at the start of `onDraw` and use that copy (`inputFrame`) as the pipeline input (and as the “original” reference texture in the final pass).
+
 ## Spritesheet extraction / atlas workflow (Mutant / `adam`)
 
 The preferred pipeline for new character animations is **texture atlas** (TexturePacker).
