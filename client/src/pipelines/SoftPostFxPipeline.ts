@@ -19,6 +19,14 @@ uniform float uGradeAmount;
 uniform float uWarpAmount;
 uniform float uWarpFrequency;
 uniform float uWarpSpeed;
+uniform sampler2D uPrevSampler;
+uniform float uHasPrev;
+uniform float uChromaAmount;
+uniform float uChromaJitter;
+uniform float uMotionThreshold;
+uniform float uChromaBurstChance;
+uniform float uChromaBurstStrength;
+uniform float uChromaBurstRate;
 
 float hash21(vec2 p)
 {
@@ -42,7 +50,8 @@ vec3 applyColorGrade(vec3 color, float amount)
 
 vec3 applyNoise(vec3 color, vec2 uv, float amount)
 {
-  float n = hash21(uv * uResolution.xy + iTime * 60.0);
+  float row = floor(uv.y * uResolution.y);
+  float n = hash21(vec2(row, floor(iTime * 60.0)));
   float centered = (n - 0.5) * 2.0;
 
   return color + centered * amount;
@@ -78,7 +87,33 @@ void main()
   float warp = sin(phase) * (uWarpAmount / uResolution.x);
   vec2 warpedUv = uv + vec2(warp, 0.0);
 
-  vec4 baseTex = texture2D(uMainSampler, warpedUv);
+  vec4 baseTexCenter = texture2D(uMainSampler, warpedUv);
+
+  float hasPrev = step(0.5, uHasPrev);
+  vec3 prevTex = texture2D(uPrevSampler, warpedUv).rgb;
+  float motion = hasPrev * length(baseTexCenter.rgb - prevTex);
+  float motionMask = smoothstep(uMotionThreshold, uMotionThreshold * 2.0, motion);
+
+  float row = floor(uv.y * uResolution.y);
+  float burstPhase = floor(iTime * uChromaBurstRate);
+  float burst = step(1.0 - uChromaBurstChance, hash21(vec2(row + 13.0, burstPhase)));
+  float burstMask = burst * uChromaBurstStrength;
+
+  float effectMask = max(motionMask, burstMask);
+
+  float jx = hash21(vec2(floor(iTime * 24.0), uv.y * 512.0));
+  float jy = hash21(vec2(uv.y * 512.0 + 19.0, floor(iTime * 24.0)));
+
+  vec2 jitter = vec2((jx - 0.5) * 2.0, (jy - 0.5) * 2.0);
+
+  vec2 chromaPx = (uChromaAmount + jitter * uChromaJitter) * effectMask;
+  vec2 chromaUv = vec2(chromaPx.x / uResolution.x, chromaPx.y / uResolution.y);
+
+  vec3 chromaR = texture2D(uMainSampler, warpedUv + chromaUv).rgb;
+  vec3 chromaG = baseTexCenter.rgb;
+  vec3 chromaB = texture2D(uMainSampler, warpedUv - chromaUv).rgb;
+
+  vec3 base = vec3(chromaR.r, chromaG.g, chromaB.b);
 
   vec3 color = blur9(uMainSampler, warpedUv, texel, uBlurAmount);
 
@@ -88,16 +123,16 @@ void main()
 
   color = clamp(color, 0.0, 1.0);
 
-  vec3 base = baseTex.rgb;
-
   color = mix(base, color, uIntensity);
 
-  gl_FragColor = vec4(color, baseTex.a);
+  gl_FragColor = vec4(color, baseTexCenter.a);
 }
 `
 
 export class SoftPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPipeline {
   private shaderMain?: Phaser.Renderer.WebGL.WebGLShader
+
+  private hasPrevFrame = false
 
   private intensity = 1
 
@@ -112,6 +147,18 @@ export class SoftPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPi
   private warpFrequency = 2.0
 
   private warpSpeed = 0.35
+
+  private chromaAmount = 2.5
+
+  private chromaJitter = 1.75
+
+  private motionThreshold = 0.08
+
+  private chromaBurstChance = 0.08
+
+  private chromaBurstStrength = 0.9
+
+  private chromaBurstRate = 18
 
   constructor(game: Phaser.Game) {
     super({
@@ -154,10 +201,35 @@ export class SoftPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPi
     this.warpSpeed = Phaser.Math.Clamp(next, 0, 5)
   }
 
+  setChromaAmount(next: number) {
+    this.chromaAmount = Phaser.Math.Clamp(next, 0, 10)
+  }
+
+  setChromaJitter(next: number) {
+    this.chromaJitter = Phaser.Math.Clamp(next, 0, 10)
+  }
+
+  setMotionThreshold(next: number) {
+    this.motionThreshold = Phaser.Math.Clamp(next, 0, 1)
+  }
+
+  setChromaBurstChance(next: number) {
+    this.chromaBurstChance = Phaser.Math.Clamp(next, 0, 1)
+  }
+
+  setChromaBurstStrength(next: number) {
+    this.chromaBurstStrength = Phaser.Math.Clamp(next, 0, 2)
+  }
+
+  setChromaBurstRate(next: number) {
+    this.chromaBurstRate = Phaser.Math.Clamp(next, 0, 60)
+  }
+
   bootFX() {
     super.bootFX()
 
     this.shaderMain = this.getShaderByName('main')
+    this.hasPrevFrame = false
   }
 
   onDraw(renderTarget: Phaser.Renderer.WebGL.RenderTarget) {
@@ -166,11 +238,6 @@ export class SoftPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPi
     }
 
     const timeSeconds = this.game.loop.time / 1000
-
-    const inputFrame = this.fullFrame1 ?? renderTarget
-    if (this.fullFrame1) {
-      this.copyFrame(renderTarget, this.fullFrame1, 1, true, true)
-    }
 
     this.bind(this.shaderMain)
 
@@ -186,6 +253,38 @@ export class SoftPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPi
     this.set1f('uWarpFrequency', this.warpFrequency)
     this.set1f('uWarpSpeed', this.warpSpeed)
 
-    this.bindAndDraw(inputFrame)
+    const hasPrev = Boolean(this.fullFrame1 && this.hasPrevFrame)
+    this.set1f('uHasPrev', hasPrev ? 1 : 0)
+
+    this.set1f('uChromaAmount', this.chromaAmount)
+    this.set1f('uChromaJitter', this.chromaJitter)
+    this.set1f('uMotionThreshold', this.motionThreshold)
+
+    this.set1f('uChromaBurstChance', this.chromaBurstChance)
+    this.set1f('uChromaBurstStrength', this.chromaBurstStrength)
+    this.set1f('uChromaBurstRate', this.chromaBurstRate)
+
+    if (this.fullFrame1 && hasPrev) {
+      this.set1i('uPrevSampler', 1)
+      this.gl.activeTexture(this.gl.TEXTURE1)
+      this.gl.bindTexture(this.gl.TEXTURE_2D, this.fullFrame1.texture.webGLTexture)
+      this.gl.activeTexture(this.gl.TEXTURE0)
+    } else {
+      this.set1i('uPrevSampler', 1)
+      this.gl.activeTexture(this.gl.TEXTURE1)
+      this.gl.bindTexture(this.gl.TEXTURE_2D, null)
+      this.gl.activeTexture(this.gl.TEXTURE0)
+    }
+
+    this.bindAndDraw(renderTarget)
+
+    if (this.fullFrame1) {
+      this.copyFrame(renderTarget, this.fullFrame1, 1, true, true)
+      this.hasPrevFrame = true
+    }
+
+    this.gl.activeTexture(this.gl.TEXTURE1)
+    this.gl.bindTexture(this.gl.TEXTURE_2D, null)
+    this.gl.activeTexture(this.gl.TEXTURE0)
   }
 }

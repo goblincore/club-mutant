@@ -1,4 +1,4 @@
-# Music Sync + Resync Plan (TODO)
+# Music Sync + Resync Plan (Implemented)
 
 ## Problem statement
 
@@ -25,10 +25,12 @@ Non-goals (for now):
 ## Current implementation (summary)
 
 - Server stores `musicStream.startTime = Date.now()` when starting a track.
-- Server sends `Message.START_MUSIC_STREAM` with `{ musicStream, offset }`.
-- Client often recomputes offset as `(Date.now() - startTime) / 1000`.
-- Client seeks on `ReactPlayer.onReady` and on some play actions.
-- There is no periodic drift detection / correction.
+- Server increments `musicStream.streamId` on each new stream start.
+- Server responds to `TIME_SYNC_REQUEST` with `TIME_SYNC_RESPONSE`.
+- Server broadcasts `MUSIC_STREAM_TICK` every ~5 seconds while playing.
+- Client maintains an NTP-style best-offset estimate (`TimeSync`) and computes expected playback time using server-time estimate.
+- Client seeks on `ReactPlayer.onReady`, provides a manual **Resync** button, and runs a drift correction loop.
+- Client resyncs on tab resume events (Safari-specific support included).
 
 ## Proposed refactor
 
@@ -49,6 +51,11 @@ Protocol:
   - `serverOffsetMs = (clientSentAtMs + oneWayMs) - serverNowMs`
 
 Keep the best sample (lowest RTT) and refresh periodically (10–30s).
+
+Implementation notes:
+
+- Client refreshes time sync every ~15s.
+- On Safari tab resume, the client also triggers an immediate time sync request before seeking.
 
 ### 2) Treat `musicStream.startTime` as _server time_
 
@@ -91,6 +98,11 @@ Correction strategy:
 - If `|driftSeconds| >= 2`:
   - `seekTo(expectedSeconds, true)`.
 
+Safari note:
+
+- Safari can suspend timers + iframe playback while backgrounded.
+- On resume, the client attempts multiple resyncs and also resyncs again on the next `MUSIC_STREAM_TICK`.
+
 ### 5) Add a UI "Resync" button
 
 Add a button near the existing playback controls that:
@@ -109,13 +121,14 @@ Pick one source of truth (recommended: state as truth) so the player doesn’t d
 
 ## Implementation checklist (incremental)
 
-- [ ] Add message enums + types for time sync and stream ticks
-- [ ] Add server handlers for `TIME_SYNC_REQUEST`
-- [ ] Add server interval to broadcast `MUSIC_STREAM_TICK` while playing
-- [ ] Add client `TimeSync` utility (stores best `serverOffsetMs`)
-- [ ] Update client offset computations to use server time estimate
-- [ ] Add drift detection loop + correction strategy
-- [ ] Add "Resync" button
+- [x] Add message enums + types for time sync and stream ticks
+- [x] Add server handlers for `TIME_SYNC_REQUEST`
+- [x] Add server interval to broadcast `MUSIC_STREAM_TICK` while playing
+- [x] Add `streamId` to `MusicStream` schema + client state
+- [x] Add client `TimeSync` utility (stores best `serverOffsetMs`)
+- [x] Update client offset computations to use server time estimate
+- [x] Add drift detection loop + correction strategy
+- [x] Add "Resync" button
 - [ ] Add basic logging (dev-only) for drift samples + correction actions
 
 ## Test plan
@@ -124,6 +137,8 @@ Pick one source of truth (recommended: state as truth) so the player doesn’t d
   - Start a stream; verify both report similar drift after 30–60s.
 - **Background tab test**:
   - Background one tab for 30–120s; return; verify it resyncs within ~5–10s.
+- **Safari background tab test**:
+  - Background Safari for 30–120s; return; verify it resyncs (visibility/focus/pageshow) and then confirms sync on the next `MUSIC_STREAM_TICK`.
 - **Network throttling** (DevTools):
   - Introduce transient throttling; verify drift corrections occur without constant seeking.
 
