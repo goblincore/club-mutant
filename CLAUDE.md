@@ -310,9 +310,53 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
     - Track the active debug anim key in `debugAnimKey` and clear the lock if the current anim changes (e.g. movement interrupts the debug anim).
 
 - **Punch direction keys**
-  - Added explicit keys for diagonal-up punch:
-    - `mutant_punch_up_right` (frames `0..10`)
-    - `mutant_punch_up_left` (frames `55..65`)
+- Added explicit keys for diagonal-up punch:
+  - `mutant_punch_up_right` (frames `0..10`)
+  - `mutant_punch_up_left` (frames `55..65`)
+
+### Punching (click-to-punch + server-authoritative hit)
+
+- **UX / control**
+  - Click another player to auto-walk toward them and punch when in range.
+  - Client tracks a pending target via `pendingPunchTargetId`.
+
+- **Client implementation**
+  - Target acquisition + approach + range check lives in:
+    - `client/src/scenes/Game.ts`
+  - When in range, the attacker plays a local action anim:
+    - `MyPlayer.playActionAnim('mutant_punch_<dir>')`
+  - Then the request is sent to the server:
+    - `Network.punchPlayer(targetId)` → `Message.PUNCH_PLAYER`
+
+- **Server authority (validation + effect)**
+  - `server/rooms/SkyOffice.ts` handles `Message.PUNCH_PLAYER`:
+    - Rejects invalid targets / self-target.
+    - Re-checks range server-side using the same constants:
+      - `punchRangePx = 56`
+      - `punchDyWeight = 1.5` (vertical distance is “heavier” to match isometric feel)
+    - Applies a small knockback after an impact delay:
+      - `punchImpactDelayMs = 350`
+      - `punchKnockbackPx = 10`
+    - Victim hit animation is randomly selected:
+      - `mutant_hit1_<dir>` or `mutant_hit2_<dir>`
+    - Currently only applies to victims whose `anim` texture prefix is `mutant`.
+
+- **How the victim sees the hit**
+  - Server sets `victim.anim = hitAnimKey` (so late joiners see it), and also:
+    - Broadcasts `Message.UPDATE_PLAYER_ACTION` to everyone except the victim.
+    - Sends `Message.PUNCH_PLAYER` _to the victim only_ with `{ anim, x, y }`.
+  - Client receives the victim-only `Message.PUNCH_PLAYER` in:
+    - `client/src/services/Network.ts`
+    - Emits `Event.MY_PLAYER_FORCED_ANIM`
+  - `client/src/scenes/Game.ts` handles that event by:
+    - Canceling movement
+    - Resetting Arcade body position (if `x/y` included)
+    - Playing the hit animation via `MyPlayer.playHitAnim(...)`
+
+- **Animation defs**
+  - Punch anims: `mutant_punch_*`
+  - Hit anims: `mutant_hit1_*`, `mutant_hit2_*`
+  - Defined/overridden in `client/src/anims/CharacterAnims.ts`.
 
 ### Click-to-move pathfinding
 

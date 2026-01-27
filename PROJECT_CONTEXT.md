@@ -155,6 +155,30 @@ Public lobby differs from custom/private rooms:
     - `mutant_punch_up_right` (frames `0..10`)
     - `mutant_punch_up_left` (frames `55..65`)
 
+## Punching (click-to-punch + server-authoritative hit)
+
+- **UX**
+  - Click another player → auto-walk into range → punch triggers.
+
+- **Client flow**
+  - `client/src/scenes/Game.ts`
+    - Tracks `pendingPunchTargetId` after clicking an `OtherPlayer`.
+    - When in range, plays `mutant_punch_<dir>` via `MyPlayer.playActionAnim(...)`.
+    - Sends `Message.PUNCH_PLAYER` via `Network.punchPlayer(targetId)`.
+
+- **Server flow**
+  - `server/rooms/SkyOffice.ts`
+    - Validates the punch (target exists, not self, server-side range check).
+    - Uses dy-weighted distance for isometric feel (`punchRangePx = 56`, `punchDyWeight = 1.5`).
+    - After `punchImpactDelayMs = 350`, applies small knockback (`punchKnockbackPx = 10`) and forces a hit anim.
+    - Randomly chooses `mutant_hit1_<dir>` vs `mutant_hit2_<dir>`.
+
+- **Victim handling (important detail)**
+  - The victim does **not** rely only on state sync for immediate feedback.
+  - Server sends `Message.PUNCH_PLAYER` to the victim with `{ anim, x, y }`.
+  - Client `Network.ts` emits `Event.MY_PLAYER_FORCED_ANIM`.
+  - `Game.ts` handles it by resetting the Arcade body (if `x/y` provided) and calling `MyPlayer.playHitAnim(...)`.
+
 ## Music + room playlist (current implementation)
 
 ### The concept
