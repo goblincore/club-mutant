@@ -1,5 +1,7 @@
 import Phaser from 'phaser'
 
+import { createMutantRippedAnims } from './MutantRippedAnims'
+
 export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) => {
   const animsFrameRate = 15
 
@@ -837,6 +839,8 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       frameRate: animsFrameRate * 0.5,
     })
   })
+
+  createMutantRippedAnims(anims)
 
   // mut_hit1: 36 frames, 6 per direction (6 isometric directions)
   // Order: NE(0-5), E(6-11), SE(12-17), S(18-23), SW(24-29), W(30-35)

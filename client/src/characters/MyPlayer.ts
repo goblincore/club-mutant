@@ -123,6 +123,45 @@ export default class MyPlayer extends Player {
     })
   }
 
+  playDebugAnim(animKey: string, network: Network, options?: { syncToServer?: boolean }) {
+    if (!this.scene.anims.exists(animKey)) return
+
+    const syncToServer = options?.syncToServer !== false
+
+    const currentAnimKey = this.anims.currentAnim?.key ?? `${this.playerTexture}_idle_down`
+    const currentParts = currentAnimKey.split('_')
+    const currentDir = currentParts.slice(2).join('_') || 'down'
+
+    this.playingDebugAnim = true
+    this.debugAnimKey = animKey
+
+    this.play(animKey, true)
+    this.updatePhysicsBodyForAnim(animKey)
+
+    if (syncToServer) {
+      network.updatePlayerAction(this.x, this.y, animKey)
+    }
+
+    this.once(`animationcomplete-${animKey}`, () => {
+      if (this.debugAnimKey === animKey) {
+        this.playingDebugAnim = false
+        this.debugAnimKey = null
+      }
+
+      const idleKeyCandidate = `${this.playerTexture}_idle_${currentDir}`
+      const idleKey = this.scene.anims.exists(idleKeyCandidate)
+        ? idleKeyCandidate
+        : `${this.playerTexture}_idle_down`
+
+      this.play(idleKey, true)
+      this.updatePhysicsBodyForAnim(idleKey)
+
+      if (syncToServer) {
+        network.updatePlayerAction(this.x, this.y, idleKey)
+      }
+    })
+  }
+
   requestLeaveMusicBooth() {
     this.pendingLeaveMusicBooth = true
   }

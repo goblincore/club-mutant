@@ -286,6 +286,36 @@ Block detection relies on magenta guide lines:
 
 Open-guide support is still experimental; if blocks look mis-cropped, it likely needs further tuning.
 
+## Mutant ripped multi-atlas workflow (`mutant_ripped`)
+
+There is a separate pipeline for mutant animations where frames were exported as individual PNGs (via TexturePacker GUI splitter) and then re-packed via TexturePacker CLI:
+
+- Input frames:
+  - `conversion/base/ripped_sprites_individual_export/`
+  - Filenames: `<base>-<index>.png` (0-based, contiguous)
+  - Markers:
+    - `single` means 1 row (all directions use row 0)
+    - `static` means a single-frame animation (may still have 6 rows)
+
+Build + pack:
+
+- Script: `conversion/scripts/build_mutant_ripped_atlas.py`
+- Generate manifest + TS animation defs:
+  - `conversion/out/mutant_ripped/manifest.json`
+  - `client/src/anims/MutantRippedAnims.ts`
+- Pack into a Phaser multi-atlas (MaxRects + trim):
+  - `client/public/assets/character/mutant_ripped.json`
+  - `client/public/assets/character/mutant_ripped-<n>.png`
+
+Phaser wiring:
+
+- `client/src/scenes/Bootstrap.ts` loads `mutant_ripped` via `load.multiatlas(...)`.
+- `client/src/anims/CharacterAnims.ts` calls `createMutantRippedAnims(anims)`.
+
+Debug preview:
+
+- `client/src/scenes/Game.ts` adds a small clickable `Ripped Anims` button that cycles through `mutant_ripped_*` animations on the local player.
+
 ## Recent noteworthy commits (Jan 2026)
 
 - Added DJ boombox spritesheet + animation + slowed playback.

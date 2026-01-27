@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 
 import { createCharacterAnims } from '../anims/CharacterAnims'
+import { mutantRippedAnimKeys } from '../anims/MutantRippedAnims'
 
 import Item from '../items/Item'
 import MusicBooth from '../items/MusicBooth'
@@ -41,6 +42,7 @@ export default class Game extends Phaser.Scene {
   private key2!: Phaser.Input.Keyboard.Key
   private key3!: Phaser.Input.Keyboard.Key
   private key4!: Phaser.Input.Keyboard.Key
+  private key5!: Phaser.Input.Keyboard.Key
   private map!: Phaser.Tilemaps.Tilemap
   private groundLayer!: Phaser.Tilemaps.TilemapLayer
   private pathObstacles: Array<{ getBounds: () => Phaser.Geom.Rectangle }> = []
@@ -57,6 +59,24 @@ export default class Game extends Phaser.Scene {
   private pendingPunchTargetId: string | null = null
   private musicBoothMap = new Map<number, MusicBooth>()
   private myYoutubePlayer?: MyYoutubePlayer
+
+  private rippedAnimKeys: string[] = []
+
+  private rippedAnimIndex = 0
+
+  private rippedAnimDebugButton?: Phaser.GameObjects.Text
+
+  private rippedAnimDebugLabel?: Phaser.GameObjects.Text
+
+  private playNextRippedAnim() {
+    if (!this.myPlayer || this.rippedAnimKeys.length === 0) return
+
+    const nextKey = this.rippedAnimKeys[this.rippedAnimIndex % this.rippedAnimKeys.length]
+    this.rippedAnimIndex += 1
+
+    this.rippedAnimDebugLabel?.setText(nextKey)
+    this.myPlayer.playDebugAnim(nextKey, this.network, { syncToServer: false })
+  }
 
   constructor() {
     super('game')
@@ -212,6 +232,7 @@ export default class Game extends Phaser.Scene {
     this.key2 = keyboard.addKey('TWO')
     this.key3 = keyboard.addKey('THREE')
     this.key4 = keyboard.addKey('FOUR')
+    this.key5 = keyboard.addKey('FIVE')
     keyboard.disableGlobalCapture()
     keyboard.on('keydown-ESC', (event) => {
       store.dispatch(setShowChat(false))
@@ -338,6 +359,39 @@ export default class Game extends Phaser.Scene {
     this.registerKeys()
 
     createCharacterAnims(this.anims)
+
+    this.rippedAnimKeys = mutantRippedAnimKeys.slice().sort()
+
+    const debugWidgetX = Math.round(this.scale.width * 0.5 - 70)
+    const debugWidgetY = Math.round(this.scale.height * 0.55)
+
+    this.rippedAnimDebugButton = this.add
+      .text(debugWidgetX, debugWidgetY, 'Ripped Anims', {
+        fontFamily: 'Arial',
+        fontSize: '14px',
+        color: '#ffffff',
+        backgroundColor: '#000000',
+      })
+      .setPadding(8, 6)
+      .setStroke('#00ffcc', 2)
+      .setShadow(0, 0, '#000000', 6, true, true)
+      .setScrollFactor(0)
+      .setDepth(100000)
+      .setInteractive({ useHandCursor: true })
+
+    this.rippedAnimDebugLabel = this.add
+      .text(debugWidgetX, debugWidgetY + 30, '', {
+        fontFamily: 'Arial',
+        fontSize: '10px',
+        color: '#ffffff',
+        backgroundColor: '#000000',
+      })
+      .setPadding(6, 4)
+      .setShadow(0, 0, '#000000', 6, true, true)
+      .setScrollFactor(0)
+      .setDepth(100000)
+
+    this.rippedAnimDebugButton.on('pointerdown', () => this.playNextRippedAnim())
 
     this.map = this.make.tilemap({ key: 'tilemap' })
     const FloorAndGround = this.map.addTilesetImage('FloorAndGround', 'tiles_wall')
@@ -654,6 +708,10 @@ export default class Game extends Phaser.Scene {
 
   update(t: number, dt: number) {
     if (this.myPlayer && this.network) {
+      if (this.key5 && Phaser.Input.Keyboard.JustDown(this.key5)) {
+        this.playNextRippedAnim()
+      }
+
       const pointer = this.input.activePointer
 
       if (pointer.isDown && pointer.downTime !== this.lastPointerDownTime) {

@@ -422,6 +422,54 @@ Core flags:
 
 Goal is filenames like `idle_up_right_000.png` that can be packed into one atlas.
 
+### Mutant ripped multi-atlas workflow (`mutant_ripped`)
+
+This repo includes a workflow for Fallout 2 mutant frames that were grid-split externally (TexturePacker GUI) into individual PNGs.
+
+- Source sheets (reference only):
+  - `conversion/base/mutant_sprites/`
+- Ripped frames (input to packing):
+  - `conversion/base/ripped_sprites_individual_export/`
+  - Naming convention: `<base>-<index>.png` (index is 0-based and contiguous per base)
+  - Special markers:
+    - `single` in the base name means the animation has **1 row** (all directions reuse row 0)
+    - `static` in the base name means it is effectively **one frame** (may still have multiple rows)
+
+Build script:
+
+- `conversion/scripts/build_mutant_ripped_atlas.py`
+
+It generates:
+
+- `conversion/out/mutant_ripped/manifest.json` (groups + inferred rows/cols)
+- `client/src/anims/MutantRippedAnims.ts` (generated animation definitions)
+
+And when run with `--pack`, it produces a Phaser 3 **multi-atlas**:
+
+- `client/public/assets/character/mutant_ripped.json`
+- `client/public/assets/character/mutant_ripped-<n>.png`
+
+Packing settings:
+
+- `--algorithm MaxRects`
+- `--trim-mode Crop`
+- `--disable-rotation`
+- `--multipack` (`--max-size 2048`)
+
+Direction row mapping (when 6 rows):
+
+- `NE, E, SE, SW, W, NW` maps to:
+  - `up_right, right, down_right, down_left, left, up_left`
+- Additional keys are generated as aliases:
+  - `up` duplicates `up_left`
+  - `down` duplicates `down_left`
+
+Phaser integration:
+
+- Preload: `client/src/scenes/Bootstrap.ts` loads `mutant_ripped` via `load.multiatlas(...)`.
+- Animations: `client/src/anims/CharacterAnims.ts` calls `createMutantRippedAnims(anims)`.
+- Debug preview: `client/src/scenes/Game.ts` adds a small `Ripped Anims` button that cycles through `mutant_ripped_*` keys on click.
+
 ### Magenta guide interpretation
 
 - `--guide-mode closed` (default): expects closed rectangles around blocks.
