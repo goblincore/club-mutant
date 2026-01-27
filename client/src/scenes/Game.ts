@@ -31,6 +31,7 @@ import { RoomType } from '../../../types/Rooms'
 import { phaserEvents, Event } from '../events/EventCenter'
 
 import { VHS_POSTFX_PIPELINE_KEY, VhsPostFxPipeline } from '../pipelines/VhsPostFxPipeline'
+import { SOFT_POSTFX_PIPELINE_KEY, SoftPostFxPipeline } from '../pipelines/SoftPostFxPipeline'
 
 export default class Game extends Phaser.Scene {
   network!: Network
@@ -48,6 +49,7 @@ export default class Game extends Phaser.Scene {
   private key4!: Phaser.Input.Keyboard.Key
   private key5!: Phaser.Input.Keyboard.Key
   private keyV!: Phaser.Input.Keyboard.Key
+  private keyB!: Phaser.Input.Keyboard.Key
   private map!: Phaser.Tilemaps.Tilemap
   private groundLayer!: Phaser.Tilemaps.TilemapLayer
   private pathObstacles: Array<{ getBounds: () => Phaser.Geom.Rectangle }> = []
@@ -167,6 +169,26 @@ export default class Game extends Phaser.Scene {
     }
   }
 
+  private toggleSoftPostFx() {
+    const camera = this.cameras.main
+    const existing = camera.getPostPipeline(SOFT_POSTFX_PIPELINE_KEY)
+    const hasExisting = Array.isArray(existing) ? existing.length > 0 : !!existing
+
+    if (hasExisting) {
+      camera.removePostPipeline(SOFT_POSTFX_PIPELINE_KEY)
+      return
+    }
+
+    camera.setPostPipeline(SOFT_POSTFX_PIPELINE_KEY)
+
+    const pipeline = camera.getPostPipeline(SOFT_POSTFX_PIPELINE_KEY)
+    const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
+
+    if (instance && instance instanceof SoftPostFxPipeline) {
+      instance.setIntensity(1)
+    }
+  }
+
   private clearHoverHighlight(item: Item) {
     const glow = this.hoverGlowFx.get(item)
     if (glow && item.postFX) {
@@ -255,6 +277,7 @@ export default class Game extends Phaser.Scene {
     this.key4 = keyboard.addKey('FOUR')
     this.key5 = keyboard.addKey('FIVE')
     this.keyV = keyboard.addKey('V')
+    this.keyB = keyboard.addKey('B')
     keyboard.disableGlobalCapture()
     keyboard.on('keydown-ESC', (event) => {
       store.dispatch(setShowChat(false))
@@ -263,6 +286,11 @@ export default class Game extends Phaser.Scene {
     keyboard.on('keydown-V', () => {
       if (this.game.renderer.type !== Phaser.WEBGL) return
       this.toggleVhsPostFx()
+    })
+
+    keyboard.on('keydown-B', () => {
+      if (this.game.renderer.type !== Phaser.WEBGL) return
+      this.toggleSoftPostFx()
     })
   }
 

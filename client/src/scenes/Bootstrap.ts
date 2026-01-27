@@ -5,6 +5,7 @@ import store from '../stores'
 import { setRoomJoined } from '../stores/RoomStore'
 
 import { VHS_POSTFX_PIPELINE_KEY, VhsPostFxPipeline } from '../pipelines/VhsPostFxPipeline'
+import { SOFT_POSTFX_PIPELINE_KEY, SoftPostFxPipeline } from '../pipelines/SoftPostFxPipeline'
 
 export default class Bootstrap extends Phaser.Scene {
   network!: Network
@@ -112,6 +113,7 @@ export default class Bootstrap extends Phaser.Scene {
     if (this.game.renderer.type === Phaser.WEBGL) {
       const renderer = this.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer
       renderer.pipelines.addPostPipeline(VHS_POSTFX_PIPELINE_KEY, VhsPostFxPipeline)
+      renderer.pipelines.addPostPipeline(SOFT_POSTFX_PIPELINE_KEY, SoftPostFxPipeline)
     }
 
     this.launchBackground(store.getState().user.backgroundMode)
