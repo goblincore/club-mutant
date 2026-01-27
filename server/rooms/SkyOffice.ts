@@ -391,10 +391,10 @@ export class SkyOffice extends Room<OfficeState> {
 
       const dx = attacker.x - victim.x
       const dy = attacker.y - victim.y
-      const distanceSq = dx * dx + dy * dy
-
       const punchRangePx = 56
-      if (distanceSq > punchRangePx * punchRangePx) return
+      const punchDyWeight = 1.5
+      const weightedDistanceSq = dx * dx + dy * punchDyWeight * (dy * punchDyWeight)
+      if (weightedDistanceSq > punchRangePx * punchRangePx) return
 
       const absDx = Math.abs(dx)
       const absDy = Math.abs(dy)

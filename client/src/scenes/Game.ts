@@ -890,10 +890,11 @@ export default class Game extends Phaser.Scene {
         } else {
           const dx = target.x - this.myPlayer.x
           const dy = target.y - this.myPlayer.y
-          const distanceSq = dx * dx + dy * dy
-
           const punchRangePx = 56
-          if (distanceSq <= punchRangePx * punchRangePx) {
+          const punchDyWeight = 1.5
+          const weightedDistanceSq = dx * dx + dy * punchDyWeight * (dy * punchDyWeight)
+
+          if (weightedDistanceSq <= punchRangePx * punchRangePx) {
             this.myPlayer.cancelMoveNavigation()
 
             const absDx = Math.abs(dx)
