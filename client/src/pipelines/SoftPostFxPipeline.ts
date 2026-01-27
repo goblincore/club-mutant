@@ -71,6 +71,8 @@ void main()
   vec2 uv = outTexCoord;
   vec2 texel = 1.0 / uResolution.xy;
 
+  vec4 baseTex = texture2D(uMainSampler, uv);
+
   vec3 color = blur9(uMainSampler, uv, texel, uBlurAmount);
 
   color = applyColorGrade(color, uGradeAmount);
@@ -79,11 +81,11 @@ void main()
 
   color = clamp(color, 0.0, 1.0);
 
-  vec3 base = texture2D(uMainSampler, uv).rgb;
+  vec3 base = baseTex.rgb;
 
   color = mix(base, color, uIntensity);
 
-  gl_FragColor = vec4(color, 1.0);
+  gl_FragColor = vec4(color, baseTex.a);
 }
 `
 
@@ -94,7 +96,7 @@ export class SoftPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPi
 
   private blurAmount = 0.35
 
-  private noiseAmount = 0.04
+  private noiseAmount = 0.07
 
   private gradeAmount = 0.6
 
