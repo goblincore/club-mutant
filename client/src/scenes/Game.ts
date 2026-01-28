@@ -181,6 +181,20 @@ export default class Game extends Phaser.Scene {
     }
   }
 
+  private toggleVhsHalfRes() {
+    const camera = this.cameras.main
+    const pipeline = camera.getPostPipeline(VHS_POSTFX_PIPELINE_KEY)
+    const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
+
+    if (instance && instance instanceof VhsPostFxPipeline) {
+      const next = !instance.getHalfRes()
+      instance.setHalfRes(next)
+      console.log(`VHS half-res: ${next ? 'ON (0.5x)' : 'OFF (full)'}`)
+    } else {
+      console.log('VHS effect not active - press V first to enable')
+    }
+  }
+
   private toggleSoftPostFx() {
     const camera = this.cameras.main
     const existing = camera.getPostPipeline(SOFT_POSTFX_PIPELINE_KEY)
@@ -295,9 +309,14 @@ export default class Game extends Phaser.Scene {
       store.dispatch(setShowChat(false))
     })
 
-    keyboard.on('keydown-V', () => {
+    keyboard.on('keydown-V', (event: KeyboardEvent) => {
       if (this.game.renderer.type !== Phaser.WEBGL) return
-      this.toggleVhsPostFx()
+
+      if (event.shiftKey) {
+        this.toggleVhsHalfRes()
+      } else {
+        this.toggleVhsPostFx()
+      }
     })
 
     keyboard.on('keydown-B', () => {

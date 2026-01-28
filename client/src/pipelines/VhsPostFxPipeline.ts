@@ -443,6 +443,8 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
 
   private bypass = 0
 
+  private useHalfRes = true
+
   constructor(game: Phaser.Game) {
     super({
       game,
@@ -477,6 +479,14 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
     this.bypass = next ? 1 : 0
   }
 
+  setHalfRes(next: boolean) {
+    this.useHalfRes = next
+  }
+
+  getHalfRes(): boolean {
+    return this.useHalfRes
+  }
+
   bootFX() {
     super.bootFX()
 
@@ -487,8 +497,8 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
     this.shaderImage = this.getShaderByName('image')
   }
 
-  private setCommonUniforms(timeSeconds: number, frame: number) {
-    this.set2f('uResolution', this.renderer.width, this.renderer.height)
+  private setCommonUniforms(timeSeconds: number, frame: number, width: number, height: number) {
+    this.set2f('uResolution', width, height)
     this.set1f('iTime', timeSeconds)
     this.set1f('iFrame', frame)
   }
@@ -504,52 +514,102 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
 
     const timeSeconds = this.game.loop.time / 1000
     const frame = this.game.loop.frame
+    const gl = this.gl
+
+    const fullWidth = this.renderer.width
+    const fullHeight = this.renderer.height
 
     const inputFrame = this.fullFrame1 ?? renderTarget
     if (this.fullFrame1) {
       this.copyFrame(renderTarget, this.fullFrame1, 1, true, true)
     }
 
-    const rtA = this.renderTargets[0]
-    const rtB = this.renderTargets[1]
-    const rtC0 = this.renderTargets[2]
-    const rtC1 = this.renderTargets[3]
+    if (this.useHalfRes && this.halfFrame1 && this.halfFrame2) {
+      const halfWidth = this.halfFrame1.width
+      const halfHeight = this.halfFrame1.height
 
-    const useFirst = frame % 2 === 0
-    const rtCPrev = useFirst ? rtC0 : rtC1
-    const rtCCur = useFirst ? rtC1 : rtC0
+      const rtC0 = this.renderTargets[2]
+      const rtC1 = this.renderTargets[3]
 
-    this.bind(this.shaderA)
-    this.setCommonUniforms(timeSeconds, frame)
-    this.bindAndDraw(inputFrame, rtA)
+      const useFirst = frame % 2 === 0
+      const rtCPrev = useFirst ? rtC0 : rtC1
+      const rtCCur = useFirst ? rtC1 : rtC0
 
-    this.bind(this.shaderB)
-    this.setCommonUniforms(timeSeconds, frame)
-    this.bindAndDraw(rtA, rtB)
+      this.bind(this.shaderA)
+      this.setCommonUniforms(timeSeconds, frame, halfWidth, halfHeight)
+      gl.viewport(0, 0, halfWidth, halfHeight)
+      this.bindAndDraw(inputFrame, this.halfFrame1)
 
-    this.bind(this.shaderC)
-    this.setCommonUniforms(timeSeconds, frame)
-    this.set1i('uChannel1', 1)
-    this.gl.activeTexture(this.gl.TEXTURE1)
-    this.gl.bindTexture(this.gl.TEXTURE_2D, rtCPrev.texture.webGLTexture)
-    this.gl.activeTexture(this.gl.TEXTURE0)
-    this.bindAndDraw(rtB, rtCCur)
+      this.bind(this.shaderB)
+      this.setCommonUniforms(timeSeconds, frame, halfWidth, halfHeight)
+      gl.viewport(0, 0, halfWidth, halfHeight)
+      this.bindAndDraw(this.halfFrame1, this.halfFrame2)
 
-    this.bind(this.shaderD)
-    this.setCommonUniforms(timeSeconds, frame)
-    this.bindAndDraw(rtCCur, rtB)
+      this.bind(this.shaderC)
+      this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
+      gl.viewport(0, 0, fullWidth, fullHeight)
+      this.set1i('uChannel1', 1)
+      gl.activeTexture(gl.TEXTURE1)
+      gl.bindTexture(gl.TEXTURE_2D, rtCPrev.texture.webGLTexture)
+      gl.activeTexture(gl.TEXTURE0)
+      this.bindAndDraw(this.halfFrame2, rtCCur)
 
-    this.bind(this.shaderImage)
-    this.setCommonUniforms(timeSeconds, frame)
-    this.set1f('uBypass', this.bypass)
-    this.set1i('uChannel1', 1)
-    this.gl.activeTexture(this.gl.TEXTURE1)
-    this.gl.bindTexture(this.gl.TEXTURE_2D, inputFrame.texture.webGLTexture)
-    this.gl.activeTexture(this.gl.TEXTURE0)
-    this.bindAndDraw(rtB)
+      this.bind(this.shaderD)
+      this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
+      gl.viewport(0, 0, fullWidth, fullHeight)
+      this.bindAndDraw(rtCCur, this.renderTargets[1])
 
-    this.gl.activeTexture(this.gl.TEXTURE1)
-    this.gl.bindTexture(this.gl.TEXTURE_2D, null)
-    this.gl.activeTexture(this.gl.TEXTURE0)
+      this.bind(this.shaderImage)
+      this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
+      gl.viewport(0, 0, fullWidth, fullHeight)
+      this.set1f('uBypass', this.bypass)
+      this.set1i('uChannel1', 1)
+      gl.activeTexture(gl.TEXTURE1)
+      gl.bindTexture(gl.TEXTURE_2D, inputFrame.texture.webGLTexture)
+      gl.activeTexture(gl.TEXTURE0)
+      this.bindAndDraw(this.renderTargets[1])
+    } else {
+      const rtA = this.renderTargets[0]
+      const rtB = this.renderTargets[1]
+      const rtC0 = this.renderTargets[2]
+      const rtC1 = this.renderTargets[3]
+
+      const useFirst = frame % 2 === 0
+      const rtCPrev = useFirst ? rtC0 : rtC1
+      const rtCCur = useFirst ? rtC1 : rtC0
+
+      this.bind(this.shaderA)
+      this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
+      this.bindAndDraw(inputFrame, rtA)
+
+      this.bind(this.shaderB)
+      this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
+      this.bindAndDraw(rtA, rtB)
+
+      this.bind(this.shaderC)
+      this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
+      this.set1i('uChannel1', 1)
+      gl.activeTexture(gl.TEXTURE1)
+      gl.bindTexture(gl.TEXTURE_2D, rtCPrev.texture.webGLTexture)
+      gl.activeTexture(gl.TEXTURE0)
+      this.bindAndDraw(rtB, rtCCur)
+
+      this.bind(this.shaderD)
+      this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
+      this.bindAndDraw(rtCCur, rtB)
+
+      this.bind(this.shaderImage)
+      this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
+      this.set1f('uBypass', this.bypass)
+      this.set1i('uChannel1', 1)
+      gl.activeTexture(gl.TEXTURE1)
+      gl.bindTexture(gl.TEXTURE_2D, inputFrame.texture.webGLTexture)
+      gl.activeTexture(gl.TEXTURE0)
+      this.bindAndDraw(rtB)
+    }
+
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, null)
+    gl.activeTexture(gl.TEXTURE0)
   }
 }
