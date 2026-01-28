@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 import { createPortal } from 'react-dom'
 import ReactPlayer from 'react-player/youtube'
@@ -87,19 +87,151 @@ const VideoBackground = styled.div`
   }
 `
 
+const VideoBackgroundKickOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 16px;
+
+  button {
+    pointer-events: auto;
+    border: 0;
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    font-size: 12px;
+    cursor: pointer;
+  }
+`
+
 function PublicLobbyBackgroundPortal({ src }: { src: string }) {
   if (typeof document === 'undefined') return null
 
   return createPortal(<PublicLobbyBackground src={src} alt="" />, document.body)
 }
 
-function VideoBackgroundPortal({ url }: { url: string }) {
+function VideoBackgroundPortal({ url, streamStartTime }: { url: string; streamStartTime: number }) {
   if (typeof document === 'undefined') return null
 
+  const playerRef = useRef<ReactPlayer | null>(null)
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false)
+
+  const attemptStart = useCallback(() => {
+    const expectedSeconds = Math.max(0, (timeSync.getServerNowMs() - streamStartTime) / 1000)
+    const internalPlayer = playerRef.current?.getInternalPlayer?.()
+    internalPlayer?.seekTo?.(Math.max(0, Math.floor(expectedSeconds)), true)
+    internalPlayer?.playVideo?.()
+  }, [streamStartTime])
+
+  useEffect(() => {
+    setAutoplayBlocked(false)
+    const timeoutId = window.setTimeout(() => {
+      setAutoplayBlocked(true)
+    }, 2_500)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [url, streamStartTime])
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+      window.setTimeout(() => {
+        attemptStart()
+      }, 150)
+    }
+
+    const handleFocus = () => {
+      if (document.visibilityState !== 'visible') return
+      window.setTimeout(() => {
+        attemptStart()
+      }, 150)
+    }
+
+    const handlePageShow = () => {
+      if (document.visibilityState !== 'visible') return
+      window.setTimeout(() => {
+        attemptStart()
+      }, 150)
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('pageshow', handlePageShow)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('pageshow', handlePageShow)
+    }
+  }, [attemptStart])
+
+  useEffect(() => {
+    if (!autoplayBlocked) return
+
+    const kick = () => {
+      attemptStart()
+    }
+
+    window.addEventListener('pointerdown', kick)
+    window.addEventListener('keydown', kick)
+
+    return () => {
+      window.removeEventListener('pointerdown', kick)
+      window.removeEventListener('keydown', kick)
+    }
+  }, [attemptStart, autoplayBlocked])
+
   return createPortal(
-    <VideoBackground>
-      <ReactPlayer url={url} playing muted controls={false} width="100%" height="100%" />
-    </VideoBackground>,
+    <>
+      <VideoBackground>
+        <ReactPlayer
+          ref={playerRef}
+          url={url}
+          playing
+          muted
+          controls={false}
+          width="100%"
+          height="100%"
+          onReady={() => {
+            attemptStart()
+          }}
+          onPlay={() => {
+            setAutoplayBlocked(false)
+          }}
+          config={{
+            playerVars: {
+              autoplay: 1,
+              controls: 0,
+              disablekb: 1,
+              fs: 0,
+              modestbranding: 1,
+              mute: 1,
+              playsinline: 1,
+              start: Math.max(0, Math.floor((timeSync.getServerNowMs() - streamStartTime) / 1000)),
+            },
+          }}
+        />
+      </VideoBackground>
+      {autoplayBlocked ? (
+        <VideoBackgroundKickOverlay>
+          <button
+            type="button"
+            onClick={() => {
+              attemptStart()
+            }}
+          >
+            Enable background video
+          </button>
+        </VideoBackgroundKickOverlay>
+      ) : null}
+    </>,
     document.body
   )
 }
@@ -188,10 +320,8 @@ function App() {
     <Backdrop>
       {roomJoined && videoBackgroundEnabled && streamLink && !isAmbient ? (
         <VideoBackgroundPortal
-          url={`https://www.youtube.com/watch?v=${streamLink}#t=${Math.max(
-            0,
-            (timeSync.getServerNowMs() - streamStartTime) / 1000
-          )}s`}
+          url={`https://www.youtube.com/watch?v=${streamLink}`}
+          streamStartTime={streamStartTime}
         />
       ) : null}
 

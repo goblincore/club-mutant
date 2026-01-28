@@ -4,7 +4,8 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
 
 ## What this project is
 
-- A multiplayer 2D top-down Phaser game (client) with a Colyseus authoritative server.
+-
+- A multiplayer 2D top-down Phaser game (client) with a Colyseus authoritative server that is about playing and listening to music together in the form of playlists and 'dj' sessions.
 - React/Redux overlays provide UI (playlist, YouTube player, chat UI, etc.).
 - Real-time player state sync is done via Colyseus Schema (`OfficeState`) + `player.onChange` events.
 
@@ -30,6 +31,11 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Runs `server/index.ts` via `ts-node-dev` (see root `package.json`).
 - Client: run from `client/` (there is a separate `client/package.json`).
 
+### Tooling note (TypeScript)
+
+- Some transitive deps (notably `ioredis@5` via Colyseus redis packages) ship TypeScript declaration syntax that is not parseable by older `typescript` versions.
+- If `tsc` outputs huge numbers of parse errors originating from `node_modules/ioredis/*`, upgrade the root toolchain (`typescript`, `ts-node`, `ts-node-dev`).
+
 ## Core runtime model
 
 ### Colyseus state
@@ -47,6 +53,14 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Joins room, wires listeners.
   - `this.room.state.players.onAdd` registers `player.onChange` and emits Phaser events.
   - The Phaser scene listens to those events and updates in-world entities.
+
+#### Chat bubbles (in-world)
+
+- Chat history is stored in `state.chatMessages` (Colyseus schema) and is used for the chat log UI.
+- In-world bubbles are driven by a Phaser event:
+  - `Event.UPDATE_DIALOG_BUBBLE`
+- Server broadcasts `Message.ADD_CHAT_MESSAGE` with `{ clientId, content }` to other clients.
+- Client `Network.ts` listens for that broadcast and emits `Event.UPDATE_DIALOG_BUBBLE` so `Game.ts` can call `Player.updateDialogBubble(...)` on the correct entity.
 
 ### Player animation sync
 
@@ -147,6 +161,11 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
   - `client/src/App.tsx` uses a portal to render a fullscreen `ReactPlayer` behind Phaser.
   - Background video is forced to stretch/distort to cover the full viewport.
 
+Safari notes:
+
+- Autoplay is not guaranteed even when muted; the background renderer provides a user-gesture fallback ("Enable background video").
+- Background video does a light resync (seek + play) on enable and tab resume (visibility/focus/pageshow); it does not run the heavier drift-correction loop used for the main audio player.
+
 ## DJ booth (music booth) behavior
 
 ### Entering/leaving
@@ -154,6 +173,11 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 - Item: `client/src/items/MusicBooth.ts`
   - `openDialog()` opens the playlist UI and sends `CONNECT_TO_MUSIC_BOOTH`.
   - `closeDialog()` closes UI and sends `DISCONNECT_FROM_MUSIC_BOOTH`.
+
+- **Gotcha (server-side booth occupancy)**:
+  - `MusicBooth.connectedUser` is a `@type('string')` schema field.
+  - Treat both `null` and `''` as "empty".
+  - Otherwise a booth can get stuck "occupied" after a disconnect and prevent anyone else from becoming DJ.
 
 - Player interaction:
   - `client/src/characters/MyPlayer.ts`

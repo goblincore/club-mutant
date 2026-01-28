@@ -103,6 +103,11 @@ Safari note:
 - Safari can suspend timers + iframe playback while backgrounded.
 - On resume, the client attempts multiple resyncs and also resyncs again on the next `MUSIC_STREAM_TICK`.
 
+Background video note:
+
+- The fullscreen video background is best-effort and does not run the same periodic drift correction loop as the main audio player.
+- Safari may require user interaction to start background video playback even when muted; the client provides a user-gesture fallback and does a light resync (seek + play) on resume.
+
 ### 5) Add a UI "Resync" button
 
 Add a button near the existing playback controls that:
