@@ -26,9 +26,15 @@ type MyPlaylist = {
   items: PlaylistItem[]
 }
 
+type TrackMeta = {
+  visualUrl?: string
+  trackMessage?: string
+}
+
 type PersistedMyPlaylists = {
   playlists: MyPlaylist[]
   activePlaylistId: string | null
+  trackMetaById?: Record<string, TrackMeta>
 }
 
 const isMyPlaylist = (value: unknown): value is MyPlaylist => {
@@ -41,6 +47,20 @@ const isMyPlaylist = (value: unknown): value is MyPlaylist => {
   if (!Array.isArray(candidate.items)) return false
 
   return candidate.items.every(isPlaylistItem)
+}
+
+const isTrackMeta = (value: unknown): value is TrackMeta => {
+  if (!value || typeof value !== 'object') return false
+
+  const candidate = value as Record<string, unknown>
+
+  const visualUrl = candidate.visualUrl
+  const trackMessage = candidate.trackMessage
+
+  if (visualUrl !== undefined && typeof visualUrl !== 'string') return false
+  if (trackMessage !== undefined && typeof trackMessage !== 'string') return false
+
+  return true
 }
 
 const loadPersisted = (): PersistedMyPlaylists => {
@@ -64,7 +84,11 @@ const loadPersisted = (): PersistedMyPlaylists => {
         items: legacyItems,
       }
 
-      return { playlists: [legacyPlaylist], activePlaylistId: legacyPlaylist.id }
+      return {
+        playlists: [legacyPlaylist],
+        activePlaylistId: legacyPlaylist.id,
+        trackMetaById: {},
+      }
     }
 
     if (!parsed || typeof parsed !== 'object') {
@@ -75,11 +99,24 @@ const loadPersisted = (): PersistedMyPlaylists => {
 
     const playlistsRaw = candidate.playlists
     const activePlaylistIdRaw = candidate.activePlaylistId
+    const trackMetaByIdRaw = candidate.trackMetaById
 
     const playlists = Array.isArray(playlistsRaw) ? playlistsRaw.filter(isMyPlaylist) : []
     const activePlaylistId = typeof activePlaylistIdRaw === 'string' ? activePlaylistIdRaw : null
 
-    return { playlists, activePlaylistId }
+    const trackMetaById: Record<string, TrackMeta> =
+      trackMetaByIdRaw && typeof trackMetaByIdRaw === 'object' && !Array.isArray(trackMetaByIdRaw)
+        ? Object.entries(trackMetaByIdRaw as Record<string, unknown>).reduce<
+            Record<string, TrackMeta>
+          >((acc, [k, v]) => {
+            if (isTrackMeta(v)) {
+              acc[k] = v
+            }
+            return acc
+          }, {})
+        : {}
+
+    return { playlists, activePlaylistId, trackMetaById }
   } catch {
     return { playlists: [], activePlaylistId: null }
   }
@@ -90,6 +127,7 @@ interface MyPlaylistState {
   playQueue: Array<PlaylistItem>
   playlists: Array<MyPlaylist>
   activePlaylistId: string | null
+  trackMetaById: Record<string, TrackMeta>
   focused: boolean
 }
 
@@ -100,6 +138,7 @@ const initialState: MyPlaylistState = {
   playQueue: new Array<PlaylistItem>(),
   playlists: persisted.playlists,
   activePlaylistId: persisted.activePlaylistId,
+  trackMetaById: persisted.trackMetaById ?? {},
   focused: false,
 }
 
@@ -158,7 +197,15 @@ export const myPlaylistSlice = createSlice({
     removePlaylist: (state, action: PayloadAction<{ id: string }>) => {
       const { id } = action.payload
 
+      const removed = state.playlists.find((p) => p.id === id)
+
       state.playlists = state.playlists.filter((p) => p.id !== id)
+
+      if (removed) {
+        for (const item of removed.items) {
+          delete state.trackMetaById[item.id]
+        }
+      }
 
       if (state.activePlaylistId === id) {
         state.activePlaylistId = state.playlists[0]?.id ?? null
@@ -205,6 +252,21 @@ export const myPlaylistSlice = createSlice({
       if (!playlist) return
 
       playlist.items = playlist.items.filter((i) => i.id !== itemId)
+
+      delete state.trackMetaById[itemId]
+    },
+    updateTrackMeta: (state, action: PayloadAction<{ trackId: string; patch: TrackMeta }>) => {
+      const { trackId, patch } = action.payload
+
+      state.trackMetaById[trackId] = {
+        ...state.trackMetaById[trackId],
+        ...patch,
+      }
+    },
+    clearTrackMeta: (state, action: PayloadAction<{ trackId: string }>) => {
+      const { trackId } = action.payload
+
+      delete state.trackMetaById[trackId]
     },
     openMyPlaylistPanel: (state) => {
       state.myPlaylistPanelOpen = true
@@ -227,6 +289,8 @@ export const {
   removePlaylist,
   setActivePlaylistId,
   reorderPlaylistItems,
+  updateTrackMeta,
+  clearTrackMeta,
   openMyPlaylistPanel,
   closeMyPlaylistPanel,
   setFocused,

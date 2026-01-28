@@ -38,8 +38,8 @@ let lastPersistedMyPlaylistItemsJson: string | null = null
 
 store.subscribe(() => {
   try {
-    const { playlists, activePlaylistId } = store.getState().myPlaylist
-    const serialized = JSON.stringify({ playlists, activePlaylistId })
+    const { playlists, activePlaylistId, trackMetaById } = store.getState().myPlaylist
+    const serialized = JSON.stringify({ playlists, activePlaylistId, trackMetaById })
 
     if (serialized === lastPersistedMyPlaylistItemsJson) return
 

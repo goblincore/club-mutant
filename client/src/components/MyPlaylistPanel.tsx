@@ -6,6 +6,7 @@ import CloseIcon from '@mui/icons-material/Close'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import EditIcon from '@mui/icons-material/Edit'
 import Fab from '@mui/material/Fab'
 import Game from '../scenes/Game'
 import phaserGame from '../PhaserGame'
@@ -19,22 +20,41 @@ import {
   addItemToMyPlaylist,
   removeItemFromMyPlaylist,
   reorderPlaylistItems,
+  updateTrackMeta,
 } from '../stores/MyPlaylistStore'
 import axios from 'axios'
 import { v4 as uuidv4 } from 'uuid'
 import type { PlaylistItem } from '../../../types/IOfficeState'
 
-const Backdrop = styled.div`
+const PANEL_MIN_WIDTH_PX = 400
+const PANEL_MAX_WIDTH_PX = 700
+const PANEL_WIDTH_STORAGE_KEY = 'club-mutant:my-playlist:panel-width:v1'
+
+const Backdrop = styled.div<{ $widthPx: number; $open: boolean }>`
   position: fixed;
   top: 0;
   right: 0;
-  width: 100vw;
-  height: 50vh;
+  width: ${(p) => (p.$open ? `${p.$widthPx}px` : '96px')};
+  height: ${(p) => (p.$open ? '100vh' : '96px')};
   background: transparent;
   overflow: hidden;
-  max-width: 400px;
   padding: 16px 16px 16px 16px;
   pointer-events: auto;
+`
+
+const ResizeHandle = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 10px;
+  cursor: ew-resize;
+  background: transparent;
+  z-index: 3;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
 `
 const Wrapper = styled.div`
   width: 100%;
@@ -91,6 +111,22 @@ export default function PlaylistDialog() {
 
   const previousInputEnabledRef = useRef<boolean | null>(null)
   const previousKeyboardEnabledRef = useRef<boolean | null>(null)
+
+  const [panelWidthPx, setPanelWidthPx] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem(PANEL_WIDTH_STORAGE_KEY)
+      const parsed = raw ? Number(raw) : NaN
+
+      if (!Number.isFinite(parsed)) return PANEL_MIN_WIDTH_PX
+
+      return Math.min(PANEL_MAX_WIDTH_PX, Math.max(PANEL_MIN_WIDTH_PX, parsed))
+    } catch {
+      return PANEL_MIN_WIDTH_PX
+    }
+  })
+  const [isResizing, setIsResizing] = useState(false)
+  const resizeStartXRef = useRef<number>(0)
+  const resizeStartWidthRef = useRef<number>(PANEL_MIN_WIDTH_PX)
 
   const activePlaylist = playlists.find((p) => p.id === activePlaylistId) ?? null
   const activeItems = activePlaylist?.items ?? []
@@ -161,6 +197,36 @@ export default function PlaylistDialog() {
   }, [game, showPlaylistDialog])
 
   useEffect(() => {
+    if (!isResizing) return
+
+    const handleMove = (event: MouseEvent) => {
+      const delta = resizeStartXRef.current - event.clientX
+      const next = resizeStartWidthRef.current + delta
+      setPanelWidthPx(Math.min(PANEL_MAX_WIDTH_PX, Math.max(PANEL_MIN_WIDTH_PX, next)))
+    }
+
+    const handleUp = () => {
+      setIsResizing(false)
+    }
+
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+  }, [isResizing])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PANEL_WIDTH_STORAGE_KEY, String(panelWidthPx))
+    } catch {
+      // ignore localStorage errors
+    }
+  }, [panelWidthPx])
+
+  useEffect(() => {
     console.log('player short queue changed', playQueue)
     // game.network.syncPlayerPlaylistQueue(playQueue);
   }, [playQueue])
@@ -171,10 +237,18 @@ export default function PlaylistDialog() {
   }
 
   return (
-    <Backdrop>
+    <Backdrop $widthPx={panelWidthPx} $open={showPlaylistDialog}>
       {showPlaylistDialog ? (
-        <Wrapper>
-          <>
+        <>
+          <ResizeHandle
+            onMouseDown={(event) => {
+              event.preventDefault()
+              resizeStartXRef.current = event.clientX
+              resizeStartWidthRef.current = panelWidthPx
+              setIsResizing(true)
+            }}
+          />
+          <Wrapper>
             <div style={{ display: 'flex', alignItems: 'center', padding: '2px 5px' }}>
               <h3
                 style={{
@@ -198,8 +272,8 @@ export default function PlaylistDialog() {
             <MyPlaylistWrapper>
               <MusicSearch />
             </MyPlaylistWrapper>
-          </>
-        </Wrapper>
+          </Wrapper>
+        </>
       ) : (
         <div style={{ textAlign: 'right' }}>
           <FabWrapper>
@@ -306,6 +380,29 @@ const DetailHeader = styled.div`
   padding: 6px 0 10px 0;
 `
 
+const TrackEditorWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+`
+
+const Label = styled.div`
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+`
+
+const MultiLineField = styled(InputBase)`
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.25);
+
+  textarea {
+    padding: 8px;
+    color: rgba(255, 255, 255, 0.9);
+  }
+`
+
 const PlaylistTitle = styled.div`
   flex: 1;
   text-align: center;
@@ -338,12 +435,16 @@ const MusicSearch = () => {
   const [inputValue, setInputValue] = useState('')
   const [linkValue, setLinkValue] = useState('')
   const [linkError, setLinkError] = useState<string | null>(null)
+  const [editingTrackId, setEditingTrackId] = useState<string | null>(null)
+  const [editVisualUrl, setEditVisualUrl] = useState('')
+  const [editTrackMessage, setEditTrackMessage] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const dispatch = useAppDispatch()
   const panelOpen = useAppSelector((state) => state.myPlaylist.myPlaylistPanelOpen)
   const focused = useAppSelector((state) => state.myPlaylist.focused)
   const playlists = useAppSelector((state) => state.myPlaylist.playlists)
   const activePlaylistId = useAppSelector((state) => state.myPlaylist.activePlaylistId)
+  const trackMetaById = useAppSelector((state) => state.myPlaylist.trackMetaById)
   const game = phaserGame.scene.keys.game as Game
 
   const activePlaylist = playlists.find((p) => p.id === activePlaylistId) ?? null
@@ -358,7 +459,18 @@ const MusicSearch = () => {
     setInputValue('')
     setLinkValue('')
     setLinkError(null)
+    setEditingTrackId(null)
+    setEditVisualUrl('')
+    setEditTrackMessage('')
   }, [panelOpen])
+
+  useEffect(() => {
+    if (!editingTrackId) return
+
+    const meta = trackMetaById[editingTrackId]
+    setEditVisualUrl(meta?.visualUrl ?? '')
+    setEditTrackMessage(meta?.trackMessage ?? '')
+  }, [editingTrackId, trackMetaById])
 
   useEffect(() => {
     if (tab !== 'search') {
@@ -723,6 +835,11 @@ const MusicSearch = () => {
     )
   }
 
+  const editingTrack =
+    editingTrackId !== null
+      ? (activePlaylist.items.find((item) => item.id === editingTrackId) ?? null)
+      : null
+
   return (
     <section>
       <DetailHeader>
@@ -774,7 +891,80 @@ const MusicSearch = () => {
         </TabButton>
       </TabBar>
 
-      {tab === 'search' ? (
+      {editingTrackId !== null && editingTrack ? (
+        <TrackEditorWrapper>
+          <PrimaryButton
+            type="button"
+            onClick={() => {
+              setEditingTrackId(null)
+            }}
+          >
+            <ArrowBackIcon fontSize="small" />
+            Back to tracks
+          </PrimaryButton>
+
+          <div style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.9)' }}>
+            {editingTrack.title}
+          </div>
+
+          <div>
+            <Label>Visual URL</Label>
+            <InputWrapper
+              onSubmit={(event) => {
+                event.preventDefault()
+              }}
+            >
+              <InputTextField
+                autoFocus
+                fullWidth
+                placeholder="YouTube link or image URL"
+                value={editVisualUrl}
+                onChange={(e: React.FormEvent<HTMLInputElement>) => {
+                  setEditVisualUrl(e.currentTarget.value)
+                }}
+              />
+            </InputWrapper>
+          </div>
+
+          <div>
+            <Label>Track message</Label>
+            <MultiLineField
+              fullWidth
+              multiline
+              minRows={3}
+              placeholder="Message to display on screen during this track"
+              value={editTrackMessage}
+              onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                setEditTrackMessage(e.target.value)
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <PrimaryButton
+              type="button"
+              onClick={() => {
+                if (!editingTrackId) return
+
+                dispatch(
+                  updateTrackMeta({
+                    trackId: editingTrackId,
+                    patch: {
+                      visualUrl: editVisualUrl.trim() === '' ? undefined : editVisualUrl.trim(),
+                      trackMessage:
+                        editTrackMessage.trim() === '' ? undefined : editTrackMessage.trim(),
+                    },
+                  })
+                )
+
+                setEditingTrackId(null)
+              }}
+            >
+              Save
+            </PrimaryButton>
+          </div>
+        </TrackEditorWrapper>
+      ) : tab === 'search' ? (
         <>
           <InputWrapper onSubmit={handleSubmit}>
             <InputTextField
@@ -838,7 +1028,11 @@ const MusicSearch = () => {
       ) : (
         <>
           <Tab>
-            <UserPlaylist />
+            <UserPlaylist
+              onEditTrack={(trackId) => {
+                setEditingTrackId(trackId)
+              }}
+            />
           </Tab>
         </>
       )}
@@ -895,7 +1089,7 @@ const YoutubeResult = ({
   )
 }
 
-const UserPlaylist = () => {
+const UserPlaylist = ({ onEditTrack }: { onEditTrack: (trackId: string) => void }) => {
   const playlists = useAppSelector((state) => state.myPlaylist.playlists)
   const activePlaylistId = useAppSelector((state) => state.myPlaylist.activePlaylistId)
   const activePlaylist = playlists.find((p) => p.id === activePlaylistId) ?? null
@@ -928,7 +1122,7 @@ const UserPlaylist = () => {
   }
 
   const renderMyPlaylistItems = items.map((item, index) => {
-    const { link, title, duration } = item
+    const { title, duration } = item
     return (
       <ListItem
         key={item.id}
@@ -958,6 +1152,14 @@ const UserPlaylist = () => {
         </section>
         <section style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span>{formatDuration(duration)}</span>
+          <IconButton
+            size="small"
+            onClick={() => {
+              onEditTrack(item.id)
+            }}
+          >
+            <EditIcon fontSize="small" />
+          </IconButton>
           <IconButton
             size="small"
             onClick={() => {

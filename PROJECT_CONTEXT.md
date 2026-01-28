@@ -204,6 +204,25 @@ There are two parallel playback modes:
    - Uses `state.roomPlaylist` as a persistent list.
    - Uses `musicStream.isRoomPlaylist` + `musicStream.roomPlaylistIndex` to indicate the active item.
 
+### My playlists (client-side, local)
+
+- The player also has a local playlist UI, stored in Redux and persisted to localStorage.
+- Store: `client/src/stores/MyPlaylistStore.ts`
+  - State uses a multi-playlist model:
+    - `playlists: { id, name, items: PlaylistItem[] }[]`
+    - `activePlaylistId: string | null`
+  - Persistence key: `club-mutant:my-playlist:v1` (see `client/src/stores/index.ts`).
+  - Migration: legacy persisted `PlaylistItem[]` arrays are migrated into a single playlist (`id: legacy`).
+
+- UI: `client/src/components/MyPlaylistPanel.tsx`
+  - Home view lists playlists and supports creating a new playlist.
+  - Detail view has tabs:
+    - `Tracks`: show tracks with remove + drag-and-drop reorder.
+    - `Search`: search YouTube and add results to the active playlist.
+    - `Link`: paste a YouTube URL, extract a video id client-side, and add a placeholder track (metadata resolution is pending).
+  - Empty state: when a playlist has no tracks, `Tracks` shows a prompt to add via Search or Link.
+  - Input safety: while the playlist panel is open, Phaser scene input is disabled to prevent movement/hotkeys while typing.
+
 ### Server-side room playlist behavior
 
 - `server/rooms/SkyOffice.ts`
@@ -326,6 +345,20 @@ Safari notes:
       - `GL_INVALID_OPERATION: glDrawArrays: Feedback loop formed between Framebuffer and active Texture.`
     - Cause: rendering into a framebuffer whose attached texture is also bound as the active sampler.
     - Fix: copy the incoming `renderTarget` into `fullFrame1` at the start of `onDraw` and use that copy (`inputFrame`) as the pipeline input (and as the “original” reference texture in the final pass).
+
+### Follow-up tasks (VHS PostFX)
+
+- **Half-resolution rendering**: render VHS to a lower-res target (e.g. `0.5x`) and upscale.
+  - This should reduce fill-rate cost and matches the intended degraded look.
+- **Dynamic quality**: optionally drop to lower res / fewer samples when FPS dips.
+- **FPS delta debug**: add a simple debug overlay/toggle that reports FPS with VHS on vs off (delta) to validate improvements.
+
+### Follow-up tasks (per-track metadata)
+
+- **Broadcast track metadata**: when a track starts playing, broadcast `visualUrl` and `trackMessage` so all clients see the same background/message.
+  - Likely requires:
+    - Extending the server stream payload (schema/message) to include these fields.
+    - Client: `App.tsx` background renderer uses `visualUrl` when present; UI uses `trackMessage` as an on-screen overlay.
 
 ## Spritesheet extraction / atlas workflow (Mutant / `adam`)
 
