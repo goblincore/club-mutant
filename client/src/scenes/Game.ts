@@ -195,6 +195,21 @@ export default class Game extends Phaser.Scene {
     }
   }
 
+  private cycleVhsSkipFrames() {
+    const camera = this.cameras.main
+    const pipeline = camera.getPostPipeline(VHS_POSTFX_PIPELINE_KEY)
+    const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
+
+    if (instance && instance instanceof VhsPostFxPipeline) {
+      const current = instance.getSkipFrames()
+      const next = current >= 3 ? 1 : current + 1
+      instance.setSkipFrames(next)
+      console.log(`VHS frame skip: ${next === 1 ? 'OFF (every frame)' : `${next} frames`}`)
+    } else {
+      console.log('VHS effect not active - press V first to enable')
+    }
+  }
+
   private toggleSoftPostFx() {
     const camera = this.cameras.main
     const existing = camera.getPostPipeline(SOFT_POSTFX_PIPELINE_KEY)
@@ -314,6 +329,8 @@ export default class Game extends Phaser.Scene {
 
       if (event.shiftKey) {
         this.toggleVhsHalfRes()
+      } else if (event.ctrlKey || event.metaKey) {
+        this.cycleVhsSkipFrames()
       } else {
         this.toggleVhsPostFx()
       }

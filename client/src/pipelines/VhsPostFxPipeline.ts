@@ -445,6 +445,12 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
 
   private useHalfRes = true
 
+  private skipFrames = 1
+
+  private lastDrawnFrame = -1
+
+  private cachedResult: Phaser.Renderer.WebGL.RenderTarget | null = null
+
   constructor(game: Phaser.Game) {
     super({
       game,
@@ -487,6 +493,14 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
     return this.useHalfRes
   }
 
+  setSkipFrames(n: number) {
+    this.skipFrames = Math.max(1, Math.floor(n))
+  }
+
+  getSkipFrames(): number {
+    return this.skipFrames
+  }
+
   bootFX() {
     super.bootFX()
 
@@ -523,6 +537,19 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
     if (this.fullFrame1) {
       this.copyFrame(renderTarget, this.fullFrame1, 1, true, true)
     }
+
+    const shouldSkip =
+      this.skipFrames > 1 &&
+      this.lastDrawnFrame >= 0 &&
+      frame - this.lastDrawnFrame < this.skipFrames &&
+      this.cachedResult !== null
+
+    if (shouldSkip && this.cachedResult) {
+      this.copyToGame(this.cachedResult)
+      return
+    }
+
+    this.lastDrawnFrame = frame
 
     if (this.useHalfRes && this.halfFrame1 && this.halfFrame2) {
       const halfWidth = this.halfFrame1.width
@@ -568,6 +595,8 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
       gl.bindTexture(gl.TEXTURE_2D, inputFrame.texture.webGLTexture)
       gl.activeTexture(gl.TEXTURE0)
       this.bindAndDraw(this.renderTargets[1])
+
+      this.cachedResult = this.renderTargets[1]
     } else {
       const rtA = this.renderTargets[0]
       const rtB = this.renderTargets[1]
@@ -606,6 +635,8 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
       gl.bindTexture(gl.TEXTURE_2D, inputFrame.texture.webGLTexture)
       gl.activeTexture(gl.TEXTURE0)
       this.bindAndDraw(rtB)
+
+      this.cachedResult = rtB
     }
 
     gl.activeTexture(gl.TEXTURE1)
