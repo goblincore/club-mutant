@@ -25,6 +25,51 @@ const Backdrop = styled.div`
   pointer-events: none;
 `
 
+const VisualImageBackground = styled.img`
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+  filter: contrast(1.05) saturate(0.95);
+`
+
+const TrackMessageOverlay = styled.div`
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 16px;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0.8px 0.8px rgba(0, 0, 0, 0.85);
+  font-size: 14px;
+
+  .track {
+    display: inline-block;
+    padding: 10px 16px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(8px);
+    transform: translateX(100%);
+    animation: track-marquee 16s linear infinite;
+  }
+
+  @keyframes track-marquee {
+    0% {
+      transform: translateX(100%);
+    }
+    100% {
+      transform: translateX(-120%);
+    }
+  }
+`
+
 const PublicLobbyBackground = styled.img`
   position: fixed;
   inset: 0;
@@ -113,6 +158,12 @@ function PublicLobbyBackgroundPortal({ src }: { src: string }) {
   if (typeof document === 'undefined') return null
 
   return createPortal(<PublicLobbyBackground src={src} alt="" />, document.body)
+}
+
+function VisualImageBackgroundPortal({ src }: { src: string }) {
+  if (typeof document === 'undefined') return null
+
+  return createPortal(<VisualImageBackground src={src} alt="" />, document.body)
 }
 
 function VideoBackgroundPortal({ url, streamStartTime }: { url: string; streamStartTime: number }) {
@@ -247,6 +298,8 @@ function App() {
   const streamLink = useAppSelector((state) => state.musicStream.link)
   const streamStartTime = useAppSelector((state) => state.musicStream.startTime)
   const isAmbient = useAppSelector((state) => state.musicStream.isAmbient)
+  const visualUrl = useAppSelector((state) => state.musicStream.visualUrl)
+  const trackMessage = useAppSelector((state) => state.musicStream.trackMessage)
 
   const [resolvedPublicGif, setResolvedPublicGif] = useState<string | null>(null)
 
@@ -318,11 +371,35 @@ function App() {
 
   return (
     <Backdrop>
-      {roomJoined && videoBackgroundEnabled && streamLink && !isAmbient ? (
-        <VideoBackgroundPortal
-          url={`https://www.youtube.com/watch?v=${streamLink}`}
-          streamStartTime={streamStartTime}
-        />
+      {roomJoined && videoBackgroundEnabled && streamLink && !isAmbient
+        ? (() => {
+            const source = visualUrl && visualUrl.trim() !== '' ? visualUrl.trim() : streamLink
+
+            const isProbablyImage =
+              source.startsWith('http') &&
+              (source.endsWith('.png') ||
+                source.endsWith('.jpg') ||
+                source.endsWith('.jpeg') ||
+                source.endsWith('.gif') ||
+                source.endsWith('.webp'))
+
+            if (isProbablyImage) {
+              return <VisualImageBackgroundPortal src={source} />
+            }
+
+            const url =
+              source.includes('youtube.com') || source.includes('youtu.be')
+                ? source
+                : `https://www.youtube.com/watch?v=${source}`
+
+            return <VideoBackgroundPortal url={url} streamStartTime={streamStartTime} />
+          })()
+        : null}
+
+      {roomJoined && !isAmbient && trackMessage && trackMessage.trim() !== '' ? (
+        <TrackMessageOverlay>
+          <div className="track">{trackMessage}</div>
+        </TrackMessageOverlay>
       ) : null}
 
       {roomJoined &&

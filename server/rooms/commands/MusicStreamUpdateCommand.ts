@@ -50,6 +50,8 @@ export class MusicStreamNextCommand extends Command<SkyOffice, Payload | undefin
         newItem.id = data.item.id
         newItem.djId = data.item.djId
         newItem.duration = data.item.duration
+        newItem.visualUrl = data.item.visualUrl ?? null
+        newItem.trackMessage = data.item.trackMessage ?? null
 
         if (player.nextTwoPlaylist.length === 0) {
           player.nextTwoPlaylist.push(newItem)
@@ -71,6 +73,8 @@ export class MusicStreamNextCommand extends Command<SkyOffice, Payload | undefin
       musicStream.currentBooth = musicBoothIndex
       musicStream.currentDj = djInfo
       musicStream.currentTitle = playbackItem.title
+      musicStream.currentVisualUrl = playbackItem.visualUrl ?? null
+      musicStream.currentTrackMessage = playbackItem.trackMessage ?? null
       musicStream.startTime = Date.now()
       musicStream.duration = playbackItem.duration
 

@@ -8,6 +8,8 @@ type DJUserInfoState = {
 interface MusicStreamState {
   link: string | null
   title: string | null
+  visualUrl: string | null
+  trackMessage: string | null
   streamId: number
   startTime: number
   currentDj: DJUserInfoState
@@ -20,6 +22,8 @@ interface MusicStreamState {
 const initialState: MusicStreamState = {
   link: null,
   title: null,
+  visualUrl: null,
+  trackMessage: null,
   streamId: 0,
   startTime: 0,
   currentDj: {
@@ -41,6 +45,8 @@ export const musicStreamSlice = createSlice({
       action: PayloadAction<{
         url: string | null
         title: string | null
+        visualUrl?: string | null
+        trackMessage?: string | null
         streamId?: number
         startTime: number
         currentDj: DJUserInfoState
@@ -54,6 +60,8 @@ export const musicStreamSlice = createSlice({
       if (!action.payload) {
         state.link = null
         state.title = null
+        state.visualUrl = null
+        state.trackMessage = null
         state.streamId = 0
         state.startTime = 0
         state.currentDj = {
@@ -70,6 +78,8 @@ export const musicStreamSlice = createSlice({
       try {
         state.link = action.payload.url
         state.title = action.payload.title
+        state.visualUrl = action.payload.visualUrl ?? null
+        state.trackMessage = action.payload.trackMessage ?? null
         state.streamId = action.payload.streamId ?? 0
         state.startTime = action.payload.startTime
         state.currentDj = action.payload.currentDj

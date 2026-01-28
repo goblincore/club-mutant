@@ -16,6 +16,8 @@ export class PlaylistItem extends Schema implements IPlaylistItem {
   @type('string') title = ''
   @type('string') link: string | null = null
   @type('number') duration = 0
+  @type('string') visualUrl: string | null = null
+  @type('string') trackMessage: string | null = null
 }
 
 export class RoomPlaylistItem extends Schema implements IRoomPlaylistItem {
@@ -58,6 +60,8 @@ export class MusicStream extends Schema implements IMusicStream {
   @type('number') streamId = 0
   @type('string') currentLink: string | null = null
   @type('string') currentTitle: string | null = null
+  @type('string') currentVisualUrl: string | null = null
+  @type('string') currentTrackMessage: string | null = null
   @type('number') currentBooth = 0
   @type(DJUserInfo) currentDj = new DJUserInfo()
   @type('number') startTime = Date.now()

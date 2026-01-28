@@ -161,6 +161,8 @@ export default class Network {
         setMusicStream({
           url: ms.currentLink,
           title: ms.currentTitle,
+          visualUrl: ms.currentVisualUrl ?? null,
+          trackMessage: ms.currentTrackMessage ?? null,
           streamId: ms.streamId,
           startTime: ms.startTime,
           currentDj: ms.currentDj,
@@ -402,6 +404,14 @@ export default class Network {
     })
 
     stateCallbacks.musicStream.listen('currentTitle', () => {
+      syncMusicStreamFromState()
+    })
+
+    stateCallbacks.musicStream.listen('currentVisualUrl', () => {
+      syncMusicStreamFromState()
+    })
+
+    stateCallbacks.musicStream.listen('currentTrackMessage', () => {
       syncMusicStreamFromState()
     })
 

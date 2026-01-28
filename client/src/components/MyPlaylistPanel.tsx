@@ -106,11 +106,13 @@ export default function PlaylistDialog() {
   // const game = phaserGame.scene.keys.game as Game
   const playlists = useAppSelector((state) => state.myPlaylist.playlists)
   const activePlaylistId = useAppSelector((state) => state.myPlaylist.activePlaylistId)
+  const trackMetaById = useAppSelector((state) => state.myPlaylist.trackMetaById)
   const playQueue = useAppSelector((state) => state.myPlaylist.playQueue)
   const currentMusicStream = useAppSelector((state) => state.musicStream)
 
-  const previousInputEnabledRef = useRef<boolean | null>(null)
   const previousKeyboardEnabledRef = useRef<boolean | null>(null)
+  const previousMouseEnabledRef = useRef<boolean | null>(null)
+  const previousTouchEnabledRef = useRef<boolean | null>(null)
 
   const [panelWidthPx, setPanelWidthPx] = useState<number>(() => {
     try {
@@ -138,24 +140,30 @@ export default function PlaylistDialog() {
       console.log('currentlyPlayingsong', currentMusicStream)
 
       if (activeItems.length < 2 && !currentMusicStream.link) {
-        const queueItems = activeItems.slice(0, 2)
+        const queueItems = activeItems
+          .slice(0, 2)
+          .map((item) => ({ ...item, ...trackMetaById[item.id] }))
         console.log('queueItems', queueItems)
         game.network.syncPlayerPlaylistQueue(queueItems)
       }
 
       if (currentMusicStream.link && currentMusicStream?.link === activeItems?.[0]?.link) {
-        const queueItems = activeItems.slice(0, 2)
+        const queueItems = activeItems
+          .slice(0, 2)
+          .map((item) => ({ ...item, ...trackMetaById[item.id] }))
         console.log('queueItems', queueItems)
         game.network.syncPlayerPlaylistQueue(queueItems)
       }
 
       if (currentMusicStream.link && currentMusicStream?.link !== activeItems?.[0]?.link) {
-        const queueItems = activeItems.slice(0, 2)
+        const queueItems = activeItems
+          .slice(0, 2)
+          .map((item) => ({ ...item, ...trackMetaById[item.id] }))
         console.log('queueItems', queueItems)
         game.network.syncPlayerPlaylistQueue(queueItems)
       }
     }
-  }, [activeItems])
+  }, [activeItems, currentMusicStream.link, trackMetaById])
 
   useEffect(() => {
     const input = game?.input
@@ -163,29 +171,46 @@ export default function PlaylistDialog() {
 
     const keyboard = input.keyboard
 
-    const restore = () => {
-      if (previousInputEnabledRef.current !== null) {
-        input.enabled = previousInputEnabledRef.current
-        previousInputEnabledRef.current = null
-      }
+    const mouse = (input as unknown as { mouse?: { enabled: boolean } }).mouse
+    const touch = (input as unknown as { touch?: { enabled: boolean } }).touch
 
+    const restore = () => {
       if (keyboard && previousKeyboardEnabledRef.current !== null) {
         keyboard.enabled = previousKeyboardEnabledRef.current
         previousKeyboardEnabledRef.current = null
       }
+
+      if (mouse && previousMouseEnabledRef.current !== null) {
+        mouse.enabled = previousMouseEnabledRef.current
+        previousMouseEnabledRef.current = null
+      }
+
+      if (touch && previousTouchEnabledRef.current !== null) {
+        touch.enabled = previousTouchEnabledRef.current
+        previousTouchEnabledRef.current = null
+      }
     }
 
     if (showPlaylistDialog) {
-      if (previousInputEnabledRef.current === null) {
-        previousInputEnabledRef.current = input.enabled
-      }
-      input.enabled = false
-
       if (keyboard) {
         if (previousKeyboardEnabledRef.current === null) {
           previousKeyboardEnabledRef.current = keyboard.enabled
         }
         keyboard.enabled = false
+      }
+
+      if (mouse) {
+        if (previousMouseEnabledRef.current === null) {
+          previousMouseEnabledRef.current = mouse.enabled
+        }
+        mouse.enabled = false
+      }
+
+      if (touch) {
+        if (previousTouchEnabledRef.current === null) {
+          previousTouchEnabledRef.current = touch.enabled
+        }
+        touch.enabled = false
       }
     } else {
       restore()

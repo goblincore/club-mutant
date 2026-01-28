@@ -51,6 +51,8 @@ export class SkyOffice extends Room<OfficeState> {
     musicStream.status = 'waiting'
     musicStream.currentLink = null
     musicStream.currentTitle = null
+    musicStream.currentVisualUrl = null
+    musicStream.currentTrackMessage = null
     musicStream.startTime = Date.now()
     musicStream.duration = 0
     musicStream.isAmbient = false
@@ -75,6 +77,8 @@ export class SkyOffice extends Room<OfficeState> {
     musicStream.streamId += 1
     musicStream.currentLink = this.ambientPublicVideoId
     musicStream.currentTitle = null
+    musicStream.currentVisualUrl = null
+    musicStream.currentTrackMessage = null
     musicStream.currentDj.name = ''
     musicStream.currentDj.sessionId = ''
     musicStream.startTime = Date.now()
@@ -185,6 +189,8 @@ export class SkyOffice extends Room<OfficeState> {
       musicStream.streamId += 1
       musicStream.currentLink = current.link
       musicStream.currentTitle = current.title
+      musicStream.currentVisualUrl = null
+      musicStream.currentTrackMessage = null
       musicStream.currentDj = djInfo
       musicStream.startTime = Date.now()
       musicStream.duration = current.duration
