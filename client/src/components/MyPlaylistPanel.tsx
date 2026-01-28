@@ -4,14 +4,23 @@ import InputBase from '@mui/material/InputBase'
 import IconButton from '@mui/material/IconButton'
 import CloseIcon from '@mui/icons-material/Close'
 import AddIcon from '@mui/icons-material/Add'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import Fab from '@mui/material/Fab'
 import Game from '../scenes/Game'
 import phaserGame from '../PhaserGame'
 import { useAppSelector, useAppDispatch } from '../hooks'
-import { openMyPlaylistPanel, closeMyPlaylistPanel, setFocused } from '../stores/MyPlaylistStore'
+import {
+  openMyPlaylistPanel,
+  closeMyPlaylistPanel,
+  setFocused,
+  createPlaylist,
+  setActivePlaylistId,
+  addItemToMyPlaylist,
+  removeItemFromMyPlaylist,
+  reorderPlaylistItems,
+} from '../stores/MyPlaylistStore'
 import axios from 'axios'
-import store from '../stores'
-import { addItemToMyPlaylist, syncPlayQueue } from '../stores/MyPlaylistStore'
 import { v4 as uuidv4 } from 'uuid'
 import type { PlaylistItem } from '../../../types/IOfficeState'
 
@@ -75,42 +84,81 @@ export default function PlaylistDialog() {
   const showPlaylistDialog = useAppSelector((state) => state.myPlaylist.myPlaylistPanelOpen)
   const dispatch = useAppDispatch()
   // const game = phaserGame.scene.keys.game as Game
-  const currentPlaylist = useAppSelector((state) => state.myPlaylist)
+  const playlists = useAppSelector((state) => state.myPlaylist.playlists)
+  const activePlaylistId = useAppSelector((state) => state.myPlaylist.activePlaylistId)
   const playQueue = useAppSelector((state) => state.myPlaylist.playQueue)
   const currentMusicStream = useAppSelector((state) => state.musicStream)
 
+  const previousInputEnabledRef = useRef<boolean | null>(null)
+  const previousKeyboardEnabledRef = useRef<boolean | null>(null)
+
+  const activePlaylist = playlists.find((p) => p.id === activePlaylistId) ?? null
+  const activeItems = activePlaylist?.items ?? []
+
   useEffect(() => {
-    if (currentPlaylist && currentPlaylist?.items) {
+    if (activeItems.length > 0) {
       /* This currently handle syncing the players playlist on the server with the client */
 
       console.log('currentlyPlayingsong', currentMusicStream)
 
-      if (currentPlaylist?.items?.length < 2 && !currentMusicStream.link) {
-        const queueItems = currentPlaylist.items.slice(0, 2)
+      if (activeItems.length < 2 && !currentMusicStream.link) {
+        const queueItems = activeItems.slice(0, 2)
         console.log('queueItems', queueItems)
         game.network.syncPlayerPlaylistQueue(queueItems)
       }
 
-      if (
-        currentMusicStream.link &&
-        currentMusicStream?.link === currentPlaylist.items?.[0]?.link
-      ) {
-        const queueItems = currentPlaylist.items.slice(0, 2)
+      if (currentMusicStream.link && currentMusicStream?.link === activeItems?.[0]?.link) {
+        const queueItems = activeItems.slice(0, 2)
         console.log('queueItems', queueItems)
         game.network.syncPlayerPlaylistQueue(queueItems)
       }
 
-      if (
-        currentPlaylist?.items &&
-        currentMusicStream.link &&
-        currentMusicStream?.link !== currentPlaylist.items?.[0]?.link
-      ) {
-        const queueItems = currentPlaylist.items.slice(0, 2)
+      if (currentMusicStream.link && currentMusicStream?.link !== activeItems?.[0]?.link) {
+        const queueItems = activeItems.slice(0, 2)
         console.log('queueItems', queueItems)
         game.network.syncPlayerPlaylistQueue(queueItems)
       }
     }
-  }, [currentPlaylist.items])
+  }, [activeItems])
+
+  useEffect(() => {
+    const input = game?.input
+    if (!input) return
+
+    const keyboard = input.keyboard
+
+    const restore = () => {
+      if (previousInputEnabledRef.current !== null) {
+        input.enabled = previousInputEnabledRef.current
+        previousInputEnabledRef.current = null
+      }
+
+      if (keyboard && previousKeyboardEnabledRef.current !== null) {
+        keyboard.enabled = previousKeyboardEnabledRef.current
+        previousKeyboardEnabledRef.current = null
+      }
+    }
+
+    if (showPlaylistDialog) {
+      if (previousInputEnabledRef.current === null) {
+        previousInputEnabledRef.current = input.enabled
+      }
+      input.enabled = false
+
+      if (keyboard) {
+        if (previousKeyboardEnabledRef.current === null) {
+          previousKeyboardEnabledRef.current = keyboard.enabled
+        }
+        keyboard.enabled = false
+      }
+    } else {
+      restore()
+    }
+
+    return () => {
+      restore()
+    }
+  }, [game, showPlaylistDialog])
 
   useEffect(() => {
     console.log('player short queue changed', playQueue)
@@ -137,7 +185,7 @@ export default function PlaylistDialog() {
                   fontSize: '16px',
                 }}
               >
-                My Playlist
+                My Playlists
               </h3>
               <IconButton
                 aria-label="close dialog"
@@ -151,7 +199,6 @@ export default function PlaylistDialog() {
               <MusicSearch />
             </MyPlaylistWrapper>
           </>
-          )
         </Wrapper>
       ) : (
         <div style={{ textAlign: 'right' }}>
@@ -199,6 +246,31 @@ const InputTextField = styled(InputBase)`
   }
 `
 
+const TabBar = styled.div`
+  display: flex;
+  gap: 8px;
+  padding: 8px 0;
+`
+
+const TabButton = styled.button<{ $active: boolean }>`
+  appearance: none;
+  border: 1px solid
+    ${(p) => (p.$active ? 'rgba(255, 255, 255, 0.55)' : 'rgba(255, 255, 255, 0.25)')};
+  background: ${(p) => (p.$active ? 'rgba(0, 0, 0, 0.65)' : 'rgba(0, 0, 0, 0.25)')};
+  color: rgba(255, 255, 255, 0.9);
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+
+  box-shadow: ${(p) => (p.$active ? '0 0 0 1px rgba(255, 255, 255, 0.08) inset' : 'none')};
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.5);
+  }
+`
+
 const Tab = styled.ul`
   padding: 0px;
   margin: 0px;
@@ -208,19 +280,100 @@ const Tab = styled.ul`
   }
 `
 
+const EmptyState = styled.div`
+  padding: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+`
+
+const PrimaryButton = styled.button`
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+`
+
+const DetailHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0 10px 0;
+`
+
+const PlaylistTitle = styled.div`
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 8px;
+`
+
+const HeaderSpacer = styled.div`
+  width: 68px;
+`
+
+type YoutubeSearchResult = {
+  id: string
+  length?: { simpleText?: string } | null
+  thumbnail?: unknown
+  title: string
+}
+
 const MusicSearch = () => {
-  const [data, setData] = useState([])
-  const [tab, setTab] = useState<'search' | 'playlist'>('search')
+  const [data, setData] = useState<YoutubeSearchResult[]>([])
+  const [screen, setScreen] = useState<'home' | 'detail'>('home')
+  const [tab, setTab] = useState<'playlist' | 'search' | 'link'>('playlist')
+  const [creating, setCreating] = useState(false)
+  const [newPlaylistName, setNewPlaylistName] = useState('')
   const [inputValue, setInputValue] = useState('')
+  const [linkValue, setLinkValue] = useState('')
+  const [linkError, setLinkError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const dispatch = useAppDispatch()
+  const panelOpen = useAppSelector((state) => state.myPlaylist.myPlaylistPanelOpen)
   const focused = useAppSelector((state) => state.myPlaylist.focused)
-  const currentPlaylist = useAppSelector((state) => state.myPlaylist)
+  const playlists = useAppSelector((state) => state.myPlaylist.playlists)
+  const activePlaylistId = useAppSelector((state) => state.myPlaylist.activePlaylistId)
   const game = phaserGame.scene.keys.game as Game
 
+  const activePlaylist = playlists.find((p) => p.id === activePlaylistId) ?? null
+
   useEffect(() => {
-    axios.get(`http://localhost:2567/youtube/${inputValue}`).then((response) => {
-      setData(response?.data?.items)
+    if (!panelOpen) return
+
+    setScreen('home')
+    setTab('playlist')
+    setCreating(false)
+    setNewPlaylistName('')
+    setInputValue('')
+    setLinkValue('')
+    setLinkError(null)
+  }, [panelOpen])
+
+  useEffect(() => {
+    if (tab !== 'search') {
+      setData([])
+      return
+    }
+
+    const query = inputValue.trim()
+    if (query === '') {
+      setData([])
+      return
+    }
+
+    axios.get(`http://localhost:2567/youtube/${encodeURIComponent(query)}`).then((response) => {
+      setData((response?.data?.items as YoutubeSearchResult[]) ?? [])
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputValue])
@@ -251,8 +404,37 @@ const MusicSearch = () => {
     }
   }
 
-  const handleClick = (title: string, id: string, lengthText: string) => {
+  const extractYoutubeId = (rawUrl: string): string | null => {
+    const trimmed = rawUrl.trim()
+    if (trimmed === '') return null
+
+    try {
+      const url = new URL(trimmed)
+
+      if (url.hostname === 'youtu.be') {
+        const id = url.pathname.replace('/', '')
+        return id || null
+      }
+
+      if (url.hostname.endsWith('youtube.com')) {
+        const v = url.searchParams.get('v')
+        if (v) return v
+
+        const pathParts = url.pathname.split('/').filter(Boolean)
+        const last = pathParts[pathParts.length - 1] ?? ''
+        if (pathParts[0] === 'shorts' && last) return last
+        if (pathParts[0] === 'embed' && last) return last
+      }
+
+      return null
+    } catch {
+      return null
+    }
+  }
+
+  const handleAddToActivePlaylist = (title: string, id: string, lengthText: string) => {
     if (!lengthText) return
+    if (!activePlaylistId) return
 
     const durationParts = lengthText.split(':')
     let duration = 0
@@ -276,7 +458,30 @@ const MusicSearch = () => {
       id: uuidv4(),
       duration,
     }
-    store.dispatch(addItemToMyPlaylist(item))
+    dispatch(addItemToMyPlaylist({ playlistId: activePlaylistId, item }))
+  }
+
+  const handleAddLinkToActivePlaylist = () => {
+    if (!activePlaylistId) return
+
+    const videoId = extractYoutubeId(linkValue)
+    if (!videoId) {
+      setLinkError('Please paste a valid YouTube link.')
+      return
+    }
+
+    setLinkError(null)
+
+    const item: PlaylistItem = {
+      title: `YouTube: ${videoId}`,
+      link: videoId,
+      djId: game.myPlayer.playerId,
+      id: uuidv4(),
+      duration: 0,
+    }
+
+    dispatch(addItemToMyPlaylist({ playlistId: activePlaylistId, item }))
+    setLinkValue('')
   }
 
   const handleAddSearchResultToRoom = (title: string, id: string, lengthText: string) => {
@@ -320,52 +525,322 @@ const MusicSearch = () => {
   // })
 
   const resultsList =
-    data?.length > 0 &&
-    data?.map((result) => {
-      const { title, thumbnail, length, id } = result
-      return (
-        <YoutubeResult
-          onClick={handleClick}
-          key={id}
-          title={title}
-          thumbnail={thumbnail}
-          length={length}
-          id={id}
-        />
-      )
-    })
+    data.length > 0
+      ? data.map((result) => {
+          const { title, thumbnail, length, id } = result
+          return (
+            <YoutubeResult
+              onAdd={handleAddToActivePlaylist}
+              key={id}
+              title={title}
+              thumbnail={thumbnail}
+              length={length}
+              id={id}
+            />
+          )
+        })
+      : null
+
+  if (screen === 'home') {
+    return (
+      <section>
+        {playlists.length === 0 ? (
+          <EmptyState>
+            <div style={{ marginBottom: 10 }}>No playlists yet.</div>
+            {!creating ? (
+              <PrimaryButton
+                type="button"
+                onClick={() => {
+                  setCreating(true)
+                }}
+              >
+                Create a new playlist
+              </PrimaryButton>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <InputWrapper
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    const name = newPlaylistName.trim()
+                    if (name === '') return
+
+                    const id = uuidv4()
+                    dispatch(createPlaylist({ id, name }))
+                    dispatch(setActivePlaylistId(id))
+                    setCreating(false)
+                    setNewPlaylistName('')
+                    setScreen('detail')
+                  }}
+                >
+                  <InputTextField
+                    autoFocus
+                    fullWidth
+                    placeholder="Playlist name"
+                    value={newPlaylistName}
+                    onChange={(e: React.FormEvent<HTMLInputElement>) => {
+                      setNewPlaylistName(e.currentTarget.value)
+                    }}
+                  />
+                </InputWrapper>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <PrimaryButton
+                    type="button"
+                    onClick={() => {
+                      setCreating(false)
+                      setNewPlaylistName('')
+                    }}
+                  >
+                    Cancel
+                  </PrimaryButton>
+                  <PrimaryButton
+                    type="button"
+                    onClick={() => {
+                      const name = newPlaylistName.trim()
+                      if (name === '') return
+
+                      const id = uuidv4()
+                      dispatch(createPlaylist({ id, name }))
+                      dispatch(setActivePlaylistId(id))
+                      setCreating(false)
+                      setNewPlaylistName('')
+                      setScreen('detail')
+                    }}
+                  >
+                    Create
+                  </PrimaryButton>
+                </div>
+              </div>
+            )}
+          </EmptyState>
+        ) : (
+          <>
+            {!creating ? (
+              <div style={{ padding: '0 0 10px 0' }}>
+                <PrimaryButton
+                  type="button"
+                  onClick={() => {
+                    setCreating(true)
+                  }}
+                >
+                  <AddIcon fontSize="small" />
+                  New playlist
+                </PrimaryButton>
+              </div>
+            ) : (
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 0 10px 0' }}
+              >
+                <InputWrapper
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    const name = newPlaylistName.trim()
+                    if (name === '') return
+
+                    const id = uuidv4()
+                    dispatch(createPlaylist({ id, name }))
+                    dispatch(setActivePlaylistId(id))
+                    setCreating(false)
+                    setNewPlaylistName('')
+                    setScreen('detail')
+                  }}
+                >
+                  <InputTextField
+                    autoFocus
+                    fullWidth
+                    placeholder="Playlist name"
+                    value={newPlaylistName}
+                    onChange={(e: React.FormEvent<HTMLInputElement>) => {
+                      setNewPlaylistName(e.currentTarget.value)
+                    }}
+                  />
+                </InputWrapper>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <PrimaryButton
+                    type="button"
+                    onClick={() => {
+                      setCreating(false)
+                      setNewPlaylistName('')
+                    }}
+                  >
+                    Cancel
+                  </PrimaryButton>
+                  <PrimaryButton
+                    type="button"
+                    onClick={() => {
+                      const name = newPlaylistName.trim()
+                      if (name === '') return
+
+                      const id = uuidv4()
+                      dispatch(createPlaylist({ id, name }))
+                      dispatch(setActivePlaylistId(id))
+                      setCreating(false)
+                      setNewPlaylistName('')
+                      setScreen('detail')
+                    }}
+                  >
+                    Create
+                  </PrimaryButton>
+                </div>
+              </div>
+            )}
+            <Tab>
+              {playlists.map((p) => (
+                <ListItem
+                  key={p.id}
+                  onClick={() => {
+                    dispatch(setActivePlaylistId(p.id))
+                    setScreen('detail')
+                    setTab('playlist')
+                  }}
+                >
+                  <section>
+                    <h4>{p.name}</h4>
+                  </section>
+                  <section>
+                    <span>{p.items.length}</span>
+                  </section>
+                </ListItem>
+              ))}
+            </Tab>
+          </>
+        )}
+      </section>
+    )
+  }
+
+  if (!activePlaylist) {
+    return (
+      <EmptyState>
+        <PrimaryButton
+          type="button"
+          onClick={() => {
+            setScreen('home')
+          }}
+        >
+          Back to playlists
+        </PrimaryButton>
+      </EmptyState>
+    )
+  }
 
   return (
     <section>
-      <InputWrapper onSubmit={handleSubmit}>
-        <InputTextField
-          inputRef={inputRef}
-          autoFocus={focused}
-          fullWidth
-          placeholder="Search"
-          value={inputValue}
-          onKeyDown={handleKeyDown}
-          onChange={handleChange}
-          onFocus={() => {
-            if (!focused) dispatch(setFocused(true))
+      <DetailHeader>
+        <PrimaryButton
+          type="button"
+          onClick={() => {
+            setScreen('home')
           }}
-          onBlur={() => dispatch(setFocused(false))}
-        />
-      </InputWrapper>
+        >
+          <ArrowBackIcon fontSize="small" />
+          Back
+        </PrimaryButton>
+        <PlaylistTitle>{activePlaylist.name}</PlaylistTitle>
+        <HeaderSpacer />
+      </DetailHeader>
 
-      <button style={{ color: 'rgba(255, 255, 255, 0.9)' }} onClick={() => setTab('search')}>
-        Search
-      </button>
-      <button style={{ color: 'rgba(255, 255, 255, 0.9)' }} onClick={() => setTab('playlist')}>
-        Playlist
-      </button>
+      <TabBar>
+        <TabButton
+          type="button"
+          $active={tab === 'playlist'}
+          onClick={() => {
+            setTab('playlist')
+            inputRef.current?.blur()
+            dispatch(setFocused(false))
+          }}
+        >
+          Tracks
+        </TabButton>
+        <TabButton
+          type="button"
+          $active={tab === 'search'}
+          onClick={() => {
+            setTab('search')
+            dispatch(setFocused(true))
+          }}
+        >
+          Search
+        </TabButton>
+        <TabButton
+          type="button"
+          $active={tab === 'link'}
+          onClick={() => {
+            setTab('link')
+            inputRef.current?.blur()
+            dispatch(setFocused(false))
+          }}
+        >
+          Link
+        </TabButton>
+      </TabBar>
 
-      {tab === 'search' && <Tab>{resultsList}</Tab>}
-
-      {tab === 'playlist' && (
-        <Tab>
-          <UserPlaylist />
-        </Tab>
+      {tab === 'search' ? (
+        <>
+          <InputWrapper onSubmit={handleSubmit}>
+            <InputTextField
+              inputRef={inputRef}
+              autoFocus={focused}
+              fullWidth
+              placeholder="Search"
+              value={inputValue}
+              onKeyDown={handleKeyDown}
+              onChange={handleChange}
+              onFocus={() => {
+                if (!focused) dispatch(setFocused(true))
+              }}
+              onBlur={() => dispatch(setFocused(false))}
+            />
+          </InputWrapper>
+          <Tab>{resultsList}</Tab>
+        </>
+      ) : tab === 'link' ? (
+        <>
+          <InputWrapper
+            onSubmit={(event) => {
+              event.preventDefault()
+              handleAddLinkToActivePlaylist()
+            }}
+          >
+            <InputTextField
+              autoFocus
+              fullWidth
+              placeholder="Paste a YouTube link"
+              value={linkValue}
+              onKeyDown={handleKeyDown}
+              onChange={(e: React.FormEvent<HTMLInputElement>) => {
+                setLinkValue(e.currentTarget.value)
+              }}
+              onFocus={() => {
+                if (!focused) dispatch(setFocused(true))
+              }}
+              onBlur={() => dispatch(setFocused(false))}
+            />
+          </InputWrapper>
+          {linkError ? (
+            <EmptyState style={{ paddingTop: 8 }}>{linkError}</EmptyState>
+          ) : (
+            <EmptyState style={{ paddingTop: 8 }}>
+              Add a track via a direct YouTube link.
+            </EmptyState>
+          )}
+          <div style={{ paddingTop: 10 }}>
+            <PrimaryButton
+              type="button"
+              onClick={() => {
+                handleAddLinkToActivePlaylist()
+              }}
+            >
+              <AddIcon fontSize="small" />
+              Add
+            </PrimaryButton>
+          </div>
+        </>
+      ) : (
+        <>
+          <Tab>
+            <UserPlaylist />
+          </Tab>
+        </>
       )}
     </section>
   )
@@ -389,24 +864,46 @@ const ListItem = styled.li`
   }
 `
 
-const YoutubeResult = ({ id, thumbnail, title, length, onClick }) => {
+const YoutubeResult = ({
+  id,
+  thumbnail,
+  title,
+  length,
+  onAdd,
+}: YoutubeSearchResult & {
+  onAdd: (title: string, id: string, lengthText: string) => void
+}) => {
   const lengthText = length?.simpleText ?? ''
 
   return (
-    <ListItem onClick={() => onClick(title, id, lengthText)}>
+    <ListItem>
       <section>
         <h4>{title}</h4>
       </section>
-      <section>{lengthText}</section>
+      <section style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span>{lengthText}</span>
+        <IconButton
+          size="small"
+          onClick={() => {
+            onAdd(title, id, lengthText)
+          }}
+        >
+          <AddIcon fontSize="small" />
+        </IconButton>
+      </section>
     </ListItem>
   )
 }
 
-const UserPlaylist = (props) => {
-  const myPlaylist = useAppSelector((state) => state.myPlaylist)
+const UserPlaylist = () => {
+  const playlists = useAppSelector((state) => state.myPlaylist.playlists)
+  const activePlaylistId = useAppSelector((state) => state.myPlaylist.activePlaylistId)
+  const activePlaylist = playlists.find((p) => p.id === activePlaylistId) ?? null
   const connectedBoothIndex = useAppSelector((state) => state.musicBooth.musicBoothIndex)
+  const [dragFromIndex, setDragFromIndex] = useState<number | null>(null)
 
   const game = phaserGame.scene.keys.game as Game
+  const dispatch = useAppDispatch()
 
   const formatDuration = (seconds: number) => {
     if (!Number.isFinite(seconds) || seconds < 0) return ''
@@ -424,15 +921,52 @@ const UserPlaylist = (props) => {
     })
   }
 
-  const renderMyPlaylistItems = myPlaylist?.items?.map((item) => {
+  const items = activePlaylist?.items ?? []
+
+  if (items.length === 0) {
+    return <EmptyState>Add a track via Search or via Link.</EmptyState>
+  }
+
+  const renderMyPlaylistItems = items.map((item, index) => {
     const { link, title, duration } = item
     return (
-      <ListItem>
+      <ListItem
+        key={item.id}
+        draggable
+        onDragStart={() => {
+          setDragFromIndex(index)
+        }}
+        onDragOver={(e) => {
+          e.preventDefault()
+        }}
+        onDrop={() => {
+          if (dragFromIndex === null) return
+          if (!activePlaylistId) return
+          dispatch(
+            reorderPlaylistItems({
+              playlistId: activePlaylistId,
+              fromIndex: dragFromIndex,
+              toIndex: index,
+            })
+          )
+          setDragFromIndex(null)
+        }}
+        style={{ cursor: 'grab' }}
+      >
         <section>
           <h4>{title}</h4>
         </section>
         <section style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span>{formatDuration(duration)}</span>
+          <IconButton
+            size="small"
+            onClick={() => {
+              if (!activePlaylistId) return
+              dispatch(removeItemFromMyPlaylist({ playlistId: activePlaylistId, itemId: item.id }))
+            }}
+          >
+            <DeleteOutlineIcon fontSize="small" />
+          </IconButton>
           {connectedBoothIndex !== null ? (
             <IconButton
               size="small"

@@ -182,7 +182,10 @@ export default function YoutubePlayer() {
   const [isPlaying, setIsPlaying] = useState(true)
   const [minimized, setMinimized] = useState(false)
   const [ambientMuted, setAmbientMuted] = useState(true)
-  const currentPlaylist = useAppSelector((state) => state.myPlaylist)
+  const myPlaylists = useAppSelector((state) => state.myPlaylist.playlists)
+  const activePlaylistId = useAppSelector((state) => state.myPlaylist.activePlaylistId)
+  const activePlaylist = myPlaylists.find((p) => p.id === activePlaylistId) ?? null
+  const activeItems = activePlaylist?.items ?? []
 
   const isPublicRoom = roomType === RoomType.PUBLIC
   const isDj = connectedBoothIndex !== null
@@ -420,7 +423,7 @@ export default function YoutubePlayer() {
       return
     }
 
-    const nextItem = currentPlaylist.items[1]
+    const nextItem = activeItems[1]
     console.log('nextItem', nextItem)
 
     console.log('currentDj.sessoinId', currentDj?.sessionId)
