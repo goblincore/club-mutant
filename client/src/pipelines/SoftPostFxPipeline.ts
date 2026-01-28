@@ -2,6 +2,8 @@ import Phaser from 'phaser'
 
 export const SOFT_POSTFX_PIPELINE_KEY = 'softPostFx'
 
+export type SoftPostFxPreset = 'soft' | 'balanced' | 'chaotic'
+
 const FRAG_SHADER = `
 #ifdef GL_ES
 precision mediump float;
@@ -223,6 +225,62 @@ export class SoftPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPi
 
   setChromaBurstRate(next: number) {
     this.chromaBurstRate = Phaser.Math.Clamp(next, 0, 60)
+  }
+
+  applyPreset(preset: SoftPostFxPreset) {
+    if (preset === 'soft') {
+      this.setIntensity(0.7)
+      this.setBlurAmount(0.45)
+      this.setNoiseAmount(0.04)
+      this.setGradeAmount(0.55)
+
+      this.setWarpAmount(1.25)
+      this.setWarpFrequency(1.5)
+      this.setWarpSpeed(0.25)
+
+      this.setChromaAmount(0.6)
+      this.setChromaJitter(0.6)
+      this.setMotionThreshold(0.12)
+      this.setChromaBurstChance(0.02)
+      this.setChromaBurstStrength(0.6)
+      this.setChromaBurstRate(12)
+      return
+    }
+
+    if (preset === 'balanced') {
+      this.setIntensity(1)
+      this.setBlurAmount(0.35)
+      this.setNoiseAmount(0.07)
+      this.setGradeAmount(0.6)
+
+      this.setWarpAmount(2.5)
+      this.setWarpFrequency(2.0)
+      this.setWarpSpeed(0.35)
+
+      this.setChromaAmount(2.5)
+      this.setChromaJitter(1.75)
+      this.setMotionThreshold(0.08)
+      this.setChromaBurstChance(0.08)
+      this.setChromaBurstStrength(0.9)
+      this.setChromaBurstRate(18)
+      return
+    }
+
+    this.setIntensity(1)
+    this.setBlurAmount(0.25)
+    this.setNoiseAmount(0.14)
+    this.setGradeAmount(0.85)
+
+    this.setWarpAmount(3.5)
+    this.setWarpFrequency(2.5)
+    this.setWarpSpeed(0.5)
+
+    this.setChromaAmount(7)
+    this.setChromaJitter(4)
+    this.setMotionThreshold(0.04)
+    this.setChromaBurstChance(0.38)
+    this.setChromaBurstStrength(1.6)
+    this.setChromaBurstRate(55)
   }
 
   bootFX() {

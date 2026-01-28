@@ -329,6 +329,18 @@ export default class Network {
       store.dispatch(setJoinedRoomData(content))
     })
 
+    // chat bubbles: server broadcasts live chat messages to other clients
+    this.room.onMessage(
+      Message.ADD_CHAT_MESSAGE,
+      (payload: { clientId: string; content: string } | null) => {
+        if (!payload) return
+        if (typeof payload.clientId !== 'string' || payload.clientId === '') return
+        if (typeof payload.content !== 'string' || payload.content === '') return
+
+        phaserEvents.emit(Event.UPDATE_DIALOG_BUBBLE, payload.clientId, payload.content)
+      }
+    )
+
     // when the server sends room data
     this.room.onMessage(Message.START_MUSIC_STREAM, ({ musicStream, offset }) => {
       console.log('start playing media on message START_USIC STREAM', musicStream, offset)

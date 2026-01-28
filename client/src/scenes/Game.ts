@@ -197,7 +197,7 @@ export default class Game extends Phaser.Scene {
     const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
 
     if (instance && instance instanceof SoftPostFxPipeline) {
-      instance.setIntensity(1)
+      instance.applyPreset('chaotic')
     }
   }
 

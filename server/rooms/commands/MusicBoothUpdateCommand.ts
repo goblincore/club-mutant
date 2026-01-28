@@ -17,7 +17,7 @@ export class MusicBoothConnectUserCommand extends Command<SkyOffice, Payload> {
     const musicBooth = this.state.musicBooths[musicBoothIndex]
     if (!musicBooth) return
 
-    if (musicBooth.connectedUser !== null) return
+    if (musicBooth.connectedUser !== null && musicBooth.connectedUser !== '') return
     musicBooth.connectedUser = clientId
     console.log('////MusicBoothConnect musicboth index', musicBoothIndex)
     console.log(
@@ -48,7 +48,7 @@ export class MusicBoothDisconnectUserCommand extends Command<SkyOffice, Payload>
     )
 
     if (musicBooth.connectedUser === clientId) {
-      musicBooth.connectedUser = null
+      musicBooth.connectedUser = ''
     }
   }
 }
