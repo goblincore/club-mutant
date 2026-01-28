@@ -72,10 +72,12 @@ vec4 tex2DBias(sampler2D s, vec2 uv, float bias)
 }
 `
 
-const PASS_A_FS = `${SHADER_PREAMBLE}
+// Combined Pass A+B: Luma/Chroma shrink + Unsharp mask + Levels + Saturation
+const PASS_AB_FS = `${SHADER_PREAMBLE}
 
 ${COMMON_GLSL}
 
+// Pass A functions
 vec4 Shrink(in vec2 fragCoord, const in float shrinkRatio, const in float bias)
 {
     float scale = 1.0 / iResolution.x;
@@ -121,7 +123,6 @@ vec3 SetLum(in vec3 c, in float l)
 {
     float d = l - GetLuminance(c);
     c += d;
-
     return ClipColor(c);
 }
 
@@ -137,49 +138,11 @@ vec4 BlendLuminosity(const in vec4 base, const in vec4 blend)
     return vec4(c, blend.a);
 }
 
-void mainImage(out vec4 fragColor, in vec2 fragCoord)
-{
-    vec4 luma = Shrink(fragCoord, 0.5, 0.0);
-    luma = BlendLuminosity(vec4(0.5, 0.5, 0.5, 1.0), luma);
-
-    vec4 chroma = Shrink(fragCoord, 1.0 / 32.0, 3.0);
-    chroma = BlendColor(luma, chroma);
-
-    fragColor = chroma;
-}
-
-void main()
-{
-    vec4 color;
-    mainImage(color, outTexCoord * uResolution);
-    gl_FragColor = color;
-}
-`
-
-const PASS_B_FS = `${SHADER_PREAMBLE}
-
-${COMMON_GLSL}
-
-vec4 UnsharpMask(const in float amount, const in float radius, const in float threshold, const in float preBlurBias, const in vec2 fragCoord)
-{
-    vec2 uv = fragCoord / iResolution.xy;
-
-    vec4 pixel = tex2DBias(iChannel0, uv, preBlurBias);
-    vec4 blurPixel = tex2DBias(iChannel0, uv, preBlurBias + 1.0);
-
-    float lumDelta = abs(GetLuminance(pixel) - GetLuminance(blurPixel));
-
-    if (lumDelta >= threshold)
-        pixel = pixel + (pixel - blurPixel) * amount;
-
-    return pixel;
-}
-
+// Pass B functions
 vec4 ClampLevels(in vec4 pixel, const in float blackLevel, const in float whiteLevel)
 {
     pixel = mix(pixel, BLACK, 1.0 - whiteLevel);
     pixel = mix(pixel, WHITE, blackLevel);
-
     return pixel;
 }
 
@@ -203,9 +166,6 @@ vec4 TintShadows(vec4 pixel, vec3 color)
     return pixel;
 }
 
-const float PRE_BLUR_BIAS = 1.0;
-const float UNSHARP_AMOUNT = 2.0;
-const float UNSHARP_THRESHOLD = 0.0;
 const float BLACK_LEVEL = 0.1;
 const float WHITE_LEVEL = 0.9;
 const float SATURATION_LEVEL = 0.75;
@@ -213,10 +173,14 @@ const vec3 SHADOW_TINT = vec3(0.0, 0.35, 0.1);
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
-    float UNSHARP_RADIUS = DEFINE(20.0);
+    // Pass A: Luma/Chroma shrink
+    vec4 luma = Shrink(fragCoord, 0.5, 0.0);
+    luma = BlendLuminosity(vec4(0.5, 0.5, 0.5, 1.0), luma);
 
-    vec4 pixel = UnsharpMask(UNSHARP_AMOUNT, UNSHARP_RADIUS, UNSHARP_THRESHOLD, PRE_BLUR_BIAS, fragCoord);
+    vec4 chroma = Shrink(fragCoord, 1.0 / 32.0, 3.0);
+    vec4 pixel = BlendColor(luma, chroma);
 
+    // Pass B: Levels + Tint + Saturation (removed UnsharpMask - requires previous frame)
     pixel = ClampLevels(pixel, BLACK_LEVEL, WHITE_LEVEL);
     pixel = TintShadows(pixel, SHADOW_TINT);
     pixel = Saturation(pixel, SATURATION_LEVEL);
@@ -435,8 +399,7 @@ void main()
 `
 
 export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPipeline {
-  private shaderA?: Phaser.Renderer.WebGL.WebGLShader
-  private shaderB?: Phaser.Renderer.WebGL.WebGLShader
+  private shaderAB?: Phaser.Renderer.WebGL.WebGLShader
   private shaderC?: Phaser.Renderer.WebGL.WebGLShader
   private shaderD?: Phaser.Renderer.WebGL.WebGLShader
   private shaderImage?: Phaser.Renderer.WebGL.WebGLShader
@@ -457,15 +420,11 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
     super({
       game,
       name: VHS_POSTFX_PIPELINE_KEY,
-      renderTarget: 4,
+      renderTarget: 3,
       shaders: [
         {
-          name: 'passA',
-          fragShader: PASS_A_FS,
-        },
-        {
-          name: 'passB',
-          fragShader: PASS_B_FS,
+          name: 'passAB',
+          fragShader: PASS_AB_FS,
         },
         {
           name: 'passC',
@@ -506,8 +465,7 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
   bootFX() {
     super.bootFX()
 
-    this.shaderA = this.getShaderByName('passA')
-    this.shaderB = this.getShaderByName('passB')
+    this.shaderAB = this.getShaderByName('passAB')
     this.shaderC = this.getShaderByName('passC')
     this.shaderD = this.getShaderByName('passD')
     this.shaderImage = this.getShaderByName('image')
@@ -520,9 +478,8 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
   }
 
   onDraw(renderTarget: Phaser.Renderer.WebGL.RenderTarget) {
-    if (!this.shaderA || !this.shaderB || !this.shaderC || !this.shaderD || !this.shaderImage) {
-      this.shaderA = this.getShaderByName('passA')
-      this.shaderB = this.getShaderByName('passB')
+    if (!this.shaderAB || !this.shaderC || !this.shaderD || !this.shaderImage) {
+      this.shaderAB = this.getShaderByName('passAB')
       this.shaderC = this.getShaderByName('passC')
       this.shaderD = this.getShaderByName('passD')
       this.shaderImage = this.getShaderByName('image')
@@ -554,27 +511,28 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
     this.lastDrawnFrame = frame
     this.pingPongIndex = (this.pingPongIndex + 1) % 2
 
-    if (this.useHalfRes && this.halfFrame1 && this.halfFrame2) {
+    // New pipeline: input → AB → C → D → Image (4 passes instead of 5)
+    // renderTargets: [0]=AB output, [1]=C ping-pong 0, [2]=C ping-pong 1
+
+    const rtAB = this.renderTargets[0]
+    const rtC0 = this.renderTargets[1]
+    const rtC1 = this.renderTargets[2]
+
+    const useFirst = this.pingPongIndex === 0
+    const rtCPrev = useFirst ? rtC0 : rtC1
+    const rtCCur = useFirst ? rtC1 : rtC0
+
+    if (this.useHalfRes && this.halfFrame1) {
       const halfWidth = this.halfFrame1.width
       const halfHeight = this.halfFrame1.height
 
-      const rtC0 = this.renderTargets[2]
-      const rtC1 = this.renderTargets[3]
-
-      const useFirst = this.pingPongIndex === 0
-      const rtCPrev = useFirst ? rtC0 : rtC1
-      const rtCCur = useFirst ? rtC1 : rtC0
-
-      this.bind(this.shaderA)
+      // Pass AB at half resolution
+      this.bind(this.shaderAB)
       this.setCommonUniforms(timeSeconds, frame, halfWidth, halfHeight)
       gl.viewport(0, 0, halfWidth, halfHeight)
       this.bindAndDraw(inputFrame, this.halfFrame1)
 
-      this.bind(this.shaderB)
-      this.setCommonUniforms(timeSeconds, frame, halfWidth, halfHeight)
-      gl.viewport(0, 0, halfWidth, halfHeight)
-      this.bindAndDraw(this.halfFrame1, this.halfFrame2)
-
+      // Pass C at full resolution (interlacing needs full res)
       this.bind(this.shaderC)
       this.setCommonUniforms(timeSeconds, this.pingPongIndex, fullWidth, fullHeight)
       gl.viewport(0, 0, fullWidth, fullHeight)
@@ -582,13 +540,15 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
       gl.activeTexture(gl.TEXTURE1)
       gl.bindTexture(gl.TEXTURE_2D, rtCPrev.texture.webGLTexture)
       gl.activeTexture(gl.TEXTURE0)
-      this.bindAndDraw(this.halfFrame2, rtCCur)
+      this.bindAndDraw(this.halfFrame1, rtCCur)
 
+      // Pass D at full resolution
       this.bind(this.shaderD)
       this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
       gl.viewport(0, 0, fullWidth, fullHeight)
-      this.bindAndDraw(rtCCur, this.renderTargets[1])
+      this.bindAndDraw(rtCCur, rtAB)
 
+      // Final image pass
       this.bind(this.shaderImage)
       this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
       gl.viewport(0, 0, fullWidth, fullHeight)
@@ -597,39 +557,30 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
       gl.activeTexture(gl.TEXTURE1)
       gl.bindTexture(gl.TEXTURE_2D, inputFrame.texture.webGLTexture)
       gl.activeTexture(gl.TEXTURE0)
-      this.bindAndDraw(this.renderTargets[1])
+      this.bindAndDraw(rtAB)
 
-      this.cachedResult = this.renderTargets[1]
+      this.cachedResult = rtAB
     } else {
-      const rtA = this.renderTargets[0]
-      const rtB = this.renderTargets[1]
-      const rtC0 = this.renderTargets[2]
-      const rtC1 = this.renderTargets[3]
-
-      const useFirst = this.pingPongIndex === 0
-      const rtCPrev = useFirst ? rtC0 : rtC1
-      const rtCCur = useFirst ? rtC1 : rtC0
-
-      this.bind(this.shaderA)
+      // Pass AB at full resolution
+      this.bind(this.shaderAB)
       this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
-      this.bindAndDraw(inputFrame, rtA)
+      this.bindAndDraw(inputFrame, rtAB)
 
-      this.bind(this.shaderB)
-      this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
-      this.bindAndDraw(rtA, rtB)
-
+      // Pass C
       this.bind(this.shaderC)
       this.setCommonUniforms(timeSeconds, this.pingPongIndex, fullWidth, fullHeight)
       this.set1i('uChannel1', 1)
       gl.activeTexture(gl.TEXTURE1)
       gl.bindTexture(gl.TEXTURE_2D, rtCPrev.texture.webGLTexture)
       gl.activeTexture(gl.TEXTURE0)
-      this.bindAndDraw(rtB, rtCCur)
+      this.bindAndDraw(rtAB, rtCCur)
 
+      // Pass D - reuse rtAB as output
       this.bind(this.shaderD)
       this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
-      this.bindAndDraw(rtCCur, rtB)
+      this.bindAndDraw(rtCCur, rtAB)
 
+      // Final image pass
       this.bind(this.shaderImage)
       this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
       this.set1f('uBypass', this.bypass)
@@ -637,9 +588,9 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
       gl.activeTexture(gl.TEXTURE1)
       gl.bindTexture(gl.TEXTURE_2D, inputFrame.texture.webGLTexture)
       gl.activeTexture(gl.TEXTURE0)
-      this.bindAndDraw(rtB)
+      this.bindAndDraw(rtAB)
 
-      this.cachedResult = rtB
+      this.cachedResult = rtAB
     }
 
     gl.activeTexture(gl.TEXTURE1)

@@ -168,6 +168,7 @@ export default class Game extends Phaser.Scene {
 
     if (hasExisting) {
       camera.removePostPipeline(VHS_POSTFX_PIPELINE_KEY)
+      this.logVhsFps('OFF')
       return
     }
 
@@ -178,7 +179,13 @@ export default class Game extends Phaser.Scene {
 
     if (instance && instance instanceof VhsPostFxPipeline) {
       instance.setBypass(false)
+      this.logVhsFps(`ON (half-res: ${instance.getHalfRes()}, skip: ${instance.getSkipFrames()})`)
     }
+  }
+
+  private logVhsFps(label: string) {
+    const fps = this.game.loop.actualFps.toFixed(1)
+    console.log(`[VHS] ${label} | FPS: ${fps}`)
   }
 
   private toggleVhsHalfRes() {
@@ -189,7 +196,7 @@ export default class Game extends Phaser.Scene {
     if (instance && instance instanceof VhsPostFxPipeline) {
       const next = !instance.getHalfRes()
       instance.setHalfRes(next)
-      console.log(`VHS half-res: ${next ? 'ON (0.5x)' : 'OFF (full)'}`)
+      this.logVhsFps(`half-res: ${next ? 'ON (0.5x)' : 'OFF (full)'}`)
     } else {
       console.log('VHS effect not active - press V first to enable')
     }
@@ -204,7 +211,7 @@ export default class Game extends Phaser.Scene {
       const current = instance.getSkipFrames()
       const next = current >= 3 ? 1 : current + 1
       instance.setSkipFrames(next)
-      console.log(`VHS frame skip: ${next === 1 ? 'OFF (every frame)' : `${next} frames`}`)
+      this.logVhsFps(`frame skip: ${next === 1 ? 'OFF (every frame)' : `${next} frames`}`)
     } else {
       console.log('VHS effect not active - press V first to enable')
     }
