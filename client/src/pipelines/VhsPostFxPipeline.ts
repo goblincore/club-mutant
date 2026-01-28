@@ -451,6 +451,8 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
 
   private cachedResult: Phaser.Renderer.WebGL.RenderTarget | null = null
 
+  private pingPongIndex = 0
+
   constructor(game: Phaser.Game) {
     super({
       game,
@@ -550,6 +552,7 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
     }
 
     this.lastDrawnFrame = frame
+    this.pingPongIndex = (this.pingPongIndex + 1) % 2
 
     if (this.useHalfRes && this.halfFrame1 && this.halfFrame2) {
       const halfWidth = this.halfFrame1.width
@@ -558,7 +561,7 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
       const rtC0 = this.renderTargets[2]
       const rtC1 = this.renderTargets[3]
 
-      const useFirst = frame % 2 === 0
+      const useFirst = this.pingPongIndex === 0
       const rtCPrev = useFirst ? rtC0 : rtC1
       const rtCCur = useFirst ? rtC1 : rtC0
 
@@ -573,7 +576,7 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
       this.bindAndDraw(this.halfFrame1, this.halfFrame2)
 
       this.bind(this.shaderC)
-      this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
+      this.setCommonUniforms(timeSeconds, this.pingPongIndex, fullWidth, fullHeight)
       gl.viewport(0, 0, fullWidth, fullHeight)
       this.set1i('uChannel1', 1)
       gl.activeTexture(gl.TEXTURE1)
@@ -603,7 +606,7 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
       const rtC0 = this.renderTargets[2]
       const rtC1 = this.renderTargets[3]
 
-      const useFirst = frame % 2 === 0
+      const useFirst = this.pingPongIndex === 0
       const rtCPrev = useFirst ? rtC0 : rtC1
       const rtCCur = useFirst ? rtC1 : rtC0
 
@@ -616,7 +619,7 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
       this.bindAndDraw(rtA, rtB)
 
       this.bind(this.shaderC)
-      this.setCommonUniforms(timeSeconds, frame, fullWidth, fullHeight)
+      this.setCommonUniforms(timeSeconds, this.pingPongIndex, fullWidth, fullHeight)
       this.set1i('uChannel1', 1)
       gl.activeTexture(gl.TEXTURE1)
       gl.bindTexture(gl.TEXTURE_2D, rtCPrev.texture.webGLTexture)
