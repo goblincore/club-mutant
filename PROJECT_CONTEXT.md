@@ -346,12 +346,22 @@ Safari notes:
     - Cause: rendering into a framebuffer whose attached texture is also bound as the active sampler.
     - Fix: copy the incoming `renderTarget` into `fullFrame1` at the start of `onDraw` and use that copy (`inputFrame`) as the pipeline input (and as the “original” reference texture in the final pass).
 
-### Follow-up tasks (VHS PostFX)
+### VHS Optimization (completed Jan 2026)
 
-- **Half-resolution rendering**: render VHS to a lower-res target (e.g. `0.5x`) and upscale.
-  - This should reduce fill-rate cost and matches the intended degraded look.
-- **Dynamic quality**: optionally drop to lower res / fewer samples when FPS dips.
-- **FPS delta debug**: add a simple debug overlay/toggle that reports FPS with VHS on vs off (delta) to validate improvements.
+The VHS pipeline has been optimized for performance:
+
+- **Pass combining**: Merged Pass A + B into single Pass AB (5→4 passes, 4→3 render targets)
+- **Half-resolution rendering**: Pass AB at 0.5x via `halfFrame1` (toggle: `Shift+V`)
+- **Frame skipping**: Skip 1-3 frames, reuse cached result (toggle: `Ctrl/Cmd+V`)
+- **FPS logging**: Console logs FPS on toggle: `[VHS] <setting> | FPS: <value>`
+- **Pipeline flow**: `input → AB → C → D → Image`
+
+Keyboard controls:
+| Key | Action |
+|-----|--------|
+| `V` | Toggle VHS on/off |
+| `Shift+V` | Toggle half-res (0.5x) |
+| `Ctrl/Cmd+V` | Cycle frame skip (1→2→3) |
 
 ### Follow-up tasks (per-track metadata)
 

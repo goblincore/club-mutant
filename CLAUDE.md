@@ -318,12 +318,32 @@ Safari notes:
     - Cause: rendering into a framebuffer whose attached texture is also bound as the active sampler.
     - Fix: copy the incoming `renderTarget` into `fullFrame1` at the start of `onDraw` and use that copy (`inputFrame`) as the pipeline input (and as the “original” reference texture in the final pass).
 
-### Follow-up tasks (VHS PostFX)
+### VHS Optimization (completed Jan 2026)
 
-- **Half-resolution rendering**: render VHS to a lower-res target (e.g. `0.5x`) and upscale.
-  - This should reduce fill-rate cost and matches the intended degraded look.
-- **Dynamic quality**: optionally drop to lower res / fewer samples when FPS dips.
-- **FPS delta debug**: add a simple debug overlay/toggle that reports FPS with VHS on vs off (delta) to validate improvements.
+The VHS pipeline has been optimized for performance:
+
+- **Pass combining**: Merged Pass A (luma/chroma shrink) + Pass B (levels/tint/saturation) into single Pass AB
+  - Reduced from 5 shader passes to 4
+  - Reduced from 4 render targets to 3
+  - Removed UnsharpMask (required separate texture sample)
+
+- **Half-resolution rendering**: Pass AB runs at 0.5x resolution using Phaser's built-in `halfFrame1`
+  - Toggle: `Shift+V`
+  - Passes C, D, and Image run at full resolution
+
+- **Frame skipping**: Can skip 1-3 frames, reusing cached result
+  - Toggle: `Ctrl/Cmd+V` (cycles 1→2→3)
+  - Fixed ping-pong buffer and interlacing to work correctly with frame skipping
+  - Fixed alpha transparency issue by forcing `fragColor.a = 1.0` in all shader outputs
+
+- **FPS logging**: Console logs FPS when toggling VHS settings
+  - Format: `[VHS] <setting> | FPS: <value>`
+
+- **Pipeline flow**: `input → AB → C → D → Image`
+  - AB: luma/chroma shrink + levels + tint + saturation (half-res optional)
+  - C: interlacing + noise (uses ping-pong buffer for temporal effect)
+  - D: tracking + wave + warp + white noise
+  - Image: vignette + final output
 
 ### Follow-up tasks (per-track metadata)
 
