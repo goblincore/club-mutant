@@ -615,6 +615,11 @@ export default class Game extends Phaser.Scene {
     this.network.onChatMessageAdded(this.handleChatMessageAdded, this)
     this.network.onStartMusicStream(this.handleStartMusicStream, this)
     this.network.onStopMusicStream(this.handleStopMusicStream, this)
+
+    // Enable VHS post-FX by default
+    if (this.game.renderer.type === Phaser.WEBGL) {
+      this.toggleVhsPostFx()
+    }
   }
 
   private handleItemSelectorOverlap(playerSelector, selectionItem) {

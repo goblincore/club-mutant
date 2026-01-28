@@ -241,6 +241,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
         fragColor = texture2D(iChannel0, uv);
 
     fragColor = BlendSoftLight(fragColor, Noise(NOISE_GRAIN_SIZE, true, fragCoord, SOURCE_FPS), NOISE_BLEND);
+    fragColor.a = 1.0;
 }
 
 void main()
@@ -347,6 +348,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     pixel = WhiteNoise(NOISE_HEIGHT, 0.3, pixel, fragCoord);
 
     fragColor = pixel;
+    fragColor.a = 1.0;
 }
 
 void main()
@@ -388,6 +390,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     {
         fragColor = texture2D(iChannel1, uv);
     }
+    fragColor.a = 1.0;
 }
 
 void main()
@@ -504,7 +507,8 @@ export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPip
       this.cachedResult !== null
 
     if (shouldSkip && this.cachedResult) {
-      this.copyToGame(this.cachedResult)
+      // Use bindAndDraw instead of copyToGame for consistent blending
+      this.bindAndDraw(this.cachedResult)
       return
     }
 
