@@ -86,6 +86,7 @@ Public lobby differs from custom/private rooms:
   - Auto-assign a unique username that contains `mutant`
 
 - **Server enforcement (authoritative)**
+  - Room id: `RoomType.PUBLIC = 'clubmutant'` (`types/Rooms.ts`).
   - `server/index.ts` passes `isPublic: true` to the public room create options.
   - `types/Rooms.ts` includes `isPublic?: boolean` on `IRoomData`.
   - `server/rooms/ClubMutant.ts`:
@@ -444,7 +445,8 @@ The VHS pipeline has been optimized for performance:
     - `Network.punchPlayer(targetId)` → `Message.PUNCH_PLAYER`
 
 - **Server authority (validation + effect)**
-  - `server/rooms/ClubMutant.ts` handles `Message.PUNCH_PLAYER`:
+  - `server/rooms/ClubMutant.ts` dispatches `Message.PUNCH_PLAYER` into a command:
+    - `server/rooms/commands/PunchPlayerCommand.ts`
     - Rejects invalid targets / self-target.
     - Re-checks range server-side using the same constants:
       - `punchRangePx = 56`

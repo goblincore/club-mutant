@@ -81,6 +81,7 @@ Public lobby differs from custom/private rooms:
   - Auto-assign a unique username that contains `mutant`
 
 - **Server enforcement (authoritative)**
+  - Room id: `RoomType.PUBLIC = 'clubmutant'` (`types/Rooms.ts`).
   - `server/index.ts` passes `isPublic: true` to the public room create options.
   - `types/Rooms.ts` includes `isPublic?: boolean` on `IRoomData`.
   - `server/rooms/ClubMutant.ts`:
@@ -180,7 +181,7 @@ Public lobby differs from custom/private rooms:
     - Sends `Message.PUNCH_PLAYER` via `Network.punchPlayer(targetId)`.
 
 - **Server flow**
-  - `server/rooms/ClubMutant.ts`
+  - `server/rooms/ClubMutant.ts` dispatches to `server/rooms/commands/PunchPlayerCommand.ts`
     - Validates the punch (target exists, not self, server-side range check).
     - Uses dy-weighted distance for isometric feel (`punchRangePx = 56`, `punchDyWeight = 1.5`).
     - After `punchImpactDelayMs = 350`, applies small knockback (`punchKnockbackPx = 10`) and forces a hit anim.
