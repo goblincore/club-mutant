@@ -390,7 +390,9 @@ export default class Network {
     stateCallbacks.musicStream.listen(
       'videoBackgroundEnabled',
       (value) => {
-        store.dispatch(setVideoBackgroundEnabled(Boolean(value)))
+        const enabled = Boolean(value)
+        store.dispatch(setVideoBackgroundEnabled(enabled))
+        phaserEvents.emit(Event.VIDEO_BACKGROUND_ENABLED_CHANGED, enabled)
       },
       true
     )
@@ -453,6 +455,10 @@ export default class Network {
 
   onStopMusicStream(callback: () => void, context?: any) {
     phaserEvents.on(Event.STOP_PLAYING_MEDIA, callback, context) // how to update within phaser game instance
+  }
+
+  onVideoBackgroundEnabledChanged(callback: (enabled: boolean) => void, context?: any) {
+    phaserEvents.on(Event.VIDEO_BACKGROUND_ENABLED_CHANGED, callback, context)
   }
 
   // method to register event listener and call back function when a item user added

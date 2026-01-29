@@ -22,6 +22,8 @@ export enum Event {
   STOP_PLAYING_MEDIA = 'stop-playing-media',
   MUSIC_STREAM_TICK = 'music-stream-tick',
 
+  VIDEO_BACKGROUND_ENABLED_CHANGED = 'video-background-enabled-changed',
+
   MUTANT_RIPPED_DEBUG_NEXT_ANIM = 'mutant-ripped-debug-next-anim',
   MUTANT_RIPPED_DEBUG_CURRENT_ANIM = 'mutant-ripped-debug-current-anim',
 }

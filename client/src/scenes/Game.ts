@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import axios from 'axios'
 
 import { createCharacterAnims } from '../anims/CharacterAnims'
 import { mutantRippedAnimKeys } from '../anims/MutantRippedAnims'
@@ -66,6 +67,182 @@ export default class Game extends Phaser.Scene {
   private pendingPunchTargetId: string | null = null
   private musicBoothMap = new Map<number, MusicBooth>()
   private myYoutubePlayer?: MyYoutubePlayer
+
+  private backgroundVideo?: Phaser.GameObjects.Video
+  private backgroundVideoRefreshTimer?: Phaser.Time.TimerEvent
+  private activeBackgroundVideoId: string | null = null
+  private activeBackgroundVideoIsWebgl = false
+
+  private backgroundModeText?: Phaser.GameObjects.Text
+  private lastBackgroundModeLabel: string | null = null
+
+  private setBackgroundModeLabel(label: string) {
+    if (this.lastBackgroundModeLabel === label) return
+    this.lastBackgroundModeLabel = label
+
+    this.backgroundModeText?.setText(label)
+    console.log(`[YoutubeBG] ${label}`)
+  }
+
+  private async stopBackgroundVideo() {
+    this.activeBackgroundVideoId = null
+    this.activeBackgroundVideoIsWebgl = false
+
+    this.setBackgroundModeLabel('BG: OFF')
+
+    this.backgroundVideoRefreshTimer?.remove(false)
+    this.backgroundVideoRefreshTimer = undefined
+
+    this.backgroundVideo?.pause()
+    this.backgroundVideo?.setAlpha(0)
+    this.backgroundVideo?.setVisible(false)
+
+    this.myYoutubePlayer?.pause()
+    this.myYoutubePlayer?.setAlpha(0)
+  }
+
+  private async resolveYoutubeDirectUrl(videoId: string): Promise<{
+    url: string
+    expiresAtMs: number | null
+  }> {
+    const apiBase = import.meta.env.VITE_HTTP_ENDPOINT ?? 'http://localhost:2567'
+    const response = await axios.get<{ url: string; expiresAtMs: number | null }>(
+      `${apiBase}/youtube/resolve/${videoId}`
+    )
+
+    return {
+      url: response.data.url,
+      expiresAtMs: response.data.expiresAtMs ?? null,
+    }
+  }
+
+  private getYoutubeProxyUrl(videoId: string): string {
+    const apiBase = import.meta.env.VITE_HTTP_ENDPOINT ?? 'http://localhost:2567'
+    return `${apiBase}/youtube/proxy/${videoId}`
+  }
+
+  private scheduleBackgroundVideoRefresh(videoId: string, expiresAtMs: number | null) {
+    this.backgroundVideoRefreshTimer?.remove(false)
+    this.backgroundVideoRefreshTimer = undefined
+
+    if (!expiresAtMs) return
+
+    const refreshDelayMs = expiresAtMs - 60_000 - Date.now()
+    if (refreshDelayMs <= 0) return
+
+    this.backgroundVideoRefreshTimer = this.time.delayedCall(refreshDelayMs, () => {
+      if (this.activeBackgroundVideoId !== videoId) return
+
+      const fallbackTimeSeconds = (() => {
+        const t = this.backgroundVideo?.video?.currentTime
+        return typeof t === 'number' && Number.isFinite(t) ? t : 0
+      })()
+
+      void this.tryPlayWebglBackgroundVideo(videoId, fallbackTimeSeconds)
+    })
+  }
+
+  private async tryPlayWebglBackgroundVideo(
+    videoId: string,
+    offsetSeconds: number
+  ): Promise<boolean> {
+    if (!this.backgroundVideo) return false
+
+    try {
+      this.setBackgroundModeLabel('BG: WEBGL (resolving)')
+      const resolved = await this.resolveYoutubeDirectUrl(videoId)
+
+      this.activeBackgroundVideoId = videoId
+      this.activeBackgroundVideoIsWebgl = true
+
+      this.setBackgroundModeLabel('BG: WEBGL')
+
+      this.backgroundVideo.removeAllListeners()
+      this.backgroundVideo
+        .setOrigin(0, 0)
+        .setScrollFactor(0)
+        .setDepth(-20)
+        .setAlpha(0)
+        .setVisible(true)
+        .setLoop(true)
+
+      // Use a same-origin proxy URL to avoid googlevideo.com CORS issues.
+      // loadHandler() skips Phaser's extension sniff (googlevideo URLs often have no .mp4 suffix).
+      const proxiedUrl = this.getYoutubeProxyUrl(videoId)
+      ;(
+        this.backgroundVideo as unknown as {
+          loadHandler: (
+            url: string,
+            noAudio?: boolean,
+            crossOrigin?: string
+          ) => Phaser.GameObjects.Video
+        }
+      ).loadHandler(proxiedUrl, true, 'anonymous')
+      this.backgroundVideo.setMute(true)
+
+      this.backgroundVideo.once('metadata', () => {
+        this.backgroundVideo?.setCurrentTime(offsetSeconds)
+        this.backgroundVideo?.play(true)
+        this.backgroundVideo?.setAlpha(1)
+      })
+
+      // If CORS prevents WebGL from sampling video frames, this can result in a black rectangle.
+      // If we don't get a first frame quickly, fall back to the DOM-based YouTube player.
+      this.time.delayedCall(1500, () => {
+        if (this.activeBackgroundVideoId !== videoId) return
+        if (!this.activeBackgroundVideoIsWebgl) return
+        if (!this.backgroundVideo) return
+
+        const videoWithFrameReady = this.backgroundVideo as Phaser.GameObjects.Video & {
+          frameReady?: boolean
+        }
+
+        if (videoWithFrameReady.frameReady !== true) {
+          void this.fallbackToDomYoutubeBackground(videoId, offsetSeconds)
+        }
+      })
+
+      this.backgroundVideo.once('error', () => {
+        void this.fallbackToDomYoutubeBackground(videoId, offsetSeconds)
+      })
+
+      this.scheduleBackgroundVideoRefresh(videoId, resolved.expiresAtMs)
+
+      // Hide DOM fallback if WebGL video is active.
+      this.myYoutubePlayer?.pause()
+      this.myYoutubePlayer?.setAlpha(0)
+
+      return true
+    } catch (e) {
+      console.warn(
+        '[YoutubeBG] WebGL background resolve/play failed, falling back to DOM player',
+        e
+      )
+      await this.fallbackToDomYoutubeBackground(videoId, offsetSeconds)
+      return false
+    }
+  }
+
+  private async fallbackToDomYoutubeBackground(videoId: string, offsetSeconds: number) {
+    this.activeBackgroundVideoId = videoId
+    this.activeBackgroundVideoIsWebgl = false
+
+    this.setBackgroundModeLabel('BG: DOM (fallback)')
+
+    this.backgroundVideoRefreshTimer?.remove(false)
+    this.backgroundVideoRefreshTimer = undefined
+
+    this.backgroundVideo?.pause()
+    this.backgroundVideo?.setAlpha(0)
+    this.backgroundVideo?.setVisible(false)
+
+    this.myYoutubePlayer?.load(videoId, true)
+    this.myYoutubePlayer?.setMute(true)
+    this.myYoutubePlayer?.setPlaybackTime(offsetSeconds)
+    this.myYoutubePlayer?.play()
+    this.myYoutubePlayer?.setAlpha(1)
+    this.myYoutubePlayer?.setVisible(true)
+  }
 
   private getPlayerFeetPoint(sprite: Phaser.Physics.Arcade.Sprite): { x: number; y: number } {
     const body = sprite.body as Phaser.Physics.Arcade.Body | null
@@ -582,27 +759,73 @@ export default class Game extends Phaser.Scene {
     )
 
     this.physics.add.collider(this.myPlayer, this.otherPlayers)
-    // Youtube embed test
-    // const youtubePlayerProps = {
-    //   scene: this,
-    //   x: 560,
-    //   y: 400,
-    //   width: 240,
-    //   height: 180,
-    // }
 
-    // this.myYoutubePlayer = new MyYoutubePlayer({ ...youtubePlayerProps })
-    // this.myYoutubePlayer.load(this.youtubeUrl, false)
-    // this.myYoutubePlayer.alpha = 0
-    // const currentLink = store.getState().musicStream.link
-    // if (currentLink !== null) {
-    //   this.myYoutubePlayer?.load(currentLink)
-    //   if (this.myYoutubePlayer) {
-    //     this.myYoutubePlayer.alpha = 0.5
-    //     this.myYoutubePlayer.blendMode = Phaser.BlendModes.SCREEN
-    //   }
-    //   this.myYoutubePlayer?.play()
-    // }
+    this.backgroundModeText = this.add.text(12, 12, 'BG: OFF', {
+      fontFamily: 'monospace',
+      fontSize: '12px',
+      color: '#ffffff',
+      backgroundColor: 'rgba(0, 0, 0, 0.65)',
+      padding: { x: 6, y: 4 },
+    })
+    this.backgroundModeText.setScrollFactor(0)
+    this.backgroundModeText.setDepth(100000)
+    this.backgroundModeText.setVisible(true)
+
+    this.backgroundVideo = this.add.video(0, 0)
+    this.backgroundVideo.setOrigin(0, 0)
+    this.backgroundVideo.setScrollFactor(0)
+    this.backgroundVideo.setDepth(-20)
+    this.backgroundVideo.setAlpha(0)
+    this.backgroundVideo.setVisible(false)
+    this.backgroundVideo.setDisplaySize(this.scale.width, this.scale.height)
+
+    // Youtube background player (Phaser-native)
+    this.myYoutubePlayer = new MyYoutubePlayer({
+      scene: this,
+      x: 0,
+      y: 0,
+      width: this.scale.width,
+      height: this.scale.height,
+      config: {
+        autoPlay: true,
+        controls: false,
+        keyboardControl: false,
+        modestBranding: true,
+        loop: true,
+      },
+    })
+    this.myYoutubePlayer.setOrigin(0, 0)
+    this.myYoutubePlayer.setScrollFactor(0)
+    this.myYoutubePlayer.setDepth(-10)
+    this.myYoutubePlayer.alpha = 0
+
+    this.myYoutubePlayer.pointerEvents = 'none'
+
+    // Ensure future iframes are also non-interactive
+    this.myYoutubePlayer.on('ready', () => {
+      const node = this.myYoutubePlayer?.node as HTMLElement
+      const iframe = node?.querySelector('iframe')
+      if (iframe) {
+        iframe.style.pointerEvents = 'none'
+      }
+    })
+
+    // Handle resize
+    this.scale.on(Phaser.Scale.Events.RESIZE, (gameSize: Phaser.Structs.Size) => {
+      this.myYoutubePlayer?.resize(gameSize.width, gameSize.height)
+      this.backgroundVideo?.setDisplaySize(gameSize.width, gameSize.height)
+    })
+
+    // Interaction to allow autoplay
+    this.input.once('pointerdown', () => {
+      if (this.myYoutubePlayer?.alpha === 1) {
+        this.myYoutubePlayer.play()
+      }
+
+      if (this.backgroundVideo?.alpha === 1) {
+        this.backgroundVideo.play(true)
+      }
+    })
 
     // register network event listeners
     this.network.onPlayerJoined(this.handlePlayerJoined, this)
@@ -615,11 +838,40 @@ export default class Game extends Phaser.Scene {
     this.network.onChatMessageAdded(this.handleChatMessageAdded, this)
     this.network.onStartMusicStream(this.handleStartMusicStream, this)
     this.network.onStopMusicStream(this.handleStopMusicStream, this)
+    this.network.onVideoBackgroundEnabledChanged(this.handleVideoBackgroundEnabledChanged, this)
 
     // Enable VHS post-FX by default
     if (this.game.renderer.type === Phaser.WEBGL) {
       this.toggleVhsPostFx()
     }
+
+    // Late-join sync: if a stream is already playing (and background video is already enabled),
+    // we may have missed the initial START_PLAYING_MEDIA emit during Network.initialize().
+    this.time.delayedCall(0, () => {
+      this.handleVideoBackgroundEnabledChanged(store.getState().musicStream.videoBackgroundEnabled)
+    })
+
+    this.time.delayedCall(250, () => {
+      this.handleVideoBackgroundEnabledChanged(store.getState().musicStream.videoBackgroundEnabled)
+    })
+  }
+
+  private handleVideoBackgroundEnabledChanged(enabled: boolean) {
+    const { link: url, startTime, isAmbient } = store.getState().musicStream
+
+    if (!enabled || !url || isAmbient) {
+      void this.stopBackgroundVideo()
+      return
+    }
+
+    const offset = startTime > 0 ? (Date.now() - startTime) / 1000 : 0
+    const videoId = this.getYouTubeVideoId(url)
+
+    console.log(
+      `[YoutubeBG] Enabled mid-stream | Loading Video ID: ${videoId} at offset: ${offset}`
+    )
+
+    void this.tryPlayWebglBackgroundVideo(videoId, offset)
   }
 
   private handleItemSelectorOverlap(playerSelector, selectionItem) {
@@ -767,6 +1019,16 @@ export default class Game extends Phaser.Scene {
     otherPlayer?.updateDialogBubble(content, bubbleScale)
   }
 
+  private getYouTubeVideoId(url: string): string {
+    if (!url) return ''
+    if (url.length === 11) return url // Already an ID
+
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/
+    const match = url.match(regExp)
+
+    return match && match[2].length === 11 ? match[2] : url
+  }
+
   private handleStartMusicStream(musicStream: IMusicStream, offset: number) {
     console.log('////handleStartMusicStream, musicStream.currentLink', musicStream.currentLink)
     console.log('////handleStartMusicStream, offset', offset)
@@ -799,12 +1061,20 @@ export default class Game extends Phaser.Scene {
         isAmbient,
       })
     )
+
+    if (videoBackgroundEnabled && url && !isAmbient) {
+      const videoId = this.getYouTubeVideoId(url)
+      console.log(`[YoutubeBG] Loading Video ID: ${videoId} at offset: ${offset}`)
+      void this.tryPlayWebglBackgroundVideo(videoId, offset)
+    } else {
+      void this.stopBackgroundVideo()
+    }
   }
 
   private handleStopMusicStream() {
     console.log('////handleStopMusicStream')
     store.dispatch(setMusicStream(null))
-    this.myYoutubePlayer?.pause()
+    void this.stopBackgroundVideo()
   }
 
   update(t: number, dt: number) {

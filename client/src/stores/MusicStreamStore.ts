@@ -70,7 +70,6 @@ export const musicStreamSlice = createSlice({
         }
         state.isRoomPlaylist = false
         state.roomPlaylistIndex = 0
-        state.videoBackgroundEnabled = false
         state.isAmbient = false
         return
       }
@@ -85,7 +84,10 @@ export const musicStreamSlice = createSlice({
         state.currentDj = action.payload.currentDj
         state.isRoomPlaylist = action.payload.isRoomPlaylist ?? false
         state.roomPlaylistIndex = action.payload.roomPlaylistIndex ?? 0
-        state.videoBackgroundEnabled = action.payload.videoBackgroundEnabled ?? false
+        state.videoBackgroundEnabled =
+          typeof action.payload.videoBackgroundEnabled === 'boolean'
+            ? action.payload.videoBackgroundEnabled
+            : state.videoBackgroundEnabled
         state.isAmbient = action.payload.isAmbient ?? false
       } catch (e) {
         console.warn('Failed setting music stream')
