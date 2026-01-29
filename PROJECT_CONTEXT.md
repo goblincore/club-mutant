@@ -259,12 +259,57 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 - **Server state**: `musicStream.videoBackgroundEnabled` (Colyseus schema)
 - **Message**: `Message.SET_VIDEO_BACKGROUND` (DJ-only; booth connected user)
 - **Client rendering**:
-  - `client/src/App.tsx` renders a fullscreen `ReactPlayer` behind Phaser via a portal.
+  - Background video is rendered by Phaser using `phaser3-rex-plugins` YouTube player (`DOMElement`).
+    - `client/src/scenes/Game.ts` creates `MyYoutubePlayer` and controls it on stream start/stop.
+    - **Do not call** `setElement(...)` on the rex player (it interferes with internal DOM/iframe creation).
+    - Autoplay reliability: call `setMute(true)` before `play()`.
+
+- **Input safety**:
+  - `pointer-events: none` is applied so the iframe never blocks gameplay input.
+
+- **Event wiring / race condition fixes**:
+  - `Event.VIDEO_BACKGROUND_ENABLED_CHANGED` was added so Phaser can react when the background toggle changes
+    while a stream is already playing (no need to wait for the next `START_MUSIC_STREAM`).
+  - `Game.create()` includes a late-join resync (delayed) to load the background for players who join
+    after playback has already started.
+
+- **Layering: video behind the game**
+  - Phaser DOM Elements live in a DOM container overlay (not inside WebGL). To place the YouTube video
+    behind game sprites, CSS sets the Phaser DOM container below the canvas:
+    - `client/src/index.scss`: `canvas { z-index: 1 }` and `#phaser-container > div { z-index: 0 }`.
+  - To avoid washed-out VHS visuals when the canvas is transparent, the VHS final pass uses a hard alpha
+    mask (opaque where the game draws, fully transparent elsewhere).
 
 Safari notes:
 
 - Autoplay is not guaranteed even when muted; the background renderer provides a user-gesture fallback ("Enable background video").
 - Background video does a light resync (seek + play) on enable and tab resume (visibility/focus/pageshow); it does not run the heavier drift-correction loop used for the main audio player.
+
+### YouTube resolve endpoint (yt-dlp) (Jan 2026)
+
+To support a future "true WebGL video background" (Phaser `Video` texture), the server can resolve a
+YouTube ID into a direct playable video URL:
+
+- **Endpoint**: `GET /youtube/resolve/:videoId`
+  - File: `server/index.ts` (route registered before `/youtube/:search`)
+  - Implementation: `server/youtubeResolver.ts`
+  - Calls the `yt-dlp` binary (configured via `YT_DLP_PATH`, defaults to `yt-dlp` in PATH)
+  - Returns:
+    - `url` (direct `googlevideo.com` URL)
+    - `expiresAtMs` (parsed from `expire=` query param when present)
+    - `resolvedAtMs`
+
+- **Caching**:
+  - In-memory cache with short TTL and in-flight de-dupe to avoid repeated `yt-dlp` calls.
+  - TTL respects expiry by refreshing before `expiresAtMs` using a skew.
+
+- **Local dev install (macOS)**:
+  - Recommended: `brew install yt-dlp`
+  - Alternative: `pipx install yt-dlp`
+
+- **Expiry refresh strategy (client)**:
+  - If `expiresAtMs` is provided, refresh ~60s before expiry.
+  - Also refresh on playback error (403/410 / media error) and resume at the current playback time.
 
 ## DJ booth (music booth) behavior
 
