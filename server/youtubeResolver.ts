@@ -60,7 +60,15 @@ const resolveWithYtDlp = async (
 
   const url = `https://www.youtube.com/watch?v=${videoId}`
 
-  const args = [url, '-f', 'best[ext=mp4]/best', '-g', '--no-playlist', '--no-warnings', '--quiet']
+  const args = [
+    url,
+    '-f',
+    'worst[ext=mp4][height<=360]/worst[ext=mp4]/worst',
+    '-g',
+    '--no-playlist',
+    '--no-warnings',
+    '--quiet',
+  ]
 
   const { stdout } = await execFileAsync(ytDlpPath, args, {
     timeout: options.execTimeoutMs,

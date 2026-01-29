@@ -181,6 +181,9 @@ export default class Game extends Phaser.Scene {
       this.backgroundVideo.setMute(true)
 
       this.backgroundVideo.once('metadata', () => {
+        // When metadata loads, the underlying video element updates its intrinsic dimensions.
+        // If we computed scale before that, the display size can be wrong until the next resize event.
+        this.backgroundVideo?.setDisplaySize(this.scale.width, this.scale.height)
         this.backgroundVideo?.setCurrentTime(offsetSeconds)
         this.backgroundVideo?.play(true)
         this.backgroundVideo?.setAlpha(1)
