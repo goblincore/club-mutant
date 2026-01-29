@@ -7,6 +7,7 @@ import { monitor } from '@colyseus/monitor'
 // import socialRoutes from "@colyseus/social/express"
 
 import * as youtube from './Youtube'
+import { resolveYoutubeVideoUrl } from './youtubeResolver'
 import { RoomType } from '../types/Rooms'
 
 import { SkyOffice } from './rooms/SkyOffice'
@@ -45,6 +46,22 @@ app.use('/colyseus', monitor())
 
 gameServer.listen(port)
 console.log(`Listening on ws://localhost:${port}`)
+
+app.get('/youtube/resolve/:videoId', async (req: Request, res: Response, next: NextFunction) => {
+  const { videoId } = req.params
+
+  try {
+    const resolved = await resolveYoutubeVideoUrl(videoId)
+    res.json(resolved)
+  } catch (e) {
+    if (e instanceof Error && e.message === 'invalid videoId') {
+      res.status(400).json({ error: 'invalid videoId' })
+      return
+    }
+
+    return next(e)
+  }
+})
 
 app.get('/youtube/:search', async (req: Request, res: Response, next: NextFunction) => {
   const { search } = req.params
