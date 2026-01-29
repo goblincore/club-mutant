@@ -30,6 +30,12 @@ body {
   }
 
   > div {
+    z-index: 0;
+  }
+}
+
+#phaser-container.bg-iframe-overlay {
+  > div {
     z-index: 2;
   }
 }

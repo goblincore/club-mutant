@@ -36,7 +36,7 @@ import { SOFT_POSTFX_PIPELINE_KEY, SoftPostFxPipeline } from '../pipelines/SoftP
 
 type BackgroundVideoRenderer = 'webgl' | 'iframe'
 
-const BACKGROUND_VIDEO_RENDERER: BackgroundVideoRenderer = 'webgl'
+const BACKGROUND_VIDEO_RENDERER: BackgroundVideoRenderer = 'iframe'
 
 export default class Game extends Phaser.Scene {
   network!: Network
@@ -94,6 +94,8 @@ export default class Game extends Phaser.Scene {
 
     this.setBackgroundModeLabel('BG: OFF')
 
+    document.getElementById('phaser-container')?.classList.remove('bg-iframe-overlay')
+
     this.backgroundVideoRefreshTimer?.remove(false)
     this.backgroundVideoRefreshTimer = undefined
 
@@ -109,15 +111,46 @@ export default class Game extends Phaser.Scene {
     const node = this.myYoutubePlayer?.node as HTMLElement | undefined
     if (!node) return
 
-    node.style.opacity = '0.8'
-    node.style.mixBlendMode = 'overlay'
+    const container = document.getElementById('phaser-container')
+    if (BACKGROUND_VIDEO_RENDERER === 'iframe') {
+      container?.classList.add('bg-iframe-overlay')
+    } else {
+      container?.classList.remove('bg-iframe-overlay')
+    }
+
+    const isIframeOverlay = BACKGROUND_VIDEO_RENDERER === 'iframe'
+
+    const targetOpacity = isIframeOverlay ? '0.2' : '0.8'
+
+    node.style.setProperty('opacity', targetOpacity, 'important')
+    node.style.mixBlendMode = isIframeOverlay ? 'normal' : 'overlay'
+    node.style.backgroundColor = 'transparent'
+
+    // Rex/Phaser DOM wrappers can apply their own opacity/layout; ensure the wrapper is also translucent.
+    const wrapper = node.parentElement
+    if (wrapper) {
+      wrapper.style.setProperty('opacity', targetOpacity, 'important')
+      wrapper.style.setProperty('pointer-events', 'none', 'important')
+      wrapper.style.setProperty('background-color', 'transparent', 'important')
+    }
 
     const iframe = node.querySelector('iframe')
     if (iframe) {
-      iframe.style.pointerEvents = 'none'
-      iframe.style.opacity = '0.8'
-      iframe.style.mixBlendMode = 'overlay'
+      iframe.style.setProperty('pointer-events', 'none', 'important')
+      iframe.style.setProperty('opacity', targetOpacity, 'important')
+      iframe.style.mixBlendMode = isIframeOverlay ? 'normal' : 'overlay'
     }
+
+    // Best-effort: request low playback quality if rex exposes the underlying YouTube player.
+    // This is not guaranteed (depends on plugin internals and YouTube availability).
+    const maybeAny = this.myYoutubePlayer as unknown as {
+      youtube?: { setPlaybackQuality?: (q: string) => void }
+      player?: { setPlaybackQuality?: (q: string) => void }
+    }
+    const setPlaybackQuality =
+      maybeAny.youtube?.setPlaybackQuality ?? maybeAny.player?.setPlaybackQuality ?? null
+
+    setPlaybackQuality?.('tiny')
   }
 
   private async resolveYoutubeDirectUrl(videoId: string): Promise<{
@@ -275,6 +308,13 @@ export default class Game extends Phaser.Scene {
     this.myYoutubePlayer?.setVisible(true)
 
     this.applyIframeBackgroundStyles()
+
+    // Best-effort retry once the iframe/player is more likely to be ready.
+    this.time.delayedCall(250, () => {
+      if (this.activeBackgroundVideoId !== videoId) return
+      if (this.activeBackgroundVideoIsWebgl) return
+      this.applyIframeBackgroundStyles()
+    })
   }
 
   private async fallbackToDomYoutubeBackground(videoId: string, offsetSeconds: number) {
@@ -828,6 +868,16 @@ export default class Game extends Phaser.Scene {
         controls: false,
         keyboardControl: false,
         modestBranding: true,
+        showVideoTitle: false,
+        playerVars: {
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          iv_load_policy: 3,
+          modestbranding: 1,
+          playsinline: 1,
+          rel: 0,
+        },
         loop: true,
       },
     })
