@@ -41,6 +41,8 @@ export class SkyOffice extends Room<OfficeState> {
   private isPublic = false
   private publicBackgroundSeed: number | null = null
 
+  private lastPlayerActionAtMsBySessionId = new Map<string, number>()
+
   private musicStreamTickIntervalId: NodeJS.Timeout | null = null
 
   private ambientPublicVideoId = 'CAWJ2PO1V_g'
@@ -397,6 +399,28 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(
       Message.UPDATE_PLAYER_ACTION,
       (client, message: { x: number; y: number; anim: string }) => {
+        const nowMs = Date.now()
+
+        const lastAtMs = this.lastPlayerActionAtMsBySessionId.get(client.sessionId) ?? 0
+        const minIntervalMs = 50
+        if (nowMs - lastAtMs < minIntervalMs) return
+
+        const x = typeof message.x === 'number' && Number.isFinite(message.x) ? message.x : null
+        const y = typeof message.y === 'number' && Number.isFinite(message.y) ? message.y : null
+        if (x === null || y === null) return
+
+        const player = this.state.players.get(client.sessionId)
+        if (!player) return
+
+        const dtMs = Math.max(1, nowMs - lastAtMs)
+        const maxSpeedPxPerSec = 240
+        const distanceBufferPx = 40
+        const dx = x - player.x
+        const dy = y - player.y
+        const distance = Math.hypot(dx, dy)
+        const maxAllowedDistance = (maxSpeedPxPerSec * dtMs) / 1000 + distanceBufferPx
+        if (distance > maxAllowedDistance) return
+
         const sanitizedAnim =
           this.isPublic && typeof message.anim === 'string'
             ? (() => {
@@ -414,12 +438,16 @@ export class SkyOffice extends Room<OfficeState> {
                 parts[0] = 'mutant'
                 return parts.join('_')
               })()
-            : message.anim
+            : typeof message.anim === 'string'
+              ? message.anim
+              : 'mutant_idle_down'
+
+        this.lastPlayerActionAtMsBySessionId.set(client.sessionId, nowMs)
 
         this.dispatcher.dispatch(new PlayerUpdateActionCommand(), {
           client,
-          x: message.x,
-          y: message.y,
+          x,
+          y,
           anim: sanitizedAnim,
         })
       }
@@ -605,14 +633,20 @@ export class SkyOffice extends Room<OfficeState> {
   onJoin(client: Client, options: any) {
     console.log('////onJoin, client', client)
 
-    const player = new Player()
+    const existingPlayer = this.state.players.get(client.sessionId)
+    const player = existingPlayer ?? new Player()
 
-    if (this.isPublic) {
+    if (!existingPlayer && this.isPublic) {
       player.name = `mutant-${client.sessionId}`
       player.anim = 'mutant_idle_down'
     }
 
-    this.state.players.set(client.sessionId, player)
+    if (!existingPlayer) {
+      this.state.players.set(client.sessionId, player)
+    }
+
+    this.lastPlayerActionAtMsBySessionId.set(client.sessionId, Date.now())
+
     client.send(Message.SEND_ROOM_DATA, {
       id: this.roomId,
       name: this.name,
@@ -635,10 +669,22 @@ export class SkyOffice extends Room<OfficeState> {
     console.log('////onJoin, musicStream.status', musicStream.status)
   }
 
-  onLeave(client: Client, consented: boolean) {
+  async onLeave(client: Client, consented: boolean) {
+    if (!consented) {
+      try {
+        await this.allowReconnection(client, 60)
+        return
+      } catch (_e) {
+        // fallthrough: timed out, proceed to cleanup
+      }
+    }
+
+    this.lastPlayerActionAtMsBySessionId.delete(client.sessionId)
+
     if (this.state.players.has(client.sessionId)) {
       this.state.players.delete(client.sessionId)
     }
+
     this.state.musicBooths.forEach((musicBooth, index) => {
       if (musicBooth.connectedUser === client.sessionId) {
         this.dispatcher.dispatch(new MusicBoothDisconnectUserCommand(), {

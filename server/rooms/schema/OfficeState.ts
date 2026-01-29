@@ -33,8 +33,8 @@ export class Player extends Schema implements IPlayer {
   @type('string') id: string | null = null
   @type('string') djId: string | null = null
   @type('string') name = ''
-  @type('number') x = 705
-  @type('number') y = 500
+  @type('float32') x = 705
+  @type('float32') y = 500
   @type('string') anim = 'mutant_idle_down'
   @type('boolean') readyToConnect = false
   @type('boolean') videoConnected = false
