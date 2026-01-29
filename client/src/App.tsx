@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 import { createPortal } from 'react-dom'
 import ReactPlayer from 'react-player/youtube'
@@ -12,6 +12,9 @@ import MyPlaylistPanel from './components/MyPlaylistPanel'
 import MuteButton from './components/MuteButton'
 import YoutubePlayer from './components/YoutubePlayer'
 import DjStatusPill from './components/DjStatusPill'
+import MutantRippedAnimDebug from './components/MutantRippedAnimDebug'
+
+import { timeSync } from './services/TimeSync'
 
 import { RoomType } from '../../types/Rooms'
 
@@ -20,6 +23,51 @@ const Backdrop = styled.div`
   inset: 0;
   z-index: 2;
   pointer-events: none;
+`
+
+const VisualImageBackground = styled.img`
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+  filter: contrast(1.05) saturate(0.95);
+`
+
+const TrackMessageOverlay = styled.div`
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 16px;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0.8px 0.8px rgba(0, 0, 0, 0.85);
+  font-size: 14px;
+
+  .track {
+    display: inline-block;
+    padding: 10px 16px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(8px);
+    transform: translateX(100%);
+    animation: track-marquee 16s linear infinite;
+  }
+
+  @keyframes track-marquee {
+    0% {
+      transform: translateX(100%);
+    }
+    100% {
+      transform: translateX(-120%);
+    }
+  }
 `
 
 const PublicLobbyBackground = styled.img`
@@ -32,73 +80,10 @@ const PublicLobbyBackground = styled.img`
   pointer-events: none;
 `
 
-const VideoBackground = styled.div`
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.35);
-    mix-blend-mode: multiply;
-    z-index: 2;
-  }
-
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background-image: repeating-linear-gradient(
-      to bottom,
-      rgba(0, 0, 0, 0.35) 0,
-      rgba(0, 0, 0, 0.35) 1px,
-      rgba(0, 0, 0, 0) 2px,
-      rgba(0, 0, 0, 0) 4px
-    );
-    opacity: 0.55;
-    mix-blend-mode: multiply;
-    z-index: 3;
-  }
-
-  > div {
-    width: 100% !important;
-    height: 100% !important;
-    position: relative;
-    z-index: 1;
-  }
-
-  iframe {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 200% !important;
-    height: 130% !important;
-    transform: translate(-50%, -50%);
-    mix-blend-mode: hard-light;
-  }
-`
-
 function PublicLobbyBackgroundPortal({ src }: { src: string }) {
   if (typeof document === 'undefined') return null
 
   return createPortal(<PublicLobbyBackground src={src} alt="" />, document.body)
-}
-
-function VideoBackgroundPortal({ url }: { url: string }) {
-  if (typeof document === 'undefined') return null
-
-  return createPortal(
-    <VideoBackground>
-      <ReactPlayer url={url} playing muted controls={false} width="100%" height="100%" />
-    </VideoBackground>,
-    document.body
-  )
 }
 
 function App() {
@@ -112,6 +97,8 @@ function App() {
   const streamLink = useAppSelector((state) => state.musicStream.link)
   const streamStartTime = useAppSelector((state) => state.musicStream.startTime)
   const isAmbient = useAppSelector((state) => state.musicStream.isAmbient)
+  const visualUrl = useAppSelector((state) => state.musicStream.visualUrl)
+  const trackMessage = useAppSelector((state) => state.musicStream.trackMessage)
 
   const [resolvedPublicGif, setResolvedPublicGif] = useState<string | null>(null)
 
@@ -165,6 +152,7 @@ function App() {
   if (loggedIn) {
     ui = (
       <>
+        <MutantRippedAnimDebug />
         <DjStatusPill />
         <ChatPanel />
         <MyPlaylistPanel />
@@ -182,13 +170,10 @@ function App() {
 
   return (
     <Backdrop>
-      {roomJoined && videoBackgroundEnabled && streamLink && !isAmbient ? (
-        <VideoBackgroundPortal
-          url={`https://www.youtube.com/watch?v=${streamLink}#t=${Math.max(
-            0,
-            (Date.now() - streamStartTime) / 1000
-          )}s`}
-        />
+      {roomJoined && !isAmbient && trackMessage && trackMessage.trim() !== '' ? (
+        <TrackMessageOverlay>
+          <div className="track">{trackMessage}</div>
+        </TrackMessageOverlay>
       ) : null}
 
       {roomJoined &&

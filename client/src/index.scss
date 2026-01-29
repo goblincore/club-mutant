@@ -19,11 +19,24 @@ body {
   position: fixed;
   inset: 0;
   z-index: 1;
+  background: #000;
 
   canvas {
+    position: relative;
+    z-index: 1;
     display: block;
     width: 100vw;
     height: 100vh;
+  }
+
+  > div {
+    z-index: 0;
+  }
+}
+
+#phaser-container.bg-iframe-overlay {
+  > div {
+    z-index: 2;
   }
 }
 

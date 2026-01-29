@@ -2,11 +2,13 @@ import http from 'http'
 import express from 'express'
 import type { NextFunction, Request, Response } from 'express'
 import cors from 'cors'
+import axios from 'axios'
 import { Server, LobbyRoom } from 'colyseus'
 import { monitor } from '@colyseus/monitor'
 // import socialRoutes from "@colyseus/social/express"
 
 import * as youtube from './Youtube'
+import { resolveYoutubeVideoUrl } from './youtubeResolver'
 import { RoomType } from '../types/Rooms'
 
 import { SkyOffice } from './rooms/SkyOffice'
@@ -45,6 +47,78 @@ app.use('/colyseus', monitor())
 
 gameServer.listen(port)
 console.log(`Listening on ws://localhost:${port}`)
+
+app.get('/youtube/resolve/:videoId', async (req: Request, res: Response, next: NextFunction) => {
+  const { videoId } = req.params
+
+  try {
+    const resolved = await resolveYoutubeVideoUrl(videoId)
+    res.json(resolved)
+  } catch (e) {
+    if (e instanceof Error && e.message === 'invalid videoId') {
+      res.status(400).json({ error: 'invalid videoId' })
+      return
+    }
+
+    return next(e)
+  }
+})
+
+app.get('/youtube/proxy/:videoId', async (req: Request, res: Response, next: NextFunction) => {
+  const { videoId } = req.params
+
+  try {
+    const resolved = await resolveYoutubeVideoUrl(videoId)
+
+    console.log(`////app.get(/youtube/proxy/:videoId)`, videoId)
+
+    const range = req.headers.range
+    const headers: Record<string, string> = {}
+
+    if (typeof range === 'string' && range !== '') {
+      headers.Range = range
+    }
+
+    const upstream = await axios.get(resolved.url, {
+      responseType: 'stream',
+      headers,
+      validateStatus: (status) => status >= 200 && status < 400,
+      maxRedirects: 5,
+    })
+
+    res.status(upstream.status)
+
+    const passthroughHeaders = [
+      'content-type',
+      'content-length',
+      'content-range',
+      'accept-ranges',
+      'cache-control',
+    ] as const
+
+    for (const header of passthroughHeaders) {
+      const value = upstream.headers[header] as unknown
+
+      if (typeof value === 'string') {
+        res.setHeader(header, value)
+        continue
+      }
+
+      if (typeof value === 'number') {
+        res.setHeader(header, String(value))
+        continue
+      }
+
+      if (Array.isArray(value)) {
+        res.setHeader(header, value.map(String).join(', '))
+      }
+    }
+
+    upstream.data.pipe(res)
+  } catch (e) {
+    return next(e)
+  }
+})
 
 app.get('/youtube/:search', async (req: Request, res: Response, next: NextFunction) => {
   const { search } = req.params

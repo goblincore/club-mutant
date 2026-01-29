@@ -8,6 +8,9 @@ type DJUserInfoState = {
 interface MusicStreamState {
   link: string | null
   title: string | null
+  visualUrl: string | null
+  trackMessage: string | null
+  streamId: number
   startTime: number
   currentDj: DJUserInfoState
   isRoomPlaylist: boolean
@@ -19,6 +22,9 @@ interface MusicStreamState {
 const initialState: MusicStreamState = {
   link: null,
   title: null,
+  visualUrl: null,
+  trackMessage: null,
+  streamId: 0,
   startTime: 0,
   currentDj: {
     name: null,
@@ -39,6 +45,9 @@ export const musicStreamSlice = createSlice({
       action: PayloadAction<{
         url: string | null
         title: string | null
+        visualUrl?: string | null
+        trackMessage?: string | null
+        streamId?: number
         startTime: number
         currentDj: DJUserInfoState
         isRoomPlaylist?: boolean
@@ -51,6 +60,9 @@ export const musicStreamSlice = createSlice({
       if (!action.payload) {
         state.link = null
         state.title = null
+        state.visualUrl = null
+        state.trackMessage = null
+        state.streamId = 0
         state.startTime = 0
         state.currentDj = {
           name: null,
@@ -58,7 +70,6 @@ export const musicStreamSlice = createSlice({
         }
         state.isRoomPlaylist = false
         state.roomPlaylistIndex = 0
-        state.videoBackgroundEnabled = false
         state.isAmbient = false
         return
       }
@@ -66,11 +77,17 @@ export const musicStreamSlice = createSlice({
       try {
         state.link = action.payload.url
         state.title = action.payload.title
+        state.visualUrl = action.payload.visualUrl ?? null
+        state.trackMessage = action.payload.trackMessage ?? null
+        state.streamId = action.payload.streamId ?? 0
         state.startTime = action.payload.startTime
         state.currentDj = action.payload.currentDj
         state.isRoomPlaylist = action.payload.isRoomPlaylist ?? false
         state.roomPlaylistIndex = action.payload.roomPlaylistIndex ?? 0
-        state.videoBackgroundEnabled = action.payload.videoBackgroundEnabled ?? false
+        state.videoBackgroundEnabled =
+          typeof action.payload.videoBackgroundEnabled === 'boolean'
+            ? action.payload.videoBackgroundEnabled
+            : state.videoBackgroundEnabled
         state.isAmbient = action.payload.isAmbient ?? false
       } catch (e) {
         console.warn('Failed setting music stream')

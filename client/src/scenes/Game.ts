@@ -1,6 +1,8 @@
 import Phaser from 'phaser'
+import axios from 'axios'
 
 import { createCharacterAnims } from '../anims/CharacterAnims'
+import { mutantRippedAnimKeys } from '../anims/MutantRippedAnims'
 
 import Item from '../items/Item'
 import MusicBooth from '../items/MusicBooth'
@@ -27,6 +29,15 @@ import { findPathAStar } from '../utils/pathfinding'
 
 import { RoomType } from '../../../types/Rooms'
 
+import { phaserEvents, Event } from '../events/EventCenter'
+
+import { VHS_POSTFX_PIPELINE_KEY, VhsPostFxPipeline } from '../pipelines/VhsPostFxPipeline'
+import { SOFT_POSTFX_PIPELINE_KEY, SoftPostFxPipeline } from '../pipelines/SoftPostFxPipeline'
+
+type BackgroundVideoRenderer = 'webgl' | 'iframe'
+
+const BACKGROUND_VIDEO_RENDERER: BackgroundVideoRenderer = 'iframe'
+
 export default class Game extends Phaser.Scene {
   network!: Network
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
@@ -37,6 +48,13 @@ export default class Game extends Phaser.Scene {
   private keyE!: Phaser.Input.Keyboard.Key
   private keyR!: Phaser.Input.Keyboard.Key
   private keyT!: Phaser.Input.Keyboard.Key
+  private key1!: Phaser.Input.Keyboard.Key
+  private key2!: Phaser.Input.Keyboard.Key
+  private key3!: Phaser.Input.Keyboard.Key
+  private key4!: Phaser.Input.Keyboard.Key
+  private key5!: Phaser.Input.Keyboard.Key
+  private keyV!: Phaser.Input.Keyboard.Key
+  private keyB!: Phaser.Input.Keyboard.Key
   private map!: Phaser.Tilemaps.Tilemap
   private groundLayer!: Phaser.Tilemaps.TilemapLayer
   private pathObstacles: Array<{ getBounds: () => Phaser.Geom.Rectangle }> = []
@@ -50,8 +68,284 @@ export default class Game extends Phaser.Scene {
   private playerSelector!: PlayerSelector
   private otherPlayers!: Phaser.Physics.Arcade.Group
   private otherPlayerMap = new Map<string, OtherPlayer>()
+  private pendingPunchTargetId: string | null = null
   private musicBoothMap = new Map<number, MusicBooth>()
   private myYoutubePlayer?: MyYoutubePlayer
+
+  private backgroundVideo?: Phaser.GameObjects.Video
+  private backgroundVideoRefreshTimer?: Phaser.Time.TimerEvent
+  private activeBackgroundVideoId: string | null = null
+  private activeBackgroundVideoIsWebgl = false
+
+  private backgroundModeText?: Phaser.GameObjects.Text
+  private lastBackgroundModeLabel: string | null = null
+
+  private setBackgroundModeLabel(label: string) {
+    if (this.lastBackgroundModeLabel === label) return
+    this.lastBackgroundModeLabel = label
+
+    this.backgroundModeText?.setText(label)
+    console.log(`[YoutubeBG] ${label}`)
+  }
+
+  private async stopBackgroundVideo() {
+    this.activeBackgroundVideoId = null
+    this.activeBackgroundVideoIsWebgl = false
+
+    this.setBackgroundModeLabel('BG: OFF')
+
+    document.getElementById('phaser-container')?.classList.remove('bg-iframe-overlay')
+
+    this.backgroundVideoRefreshTimer?.remove(false)
+    this.backgroundVideoRefreshTimer = undefined
+
+    this.backgroundVideo?.pause()
+    this.backgroundVideo?.setAlpha(0)
+    this.backgroundVideo?.setVisible(false)
+
+    this.myYoutubePlayer?.pause()
+    this.myYoutubePlayer?.setAlpha(0)
+  }
+
+  private applyIframeBackgroundStyles() {
+    const node = this.myYoutubePlayer?.node as HTMLElement | undefined
+    if (!node) return
+
+    const container = document.getElementById('phaser-container')
+    if (BACKGROUND_VIDEO_RENDERER === 'iframe') {
+      container?.classList.add('bg-iframe-overlay')
+    } else {
+      container?.classList.remove('bg-iframe-overlay')
+    }
+
+    const isIframeOverlay = BACKGROUND_VIDEO_RENDERER === 'iframe'
+
+    const targetOpacity = isIframeOverlay ? '0.2' : '0.8'
+
+    node.style.setProperty('opacity', targetOpacity, 'important')
+    node.style.mixBlendMode = isIframeOverlay ? 'normal' : 'overlay'
+    node.style.backgroundColor = 'transparent'
+
+    // Rex/Phaser DOM wrappers can apply their own opacity/layout; ensure the wrapper is also translucent.
+    const wrapper = node.parentElement
+    if (wrapper) {
+      wrapper.style.setProperty('opacity', targetOpacity, 'important')
+      wrapper.style.setProperty('pointer-events', 'none', 'important')
+      wrapper.style.setProperty('background-color', 'transparent', 'important')
+    }
+
+    const iframe = node.querySelector('iframe')
+    if (iframe) {
+      iframe.style.setProperty('pointer-events', 'none', 'important')
+      iframe.style.setProperty('opacity', targetOpacity, 'important')
+      iframe.style.mixBlendMode = isIframeOverlay ? 'normal' : 'overlay'
+    }
+
+    // Best-effort: request low playback quality if rex exposes the underlying YouTube player.
+    // This is not guaranteed (depends on plugin internals and YouTube availability).
+    const maybeAny = this.myYoutubePlayer as unknown as {
+      youtube?: { setPlaybackQuality?: (q: string) => void }
+      player?: { setPlaybackQuality?: (q: string) => void }
+    }
+    const setPlaybackQuality =
+      maybeAny.youtube?.setPlaybackQuality ?? maybeAny.player?.setPlaybackQuality ?? null
+
+    setPlaybackQuality?.('tiny')
+  }
+
+  private async resolveYoutubeDirectUrl(videoId: string): Promise<{
+    url: string
+    expiresAtMs: number | null
+  }> {
+    const apiBase = import.meta.env.VITE_HTTP_ENDPOINT ?? 'http://localhost:2567'
+    const response = await axios.get<{ url: string; expiresAtMs: number | null }>(
+      `${apiBase}/youtube/resolve/${videoId}`
+    )
+
+    return {
+      url: response.data.url,
+      expiresAtMs: response.data.expiresAtMs ?? null,
+    }
+  }
+
+  private getYoutubeProxyUrl(videoId: string): string {
+    const apiBase = import.meta.env.VITE_HTTP_ENDPOINT ?? 'http://localhost:2567'
+    return `${apiBase}/youtube/proxy/${videoId}`
+  }
+
+  private scheduleBackgroundVideoRefresh(videoId: string, expiresAtMs: number | null) {
+    this.backgroundVideoRefreshTimer?.remove(false)
+    this.backgroundVideoRefreshTimer = undefined
+
+    if (!expiresAtMs) return
+
+    const refreshDelayMs = expiresAtMs - 60_000 - Date.now()
+    if (refreshDelayMs <= 0) return
+
+    this.backgroundVideoRefreshTimer = this.time.delayedCall(refreshDelayMs, () => {
+      if (this.activeBackgroundVideoId !== videoId) return
+
+      const fallbackTimeSeconds = (() => {
+        const t = this.backgroundVideo?.video?.currentTime
+        return typeof t === 'number' && Number.isFinite(t) ? t : 0
+      })()
+
+      void this.tryPlayWebglBackgroundVideo(videoId, fallbackTimeSeconds)
+    })
+  }
+
+  private async tryPlayWebglBackgroundVideo(
+    videoId: string,
+    offsetSeconds: number
+  ): Promise<boolean> {
+    if (!this.backgroundVideo) return false
+
+    if (BACKGROUND_VIDEO_RENDERER !== 'webgl') {
+      await this.playIframeBackgroundVideo(videoId, offsetSeconds, false)
+      return true
+    }
+
+    try {
+      this.setBackgroundModeLabel('BG: WEBGL (resolving)')
+      const resolved = await this.resolveYoutubeDirectUrl(videoId)
+
+      this.activeBackgroundVideoId = videoId
+      this.activeBackgroundVideoIsWebgl = true
+
+      this.setBackgroundModeLabel('BG: WEBGL')
+
+      this.backgroundVideo.removeAllListeners()
+      this.backgroundVideo
+        .setOrigin(0, 0)
+        .setScrollFactor(0)
+        .setDepth(-20)
+        .setAlpha(0)
+        .setVisible(true)
+        .setLoop(true)
+
+      // Use a same-origin proxy URL to avoid googlevideo.com CORS issues.
+      // loadHandler() skips Phaser's extension sniff (googlevideo URLs often have no .mp4 suffix).
+      const proxiedUrl = this.getYoutubeProxyUrl(videoId)
+      ;(
+        this.backgroundVideo as unknown as {
+          loadHandler: (
+            url: string,
+            noAudio?: boolean,
+            crossOrigin?: string
+          ) => Phaser.GameObjects.Video
+        }
+      ).loadHandler(proxiedUrl, true, 'anonymous')
+      this.backgroundVideo.setMute(true)
+
+      this.backgroundVideo.once('metadata', () => {
+        // When metadata loads, the underlying video element updates its intrinsic dimensions.
+        // If we computed scale before that, the display size can be wrong until the next resize event.
+        this.backgroundVideo?.setDisplaySize(this.scale.width, this.scale.height)
+        this.backgroundVideo?.setCurrentTime(offsetSeconds)
+        this.backgroundVideo?.play(true)
+        this.backgroundVideo?.setAlpha(1)
+      })
+
+      // If CORS prevents WebGL from sampling video frames, this can result in a black rectangle.
+      // If we don't get a first frame quickly, fall back to the DOM-based YouTube player.
+      this.time.delayedCall(1500, () => {
+        if (this.activeBackgroundVideoId !== videoId) return
+        if (!this.activeBackgroundVideoIsWebgl) return
+        if (!this.backgroundVideo) return
+
+        const videoWithFrameReady = this.backgroundVideo as Phaser.GameObjects.Video & {
+          frameReady?: boolean
+        }
+
+        if (videoWithFrameReady.frameReady !== true) {
+          void this.fallbackToDomYoutubeBackground(videoId, offsetSeconds)
+        }
+      })
+
+      this.backgroundVideo.once('error', () => {
+        void this.fallbackToDomYoutubeBackground(videoId, offsetSeconds)
+      })
+
+      this.scheduleBackgroundVideoRefresh(videoId, resolved.expiresAtMs)
+
+      // Hide DOM fallback if WebGL video is active.
+      this.myYoutubePlayer?.pause()
+      this.myYoutubePlayer?.setAlpha(0)
+
+      return true
+    } catch (e) {
+      console.warn(
+        '[YoutubeBG] WebGL background resolve/play failed, falling back to DOM player',
+        e
+      )
+      await this.fallbackToDomYoutubeBackground(videoId, offsetSeconds)
+      return false
+    }
+  }
+
+  private async playIframeBackgroundVideo(
+    videoId: string,
+    offsetSeconds: number,
+    isFallback: boolean
+  ) {
+    this.activeBackgroundVideoId = videoId
+    this.activeBackgroundVideoIsWebgl = false
+
+    this.setBackgroundModeLabel(isFallback ? 'BG: IFRAME (fallback)' : 'BG: IFRAME')
+
+    this.backgroundVideoRefreshTimer?.remove(false)
+    this.backgroundVideoRefreshTimer = undefined
+
+    this.backgroundVideo?.pause()
+    this.backgroundVideo?.setAlpha(0)
+    this.backgroundVideo?.setVisible(false)
+
+    this.myYoutubePlayer?.load(videoId, true)
+    this.myYoutubePlayer?.setMute(true)
+    this.myYoutubePlayer?.setPlaybackTime(offsetSeconds)
+    this.myYoutubePlayer?.play()
+    this.myYoutubePlayer?.setAlpha(1)
+    this.myYoutubePlayer?.setVisible(true)
+
+    this.applyIframeBackgroundStyles()
+
+    // Best-effort retry once the iframe/player is more likely to be ready.
+    this.time.delayedCall(250, () => {
+      if (this.activeBackgroundVideoId !== videoId) return
+      if (this.activeBackgroundVideoIsWebgl) return
+      this.applyIframeBackgroundStyles()
+    })
+  }
+
+  private async fallbackToDomYoutubeBackground(videoId: string, offsetSeconds: number) {
+    await this.playIframeBackgroundVideo(videoId, offsetSeconds, true)
+  }
+
+  private getPlayerFeetPoint(sprite: Phaser.Physics.Arcade.Sprite): { x: number; y: number } {
+    const body = sprite.body as Phaser.Physics.Arcade.Body | null
+    if (!body) {
+      return { x: sprite.x, y: sprite.y }
+    }
+
+    return {
+      x: body.center.x,
+      y: body.bottom,
+    }
+  }
+
+  private rippedAnimKeys: string[] = []
+
+  private rippedAnimIndex = 0
+
+  private playNextRippedAnim() {
+    if (!this.myPlayer || this.rippedAnimKeys.length === 0) return
+
+    const nextKey = this.rippedAnimKeys[this.rippedAnimIndex % this.rippedAnimKeys.length]
+    this.rippedAnimIndex += 1
+
+    phaserEvents.emit(Event.MUTANT_RIPPED_DEBUG_CURRENT_ANIM, nextKey)
+    this.myPlayer.playDebugAnim(nextKey, this.network, { syncToServer: false })
+  }
 
   constructor() {
     super('game')
@@ -120,6 +414,82 @@ export default class Game extends Phaser.Scene {
   }
 
   preload() {}
+
+  private toggleVhsPostFx() {
+    const camera = this.cameras.main
+    const existing = camera.getPostPipeline(VHS_POSTFX_PIPELINE_KEY)
+    const hasExisting = Array.isArray(existing) ? existing.length > 0 : !!existing
+
+    if (hasExisting) {
+      camera.removePostPipeline(VHS_POSTFX_PIPELINE_KEY)
+      this.logVhsFps('OFF')
+      return
+    }
+
+    camera.setPostPipeline(VHS_POSTFX_PIPELINE_KEY)
+
+    const pipeline = camera.getPostPipeline(VHS_POSTFX_PIPELINE_KEY)
+    const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
+
+    if (instance && instance instanceof VhsPostFxPipeline) {
+      instance.setBypass(false)
+      this.logVhsFps(`ON (half-res: ${instance.getHalfRes()}, skip: ${instance.getSkipFrames()})`)
+    }
+  }
+
+  private logVhsFps(label: string) {
+    const fps = this.game.loop.actualFps.toFixed(1)
+    console.log(`[VHS] ${label} | FPS: ${fps}`)
+  }
+
+  private toggleVhsHalfRes() {
+    const camera = this.cameras.main
+    const pipeline = camera.getPostPipeline(VHS_POSTFX_PIPELINE_KEY)
+    const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
+
+    if (instance && instance instanceof VhsPostFxPipeline) {
+      const next = !instance.getHalfRes()
+      instance.setHalfRes(next)
+      this.logVhsFps(`half-res: ${next ? 'ON (0.5x)' : 'OFF (full)'}`)
+    } else {
+      console.log('VHS effect not active - press V first to enable')
+    }
+  }
+
+  private cycleVhsSkipFrames() {
+    const camera = this.cameras.main
+    const pipeline = camera.getPostPipeline(VHS_POSTFX_PIPELINE_KEY)
+    const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
+
+    if (instance && instance instanceof VhsPostFxPipeline) {
+      const current = instance.getSkipFrames()
+      const next = current >= 3 ? 1 : current + 1
+      instance.setSkipFrames(next)
+      this.logVhsFps(`frame skip: ${next === 1 ? 'OFF (every frame)' : `${next} frames`}`)
+    } else {
+      console.log('VHS effect not active - press V first to enable')
+    }
+  }
+
+  private toggleSoftPostFx() {
+    const camera = this.cameras.main
+    const existing = camera.getPostPipeline(SOFT_POSTFX_PIPELINE_KEY)
+    const hasExisting = Array.isArray(existing) ? existing.length > 0 : !!existing
+
+    if (hasExisting) {
+      camera.removePostPipeline(SOFT_POSTFX_PIPELINE_KEY)
+      return
+    }
+
+    camera.setPostPipeline(SOFT_POSTFX_PIPELINE_KEY)
+
+    const pipeline = camera.getPostPipeline(SOFT_POSTFX_PIPELINE_KEY)
+    const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
+
+    if (instance && instance instanceof SoftPostFxPipeline) {
+      instance.applyPreset('chaotic')
+    }
+  }
 
   private clearHoverHighlight(item: Item) {
     const glow = this.hoverGlowFx.get(item)
@@ -203,9 +573,33 @@ export default class Game extends Phaser.Scene {
     this.keyE = keyboard.addKey('E')
     this.keyR = keyboard.addKey('R')
     this.keyT = keyboard.addKey('T')
+    this.key1 = keyboard.addKey('ONE')
+    this.key2 = keyboard.addKey('TWO')
+    this.key3 = keyboard.addKey('THREE')
+    this.key4 = keyboard.addKey('FOUR')
+    this.key5 = keyboard.addKey('FIVE')
+    this.keyV = keyboard.addKey('V')
+    this.keyB = keyboard.addKey('B')
     keyboard.disableGlobalCapture()
     keyboard.on('keydown-ESC', (event) => {
       store.dispatch(setShowChat(false))
+    })
+
+    keyboard.on('keydown-V', (event: KeyboardEvent) => {
+      if (this.game.renderer.type !== Phaser.WEBGL) return
+
+      if (event.shiftKey) {
+        this.toggleVhsHalfRes()
+      } else if (event.ctrlKey || event.metaKey) {
+        this.cycleVhsSkipFrames()
+      } else {
+        this.toggleVhsPostFx()
+      }
+    })
+
+    keyboard.on('keydown-B', () => {
+      if (this.game.renderer.type !== Phaser.WEBGL) return
+      this.toggleSoftPostFx()
     })
   }
 
@@ -330,6 +724,13 @@ export default class Game extends Phaser.Scene {
 
     createCharacterAnims(this.anims)
 
+    this.rippedAnimKeys = mutantRippedAnimKeys.slice().sort()
+
+    phaserEvents.on(Event.MUTANT_RIPPED_DEBUG_NEXT_ANIM, this.playNextRippedAnim, this)
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      phaserEvents.off(Event.MUTANT_RIPPED_DEBUG_NEXT_ANIM, this.playNextRippedAnim, this)
+    })
+
     this.map = this.make.tilemap({ key: 'tilemap' })
     const FloorAndGround = this.map.addTilesetImage('FloorAndGround', 'tiles_wall')
 
@@ -345,13 +746,13 @@ export default class Game extends Phaser.Scene {
     groundLayer.setCollisionByProperty({ collides: true })
     this.groundLayer = groundLayer
 
-    this.myPlayer = this.add.myPlayer(705, 500, 'adam', this.network.mySessionId)
+    this.myPlayer = this.add.myPlayer(705, 500, 'mutant', this.network.mySessionId)
 
     const state = store.getState()
     if (!state.user.loggedIn && state.room.roomType === RoomType.PUBLIC) {
       const generatedName = `mutant-${this.network.mySessionId}`
 
-      this.myPlayer.setPlayerTexture('adam')
+      this.myPlayer.setPlayerTexture('mutant')
       this.myPlayer.setPlayerName(generatedName)
       this.network.readyToConnect()
       store.dispatch(setLoggedIn(true))
@@ -435,38 +836,125 @@ export default class Game extends Phaser.Scene {
     )
 
     this.physics.add.collider(this.myPlayer, this.otherPlayers)
-    // Youtube embed test
-    // const youtubePlayerProps = {
-    //   scene: this,
-    //   x: 560,
-    //   y: 400,
-    //   width: 240,
-    //   height: 180,
-    // }
 
-    // this.myYoutubePlayer = new MyYoutubePlayer({ ...youtubePlayerProps })
-    // this.myYoutubePlayer.load(this.youtubeUrl, false)
-    // this.myYoutubePlayer.alpha = 0
-    // const currentLink = store.getState().musicStream.link
-    // if (currentLink !== null) {
-    //   this.myYoutubePlayer?.load(currentLink)
-    //   if (this.myYoutubePlayer) {
-    //     this.myYoutubePlayer.alpha = 0.5
-    //     this.myYoutubePlayer.blendMode = Phaser.BlendModes.SCREEN
-    //   }
-    //   this.myYoutubePlayer?.play()
-    // }
+    this.backgroundModeText = this.add.text(12, 12, 'BG: OFF', {
+      fontFamily: 'monospace',
+      fontSize: '12px',
+      color: '#ffffff',
+      backgroundColor: 'rgba(0, 0, 0, 0.65)',
+      padding: { x: 6, y: 4 },
+    })
+    this.backgroundModeText.setScrollFactor(0)
+    this.backgroundModeText.setDepth(100000)
+    this.backgroundModeText.setVisible(true)
+
+    this.backgroundVideo = this.add.video(0, 0)
+    this.backgroundVideo.setOrigin(0, 0)
+    this.backgroundVideo.setScrollFactor(0)
+    this.backgroundVideo.setDepth(-20)
+    this.backgroundVideo.setAlpha(0)
+    this.backgroundVideo.setVisible(false)
+    this.backgroundVideo.setDisplaySize(this.scale.width, this.scale.height)
+
+    // Youtube background player (Phaser-native)
+    this.myYoutubePlayer = new MyYoutubePlayer({
+      scene: this,
+      x: 0,
+      y: 0,
+      width: this.scale.width,
+      height: this.scale.height,
+      config: {
+        autoPlay: true,
+        controls: false,
+        keyboardControl: false,
+        modestBranding: true,
+        showVideoTitle: false,
+        playerVars: {
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          iv_load_policy: 3,
+          modestbranding: 1,
+          playsinline: 1,
+          rel: 0,
+        },
+        loop: true,
+      },
+    })
+    this.myYoutubePlayer.setOrigin(0, 0)
+    this.myYoutubePlayer.setScrollFactor(0)
+    this.myYoutubePlayer.setDepth(-10)
+    this.myYoutubePlayer.alpha = 0
+
+    this.myYoutubePlayer.pointerEvents = 'none'
+
+    // Ensure future iframes are also non-interactive
+    this.myYoutubePlayer.on('ready', () => {
+      this.applyIframeBackgroundStyles()
+    })
+
+    // Handle resize
+    this.scale.on(Phaser.Scale.Events.RESIZE, (gameSize: Phaser.Structs.Size) => {
+      this.myYoutubePlayer?.resize(gameSize.width, gameSize.height)
+      this.backgroundVideo?.setDisplaySize(gameSize.width, gameSize.height)
+    })
+
+    // Interaction to allow autoplay
+    this.input.once('pointerdown', () => {
+      if (this.myYoutubePlayer?.alpha === 1) {
+        this.myYoutubePlayer.play()
+      }
+
+      if (this.backgroundVideo?.alpha === 1) {
+        this.backgroundVideo.play(true)
+      }
+    })
 
     // register network event listeners
     this.network.onPlayerJoined(this.handlePlayerJoined, this)
     this.network.onPlayerLeft(this.handlePlayerLeft, this)
     this.network.onMyPlayerReady(this.handleMyPlayerReady, this)
+    this.network.onMyPlayerForcedAnim(this.handleMyPlayerForcedAnim, this)
     this.network.onPlayerUpdated(this.handlePlayerUpdated, this)
     this.network.onItemUserAdded(this.handleItemUserAdded, this)
     this.network.onItemUserRemoved(this.handleItemUserRemoved, this)
     this.network.onChatMessageAdded(this.handleChatMessageAdded, this)
     this.network.onStartMusicStream(this.handleStartMusicStream, this)
     this.network.onStopMusicStream(this.handleStopMusicStream, this)
+    this.network.onVideoBackgroundEnabledChanged(this.handleVideoBackgroundEnabledChanged, this)
+
+    // Enable VHS post-FX by default
+    if (this.game.renderer.type === Phaser.WEBGL) {
+      this.toggleVhsPostFx()
+    }
+
+    // Late-join sync: if a stream is already playing (and background video is already enabled),
+    // we may have missed the initial START_PLAYING_MEDIA emit during Network.initialize().
+    this.time.delayedCall(0, () => {
+      this.handleVideoBackgroundEnabledChanged(store.getState().musicStream.videoBackgroundEnabled)
+    })
+
+    this.time.delayedCall(250, () => {
+      this.handleVideoBackgroundEnabledChanged(store.getState().musicStream.videoBackgroundEnabled)
+    })
+  }
+
+  private handleVideoBackgroundEnabledChanged(enabled: boolean) {
+    const { link: url, startTime, isAmbient } = store.getState().musicStream
+
+    if (!enabled || !url || isAmbient) {
+      void this.stopBackgroundVideo()
+      return
+    }
+
+    const offset = startTime > 0 ? (Date.now() - startTime) / 1000 : 0
+    const videoId = this.getYouTubeVideoId(url)
+
+    console.log(
+      `[YoutubeBG] Enabled mid-stream | Loading Video ID: ${videoId} at offset: ${offset}`
+    )
+
+    void this.tryPlayWebglBackgroundVideo(videoId, offset)
   }
 
   private handleItemSelectorOverlap(playerSelector, selectionItem) {
@@ -517,7 +1005,7 @@ export default class Game extends Phaser.Scene {
     const initialTexture =
       typeof newPlayer.anim === 'string' && newPlayer.anim.includes('_')
         ? newPlayer.anim.split('_')[0]
-        : 'adam'
+        : 'mutant'
 
     const otherPlayer = this.add.otherPlayer(
       newPlayer.x,
@@ -528,8 +1016,7 @@ export default class Game extends Phaser.Scene {
     )
 
     if (typeof newPlayer.anim === 'string' && newPlayer.anim !== '') {
-      otherPlayer.anims.play(newPlayer.anim, true)
-      otherPlayer.updatePhysicsBodyForAnim(newPlayer.anim)
+      otherPlayer.updateOtherPlayer('anim', newPlayer.anim)
     }
 
     this.otherPlayers.add(otherPlayer)
@@ -554,6 +1041,22 @@ export default class Game extends Phaser.Scene {
   private handlePlayerUpdated(field: string, value: number | string, id: string) {
     const otherPlayer = this.otherPlayerMap.get(id)
     otherPlayer?.updateOtherPlayer(field, value)
+  }
+
+  private handleMyPlayerForcedAnim(animKey: string, x?: number, y?: number) {
+    if (!this.myPlayer || !this.network) return
+    this.myPlayer.cancelMoveNavigation()
+
+    if (typeof x === 'number' && typeof y === 'number') {
+      const body = this.myPlayer.body as Phaser.Physics.Arcade.Body | null
+      this.myPlayer.x = x
+      this.myPlayer.y = y
+      body?.reset(x, y)
+      this.myPlayer.playerContainer.x = x
+      this.myPlayer.playerContainer.y = y
+    }
+
+    this.myPlayer.playHitAnim(animKey, this.network)
   }
 
   private handlePlayersOverlap(myPlayer, otherPlayer) {}
@@ -599,6 +1102,16 @@ export default class Game extends Phaser.Scene {
     otherPlayer?.updateDialogBubble(content, bubbleScale)
   }
 
+  private getYouTubeVideoId(url: string): string {
+    if (!url) return ''
+    if (url.length === 11) return url // Already an ID
+
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/
+    const match = url.match(regExp)
+
+    return match && match[2].length === 11 ? match[2] : url
+  }
+
   private handleStartMusicStream(musicStream: IMusicStream, offset: number) {
     console.log('////handleStartMusicStream, musicStream.currentLink', musicStream.currentLink)
     console.log('////handleStartMusicStream, offset', offset)
@@ -607,6 +1120,7 @@ export default class Game extends Phaser.Scene {
     const {
       currentLink: url,
       currentTitle: title,
+      streamId,
       currentDj,
       startTime,
       isRoomPlaylist,
@@ -621,6 +1135,7 @@ export default class Game extends Phaser.Scene {
       setMusicStream({
         url,
         title,
+        streamId,
         currentDj,
         startTime,
         isRoomPlaylist,
@@ -629,16 +1144,28 @@ export default class Game extends Phaser.Scene {
         isAmbient,
       })
     )
+
+    if (videoBackgroundEnabled && url && !isAmbient) {
+      const videoId = this.getYouTubeVideoId(url)
+      console.log(`[YoutubeBG] Loading Video ID: ${videoId} at offset: ${offset}`)
+      void this.tryPlayWebglBackgroundVideo(videoId, offset)
+    } else {
+      void this.stopBackgroundVideo()
+    }
   }
 
   private handleStopMusicStream() {
     console.log('////handleStopMusicStream')
     store.dispatch(setMusicStream(null))
-    this.myYoutubePlayer?.pause()
+    void this.stopBackgroundVideo()
   }
 
   update(t: number, dt: number) {
     if (this.myPlayer && this.network) {
+      if (this.key5 && Phaser.Input.Keyboard.JustDown(this.key5)) {
+        this.playNextRippedAnim()
+      }
+
       const pointer = this.input.activePointer
 
       if (pointer.isDown && pointer.downTime !== this.lastPointerDownTime) {
@@ -659,6 +1186,26 @@ export default class Game extends Phaser.Scene {
           const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
           const x = worldPoint.x
           const y = worldPoint.y
+
+          const clickedOtherPlayer = (() => {
+            let topMost: OtherPlayer | null = null
+            let topDepth = -Infinity
+
+            for (const otherPlayer of this.otherPlayerMap.values()) {
+              if (!otherPlayer.active || !otherPlayer.visible) continue
+              if (!otherPlayer.getBounds().contains(x, y)) continue
+              if (otherPlayer.depth >= topDepth) {
+                topDepth = otherPlayer.depth
+                topMost = otherPlayer
+              }
+            }
+
+            return topMost
+          })()
+
+          if (!clickedOtherPlayer) {
+            this.pendingPunchTargetId = null
+          }
 
           const clickedItem = this.findTopInteractableAt({ x, y })
 
@@ -748,7 +1295,68 @@ export default class Game extends Phaser.Scene {
             return
           }
 
+          if (clickedOtherPlayer) {
+            const targetFeet = this.getPlayerFeetPoint(clickedOtherPlayer)
+            const approachX = targetFeet.x
+            const approachY = targetFeet.y
+
+            moveToWorld(approachX, approachY, 12)
+            this.pendingPunchTargetId = clickedOtherPlayer.playerId
+            return
+          }
+
           moveToWorld(x, y)
+        }
+      }
+
+      if (this.pendingPunchTargetId) {
+        const target = this.otherPlayerMap.get(this.pendingPunchTargetId)
+        if (!target) {
+          this.pendingPunchTargetId = null
+        } else {
+          const myFeet = this.getPlayerFeetPoint(this.myPlayer)
+          const targetFeet = this.getPlayerFeetPoint(target)
+
+          const dx = targetFeet.x - myFeet.x
+          const dy = targetFeet.y - myFeet.y
+          const punchRangePx = 56
+          const punchDyWeight = 1.5
+          const weightedDistanceSq = dx * dx + dy * punchDyWeight * (dy * punchDyWeight)
+
+          if (weightedDistanceSq <= punchRangePx * punchRangePx) {
+            this.myPlayer.cancelMoveNavigation()
+
+            const absDx = Math.abs(dx)
+            const absDy = Math.abs(dy)
+            const diagonalThreshold = 0.5
+            const isDiagonal =
+              absDx > 0 &&
+              absDy > 0 &&
+              absDx / absDy > diagonalThreshold &&
+              absDy / absDx > diagonalThreshold
+
+            let dir: 'left' | 'right' | 'down' | 'down_left' | 'down_right' | 'up_left' | 'up_right'
+
+            if (isDiagonal) {
+              if (dy > 0) {
+                dir = dx >= 0 ? 'down_right' : 'down_left'
+              } else {
+                dir = dx >= 0 ? 'up_right' : 'up_left'
+              }
+            } else if (absDx >= absDy) {
+              dir = dx >= 0 ? 'right' : 'left'
+            } else {
+              dir = dy >= 0 ? 'down' : 'up_right'
+            }
+
+            if (this.myPlayer.playerTexture === 'mutant') {
+              const punchAnimKey = `mutant_punch_${dir}`
+              this.myPlayer.playActionAnim(punchAnimKey, this.network)
+            }
+
+            this.network.punchPlayer(target.playerId)
+            this.pendingPunchTargetId = null
+          }
         }
       }
 
@@ -779,7 +1387,13 @@ export default class Game extends Phaser.Scene {
         this.keyR,
         this.network,
         dt,
-        this.keyT
+        this.keyT,
+        {
+          key1: this.key1,
+          key2: this.key2,
+          key3: this.key3,
+          key4: this.key4,
+        }
       )
     }
   }

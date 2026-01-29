@@ -1,8 +1,16 @@
 /.cache
 /dist
 node_modules
-/.DS_Store
+.DS_Store
 /server/lib
 
 __pycache__
+
+/conversion/out
+/conversion/named
+/conversion/base/*
+!/conversion/base/mutant_sprites/
+!/conversion/base/mutant_sprites/**
+!/conversion/base/ripped_sprites_individual_export/
+!/conversion/base/ripped_sprites_individual_export/**
 

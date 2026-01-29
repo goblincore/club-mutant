@@ -7,6 +7,7 @@ The goal of this workflow is to automatically extract each animation rectangle i
 ## Input
 
 - `conversion/base/supermutant-basicanimations.png`
+- `conversion/base/griddedpinksupermutant.png` (pink guide lines)
 
 ## Output
 
@@ -37,7 +38,21 @@ Use a repo-local virtualenv instead:
 
 ## Run
 
+Default (recommended): extract blocks and manifest without modifying pixels:
+
 - `./.venv/bin/python conversion/scripts/extract_anim_blocks.py --input conversion/base/supermutant-basicanimations.png`
+
+Pink guides (gridded sheet):
+
+- `./.venv/bin/python conversion/scripts/extract_anim_blocks.py --input conversion/base/griddedpinksupermutant.png --guide-color pink`
+
+Optional: export per-frame PNGs with deterministic naming using a frames map:
+
+- `./.venv/bin/python conversion/scripts/extract_anim_blocks.py --input conversion/base/griddedpinksupermutant.png --guide-color pink --export-frames --export-frames-flat --frames-map conversion/frames-map.example.json`
+
+Optional (experimental): attempt to make the background transparent:
+
+- `./.venv/bin/python conversion/scripts/extract_anim_blocks.py --input conversion/base/supermutant-basicanimations.png --transparent-bg`
 
 This will write outputs under:
 
@@ -59,6 +74,20 @@ Load each extracted block as a Phaser spritesheet using the manifest metadata.
 
 - The script extracts the full interior of each magenta rectangle (minus a small configurable border shrink).
 - Grid slicing assumes each extracted block is a fully-populated uniform grid with padding between cells.
+
+## Transparency (optional)
+
+The spritesheets in this repo often use a dark/purple gradient background. Automated transparency can be finicky and may remove desired shadow pixels depending on settings.
+
+By default the extractor does not attempt transparency.
+
+If experimenting:
+
+- `--transparent-bg` enables RGBA output.
+- `--transparent-mode colorkey` (default) uses a per-block background color key and only removes background pixels connected to the block edges.
+- `--transparent-mode hsv` uses fixed HSV thresholds.
+
+If you need transparency for production, consider doing it as a dedicated post-process step and verifying results by eye.
 
 ## Troubleshooting
 

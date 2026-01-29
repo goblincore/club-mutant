@@ -35,6 +35,8 @@ export interface IPlaylistItem extends Schema {
   thumb?: string
   type?: string
   duration: number
+  visualUrl?: string | null
+  trackMessage?: string | null
 }
 
 export interface IRoomPlaylistItem extends Schema {
@@ -54,10 +56,13 @@ export type PlaylistItem = {
   thumb?: string
   type?: string
   duration: number
+  visualUrl?: string | null
+  trackMessage?: string | null
 }
 
 export interface IMusicStream extends Schema {
   status: string // waiting or seeking or playing
+  streamId: number
   currentLink: string | null
   currentTitle: string | null
   currentDj: IDJUserInfo
@@ -68,6 +73,8 @@ export interface IMusicStream extends Schema {
   roomPlaylistIndex: number
   videoBackgroundEnabled: boolean
   isAmbient: boolean
+  currentVisualUrl?: string | null
+  currentTrackMessage?: string | null
 }
 
 export interface IOfficeState extends Schema {

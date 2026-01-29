@@ -71,10 +71,10 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     const key = animKey ?? this.anims.currentAnim?.key ?? ''
     const isDjAnim =
-      key === 'adam_boombox' ||
-      key === 'adam_djwip' ||
-      key === 'adam_transform' ||
-      key === 'adam_transform_reverse'
+      key === 'mutant_boombox' ||
+      key === 'mutant_djwip' ||
+      key === 'mutant_transform' ||
+      key === 'mutant_transform_reverse'
 
     const widthScale = isDjAnim ? 0.44 : 0.5
     const heightScale = isDjAnim ? 0.2 : 0.25

@@ -34,12 +34,16 @@ import Queue from '../Queue'
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
-  private name: string
-  private description: string
+  private name = ''
+  private description = ''
   private password: string | null = null
   private musicBoothQueue: Queue | null = null
   private isPublic = false
   private publicBackgroundSeed: number | null = null
+
+  private lastPlayerActionAtMsBySessionId = new Map<string, number>()
+
+  private musicStreamTickIntervalId: NodeJS.Timeout | null = null
 
   private ambientPublicVideoId = 'CAWJ2PO1V_g'
 
@@ -49,6 +53,8 @@ export class SkyOffice extends Room<OfficeState> {
     musicStream.status = 'waiting'
     musicStream.currentLink = null
     musicStream.currentTitle = null
+    musicStream.currentVisualUrl = null
+    musicStream.currentTrackMessage = null
     musicStream.startTime = Date.now()
     musicStream.duration = 0
     musicStream.isAmbient = false
@@ -70,15 +76,40 @@ export class SkyOffice extends Room<OfficeState> {
     musicStream.roomPlaylistIndex = 0
     musicStream.currentBooth = 0
     musicStream.status = 'playing'
+    musicStream.streamId += 1
     musicStream.currentLink = this.ambientPublicVideoId
     musicStream.currentTitle = null
+    musicStream.currentVisualUrl = null
+    musicStream.currentTrackMessage = null
     musicStream.currentDj.name = ''
     musicStream.currentDj.sessionId = ''
     musicStream.startTime = Date.now()
     musicStream.duration = 0
-    musicStream.videoBackgroundEnabled = false
 
     this.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
+  }
+
+  private startMusicStreamTickIfNeeded() {
+    if (this.musicStreamTickIntervalId) return
+
+    this.musicStreamTickIntervalId = setInterval(() => {
+      const musicStream = this.state.musicStream
+
+      if (musicStream.status !== 'playing' || !musicStream.currentLink) return
+
+      this.broadcast(Message.MUSIC_STREAM_TICK, {
+        streamId: musicStream.streamId,
+        startTime: musicStream.startTime,
+        serverNowMs: Date.now(),
+      })
+    }, 5_000)
+  }
+
+  private stopMusicStreamTickIfNeeded() {
+    if (!this.musicStreamTickIntervalId) return
+
+    clearInterval(this.musicStreamTickIntervalId)
+    this.musicStreamTickIntervalId = null
   }
 
   private stopAmbientIfNeeded() {
@@ -109,6 +140,8 @@ export class SkyOffice extends Room<OfficeState> {
     this.setMetadata({ name, description, hasPassword })
 
     this.setState(new OfficeState())
+
+    this.startMusicStreamTickIfNeeded()
 
     const setStoppedMusicStream = () => {
       this.setStoppedMusicStream()
@@ -154,8 +187,11 @@ export class SkyOffice extends Room<OfficeState> {
       musicStream.roomPlaylistIndex = clampedIndex
       musicStream.currentBooth = 0
       musicStream.status = 'playing'
+      musicStream.streamId += 1
       musicStream.currentLink = current.link
       musicStream.currentTitle = current.title
+      musicStream.currentVisualUrl = null
+      musicStream.currentTrackMessage = null
       musicStream.currentDj = djInfo
       musicStream.startTime = Date.now()
       musicStream.duration = current.duration
@@ -227,6 +263,20 @@ export class SkyOffice extends Room<OfficeState> {
       if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
 
       this.state.musicStream.videoBackgroundEnabled = Boolean(message.enabled)
+    })
+
+    this.onMessage(Message.TIME_SYNC_REQUEST, (client, message: { clientSentAtMs?: unknown }) => {
+      const clientSentAtMs =
+        typeof message?.clientSentAtMs === 'number' && Number.isFinite(message.clientSentAtMs)
+          ? message.clientSentAtMs
+          : null
+
+      if (clientSentAtMs === null) return
+
+      client.send(Message.TIME_SYNC_RESPONSE, {
+        clientSentAtMs,
+        serverNowMs: Date.now(),
+      })
     })
 
     this.onMessage(Message.ROOM_PLAYLIST_SKIP, (client) => {
@@ -349,24 +399,160 @@ export class SkyOffice extends Room<OfficeState> {
     this.onMessage(
       Message.UPDATE_PLAYER_ACTION,
       (client, message: { x: number; y: number; anim: string }) => {
+        const nowMs = Date.now()
+
+        const lastAtMs = this.lastPlayerActionAtMsBySessionId.get(client.sessionId) ?? 0
+        const minIntervalMs = 50
+        if (nowMs - lastAtMs < minIntervalMs) return
+
+        const x = typeof message.x === 'number' && Number.isFinite(message.x) ? message.x : null
+        const y = typeof message.y === 'number' && Number.isFinite(message.y) ? message.y : null
+        if (x === null || y === null) return
+
+        const player = this.state.players.get(client.sessionId)
+        if (!player) return
+
+        const dtMs = Math.max(1, nowMs - lastAtMs)
+        const maxSpeedPxPerSec = 240
+        const distanceBufferPx = 40
+        const dx = x - player.x
+        const dy = y - player.y
+        const distance = Math.hypot(dx, dy)
+        const maxAllowedDistance = (maxSpeedPxPerSec * dtMs) / 1000 + distanceBufferPx
+        if (distance > maxAllowedDistance) return
+
         const sanitizedAnim =
           this.isPublic && typeof message.anim === 'string'
             ? (() => {
+                const allowedSpecialAnims = new Set([
+                  'mutant_boombox',
+                  'mutant_djwip',
+                  'mutant_transform',
+                  'mutant_transform_reverse',
+                ])
+
+                if (allowedSpecialAnims.has(message.anim)) return message.anim
+
                 const parts = message.anim.split('_')
-                if (parts.length < 2) return 'adam_idle_down'
-                parts[0] = 'adam'
+                if (parts.length < 2) return 'mutant_idle_down'
+                parts[0] = 'mutant'
                 return parts.join('_')
               })()
-            : message.anim
+            : typeof message.anim === 'string'
+              ? message.anim
+              : 'mutant_idle_down'
+
+        this.lastPlayerActionAtMsBySessionId.set(client.sessionId, nowMs)
 
         this.dispatcher.dispatch(new PlayerUpdateActionCommand(), {
           client,
-          x: message.x,
-          y: message.y,
+          x,
+          y,
           anim: sanitizedAnim,
         })
       }
     )
+
+    this.onMessage(Message.PUNCH_PLAYER, (client, message: { targetId: string }) => {
+      const attacker = this.state.players.get(client.sessionId)
+      if (!attacker) return
+
+      const targetId = typeof message.targetId === 'string' ? message.targetId : ''
+      if (!targetId) return
+
+      if (targetId === client.sessionId) return
+
+      const victim = this.state.players.get(targetId)
+      if (!victim) return
+
+      const dx = attacker.x - victim.x
+      const dy = attacker.y - victim.y
+      const punchRangePx = 56
+      const punchDyWeight = 1.5
+      const weightedDistanceSq = dx * dx + dy * punchDyWeight * (dy * punchDyWeight)
+      if (weightedDistanceSq > punchRangePx * punchRangePx) return
+
+      const absDx = Math.abs(dx)
+      const absDy = Math.abs(dy)
+
+      const diagonalThreshold = 0.5
+      const isDiagonal =
+        absDx > 0 &&
+        absDy > 0 &&
+        absDx / absDy > diagonalThreshold &&
+        absDy / absDx > diagonalThreshold
+
+      let dir: 'left' | 'right' | 'down' | 'down_left' | 'down_right' | 'up_left' | 'up_right'
+
+      if (isDiagonal) {
+        if (dy > 0) {
+          dir = dx >= 0 ? 'down_right' : 'down_left'
+        } else {
+          dir = dx >= 0 ? 'up_right' : 'up_left'
+        }
+      } else if (absDx >= absDy) {
+        dir = dx >= 0 ? 'right' : 'left'
+      } else {
+        dir = dy >= 0 ? 'down' : 'up_right'
+      }
+
+      const victimTexture =
+        typeof victim.anim === 'string' && victim.anim.includes('_')
+          ? victim.anim.split('_')[0]
+          : ''
+
+      if (victimTexture !== 'mutant') return
+
+      // Randomly pick hit1 or hit2
+      const hitType = Math.random() > 0.5 ? 'hit1' : 'hit2'
+      const hitAnimKey = `mutant_${hitType}_${dir}`
+
+      const punchImpactDelayMs = 350
+
+      const attackerAtPunch = { x: attacker.x, y: attacker.y }
+
+      this.clock.setTimeout(() => {
+        const victimCurrent = this.state.players.get(targetId)
+        if (!victimCurrent) return
+
+        const punchKnockbackPx = 10
+
+        const kbDx = victimCurrent.x - attackerAtPunch.x
+        const kbDy = victimCurrent.y - attackerAtPunch.y
+        const kbLen = Math.sqrt(kbDx * kbDx + kbDy * kbDy)
+
+        const kbUnitX = kbLen > 0 ? kbDx / kbLen : 0
+        const kbUnitY = kbLen > 0 ? kbDy / kbLen : 0
+
+        victimCurrent.x += kbUnitX * punchKnockbackPx
+        victimCurrent.y += kbUnitY * punchKnockbackPx
+
+        victimCurrent.anim = hitAnimKey
+
+        const victimClient = this.clients.find((c) => c.sessionId === targetId)
+
+        // Broadcast to everyone ELSE (OtherPlayer instances)
+        this.broadcast(
+          Message.UPDATE_PLAYER_ACTION,
+          {
+            x: victimCurrent.x,
+            y: victimCurrent.y,
+            anim: hitAnimKey,
+            sessionId: targetId,
+          },
+          { except: victimClient }
+        )
+
+        // Send to the victim specifically
+        if (victimClient) {
+          victimClient.send(Message.PUNCH_PLAYER, {
+            anim: hitAnimKey,
+            x: victimCurrent.x,
+            y: victimCurrent.y,
+          })
+        }
+      }, punchImpactDelayMs)
+    })
 
     // when receiving updatePlayerName message, call the PlayerUpdateNameCommand
     this.onMessage(Message.UPDATE_PLAYER_NAME, (client, message: { name: string }) => {
@@ -431,6 +617,10 @@ export class SkyOffice extends Room<OfficeState> {
 
   async onAuth(client: Client, options: { password: string | null }) {
     if (this.password) {
+      if (!options.password) {
+        throw new ServerError(403, 'Password is required!')
+      }
+
       const isValidPassword = await bcrypt.compare(options.password, this.password)
       if (!isValidPassword) {
         throw new ServerError(403, 'Password is incorrect!')
@@ -443,14 +633,20 @@ export class SkyOffice extends Room<OfficeState> {
   onJoin(client: Client, options: any) {
     console.log('////onJoin, client', client)
 
-    const player = new Player()
+    const existingPlayer = this.state.players.get(client.sessionId)
+    const player = existingPlayer ?? new Player()
 
-    if (this.isPublic) {
+    if (!existingPlayer && this.isPublic) {
       player.name = `mutant-${client.sessionId}`
-      player.anim = 'adam_idle_down'
+      player.anim = 'mutant_idle_down'
     }
 
-    this.state.players.set(client.sessionId, player)
+    if (!existingPlayer) {
+      this.state.players.set(client.sessionId, player)
+    }
+
+    this.lastPlayerActionAtMsBySessionId.set(client.sessionId, Date.now())
+
     client.send(Message.SEND_ROOM_DATA, {
       id: this.roomId,
       name: this.name,
@@ -473,10 +669,22 @@ export class SkyOffice extends Room<OfficeState> {
     console.log('////onJoin, musicStream.status', musicStream.status)
   }
 
-  onLeave(client: Client, consented: boolean) {
+  async onLeave(client: Client, consented: boolean) {
+    if (!consented) {
+      try {
+        await this.allowReconnection(client, 60)
+        return
+      } catch (_e) {
+        // fallthrough: timed out, proceed to cleanup
+      }
+    }
+
+    this.lastPlayerActionAtMsBySessionId.delete(client.sessionId)
+
     if (this.state.players.has(client.sessionId)) {
       this.state.players.delete(client.sessionId)
     }
+
     this.state.musicBooths.forEach((musicBooth, index) => {
       if (musicBooth.connectedUser === client.sessionId) {
         this.dispatcher.dispatch(new MusicBoothDisconnectUserCommand(), {
@@ -498,6 +706,8 @@ export class SkyOffice extends Room<OfficeState> {
 
   onDispose() {
     console.log('room', this.roomId, 'disposing...')
+
+    this.stopMusicStreamTickIfNeeded()
     this.dispatcher.stop()
   }
 }

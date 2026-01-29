@@ -1,7 +1,8 @@
 import { Command } from '@colyseus/command'
-import { Client, Room } from 'colyseus'
-import { IOfficeState, IPlaylistItem } from '../../../types/IOfficeState'
-import { Player, PlaylistItem } from '../schema/OfficeState'
+import { Client } from 'colyseus'
+import type { SkyOffice } from '../SkyOffice'
+import { IPlaylistItem } from '../../../types/IOfficeState'
+import { PlaylistItem } from '../schema/OfficeState'
 
 type Payload = {
   client?: Client
@@ -10,47 +11,71 @@ type Payload = {
   items?: IPlaylistItem[]
 }
 
-export class PlayerSyncShortPlaylist extends Command<IOfficeState, Payload> {
+export class PlayerSyncShortPlaylist extends Command<SkyOffice, Payload> {
   execute(data: Payload) {
     const { client, items } = data
+
+    if (!client || !items) return
+
     const player = this.state.players.get(client.sessionId)
+    if (!player) return
 
     console.log('//Player sync next two playlist command', items, 'client', client.sessionId)
 
-    items?.forEach(item => {
+    // clear existing list in-place (ArraySchema) to avoid duplication
+    while (player.nextTwoPlaylist.length > 0) {
+      player.nextTwoPlaylist.shift()
+    }
+
+    items.forEach((item) => {
       const newItem = new PlaylistItem()
       newItem.title = item.title
       newItem.link = item.link
       newItem.id = item.id
       newItem.djId = client.sessionId
       newItem.duration = item.duration
+      newItem.visualUrl = item.visualUrl ?? null
+      newItem.trackMessage = item.trackMessage ?? null
       player.nextTwoPlaylist.push(newItem)
     })
-  
   }
 }
 
-export class PlayerSetCurrentPlaylistItemCommand extends Command<IOfficeState, Payload> {
+export class PlayerSetCurrentPlaylistItemCommand extends Command<SkyOffice, Payload> {
   execute(data: Payload) {
     const { client, item } = data
+
+    if (!client || !item) return
+
     const player = this.state.players.get(client.sessionId)
+    if (!player) return
+
     const newItem = new PlaylistItem()
     newItem.title = item.title
     newItem.link = item.link
     newItem.duration = item.duration
+    newItem.visualUrl = item.visualUrl ?? null
+    newItem.trackMessage = item.trackMessage ?? null
     player.currentPlaylistItem = newItem
   }
 }
 
-export class PlayerSetNextPlaylistItemCommand extends Command<IOfficeState, Payload> {
+export class PlayerSetNextPlaylistItemCommand extends Command<SkyOffice, Payload> {
   execute(data: Payload) {
     const { client, item } = data
     console.log('////PlayerSetNextPlaylistItemCommand, item', item)
+
+    if (!client || !item) return
+
     const player = this.state.players.get(client.sessionId)
+    if (!player) return
+
     const newItem = new PlaylistItem()
     newItem.title = item.title
     newItem.link = item.link
     newItem.duration = item.duration
+    newItem.visualUrl = item.visualUrl ?? null
+    newItem.trackMessage = item.trackMessage ?? null
     player.nextPlaylistItem = newItem
   }
 }

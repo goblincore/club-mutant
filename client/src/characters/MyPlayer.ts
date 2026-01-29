@@ -26,6 +26,11 @@ export default class MyPlayer extends Player {
   private djBoothDepth: number | null = null
 
   private djTransitionTarget: { x: number; y: number } | null = null
+  private playingDebugAnim = false
+  private debugAnimKey: string | null = null
+
+  private playingActionAnim = false
+  private actionAnimKey: string | null = null
 
   private pendingAutoEnterMusicBooth: MusicBooth | null = null
 
@@ -72,6 +77,121 @@ export default class MyPlayer extends Player {
   clearMovePath() {
     this.movePath = null
     this.movePathIndex = 0
+  }
+
+  cancelMoveNavigation() {
+    this.cancelPendingAutoEnterMusicBooth()
+    this.clearMoveNavigation()
+  }
+
+  playActionAnim(animKey: string, network: Network, options?: { syncToServer?: boolean }) {
+    if (!this.scene.anims.exists(animKey)) return
+
+    const syncToServer = options?.syncToServer !== false
+
+    const parts = animKey.split('_')
+    const dir = parts.slice(2).join('_')
+    const currentDir = dir || 'down'
+
+    this.playingActionAnim = true
+    this.actionAnimKey = animKey
+
+    this.play(animKey, true)
+    this.updatePhysicsBodyForAnim(animKey)
+
+    if (syncToServer) {
+      network.updatePlayerAction(this.x, this.y, animKey)
+    }
+
+    this.once(`animationcomplete-${animKey}`, () => {
+      if (this.actionAnimKey === animKey) {
+        this.playingActionAnim = false
+        this.actionAnimKey = null
+      }
+
+      const idleKeyCandidate = `${this.playerTexture}_idle_${currentDir}`
+      const idleKey = this.scene.anims.exists(idleKeyCandidate)
+        ? idleKeyCandidate
+        : `${this.playerTexture}_idle_down`
+
+      this.play(idleKey, true)
+      this.updatePhysicsBodyForAnim(idleKey)
+
+      if (syncToServer) {
+        network.updatePlayerAction(this.x, this.y, idleKey)
+      }
+    })
+  }
+
+  playHitAnim(animKey: string, network: Network) {
+    if (!this.scene.anims.exists(animKey)) return
+
+    const parts = animKey.split('_')
+    const dir = parts.slice(2).join('_') || 'down'
+
+    // Interrupt current state
+    this.playingActionAnim = true
+    this.actionAnimKey = animKey
+
+    this.play(animKey, false) // false = do not ignore if already playing
+    this.updatePhysicsBodyForAnim(animKey)
+
+    this.once(`animationcomplete-${animKey}`, () => {
+      if (this.actionAnimKey === animKey) {
+        this.playingActionAnim = false
+        this.actionAnimKey = null
+      }
+
+      const idleKey = `${this.playerTexture}_idle_${dir}`
+      const finalIdle = this.scene.anims.exists(idleKey)
+        ? idleKey
+        : `${this.playerTexture}_idle_down`
+
+      this.play(finalIdle, true)
+      this.updatePhysicsBodyForAnim(finalIdle)
+
+      // Sync the return to idle
+      network.updatePlayerAction(this.x, this.y, finalIdle)
+    })
+  }
+
+  playDebugAnim(animKey: string, network: Network, options?: { syncToServer?: boolean }) {
+    if (!this.scene.anims.exists(animKey)) return
+
+    const syncToServer = options?.syncToServer !== false
+
+    const currentAnimKey = this.anims.currentAnim?.key ?? `${this.playerTexture}_idle_down`
+    const currentParts = currentAnimKey.split('_')
+    const currentDir = currentParts.slice(2).join('_') || 'down'
+
+    this.playingDebugAnim = true
+    this.debugAnimKey = animKey
+
+    this.play(animKey, true)
+    this.updatePhysicsBodyForAnim(animKey)
+
+    if (syncToServer) {
+      network.updatePlayerAction(this.x, this.y, animKey)
+    }
+
+    this.once(`animationcomplete-${animKey}`, () => {
+      if (this.debugAnimKey === animKey) {
+        this.playingDebugAnim = false
+        this.debugAnimKey = null
+      }
+
+      const idleKeyCandidate = `${this.playerTexture}_idle_${currentDir}`
+      const idleKey = this.scene.anims.exists(idleKeyCandidate)
+        ? idleKeyCandidate
+        : `${this.playerTexture}_idle_down`
+
+      this.play(idleKey, true)
+      this.updatePhysicsBodyForAnim(idleKey)
+
+      if (syncToServer) {
+        network.updatePlayerAction(this.x, this.y, idleKey)
+      }
+    })
   }
 
   requestLeaveMusicBooth() {
@@ -129,7 +249,13 @@ export default class MyPlayer extends Player {
     keyR: Phaser.Input.Keyboard.Key,
     network: Network,
     dt: number,
-    keyT?: Phaser.Input.Keyboard.Key
+    keyT?: Phaser.Input.Keyboard.Key,
+    debugKeys?: {
+      key1: Phaser.Input.Keyboard.Key
+      key2: Phaser.Input.Keyboard.Key
+      key3: Phaser.Input.Keyboard.Key
+      key4: Phaser.Input.Keyboard.Key
+    }
   ) {
     if (!cursors) return
 
@@ -138,24 +264,85 @@ export default class MyPlayer extends Player {
 
     const currentAnimKey = this.anims.currentAnim?.key ?? `${this.playerTexture}_idle_down`
 
+    if (this.playingDebugAnim && this.debugAnimKey && currentAnimKey !== this.debugAnimKey) {
+      this.playingDebugAnim = false
+      this.debugAnimKey = null
+    }
+
+    if (this.playingActionAnim && this.actionAnimKey && currentAnimKey !== this.actionAnimKey) {
+      this.playingActionAnim = false
+      this.actionAnimKey = null
+    }
+
     const item = playerSelector.selectedItem
 
     this.playerContainer.x = this.x
     this.playerContainer.y = this.y
+
+    // Debug keys for testing burn (1), flamethrower (2), and punch (3) animations
+    if (
+      debugKeys &&
+      this.playerTexture === 'mutant' &&
+      this.playerBehavior === PlayerBehavior.IDLE
+    ) {
+      // Extract current direction from animation key (e.g., "mutant_idle_down" -> "down")
+      const animParts = currentAnimKey.split('_')
+      const currentDir = animParts.slice(2).join('_') || 'down'
+
+      const playDebugAnim = (animKey: string) => {
+        if (!this.scene.anims.exists(animKey)) return
+
+        this.playingDebugAnim = true
+        this.debugAnimKey = animKey
+        this.play(animKey, true)
+        network.updatePlayerAction(this.x, this.y, animKey)
+
+        this.once(`animationcomplete-${animKey}`, () => {
+          if (this.debugAnimKey === animKey) {
+            this.playingDebugAnim = false
+            this.debugAnimKey = null
+          }
+
+          const idleKey = `${this.playerTexture}_idle_${currentDir}`
+          this.play(idleKey, true)
+          network.updatePlayerAction(this.x, this.y, idleKey)
+        })
+      }
+
+      if (Phaser.Input.Keyboard.JustDown(debugKeys.key1)) {
+        const burnKey = `mutant_burn_${currentDir}`
+        playDebugAnim(burnKey)
+      }
+
+      if (Phaser.Input.Keyboard.JustDown(debugKeys.key2)) {
+        const flameKey = `mutant_flamethrower_${currentDir}`
+        playDebugAnim(flameKey)
+      }
+
+      if (Phaser.Input.Keyboard.JustDown(debugKeys.key3)) {
+        const punchKey = `mutant_punch_${currentDir}`
+        playDebugAnim(punchKey)
+      }
+
+      if (Phaser.Input.Keyboard.JustDown(debugKeys.key4)) {
+        const hitKey = `mutant_hit1_${currentDir}`
+        playDebugAnim(hitKey)
+      }
+    }
 
     if (keyT && Phaser.Input.Keyboard.JustDown(keyT)) {
       const connectedIndex = store.getState().musicBooth.musicBoothIndex
       const isDj = connectedIndex !== null
 
       if (this.playerBehavior === PlayerBehavior.IDLE) {
-        if (!isDj && this.playerTexture === 'adam') {
+        if (!isDj && (this.playerTexture === 'adam' || this.playerTexture === 'mutant')) {
           this.clearMoveNavigation()
 
           this.setVelocity(0, 0)
           body.setVelocity(0, 0)
           this.playerContainerBody.setVelocity(0, 0)
 
-          const boomboxAnimKey = 'adam_boombox'
+          const boomboxAnimKey = 'mutant_boombox'
           this.play(boomboxAnimKey, true)
           this.updatePhysicsBodyForAnim(boomboxAnimKey)
           network.updatePlayerAction(this.x, this.y, boomboxAnimKey)
@@ -329,37 +516,27 @@ export default class MyPlayer extends Player {
           const absVx = Math.abs(vx)
           const absVy = Math.abs(vy)
 
-          const shouldLockAxis = Boolean(!hasKeyboardInput && this.moveTarget)
-          const axisSwitchRatio = 0.25
+          // 8-direction calculation: up_right, right, down_right, down, down_left, left, up_left
+          // Diagonals trigger when both axes have significant velocity
+          const diagonalThreshold = 0.5
+          const isDiagonal =
+            absVx > 0 &&
+            absVy > 0 &&
+            absVx / absVy > diagonalThreshold &&
+            absVy / absVx > diagonalThreshold
 
-          const suggestedAxis: 'x' | 'y' = absVx >= absVy ? 'x' : 'y'
+          let dir: 'left' | 'right' | 'down' | 'down_left' | 'down_right' | 'up_left' | 'up_right'
 
-          let axis = suggestedAxis
-          if (shouldLockAxis) {
-            if (!this.moveAnimAxis) {
-              this.moveAnimAxis = suggestedAxis
-            } else if (this.moveAnimAxis === 'x') {
-              if (absVy > absVx * (1 + axisSwitchRatio)) {
-                this.moveAnimAxis = 'y'
-              }
+          if (isDiagonal) {
+            if (vy > 0) {
+              dir = vx >= 0 ? 'down_right' : 'down_left'
             } else {
-              if (absVx > absVy * (1 + axisSwitchRatio)) {
-                this.moveAnimAxis = 'x'
-              }
+              dir = vx >= 0 ? 'up_right' : 'up_left'
             }
-
-            axis = this.moveAnimAxis
-          }
-
-          let dir: 'left' | 'right' | 'up' | 'down'
-          if (axis === 'x') {
+          } else if (absVx >= absVy) {
             dir = vx >= 0 ? 'right' : 'left'
           } else {
-            dir = vy >= 0 ? 'down' : 'up'
-          }
-
-          if (shouldLockAxis) {
-            this.moveAnimDir = dir
+            dir = vy >= 0 ? 'down' : 'up_right'
           }
 
           const nextAnimKey = `${this.playerTexture}_run_${dir}`
@@ -374,7 +551,8 @@ export default class MyPlayer extends Player {
           parts[1] = 'idle'
           const newAnim = parts.join('_')
           // this prevents idle animation keeps getting called
-          if (currentAnimKey !== newAnim) {
+          // also skip if a one-shot animation is playing
+          if (currentAnimKey !== newAnim && !this.playingDebugAnim && !this.playingActionAnim) {
             this.play(parts.join('_'), true)
             // send new location and anim to server
             network.updatePlayerAction(this.x, this.y, newAnim)
@@ -403,7 +581,7 @@ export default class MyPlayer extends Player {
           this.musicBoothOnSit.setDialogBox('Press R to be the DJ')
           this.djTransitionTarget = null
 
-          const reverseKey = 'adam_transform_reverse'
+          const reverseKey = 'mutant_transform_reverse'
           this.play(reverseKey, true)
           this.updatePhysicsBodyForAnim(reverseKey)
           network.updatePlayerAction(this.x, this.y, reverseKey)
@@ -522,14 +700,14 @@ export default class MyPlayer extends Player {
     musicBoothItem.setDialogBox('Press R to leave the DJ booth')
     this.musicBoothOnSit = musicBoothItem
     this.djBoothDepth = this.depth
-    if (this.playerTexture === 'adam') {
+    if (this.playerTexture === 'adam' || this.playerTexture === 'mutant') {
       const roomType = store.getState().room.roomType
-      const boothAnimKey = roomType === RoomType.PUBLIC ? 'adam_djwip' : 'adam_boombox'
+      const boothAnimKey = roomType === RoomType.PUBLIC ? 'mutant_djwip' : 'mutant_boombox'
 
       const faceDownKey = `${this.playerTexture}_idle_down`
       this.play(faceDownKey, true)
 
-      const transformKey = 'adam_transform'
+      const transformKey = 'mutant_transform'
       this.play(transformKey, true)
       this.updatePhysicsBodyForAnim(transformKey)
       network.updatePlayerAction(this.x, this.y, transformKey)

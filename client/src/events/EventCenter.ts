@@ -7,8 +7,9 @@ export enum Event {
   PLAYER_UPDATED = 'player-updated',
   PLAYER_LEFT = 'player-left',
   PLAYER_DISCONNECTED = 'player-disconnected',
-  
+
   MY_PLAYER_READY = 'my-player-ready',
+  MY_PLAYER_FORCED_ANIM = 'my-player-forced-anim',
   MY_PLAYER_NAME_CHANGE = 'my-player-name-change',
   MY_PLAYER_TEXTURE_CHANGE = 'my-player-texture-change',
 
@@ -19,4 +20,10 @@ export enum Event {
 
   START_PLAYING_MEDIA = 'start-playing-media',
   STOP_PLAYING_MEDIA = 'stop-playing-media',
+  MUSIC_STREAM_TICK = 'music-stream-tick',
+
+  VIDEO_BACKGROUND_ENABLED_CHANGED = 'video-background-enabled-changed',
+
+  MUTANT_RIPPED_DEBUG_NEXT_ANIM = 'mutant-ripped-debug-next-anim',
+  MUTANT_RIPPED_DEBUG_CURRENT_ANIM = 'mutant-ripped-debug-current-anim',
 }

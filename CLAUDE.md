@@ -4,7 +4,8 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
 
 ## What this project is
 
-- A multiplayer 2D top-down Phaser game (client) with a Colyseus authoritative server.
+-
+- A multiplayer 2D top-down Phaser game (client) with a Colyseus authoritative server that is about playing and listening to music together in the form of playlists and 'dj' sessions.
 - React/Redux overlays provide UI (playlist, YouTube player, chat UI, etc.).
 - Real-time player state sync is done via Colyseus Schema (`OfficeState`) + `player.onChange` events.
 
@@ -30,6 +31,11 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Runs `server/index.ts` via `ts-node-dev` (see root `package.json`).
 - Client: run from `client/` (there is a separate `client/package.json`).
 
+### Tooling note (TypeScript)
+
+- Some transitive deps (notably `ioredis@5` via Colyseus redis packages) ship TypeScript declaration syntax that is not parseable by older `typescript` versions.
+- If `tsc` outputs huge numbers of parse errors originating from `node_modules/ioredis/*`, upgrade the root toolchain (`typescript`, `ts-node`, `ts-node-dev`).
+
 ## Core runtime model
 
 ### Colyseus state
@@ -48,6 +54,14 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - `this.room.state.players.onAdd` registers `player.onChange` and emits Phaser events.
   - The Phaser scene listens to those events and updates in-world entities.
 
+#### Chat bubbles (in-world)
+
+- Chat history is stored in `state.chatMessages` (Colyseus schema) and is used for the chat log UI.
+- In-world bubbles are driven by a Phaser event:
+  - `Event.UPDATE_DIALOG_BUBBLE`
+- Server broadcasts `Message.ADD_CHAT_MESSAGE` with `{ clientId, content }` to other clients.
+- Client `Network.ts` listens for that broadcast and emits `Event.UPDATE_DIALOG_BUBBLE` so `Game.ts` can call `Player.updateDialogBubble(...)` on the correct entity.
+
 ### Player animation sync
 
 - Server stores each player’s current animation string in `players[*].anim`.
@@ -63,7 +77,7 @@ Public lobby differs from custom/private rooms:
 
 - **Goal**
   - Skip avatar/name selection UI
-  - Always use the Mutant character (`adam`)
+  - Always use the Mutant character
   - Auto-assign a unique username that contains `mutant`
 
 - **Server enforcement (authoritative)**
@@ -73,21 +87,22 @@ Public lobby differs from custom/private rooms:
     - Stores `this.isPublic`.
     - On `onJoin`, if public:
       - Sets `player.name = mutant-${client.sessionId}` (unique per connection)
-      - Sets `player.anim = adam_idle_down`
+      - Sets `player.anim = mutant_idle_down`
     - Ignores `Message.UPDATE_PLAYER_NAME` when public.
-    - Sanitizes `Message.UPDATE_PLAYER_ACTION` animation keys to `adam_*` when public.
+    - Sanitizes `Message.UPDATE_PLAYER_ACTION` animation keys to `mutant_*` when public.
+      - Allows special DJ/transition anim keys through: `mutant_djwip`, `mutant_boombox`, `mutant_transform`, `mutant_transform_reverse`.
 
 - **Client behavior**
-  - Tracks `roomType` in Redux:
-    - `client/src/stores/RoomStore.ts` adds `roomType` + `setJoinedRoomType`.
-    - `client/src/services/Network.ts` dispatches `setJoinedRoomType(RoomType.PUBLIC|CUSTOM)`.
-  - Public auto-login is executed in Phaser (reliable timing):
-    - `client/src/scenes/Game.ts` `create()` sets:
-      - `myPlayer` texture to `adam`
-      - `myPlayer` name to `mutant-${sessionId}`
-      - calls `network.readyToConnect()`
-      - dispatches `setLoggedIn(true)` so Chat/Playlist UI renders
-  - `client/src/components/LoginDialog.tsx` returns empty for public rooms (no UI).
+- Tracks `roomType` in Redux:
+  - `client/src/stores/RoomStore.ts` adds `roomType` + `setJoinedRoomType`.
+  - `client/src/services/Network.ts` dispatches `setJoinedRoomType(RoomType.PUBLIC|CUSTOM)`.
+- Public auto-login is executed in Phaser (reliable timing):
+  - `client/src/scenes/Game.ts` `create()` sets:
+    - `myPlayer` texture to `mutant`
+    - `myPlayer` name to `mutant-${sessionId}`
+    - calls `network.readyToConnect()`
+    - dispatches `setLoggedIn(true)` so Chat/Playlist UI renders
+- `client/src/components/LoginDialog.tsx` returns empty for public rooms (no UI).
 
 ## Music + room playlist (current implementation)
 
@@ -100,6 +115,25 @@ There are two parallel playback modes:
 2. **Room playlist playback** (shared)
    - Uses `state.roomPlaylist` as a persistent list.
    - Uses `musicStream.isRoomPlaylist` + `musicStream.roomPlaylistIndex` to indicate the active item.
+
+### My playlists (client-side, local)
+
+- The player also has a local playlist UI, stored in Redux and persisted to localStorage.
+- Store: `client/src/stores/MyPlaylistStore.ts`
+  - State uses a multi-playlist model:
+    - `playlists: { id, name, items: PlaylistItem[] }[]`
+    - `activePlaylistId: string | null`
+  - Persistence key: `club-mutant:my-playlist:v1` (see `client/src/stores/index.ts`).
+  - Migration: legacy persisted `PlaylistItem[]` arrays are migrated into a single playlist (`id: legacy`).
+
+- UI: `client/src/components/MyPlaylistPanel.tsx`
+  - Home view lists playlists and supports creating a new playlist.
+  - Detail view has tabs:
+    - `Tracks`: show tracks with remove + drag-and-drop reorder.
+    - `Search`: search YouTube and add results to the active playlist.
+    - `Link`: paste a YouTube URL, extract a video id client-side, and add a placeholder track (metadata resolution is pending).
+  - Empty state: when a playlist has no tracks, `Tracks` shows a prompt to add via Search or Link.
+  - Input safety: while the playlist panel is open, Phaser scene input is disabled to prevent movement/hotkeys while typing.
 
 ### Server-side room playlist behavior
 
@@ -143,8 +177,31 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 - **Server state**: `musicStream.videoBackgroundEnabled` (Colyseus schema)
 - **Message**: `Message.SET_VIDEO_BACKGROUND` (DJ-only; booth connected user)
 - **Client rendering**:
-  - `client/src/App.tsx` portals a muted `ReactPlayer` fullscreen behind Phaser when enabled.
-  - Background video is forced to stretch/distort to cover the full viewport.
+  - Background video is rendered by Phaser using `phaser3-rex-plugins` YouTube player (`DOMElement`)
+    - `client/src/scenes/Game.ts` creates `MyYoutubePlayer` and controls it on stream start/stop.
+    - **Do not call** `setElement(...)` on the rex player (it interferes with internal DOM/iframe creation).
+    - Autoplay reliability: call `setMute(true)` before `play()`.
+
+- **Input safety**:
+  - `pointer-events: none` is applied so the iframe never blocks gameplay input.
+
+- **Event wiring / race condition fixes**:
+  - `Event.VIDEO_BACKGROUND_ENABLED_CHANGED` was added so Phaser can react when the background toggle changes
+    while a stream is already playing (no need to wait for the next `START_MUSIC_STREAM`).
+  - `Game.create()` includes a late-join resync (delayed) to load the background for players who join
+    after playback has already started.
+
+- **Layering: video behind the game**
+  - Phaser DOM Elements live in a DOM container overlay (not inside WebGL). To place the YouTube video
+    behind game sprites, CSS sets the Phaser DOM container below the canvas:
+    - `client/src/index.scss`: `canvas { z-index: 1 }` and `#phaser-container > div { z-index: 0 }`.
+  - To avoid washed-out VHS visuals when the canvas is transparent, the VHS final pass uses a hard alpha
+    mask (opaque where the game draws, fully transparent elsewhere).
+
+Safari notes:
+
+- Autoplay is not guaranteed even when muted; the background renderer provides a user-gesture fallback ("Enable background video").
+- Background video does a light resync (seek + play) on enable and tab resume (visibility/focus/pageshow); it does not run the heavier drift-correction loop used for the main audio player.
 
 ## DJ booth (music booth) behavior
 
@@ -153,6 +210,11 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 - Item: `client/src/items/MusicBooth.ts`
   - `openDialog()` opens the playlist UI and sends `CONNECT_TO_MUSIC_BOOTH`.
   - `closeDialog()` closes UI and sends `DISCONNECT_FROM_MUSIC_BOOTH`.
+
+- **Gotcha (server-side booth occupancy)**:
+  - `MusicBooth.connectedUser` is a `@type('string')` schema field.
+  - Treat both `null` and `''` as "empty".
+  - Otherwise a booth can get stuck "occupied" after a disconnect and prevent anyone else from becoming DJ.
 
 - Player interaction:
   - `client/src/characters/MyPlayer.ts`
@@ -169,17 +231,17 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
   - `client/src/scenes/Bootstrap.ts` preloads the spritesheet with frame size `72x105`.
 
 - Animation creation:
-  - `client/src/anims/CharacterAnims.ts` creates `adam_boombox` (frames 0–11), repeat `-1`, frameRate `animsFrameRate * 0.5`.
+  - `client/src/anims/CharacterAnims.ts` creates `mutant_boombox` (frames 0–11), repeat `-1`, frameRate `animsFrameRate * 0.5`.
 
 - Local + network sync:
   - When entering booth:
-    - `MyPlayer` plays `adam_boombox` and calls `network.updatePlayerAction(..., 'adam_boombox')`.
+    - `MyPlayer` plays `mutant_boombox` and calls `network.updatePlayerAction(..., 'mutant_boombox')`.
   - When leaving booth:
     - `MyPlayer` plays idle and calls `network.updatePlayerAction(..., idleAnimKey)`.
 
 - Other players:
   - `OtherPlayer` plays the synced anim key.
-  - If `currentAnimKey === 'adam_boombox'`, it forces high depth so the DJ renders above the booth.
+  - If `currentAnimKey === 'mutant_boombox'`, it forces high depth so the DJ renders above the booth.
 
 ### DJ “desk” / djmutant3 animation (public room)
 
@@ -192,14 +254,14 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
   - `client/public/assets/items/thinkpaddesk.gif` (loaded under key `musicBooths`)
 
 - Bootstrapping:
-  - `client/src/scenes/Bootstrap.ts` preloads the spritesheet under key `adam_djwip`.
+  - `client/src/scenes/Bootstrap.ts` preloads the spritesheet under key `mutant_djwip`.
 
 - Animation creation:
-  - `client/src/anims/CharacterAnims.ts` creates `adam_djwip` (frames `0..4`), repeat `-1`.
+  - `client/src/anims/CharacterAnims.ts` creates `mutant_djwip` (frames `0..4`), repeat `-1`.
   - Frame rate is intentionally slower than the base anim rate (`animsFrameRate * 0.25`).
 
 - Local + network sync:
-  - `MyPlayer` uses `adam_djwip` when entering the booth in public rooms and calls `network.updatePlayerAction(..., 'adam_djwip')`.
+  - `MyPlayer` uses `mutant_djwip` when entering the booth in public rooms and calls `network.updatePlayerAction(..., 'mutant_djwip')`.
 
 - Desk visibility:
   - The booth sprite is treated as a placeholder “desk”.
@@ -212,22 +274,22 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
   - Frame size: `90x140` (3 columns x 2 rows)
 
 - Animation keys:
-  - `adam_transform` (frames `0..5`, repeat `0`, frameRate `animsFrameRate * 0.5`)
-  - `adam_transform_reverse` (frames `5..0`, repeat `0`, frameRate `animsFrameRate * 0.5`)
+  - `mutant_transform` (frames `0..5`, repeat `0`, frameRate `animsFrameRate * 0.5`)
+  - `mutant_transform_reverse` (frames `5..0`, repeat `0`, frameRate `animsFrameRate * 0.5`)
 
 - Entering the booth (press `R`):
   - `MyPlayer` snaps the player to a booth “stand spot” and forces facing down.
-  - Plays `adam_transform` once, then switches to the booth anim (`adam_djwip` in public rooms, otherwise `adam_boombox`).
+  - Plays `mutant_transform` once, then switches to the booth anim (`mutant_djwip` in public rooms, otherwise `mutant_boombox`).
   - Sync is done by calling `network.updatePlayerAction(..., animKey)` for both the transform and the final booth anim.
 
 - Leaving the booth (press `R` again):
-  - Plays `adam_transform_reverse` once, then switches back to `${playerTexture}_idle_down` and restores movement.
+  - Plays `mutant_transform_reverse` once, then switches back to `${playerTexture}_idle_down` and restores movement.
   - Reverse transition is also synced via `network.updatePlayerAction`.
 
 - Depth ordering:
   - DJ + transform animations render behind the desk:
     - `MyPlayer` uses `this.setDepth(musicBooth.depth - 1)` on booth entry.
-    - `OtherPlayer` uses `this.setDepth(this.y - 1)` when `anim` is `adam_djwip` / `adam_transform` / `adam_transform_reverse`.
+    - `OtherPlayer` uses `this.setDepth(this.y - 1)` when `anim` is `mutant_djwip` / `mutant_transform` / `mutant_transform_reverse`.
 
 ### Player collision + DJ hitbox gotchas
 
@@ -237,7 +299,7 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
   - `client/src/characters/Player.ts` implements a special DJ-only “feet” hitbox in `updatePhysicsBodyForAnim()`.
   - It uses a narrow, low hitbox and anchors it using a right-edge reference so it can be widened leftward.
 
-- The transform animations (`adam_transform`, `adam_transform_reverse`) are treated like DJ anims for collision sizing.
+- The transform animations (`mutant_transform`, `mutant_transform_reverse`) are treated like DJ anims for collision sizing.
 
 - Late-join collision mismatch:
   - When an `OtherPlayer` is spawned with `newPlayer.anim` already set (e.g. DJ), `Game.handlePlayerJoined()` must call:
@@ -252,6 +314,144 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
   - `client/src/components/ChatPanel.tsx` also scales the local immediate bubble (since it renders before the server echo).
 
 ## Recent learnings / gotchas (Jan 2026)
+
+### VHS PostFX (Shadertoy port)
+
+- **Implementation**
+  - Post-process shader is implemented as a Phaser WebGL `PostFXPipeline`:
+    - `client/src/pipelines/VhsPostFxPipeline.ts`
+  - Pipeline registration happens once in:
+    - `client/src/scenes/Bootstrap.ts`
+  - Toggle hotkey lives in:
+    - `client/src/scenes/Game.ts` (key: `V`)
+
+- **Key WebGL gotchas encountered**
+  - **Render targets do not have mipmaps**
+    - The Shadertoy source uses `texture(iChannelX, uv, bias)` (LOD bias).
+    - Sampling Phaser render targets with LOD bias can return black.
+    - Fix: in the port, `tex2DBias(...)` always samples LOD0 via `texture2D(...)`.
+  - **Framebuffer / texture feedback loops**
+    - Symptom: black output and console spam like:
+      - `GL_INVALID_OPERATION: glDrawArrays: Feedback loop formed between Framebuffer and active Texture.`
+    - Cause: rendering into a framebuffer whose attached texture is also bound as the active sampler.
+    - Fix: copy the incoming `renderTarget` into `fullFrame1` at the start of `onDraw` and use that copy (`inputFrame`) as the pipeline input (and as the “original” reference texture in the final pass).
+
+### VHS Optimization (completed Jan 2026)
+
+The VHS pipeline has been optimized for performance:
+
+- **Pass combining**: Merged Pass A (luma/chroma shrink) + Pass B (levels/tint/saturation) into single Pass AB
+  - Reduced from 5 shader passes to 4
+  - Reduced from 4 render targets to 3
+  - Removed UnsharpMask (required separate texture sample)
+
+- **Half-resolution rendering**: Pass AB runs at 0.5x resolution using Phaser's built-in `halfFrame1`
+  - Toggle: `Shift+V`
+  - Passes C, D, and Image run at full resolution
+
+- **Frame skipping**: Can skip 1-3 frames, reusing cached result
+  - Toggle: `Ctrl/Cmd+V` (cycles 1→2→3)
+  - Fixed ping-pong buffer and interlacing to work correctly with frame skipping
+  - Fixed alpha transparency issue by forcing `fragColor.a = 1.0` in all shader outputs
+
+- **FPS logging**: Console logs FPS when toggling VHS settings
+  - Format: `[VHS] <setting> | FPS: <value>`
+
+- **Pipeline flow**: `input → AB → C → D → Image`
+  - AB: luma/chroma shrink + levels + tint + saturation (half-res optional)
+  - C: interlacing + noise (uses ping-pong buffer for temporal effect)
+  - D: tracking + wave + warp + white noise
+  - Image: vignette + final output
+
+### Follow-up tasks (per-track metadata)
+
+- **Broadcast track metadata**: when a track starts playing, broadcast `visualUrl` and `trackMessage` so all clients see the same background/message.
+  - Likely requires:
+    - Extending the server stream payload (schema/message) to include these fields.
+    - Client: `App.tsx` background renderer uses `visualUrl` when present; UI uses `trackMessage` as an on-screen overlay.
+
+### Mutant character animations (atlas)
+
+- **Assets**
+  - Texture atlas: `client/public/assets/character/mutant.png`
+  - Atlas JSON: `client/public/assets/character/mutant.json`
+  - Animation definitions: `client/src/anims/CharacterAnims.ts`
+
+- **Animation key convention**
+  - Local player drives animation via `network.updatePlayerAction(x, y, animKey)`.
+  - Keys are strings like:
+    - `mutant_idle_<dir>`
+    - `mutant_run_<dir>`
+    - `mutant_burn_<dir>`
+    - `mutant_flamethrower_<dir>`
+    - `mutant_punch_<dir>`
+
+- **Walk direction order is sprite-dependent**
+  - The mutant walk sheet is ordered:
+    - `NE(0-9)`, `E(10-19)`, `SE(20-29)`, `SW(30-39)`, `W(40-49)`, `NW(50-59)`
+  - This does not include a true `S`/`N` direction; code maps gameplay directions onto the closest available sprite-facing.
+
+- **Movement directions added (NW/NE)**
+  - `MyPlayer` now supports diagonal-up facings:
+    - `up_right` (NE)
+    - `up_left` (NW)
+  - These drive `mutant_run_up_right` / `mutant_run_up_left` animations.
+
+- **Debug animation interruption fix**
+  - Debug keys `1/2/3` (burn/flamethrower/punch) were getting interrupted by the idle transition logic.
+  - Fix: guard the idle transition while a debug anim is playing via `playingDebugAnim` in `client/src/characters/MyPlayer.ts`.
+  - Additional hardening:
+    - Only lock debug mode if `scene.anims.exists(animKey)`.
+    - Track the active debug anim key in `debugAnimKey` and clear the lock if the current anim changes (e.g. movement interrupts the debug anim).
+
+- **Punch direction keys**
+- Added explicit keys for diagonal-up punch:
+  - `mutant_punch_up_right` (frames `0..10`)
+  - `mutant_punch_up_left` (frames `55..65`)
+
+### Punching (click-to-punch + server-authoritative hit)
+
+- **UX / control**
+  - Click another player to auto-walk toward them and punch when in range.
+  - Client tracks a pending target via `pendingPunchTargetId`.
+
+- **Client implementation**
+  - Target acquisition + approach + range check lives in:
+    - `client/src/scenes/Game.ts`
+  - When in range, the attacker plays a local action anim:
+    - `MyPlayer.playActionAnim('mutant_punch_<dir>')`
+  - Then the request is sent to the server:
+    - `Network.punchPlayer(targetId)` → `Message.PUNCH_PLAYER`
+
+- **Server authority (validation + effect)**
+  - `server/rooms/SkyOffice.ts` handles `Message.PUNCH_PLAYER`:
+    - Rejects invalid targets / self-target.
+    - Re-checks range server-side using the same constants:
+      - `punchRangePx = 56`
+      - `punchDyWeight = 1.5` (vertical distance is “heavier” to match isometric feel)
+    - Applies a small knockback after an impact delay:
+      - `punchImpactDelayMs = 350`
+      - `punchKnockbackPx = 10`
+    - Victim hit animation is randomly selected:
+      - `mutant_hit1_<dir>` or `mutant_hit2_<dir>`
+    - Currently only applies to victims whose `anim` texture prefix is `mutant`.
+
+- **How the victim sees the hit**
+  - Server sets `victim.anim = hitAnimKey` (so late joiners see it), and also:
+    - Broadcasts `Message.UPDATE_PLAYER_ACTION` to everyone except the victim.
+    - Sends `Message.PUNCH_PLAYER` _to the victim only_ with `{ anim, x, y }`.
+  - Client receives the victim-only `Message.PUNCH_PLAYER` in:
+    - `client/src/services/Network.ts`
+    - Emits `Event.MY_PLAYER_FORCED_ANIM`
+  - `client/src/scenes/Game.ts` handles that event by:
+    - Canceling movement
+    - Resetting Arcade body position (if `x/y` included)
+    - Playing the hit animation via `MyPlayer.playHitAnim(...)`
+
+- **Animation defs**
+  - Punch anims: `mutant_punch_*`
+  - Hit anims: `mutant_hit1_*`, `mutant_hit2_*`
+  - Defined/overridden in `client/src/anims/CharacterAnims.ts`.
 
 ### Click-to-move pathfinding
 
@@ -308,14 +508,38 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
     - Listen via `stateCallbacks.musicStream.listen(...)` and resync once fields arrive
 
 - **Avoid “toggle debug anim” drift**
-  - Keeping a single authoritative DJ anim key (`adam_djwip`) avoids hitbox/asset confusion.
+  - Keeping a single authoritative DJ anim key (`mutant_djwip`) avoids hitbox/asset confusion.
 
 - **Fullscreen YouTube background styling lives in React (not Phaser)**
-  - `client/src/App.tsx` uses a portal to render a fullscreen `ReactPlayer` behind Phaser.
-  - The background is styled with:
-    - `mix-blend-mode: hard-light` on the `iframe`
-    - dark overlay + scanlines via `::before`/`::after`
-    - zoom/crop by rendering the iframe at ~`200%` and centering it (overflow hidden)
+- **YouTube background is now Phaser-managed (not React portal)**
+  - The old React portal background renderer was removed in favor of Phaser-managed background video.
+  - Any styling/cropping should be done either via rex player sizing or via CSS affecting the Phaser DOM container.
+
+### YouTube resolve endpoint (yt-dlp) (Jan 2026)
+
+To support a future "true WebGL video background" (Phaser `Video` texture), the server can resolve a
+YouTube ID into a direct playable video URL:
+
+- **Endpoint**: `GET /youtube/resolve/:videoId`
+  - File: `server/index.ts` (route registered before `/youtube/:search`)
+  - Implementation: `server/youtubeResolver.ts`
+  - Calls the `yt-dlp` binary (configured via `YT_DLP_PATH`, defaults to `yt-dlp` in PATH)
+  - Returns:
+    - `url` (direct `googlevideo.com` URL)
+    - `expiresAtMs` (parsed from `expire=` query param when present)
+    - `resolvedAtMs`
+
+- **Caching**:
+  - In-memory cache with short TTL and in-flight de-dupe to avoid repeated `yt-dlp` calls.
+  - TTL respects expiry by refreshing before `expiresAtMs` using a skew.
+
+- **Local dev install (macOS)**:
+  - Recommended: `brew install yt-dlp`
+  - Alternative: `pipx install yt-dlp`
+
+- **Expiry refresh strategy (client)**:
+  - If `expiresAtMs` is provided, refresh ~60s before expiry.
+  - Also refresh on playback error (403/410 / media error) and resume at the current playback time.
 
 - **Schema collections: mutate in-place (don’t replace) to preserve `$changes`**
   - Avoid assigning a new array to a Schema collection (e.g. `state.musicBoothQueue = state.musicBoothQueue.filter(...)`).
@@ -341,9 +565,108 @@ The DJ can toggle the current YouTube stream as a fullscreen background for ever
 
 ## Conventions / tips
 
-- Animation keys are plain strings like `adam_idle_down`, `adam_boombox`.
+- Animation keys are plain strings like `mutant_idle_down`, `mutant_boombox`.
 - If you change a player animation locally and want others to see it, you must update `player.anim` via `Network.updatePlayerAction(...)`.
 - For shared state, prefer adding explicit fields to the server schema + shared interfaces in `types/` and use those on the client.
+
+## Spritesheet extraction / atlas workflow (Mutant / `adam`)
+
+Preferred pipeline is **TexturePacker atlas** rather than loading many individual spritesheets.
+
+### Inputs and script
+
+- Source sheets: `conversion/base/*`
+- Extractor: `conversion/scripts/extract_anim_blocks.py`
+- Usage notes: `docs/spritesheet-extraction.md`
+
+### Mapping blocks to animations
+
+The extractor can export per-block label crops and auto-generate a starter map:
+
+- `--export-labels`
+- `--write-frames-map <path>`
+
+This produces:
+
+- `labels/block_XXX.png` (cropped label text)
+- `frames-map.json` with `blocks.block_XXX.labelFile` entries
+
+OCR is optional:
+
+- `--label-ocr` will only work if `tesseract` is installed.
+
+### Exporting frames for atlas packing
+
+Core flags:
+
+- `--export-frames`
+- `--export-frames-flat` (recommended)
+- `--frames-trim` and `--frames-trim-pad`
+- `--frames-map <path>` and `--frames-map-strict`
+
+Goal is filenames like `idle_up_right_000.png` that can be packed into one atlas.
+
+### Mutant ripped multi-atlas workflow (`mutant_ripped`)
+
+This repo includes a workflow for Fallout 2 mutant frames that were grid-split externally (TexturePacker GUI) into individual PNGs.
+
+- Source sheets (reference only):
+  - `conversion/base/mutant_sprites/`
+- Ripped frames (input to packing):
+  - `conversion/base/ripped_sprites_individual_export/`
+  - Naming convention: `<base>-<index>.png` (index is 0-based and contiguous per base)
+  - Special markers:
+    - `single` in the base name means the animation has **1 row** (all directions reuse row 0)
+    - `static` in the base name means it is effectively **one frame** (may still have multiple rows)
+
+Build script:
+
+- `conversion/scripts/build_mutant_ripped_atlas.py`
+
+It generates:
+
+- `conversion/out/mutant_ripped/manifest.json` (groups + inferred rows/cols)
+- `client/src/anims/MutantRippedAnims.ts` (generated animation definitions)
+
+And when run with `--pack`, it produces a Phaser 3 **multi-atlas**:
+
+- `client/public/assets/character/mutant_ripped.json`
+- `client/public/assets/character/mutant_ripped-<n>.png`
+
+If you have `.webp` versions of the atlas pages, you can switch Phaser to load them by changing the `image` fields inside `client/public/assets/character/mutant_ripped.json` from `mutant_ripped-<n>.png` to `mutant_ripped-<n>.webp`.
+
+Packing settings:
+
+- `--algorithm MaxRects`
+- `--trim-mode Crop`
+- `--disable-rotation`
+- `--multipack` (`--max-size 2048`)
+
+Direction row mapping (when 6 rows):
+
+- `NE, E, SE, SW, W, NW` maps to:
+  - `up_right, right, down_right, down_left, left, up_left`
+- Additional keys are generated as aliases:
+  - `up` duplicates `up_left`
+  - `down` duplicates `down_left`
+
+Phaser integration:
+
+- Preload: `client/src/scenes/Bootstrap.ts` loads `mutant_ripped` via `load.multiatlas(...)`.
+- Animations: `client/src/anims/CharacterAnims.ts` calls `createMutantRippedAnims(anims)`.
+- Debug preview: `client/src/components/MutantRippedAnimDebug.tsx` renders a bottom-center `Debug` overlay button.
+  - React emits `Event.MUTANT_RIPPED_DEBUG_NEXT_ANIM` via `phaserEvents`.
+  - `client/src/scenes/Game.ts` listens, cycles through `mutantRippedAnimKeys`, and emits `Event.MUTANT_RIPPED_DEBUG_CURRENT_ANIM` back so React can display the current key.
+
+- Mutant idle/run override: `client/src/anims/CharacterAnims.ts` overrides the existing `mutant_idle_*` and `mutant_run_*` keys to use frames from the ripped atlas (unarmed idle/walk), while keeping the same keys so networking and movement logic stay compatible.
+
+### Magenta guide interpretation
+
+- `--guide-mode closed` (default): expects closed rectangles around blocks.
+- `--guide-mode open`: intended for sheets where only bottom + right vertical guides exist (left can be shared).
+- `--guide-mode auto`: tries closed, then falls back.
+
+Open guide-mode is still under active development; if blocks are mis-cropped, expect further tuning.
 
 ## Current tasks
 

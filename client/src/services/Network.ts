@@ -15,6 +15,7 @@ import { Message } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
 import { phaserEvents, Event } from '../events/EventCenter'
+import { timeSync, type TimeSyncRequestPayload, type TimeSyncResponsePayload } from './TimeSync'
 import store from '../stores'
 import { setSessionId, setPlayerNameMap, removePlayerNameMap } from '../stores/UserStore'
 import { connectToMusicBooth, disconnectFromMusicBooth } from '../stores/MusicBoothStore'
@@ -53,6 +54,8 @@ export default class Network {
   private room?: Room<IOfficeState>
   private lobby!: Room
 
+  private timeSyncIntervalId: number | null = null
+
   mySessionId!: string
 
   constructor() {
@@ -71,6 +74,13 @@ export default class Network {
 
     phaserEvents.on(Event.MY_PLAYER_NAME_CHANGE, this.updatePlayerName, this)
     phaserEvents.on(Event.MY_PLAYER_TEXTURE_CHANGE, this.updatePlayerAction, this)
+  }
+
+  requestTimeSyncNow() {
+    if (!this.room) return
+
+    const payload: TimeSyncRequestPayload = timeSync.createRequestPayload()
+    this.room.send(Message.TIME_SYNC_REQUEST, payload)
   }
 
   /**
@@ -124,6 +134,8 @@ export default class Network {
   initialize() {
     if (!this.room) return
 
+    timeSync.reset()
+
     const syncMusicStreamFromState = () => {
       if (!this.room) return
 
@@ -149,6 +161,9 @@ export default class Network {
         setMusicStream({
           url: ms.currentLink,
           title: ms.currentTitle,
+          visualUrl: ms.currentVisualUrl ?? null,
+          trackMessage: ms.currentTrackMessage ?? null,
+          streamId: ms.streamId,
           startTime: ms.startTime,
           currentDj: ms.currentDj,
           isRoomPlaylist: ms.isRoomPlaylist,
@@ -316,16 +331,56 @@ export default class Network {
       store.dispatch(setJoinedRoomData(content))
     })
 
+    // chat bubbles: server broadcasts live chat messages to other clients
+    this.room.onMessage(
+      Message.ADD_CHAT_MESSAGE,
+      (payload: { clientId: string; content: string } | null) => {
+        if (!payload) return
+        if (typeof payload.clientId !== 'string' || payload.clientId === '') return
+        if (typeof payload.content !== 'string' || payload.content === '') return
+
+        phaserEvents.emit(Event.UPDATE_DIALOG_BUBBLE, payload.clientId, payload.content)
+      }
+    )
+
     // when the server sends room data
     this.room.onMessage(Message.START_MUSIC_STREAM, ({ musicStream, offset }) => {
       console.log('start playing media on message START_USIC STREAM', musicStream, offset)
       phaserEvents.emit(Event.START_PLAYING_MEDIA, musicStream, offset)
     })
 
+    this.room.onMessage(
+      Message.MUSIC_STREAM_TICK,
+      (payload: { streamId: number; startTime: number; serverNowMs: number }) => {
+        phaserEvents.emit(Event.MUSIC_STREAM_TICK, payload)
+      }
+    )
+
+    this.room.onMessage(Message.TIME_SYNC_RESPONSE, (payload: TimeSyncResponsePayload) => {
+      timeSync.handleResponse(payload)
+    })
+
     // when the server sends room data
     this.room.onMessage(Message.STOP_MUSIC_STREAM, () => {
       phaserEvents.emit(Event.STOP_PLAYING_MEDIA)
     })
+
+    this.room.onMessage(
+      Message.UPDATE_PLAYER_ACTION,
+      (payload: { x: number; y: number; anim: string; sessionId: string }) => {
+        phaserEvents.emit(Event.PLAYER_UPDATED, 'x', payload.x, payload.sessionId)
+        phaserEvents.emit(Event.PLAYER_UPDATED, 'y', payload.y, payload.sessionId)
+        phaserEvents.emit(Event.PLAYER_UPDATED, 'anim', payload.anim, payload.sessionId)
+      }
+    )
+
+    this.room.onMessage(
+      Message.PUNCH_PLAYER,
+      (payload: { anim: string; x?: number; y?: number }) => {
+        if (!payload || typeof payload.anim !== 'string') return
+        phaserEvents.emit(Event.MY_PLAYER_FORCED_ANIM, payload.anim, payload.x, payload.y)
+      }
+    )
 
     store.dispatch(setVideoBackgroundEnabled(false))
     store.dispatch(setMusicStream(null))
@@ -335,7 +390,9 @@ export default class Network {
     stateCallbacks.musicStream.listen(
       'videoBackgroundEnabled',
       (value) => {
-        store.dispatch(setVideoBackgroundEnabled(Boolean(value)))
+        const enabled = Boolean(value)
+        store.dispatch(setVideoBackgroundEnabled(enabled))
+        phaserEvents.emit(Event.VIDEO_BACKGROUND_ENABLED_CHANGED, enabled)
       },
       true
     )
@@ -349,6 +406,14 @@ export default class Network {
     })
 
     stateCallbacks.musicStream.listen('currentTitle', () => {
+      syncMusicStreamFromState()
+    })
+
+    stateCallbacks.musicStream.listen('currentVisualUrl', () => {
+      syncMusicStreamFromState()
+    })
+
+    stateCallbacks.musicStream.listen('currentTrackMessage', () => {
       syncMusicStreamFromState()
     })
 
@@ -368,20 +433,16 @@ export default class Network {
       syncMusicStreamFromState()
     })
 
-    // when the server sends room data
-    this.room.onMessage(Message.SYNC_MUSIC_STREAM, (item) => {
-      console.log('SERVER NETWORK SEND ON MESSAGE SYNC MUSIC', item)
-      this.syncMusicStream()
-    })
+    if (this.timeSyncIntervalId !== null) {
+      window.clearInterval(this.timeSyncIntervalId)
+      this.timeSyncIntervalId = null
+    }
 
-    // when a user sends a message
-    this.room.onMessage(Message.ADD_CHAT_MESSAGE, ({ clientId, content }) => {
-      phaserEvents.emit(Event.UPDATE_DIALOG_BUBBLE, clientId, content)
-    })
+    this.requestTimeSyncNow()
+    this.timeSyncIntervalId = window.setInterval(() => {
+      this.requestTimeSyncNow()
+    }, 15_000)
   }
-
-  /* The below are commands that can be accessed and invoked from a component, the above are handlers for when
-  the message type is recieved from the functions below, what to do, eg update store, update in game etc */
 
   // method to register event listener and call back function when a item user added
   onChatMessageAdded(callback: (playerId: string, content: string) => void, context?: any) {
@@ -394,6 +455,10 @@ export default class Network {
 
   onStopMusicStream(callback: () => void, context?: any) {
     phaserEvents.on(Event.STOP_PLAYING_MEDIA, callback, context) // how to update within phaser game instance
+  }
+
+  onVideoBackgroundEnabledChanged(callback: (enabled: boolean) => void, context?: any) {
+    phaserEvents.on(Event.VIDEO_BACKGROUND_ENABLED_CHANGED, callback, context)
   }
 
   // method to register event listener and call back function when a item user added
@@ -473,6 +538,13 @@ export default class Network {
     phaserEvents.on(Event.MY_PLAYER_READY, callback, context)
   }
 
+  onMyPlayerForcedAnim(
+    callback: (animKey: string, x?: number, y?: number) => void,
+    context?: unknown
+  ) {
+    phaserEvents.on(Event.MY_PLAYER_FORCED_ANIM, callback, context)
+  }
+
   // method to register event listener and call back function when a player updated
   onPlayerUpdated(
     callback: (field: string, value: number | string, key: string) => void,
@@ -485,6 +557,11 @@ export default class Network {
   updatePlayerAction(currentX: number, currentY: number, currentAnim: string) {
     // console.log('Update player action')
     this.room?.send(Message.UPDATE_PLAYER_ACTION, { x: currentX, y: currentY, anim: currentAnim })
+  }
+
+  punchPlayer(targetId: string) {
+    if (!targetId) return
+    this.room?.send(Message.PUNCH_PLAYER, { targetId })
   }
 
   // method to send player name to Colyseus server

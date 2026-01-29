@@ -50,7 +50,57 @@ export default class OtherPlayer extends Player {
 
       case 'anim':
         if (typeof value === 'string') {
-          this.anims.play(value, true)
+          const requestedKey = value
+
+          const requestedParts = requestedKey.split('_')
+          const requestedTexture = requestedParts[0]
+
+          if (
+            requestedTexture &&
+            requestedTexture !== this.playerTexture &&
+            this.scene.textures.exists(requestedTexture)
+          ) {
+            this.playerTexture = requestedTexture
+            this.setTexture(requestedTexture)
+          }
+
+          if (this.scene.anims.exists(requestedKey)) {
+            // If it's a hit animation, we don't want to use 'ignoreIfPlaying' (2nd arg)
+            // because hits should always interrupt current state
+            const isHit = requestedKey.includes('_hit1_') || requestedKey.includes('_hit2_')
+            this.anims.play(requestedKey, !isHit)
+            this.updatePhysicsBodyForAnim(requestedKey)
+
+            if (isHit) {
+              const parts = requestedKey.split('_')
+              const dir = parts.slice(2).join('_') || 'down'
+
+              this.once(`animationcomplete-${requestedKey}`, () => {
+                const idleKey = `${this.playerTexture}_idle_${dir}`
+                if (this.scene.anims.exists(idleKey)) {
+                  this.anims.play(idleKey, true)
+                  this.updatePhysicsBodyForAnim(idleKey)
+                }
+              })
+            }
+            return
+          }
+
+          const requestedDir =
+            requestedParts.length >= 3 ? requestedParts.slice(2).join('_') : 'down'
+
+          const fallbackCandidates = [
+            `${this.playerTexture}_idle_${requestedDir}`,
+            `${this.playerTexture}_walk_${requestedDir}`,
+            `${this.playerTexture}_idle_down`,
+          ]
+
+          const fallbackKey = fallbackCandidates.find((k) => this.scene.anims.exists(k))
+
+          if (fallbackKey) {
+            this.anims.play(fallbackKey, true)
+            this.updatePhysicsBodyForAnim(fallbackKey)
+          }
         }
         break
 
@@ -96,12 +146,12 @@ export default class OtherPlayer extends Player {
     const currentAnimKey = this.anims.currentAnim?.key
 
     if (
-      currentAnimKey === 'adam_djwip' ||
-      currentAnimKey === 'adam_transform' ||
-      currentAnimKey === 'adam_transform_reverse'
+      currentAnimKey === 'mutant_djwip' ||
+      currentAnimKey === 'mutant_transform' ||
+      currentAnimKey === 'mutant_transform_reverse'
     ) {
       this.setDepth(this.y - 1)
-    } else if (currentAnimKey === 'adam_boombox') {
+    } else if (currentAnimKey === 'mutant_boombox') {
       this.setDepth(this.y + 1)
     } else {
       this.setDepth(this.y) // change player.depth based on player.y

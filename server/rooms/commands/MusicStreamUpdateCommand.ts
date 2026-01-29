@@ -2,16 +2,17 @@ import { Command } from '@colyseus/command'
 
 import { Client } from 'colyseus'
 import { PlaylistItem, DJUserInfo } from '../schema/OfficeState'
-import { IOfficeState, IPlaylistItem, IPlayer } from '../../../types/IOfficeState'
+import type { SkyOffice } from '../SkyOffice'
+import { IPlaylistItem } from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
 
 type Payload = {
-  client: Client
-  item: IPlaylistItem
+  client?: Client
+  item?: IPlaylistItem
 }
 
-export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
-  execute(data: Payload) {
+export class MusicStreamNextCommand extends Command<SkyOffice, Payload | undefined> {
+  execute(data: Payload | undefined) {
     console.log('////MusicStreamNextCommand, Payload, data', data)
     this.clock.clear()
     const musicStream = this.state.musicStream
@@ -31,7 +32,7 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
       return
     }
 
-    const player: IPlayer = this.state.players.get(djSessionId)
+    const player = this.state.players.get(djSessionId)
     if (!player) {
       musicStream.status = 'waiting'
       musicStream.currentLink = null
@@ -40,7 +41,7 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
       return
     }
 
-    if (data.item?.link && data.item.djId === djSessionId) {
+    if (data?.item?.link && data.item.djId === djSessionId) {
       const existing = player.nextTwoPlaylist[0]
       if (!existing || existing.id !== data.item.id) {
         const newItem = new PlaylistItem()
@@ -49,11 +50,13 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
         newItem.id = data.item.id
         newItem.djId = data.item.djId
         newItem.duration = data.item.duration
+        newItem.visualUrl = data.item.visualUrl ?? null
+        newItem.trackMessage = data.item.trackMessage ?? null
 
         if (player.nextTwoPlaylist.length === 0) {
           player.nextTwoPlaylist.push(newItem)
         } else {
-          player.nextTwoPlaylist.setAt(0, newItem)
+          player.nextTwoPlaylist.splice(0, 1, newItem)
         }
       }
     }
@@ -65,10 +68,13 @@ export class MusicStreamNextCommand extends Command<IOfficeState, Payload> {
       djInfo.sessionId = playbackItem.djId
 
       musicStream.status = 'playing'
+      musicStream.streamId += 1
       musicStream.currentLink = playbackItem.link
       musicStream.currentBooth = musicBoothIndex
       musicStream.currentDj = djInfo
       musicStream.currentTitle = playbackItem.title
+      musicStream.currentVisualUrl = playbackItem.visualUrl ?? null
+      musicStream.currentTrackMessage = playbackItem.trackMessage ?? null
       musicStream.startTime = Date.now()
       musicStream.duration = playbackItem.duration
 
