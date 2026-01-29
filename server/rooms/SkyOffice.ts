@@ -13,6 +13,13 @@ import {
 } from './schema/OfficeState'
 import { IRoomData } from '../../types/Rooms'
 import { Message } from '../../types/Messages'
+import {
+  TEXTURE_IDS,
+  encodeAnimKey,
+  packDirectionalAnimId,
+  sanitizeAnimId,
+  sanitizeTextureId,
+} from '../../types/AnimationCodec'
 
 import PlayerUpdateActionCommand from './commands/PlayerUpdateActionCommand'
 import PlayerUpdateNameCommand from './commands/PlayerUpdateNameCommand'
@@ -398,7 +405,15 @@ export class SkyOffice extends Room<OfficeState> {
     // when receiving updatePlayer message, call the PlayerUpdateActionCommand
     this.onMessage(
       Message.UPDATE_PLAYER_ACTION,
-      (client, message: { x: number; y: number; anim: string }) => {
+      (
+        client,
+        message: {
+          x?: unknown
+          y?: unknown
+          textureId?: unknown
+          animId?: unknown
+        }
+      ) => {
         const nowMs = Date.now()
 
         const lastAtMs = this.lastPlayerActionAtMsBySessionId.get(client.sessionId) ?? 0
@@ -421,26 +436,11 @@ export class SkyOffice extends Room<OfficeState> {
         const maxAllowedDistance = (maxSpeedPxPerSec * dtMs) / 1000 + distanceBufferPx
         if (distance > maxAllowedDistance) return
 
-        const sanitizedAnim =
-          this.isPublic && typeof message.anim === 'string'
-            ? (() => {
-                const allowedSpecialAnims = new Set([
-                  'mutant_boombox',
-                  'mutant_djwip',
-                  'mutant_transform',
-                  'mutant_transform_reverse',
-                ])
+        const sanitizedTextureId = this.isPublic
+          ? TEXTURE_IDS.mutant
+          : sanitizeTextureId(message.textureId)
 
-                if (allowedSpecialAnims.has(message.anim)) return message.anim
-
-                const parts = message.anim.split('_')
-                if (parts.length < 2) return 'mutant_idle_down'
-                parts[0] = 'mutant'
-                return parts.join('_')
-              })()
-            : typeof message.anim === 'string'
-              ? message.anim
-              : 'mutant_idle_down'
+        const sanitizedAnimId = sanitizeAnimId(message.animId, sanitizedTextureId)
 
         this.lastPlayerActionAtMsBySessionId.set(client.sessionId, nowMs)
 
@@ -448,7 +448,8 @@ export class SkyOffice extends Room<OfficeState> {
           client,
           x,
           y,
-          anim: sanitizedAnim,
+          textureId: sanitizedTextureId,
+          animId: sanitizedAnimId,
         })
       }
     )
@@ -496,12 +497,7 @@ export class SkyOffice extends Room<OfficeState> {
         dir = dy >= 0 ? 'down' : 'up_right'
       }
 
-      const victimTexture =
-        typeof victim.anim === 'string' && victim.anim.includes('_')
-          ? victim.anim.split('_')[0]
-          : ''
-
-      if (victimTexture !== 'mutant') return
+      if (victim.textureId !== TEXTURE_IDS.mutant) return
 
       // Randomly pick hit1 or hit2
       const hitType = Math.random() > 0.5 ? 'hit1' : 'hit2'
@@ -527,7 +523,9 @@ export class SkyOffice extends Room<OfficeState> {
         victimCurrent.x += kbUnitX * punchKnockbackPx
         victimCurrent.y += kbUnitY * punchKnockbackPx
 
-        victimCurrent.anim = hitAnimKey
+        const hitEncoded = encodeAnimKey(hitAnimKey)
+        victimCurrent.textureId = hitEncoded.textureId
+        victimCurrent.animId = hitEncoded.animId
 
         const victimClient = this.clients.find((c) => c.sessionId === targetId)
 
@@ -537,7 +535,8 @@ export class SkyOffice extends Room<OfficeState> {
           {
             x: victimCurrent.x,
             y: victimCurrent.y,
-            anim: hitAnimKey,
+            textureId: victimCurrent.textureId,
+            animId: victimCurrent.animId,
             sessionId: targetId,
           },
           { except: victimClient }
@@ -638,7 +637,8 @@ export class SkyOffice extends Room<OfficeState> {
 
     if (!existingPlayer && this.isPublic) {
       player.name = `mutant-${client.sessionId}`
-      player.anim = 'mutant_idle_down'
+      player.textureId = TEXTURE_IDS.mutant
+      player.animId = packDirectionalAnimId('idle', 'down')
     }
 
     if (!existingPlayer) {

@@ -9,6 +9,7 @@ import {
   IDJUserInfo,
   IRoomPlaylistItem,
 } from '../../../types/IOfficeState'
+import { TEXTURE_IDS, packDirectionalAnimId } from '../../../types/AnimationCodec'
 
 export class PlaylistItem extends Schema implements IPlaylistItem {
   @type('string') id = ''
@@ -35,7 +36,8 @@ export class Player extends Schema implements IPlayer {
   @type('string') name = ''
   @type('float32') x = 705
   @type('float32') y = 500
-  @type('string') anim = 'mutant_idle_down'
+  @type('uint8') textureId: number = TEXTURE_IDS.mutant
+  @type('uint8') animId: number = packDirectionalAnimId('idle', 'down')
   @type('boolean') readyToConnect = false
   @type('boolean') videoConnected = false
   @type(PlaylistItem) currentPlaylistItem = new PlaylistItem()

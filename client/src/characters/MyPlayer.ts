@@ -455,6 +455,7 @@ export default class MyPlayer extends Player {
           if (!this.moveTarget) break
 
           const arriveDistanceSq = 4 * 4
+          const maxStep = (speed * dt) / 1000
           let guard = 0
 
           while (this.moveTarget && guard < 5) {
@@ -463,8 +464,11 @@ export default class MyPlayer extends Player {
             const dx = this.moveTarget.x - this.x
             const dy = this.moveTarget.y - this.y
             const distanceSq = dx * dx + dy * dy
+            const distance = Math.sqrt(distanceSq)
 
-            if (distanceSq <= arriveDistanceSq) {
+            const snapDistance = Math.max(2, maxStep)
+
+            if (distanceSq <= arriveDistanceSq || distance <= snapDistance) {
               if (this.movePath && this.movePathIndex < this.movePath.length - 1) {
                 this.movePathIndex += 1
                 this.moveTarget = this.movePath[this.movePathIndex]
@@ -494,8 +498,6 @@ export default class MyPlayer extends Player {
               this.setDepth(finalTarget.y)
               break
             }
-
-            const distance = Math.sqrt(distanceSq)
             vx = (dx / distance) * speed
             vy = (dy / distance) * speed
             break
@@ -516,16 +518,27 @@ export default class MyPlayer extends Player {
           const absVx = Math.abs(vx)
           const absVy = Math.abs(vy)
 
+          const supportsDiagonalAnims = this.playerTexture === 'mutant'
+
           // 8-direction calculation: up_right, right, down_right, down, down_left, left, up_left
           // Diagonals trigger when both axes have significant velocity
           const diagonalThreshold = 0.5
           const isDiagonal =
+            supportsDiagonalAnims &&
             absVx > 0 &&
             absVy > 0 &&
             absVx / absVy > diagonalThreshold &&
             absVy / absVx > diagonalThreshold
 
-          let dir: 'left' | 'right' | 'down' | 'down_left' | 'down_right' | 'up_left' | 'up_right'
+          let dir:
+            | 'left'
+            | 'right'
+            | 'down'
+            | 'up'
+            | 'down_left'
+            | 'down_right'
+            | 'up_left'
+            | 'up_right'
 
           if (isDiagonal) {
             if (vy > 0) {
@@ -536,13 +549,47 @@ export default class MyPlayer extends Player {
           } else if (absVx >= absVy) {
             dir = vx >= 0 ? 'right' : 'left'
           } else {
-            dir = vy >= 0 ? 'down' : 'up_right'
+            if (vy >= 0) {
+              dir = 'down'
+            } else {
+              if (supportsDiagonalAnims) {
+                const vxDeadzone = speed * 0.2
+                const currentDir = currentAnimKey.split('_').slice(2).join('_')
+
+                if (
+                  Math.abs(vx) < vxDeadzone &&
+                  (currentDir === 'up_left' || currentDir === 'up_right')
+                ) {
+                  dir = currentDir
+                } else {
+                  dir = vx >= 0 ? 'up_right' : 'up_left'
+                }
+              } else {
+                dir = 'up'
+              }
+            }
           }
 
           const nextAnimKey = `${this.playerTexture}_run_${dir}`
 
-          this.play(nextAnimKey, true)
-          network.updatePlayerAction(this.x, this.y, nextAnimKey)
+          if (this.scene.anims.exists(nextAnimKey)) {
+            this.play(nextAnimKey, true)
+            network.updatePlayerAction(this.x, this.y, nextAnimKey)
+          } else {
+            const fallbackCandidates = [
+              `${this.playerTexture}_run_down`,
+              `${this.playerTexture}_run_right`,
+              `${this.playerTexture}_run_left`,
+              `${this.playerTexture}_run_up`,
+            ]
+
+            const fallbackKey = fallbackCandidates.find((k) => this.scene.anims.exists(k))
+
+            if (fallbackKey) {
+              this.play(fallbackKey, true)
+              network.updatePlayerAction(this.x, this.y, fallbackKey)
+            }
+          }
         } else {
           this.moveAnimAxis = null
           this.moveAnimDir = null
