@@ -1,24 +1,26 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 
-import type { SkyOffice } from '../SkyOffice'
+import type { ClubMutant } from '../ClubMutant'
 
 type Payload = {
   client: Client
   x: number
   y: number
-  anim: string
+  textureId: number
+  animId: number
 }
 
-export default class PlayerUpdateActionCommand extends Command<SkyOffice, Payload> {
+export default class PlayerUpdateActionCommand extends Command<ClubMutant, Payload> {
   execute(data: Payload) {
-    const { client, x, y, anim } = data
+    const { client, x, y, textureId, animId } = data
 
     const player = this.state.players.get(client.sessionId)
 
     if (!player) return
     player.x = x
     player.y = y
-    player.anim = anim
+    player.textureId = textureId
+    player.animId = animId
   }
 }

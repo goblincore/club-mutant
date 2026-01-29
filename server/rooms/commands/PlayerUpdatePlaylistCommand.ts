@@ -1,6 +1,6 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
-import type { SkyOffice } from '../SkyOffice'
+import type { ClubMutant } from '../ClubMutant'
 import { IPlaylistItem } from '../../../types/IOfficeState'
 import { PlaylistItem } from '../schema/OfficeState'
 
@@ -11,7 +11,7 @@ type Payload = {
   items?: IPlaylistItem[]
 }
 
-export class PlayerSyncShortPlaylist extends Command<SkyOffice, Payload> {
+export class PlayerSyncShortPlaylist extends Command<ClubMutant, Payload> {
   execute(data: Payload) {
     const { client, items } = data
 
@@ -41,7 +41,7 @@ export class PlayerSyncShortPlaylist extends Command<SkyOffice, Payload> {
   }
 }
 
-export class PlayerSetCurrentPlaylistItemCommand extends Command<SkyOffice, Payload> {
+export class PlayerSetCurrentPlaylistItemCommand extends Command<ClubMutant, Payload> {
   execute(data: Payload) {
     const { client, item } = data
 
@@ -60,7 +60,7 @@ export class PlayerSetCurrentPlaylistItemCommand extends Command<SkyOffice, Payl
   }
 }
 
-export class PlayerSetNextPlaylistItemCommand extends Command<SkyOffice, Payload> {
+export class PlayerSetNextPlaylistItemCommand extends Command<ClubMutant, Payload> {
   execute(data: Payload) {
     const { client, item } = data
     console.log('////PlayerSetNextPlaylistItemCommand, item', item)

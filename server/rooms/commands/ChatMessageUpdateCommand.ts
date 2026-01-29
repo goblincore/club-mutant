@@ -1,7 +1,7 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 
-import type { SkyOffice } from '../SkyOffice'
+import type { ClubMutant } from '../ClubMutant'
 import { ChatMessage } from '../schema/OfficeState'
 
 type Payload = {
@@ -9,7 +9,7 @@ type Payload = {
   content: string
 }
 
-export default class ChatMessageUpdateCommand extends Command<SkyOffice, Payload> {
+export default class ChatMessageUpdateCommand extends Command<ClubMutant, Payload> {
   execute(data: Payload) {
     const { client, content } = data
     const player = this.state.players.get(client.sessionId)

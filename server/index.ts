@@ -11,7 +11,7 @@ import * as youtube from './Youtube'
 import { resolveYoutubeVideoUrl } from './youtubeResolver'
 import { RoomType } from '../types/Rooms'
 
-import { SkyOffice } from './rooms/SkyOffice'
+import { ClubMutant } from './rooms/ClubMutant'
 
 const port = Number(process.env.PORT || 2567)
 const app = express()
@@ -25,14 +25,14 @@ const gameServer = new Server({ server })
 
 // register room handlers
 gameServer.define(RoomType.LOBBY, LobbyRoom)
-gameServer.define(RoomType.PUBLIC, SkyOffice, {
+gameServer.define(RoomType.PUBLIC, ClubMutant, {
   name: 'Public Lobby',
   description: 'For making friends and familiarizing yourself with the controls',
   password: null,
   autoDispose: false,
   isPublic: true,
 })
-gameServer.define(RoomType.CUSTOM, SkyOffice).enableRealtimeListing()
+gameServer.define(RoomType.CUSTOM, ClubMutant).enableRealtimeListing()
 
 /**
  * Register @colyseus/social routes

@@ -1,13 +1,13 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
-import type { SkyOffice } from '../SkyOffice'
+import type { ClubMutant } from '../ClubMutant'
 
 type Payload = {
   client: Client
   musicBoothIndex?: number
 }
 
-export class MusicBoothConnectUserCommand extends Command<SkyOffice, Payload> {
+export class MusicBoothConnectUserCommand extends Command<ClubMutant, Payload> {
   execute(data: Payload) {
     const { client, musicBoothIndex } = data
     const clientId = client.sessionId
@@ -27,7 +27,7 @@ export class MusicBoothConnectUserCommand extends Command<SkyOffice, Payload> {
   }
 }
 
-export class MusicBoothDisconnectUserCommand extends Command<SkyOffice, Payload> {
+export class MusicBoothDisconnectUserCommand extends Command<ClubMutant, Payload> {
   execute(data: Payload) {
     const { client, musicBoothIndex } = data
     const clientId = client.sessionId

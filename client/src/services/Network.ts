@@ -16,6 +16,7 @@ import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
 import { phaserEvents, Event } from '../events/EventCenter'
 import { timeSync, type TimeSyncRequestPayload, type TimeSyncResponsePayload } from './TimeSync'
+import { decodeAnimKey, encodeAnimKey } from '../../../types/AnimationCodec'
 import store from '../stores'
 import { setSessionId, setPlayerNameMap, removePlayerNameMap } from '../stores/UserStore'
 import { connectToMusicBooth, disconnectFromMusicBooth } from '../stores/MusicBoothStore'
@@ -233,8 +234,17 @@ export default class Network {
         phaserEvents.emit(Event.PLAYER_UPDATED, 'y', value, key)
       })
 
-      playerCallbacks.listen('anim', (value) => {
-        phaserEvents.emit(Event.PLAYER_UPDATED, 'anim', value, key)
+      const emitAnimFromIds = () => {
+        const animKey = decodeAnimKey(player.textureId, player.animId)
+        phaserEvents.emit(Event.PLAYER_UPDATED, 'anim', animKey, key)
+      }
+
+      playerCallbacks.listen('textureId', () => {
+        emitAnimFromIds()
+      })
+
+      playerCallbacks.listen('animId', () => {
+        emitAnimFromIds()
       })
 
       playerCallbacks.listen('readyToConnect', (value) => {
@@ -367,10 +377,12 @@ export default class Network {
 
     this.room.onMessage(
       Message.UPDATE_PLAYER_ACTION,
-      (payload: { x: number; y: number; anim: string; sessionId: string }) => {
+      (payload: { x: number; y: number; textureId: number; animId: number; sessionId: string }) => {
         phaserEvents.emit(Event.PLAYER_UPDATED, 'x', payload.x, payload.sessionId)
         phaserEvents.emit(Event.PLAYER_UPDATED, 'y', payload.y, payload.sessionId)
-        phaserEvents.emit(Event.PLAYER_UPDATED, 'anim', payload.anim, payload.sessionId)
+
+        const animKey = decodeAnimKey(payload.textureId, payload.animId)
+        phaserEvents.emit(Event.PLAYER_UPDATED, 'anim', animKey, payload.sessionId)
       }
     )
 
@@ -556,7 +568,14 @@ export default class Network {
   // method to send player action updates to Colyseus server
   updatePlayerAction(currentX: number, currentY: number, currentAnim: string) {
     // console.log('Update player action')
-    this.room?.send(Message.UPDATE_PLAYER_ACTION, { x: currentX, y: currentY, anim: currentAnim })
+    const encoded = encodeAnimKey(currentAnim)
+
+    this.room?.send(Message.UPDATE_PLAYER_ACTION, {
+      x: currentX,
+      y: currentY,
+      textureId: encoded.textureId,
+      animId: encoded.animId,
+    })
   }
 
   punchPlayer(targetId: string) {

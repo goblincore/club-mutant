@@ -13,6 +13,12 @@ import {
 } from './schema/OfficeState'
 import { IRoomData } from '../../types/Rooms'
 import { Message } from '../../types/Messages'
+import {
+  TEXTURE_IDS,
+  packDirectionalAnimId,
+  sanitizeAnimId,
+  sanitizeTextureId,
+} from '../../types/AnimationCodec'
 
 import PlayerUpdateActionCommand from './commands/PlayerUpdateActionCommand'
 import PlayerUpdateNameCommand from './commands/PlayerUpdateNameCommand'
@@ -30,9 +36,10 @@ import {
 import { MusicStreamNextCommand } from './commands/MusicStreamUpdateCommand'
 
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
+import PunchPlayerCommand from './commands/PunchPlayerCommand'
 import Queue from '../Queue'
 
-export class SkyOffice extends Room<OfficeState> {
+export class ClubMutant extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
   private name = ''
   private description = ''
@@ -398,7 +405,15 @@ export class SkyOffice extends Room<OfficeState> {
     // when receiving updatePlayer message, call the PlayerUpdateActionCommand
     this.onMessage(
       Message.UPDATE_PLAYER_ACTION,
-      (client, message: { x: number; y: number; anim: string }) => {
+      (
+        client,
+        message: {
+          x?: unknown
+          y?: unknown
+          textureId?: unknown
+          animId?: unknown
+        }
+      ) => {
         const nowMs = Date.now()
 
         const lastAtMs = this.lastPlayerActionAtMsBySessionId.get(client.sessionId) ?? 0
@@ -421,26 +436,11 @@ export class SkyOffice extends Room<OfficeState> {
         const maxAllowedDistance = (maxSpeedPxPerSec * dtMs) / 1000 + distanceBufferPx
         if (distance > maxAllowedDistance) return
 
-        const sanitizedAnim =
-          this.isPublic && typeof message.anim === 'string'
-            ? (() => {
-                const allowedSpecialAnims = new Set([
-                  'mutant_boombox',
-                  'mutant_djwip',
-                  'mutant_transform',
-                  'mutant_transform_reverse',
-                ])
+        const sanitizedTextureId = this.isPublic
+          ? TEXTURE_IDS.mutant
+          : sanitizeTextureId(message.textureId)
 
-                if (allowedSpecialAnims.has(message.anim)) return message.anim
-
-                const parts = message.anim.split('_')
-                if (parts.length < 2) return 'mutant_idle_down'
-                parts[0] = 'mutant'
-                return parts.join('_')
-              })()
-            : typeof message.anim === 'string'
-              ? message.anim
-              : 'mutant_idle_down'
+        const sanitizedAnimId = sanitizeAnimId(message.animId, sanitizedTextureId)
 
         this.lastPlayerActionAtMsBySessionId.set(client.sessionId, nowMs)
 
@@ -448,110 +448,17 @@ export class SkyOffice extends Room<OfficeState> {
           client,
           x,
           y,
-          anim: sanitizedAnim,
+          textureId: sanitizedTextureId,
+          animId: sanitizedAnimId,
         })
       }
     )
 
-    this.onMessage(Message.PUNCH_PLAYER, (client, message: { targetId: string }) => {
-      const attacker = this.state.players.get(client.sessionId)
-      if (!attacker) return
-
+    this.onMessage(Message.PUNCH_PLAYER, (client, message: { targetId?: unknown }) => {
       const targetId = typeof message.targetId === 'string' ? message.targetId : ''
       if (!targetId) return
 
-      if (targetId === client.sessionId) return
-
-      const victim = this.state.players.get(targetId)
-      if (!victim) return
-
-      const dx = attacker.x - victim.x
-      const dy = attacker.y - victim.y
-      const punchRangePx = 56
-      const punchDyWeight = 1.5
-      const weightedDistanceSq = dx * dx + dy * punchDyWeight * (dy * punchDyWeight)
-      if (weightedDistanceSq > punchRangePx * punchRangePx) return
-
-      const absDx = Math.abs(dx)
-      const absDy = Math.abs(dy)
-
-      const diagonalThreshold = 0.5
-      const isDiagonal =
-        absDx > 0 &&
-        absDy > 0 &&
-        absDx / absDy > diagonalThreshold &&
-        absDy / absDx > diagonalThreshold
-
-      let dir: 'left' | 'right' | 'down' | 'down_left' | 'down_right' | 'up_left' | 'up_right'
-
-      if (isDiagonal) {
-        if (dy > 0) {
-          dir = dx >= 0 ? 'down_right' : 'down_left'
-        } else {
-          dir = dx >= 0 ? 'up_right' : 'up_left'
-        }
-      } else if (absDx >= absDy) {
-        dir = dx >= 0 ? 'right' : 'left'
-      } else {
-        dir = dy >= 0 ? 'down' : 'up_right'
-      }
-
-      const victimTexture =
-        typeof victim.anim === 'string' && victim.anim.includes('_')
-          ? victim.anim.split('_')[0]
-          : ''
-
-      if (victimTexture !== 'mutant') return
-
-      // Randomly pick hit1 or hit2
-      const hitType = Math.random() > 0.5 ? 'hit1' : 'hit2'
-      const hitAnimKey = `mutant_${hitType}_${dir}`
-
-      const punchImpactDelayMs = 350
-
-      const attackerAtPunch = { x: attacker.x, y: attacker.y }
-
-      this.clock.setTimeout(() => {
-        const victimCurrent = this.state.players.get(targetId)
-        if (!victimCurrent) return
-
-        const punchKnockbackPx = 10
-
-        const kbDx = victimCurrent.x - attackerAtPunch.x
-        const kbDy = victimCurrent.y - attackerAtPunch.y
-        const kbLen = Math.sqrt(kbDx * kbDx + kbDy * kbDy)
-
-        const kbUnitX = kbLen > 0 ? kbDx / kbLen : 0
-        const kbUnitY = kbLen > 0 ? kbDy / kbLen : 0
-
-        victimCurrent.x += kbUnitX * punchKnockbackPx
-        victimCurrent.y += kbUnitY * punchKnockbackPx
-
-        victimCurrent.anim = hitAnimKey
-
-        const victimClient = this.clients.find((c) => c.sessionId === targetId)
-
-        // Broadcast to everyone ELSE (OtherPlayer instances)
-        this.broadcast(
-          Message.UPDATE_PLAYER_ACTION,
-          {
-            x: victimCurrent.x,
-            y: victimCurrent.y,
-            anim: hitAnimKey,
-            sessionId: targetId,
-          },
-          { except: victimClient }
-        )
-
-        // Send to the victim specifically
-        if (victimClient) {
-          victimClient.send(Message.PUNCH_PLAYER, {
-            anim: hitAnimKey,
-            x: victimCurrent.x,
-            y: victimCurrent.y,
-          })
-        }
-      }, punchImpactDelayMs)
+      this.dispatcher.dispatch(new PunchPlayerCommand(), { client, targetId })
     })
 
     // when receiving updatePlayerName message, call the PlayerUpdateNameCommand
@@ -638,7 +545,8 @@ export class SkyOffice extends Room<OfficeState> {
 
     if (!existingPlayer && this.isPublic) {
       player.name = `mutant-${client.sessionId}`
-      player.anim = 'mutant_idle_down'
+      player.textureId = TEXTURE_IDS.mutant
+      player.animId = packDirectionalAnimId('idle', 'down')
     }
 
     if (!existingPlayer) {

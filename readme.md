@@ -2,7 +2,6 @@
 
 <img alt="Logo" align="right" src="https://user-images.githubusercontent.com/11501902/139942585-a6b044ce-3695-460a-91bd-dd9f1d4611c8.png" width="20%" />
 
-
 club mutant my lily world works on all PC browsers (mobile browsers are currently not supported) u. u
 
 ## Built with
@@ -63,13 +62,13 @@ You'll need [Node.js](https://nodejs.org/en/), [npm](https://www.npmjs.com/) ins
 Clone this repository to your local machine:
 
 ```bash
-git clone https://github.com/kevinshen56714/SkyOffice.git
+git clone https://github.com/goblincore/club-mutant.git
 ```
 
-This will create a folder named `SkyOffice`. You can specify a different folder name like this:
+This will create a folder named `club-mutant`. You can specify a different folder name like this:
 
 ```bash
-git clone https://github.com/kevinshen56714/SkyOffice.git my-folder-name
+git clone https://github.com/goblincore/club-mutant.git my-folder-name
 ```
 
 To start a server, go into the project folder and install dependencies/run start command:
@@ -89,7 +88,6 @@ npm install && npm run start
 ## Credits 🎉
 
 Big thanks to this great repo - [ourcade/phaser3-typescript-parcel-template](https://github.com/ourcade/phaser3-typescript-parcel-template)
-
 
 ## License
 

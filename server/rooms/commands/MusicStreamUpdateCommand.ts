@@ -2,7 +2,7 @@ import { Command } from '@colyseus/command'
 
 import { Client } from 'colyseus'
 import { PlaylistItem, DJUserInfo } from '../schema/OfficeState'
-import type { SkyOffice } from '../SkyOffice'
+import type { ClubMutant } from '../ClubMutant'
 import { IPlaylistItem } from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
 
@@ -11,7 +11,7 @@ type Payload = {
   item?: IPlaylistItem
 }
 
-export class MusicStreamNextCommand extends Command<SkyOffice, Payload | undefined> {
+export class MusicStreamNextCommand extends Command<ClubMutant, Payload | undefined> {
   execute(data: Payload | undefined) {
     console.log('////MusicStreamNextCommand, Payload, data', data)
     this.clock.clear()

@@ -4,7 +4,8 @@ export interface IPlayer extends Schema {
   name: string
   x: number
   y: number
-  anim: string
+  textureId: number
+  animId: number
   readyToConnect: boolean
   videoConnected: boolean
   currentPlaylistItem: IPlaylistItem

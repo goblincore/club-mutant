@@ -14,7 +14,8 @@ import MyPlayer from '../characters/MyPlayer'
 import OtherPlayer from '../characters/OtherPlayer'
 import PlayerSelector from '../characters/PlayerSelector'
 
-import { IPlayer, IMusicStream } from '../../../types/IOfficeState'
+import type { IPlayer, IMusicStream } from '../../../types/IOfficeState'
+import { decodeAnimKey, decodeTextureName } from '../../../types/AnimationCodec'
 import { PlayerBehavior } from '../../../types/Players'
 import { ItemType } from '../../../types/Items'
 
@@ -1002,10 +1003,7 @@ export default class Game extends Phaser.Scene {
   private handlePlayerJoined(newPlayer: IPlayer, id: string) {
     if (this.otherPlayerMap.has(id)) return
 
-    const initialTexture =
-      typeof newPlayer.anim === 'string' && newPlayer.anim.includes('_')
-        ? newPlayer.anim.split('_')[0]
-        : 'mutant'
+    const initialTexture = decodeTextureName(newPlayer.textureId)
 
     const otherPlayer = this.add.otherPlayer(
       newPlayer.x,
@@ -1015,9 +1013,8 @@ export default class Game extends Phaser.Scene {
       newPlayer.name
     )
 
-    if (typeof newPlayer.anim === 'string' && newPlayer.anim !== '') {
-      otherPlayer.updateOtherPlayer('anim', newPlayer.anim)
-    }
+    const initialAnimKey = decodeAnimKey(newPlayer.textureId, newPlayer.animId)
+    otherPlayer.updateOtherPlayer('anim', initialAnimKey)
 
     this.otherPlayers.add(otherPlayer)
     this.otherPlayerMap.set(id, otherPlayer)

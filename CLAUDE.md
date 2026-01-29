@@ -19,7 +19,7 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Assets: `client/public/assets`
 - `server/`
   - Colyseus rooms: `server/rooms/*`
-  - Main room: `server/rooms/SkyOffice.ts`
+  - Main room: `server/rooms/ClubMutant.ts`
   - Schema state: `server/rooms/schema/OfficeState.ts`
   - Commands: `server/rooms/commands/*`
 - `types/`
@@ -64,12 +64,17 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
 
 ### Player animation sync
 
-- Server stores each player’s current animation string in `players[*].anim`.
-- Client `MyPlayer` must call:
+- Server stores each player’s current animation state as compact numeric IDs:
+  - `players[*].textureId` (`uint8`)
+  - `players[*].animId` (`uint8`, packed kind+direction or special ids)
+- The shared codec lives in:
+  - `types/AnimationCodec.ts`
+- Client `MyPlayer` still calls:
   - `network.updatePlayerAction(x, y, animKey)`
-    so other clients receive it.
-- Other clients render it via:
-  - `client/src/characters/OtherPlayer.ts` → `updateOtherPlayer('anim', animKey)` → `this.anims.play(animKey, true)`.
+    but `Network.ts` encodes the string key into `{ textureId, animId }` before sending.
+- Other clients render it by decoding ids back into an anim key:
+  - `Network.ts` decodes `{ textureId, animId }` → `animKey` and emits `Event.PLAYER_UPDATED` with field `anim`.
+  - `client/src/characters/OtherPlayer.ts` consumes that and plays `this.anims.play(animKey, true)`.
 
 ## Public lobby: skip login + force Mutant identity
 
@@ -83,14 +88,13 @@ Public lobby differs from custom/private rooms:
 - **Server enforcement (authoritative)**
   - `server/index.ts` passes `isPublic: true` to the public room create options.
   - `types/Rooms.ts` includes `isPublic?: boolean` on `IRoomData`.
-  - `server/rooms/SkyOffice.ts`:
+  - `server/rooms/ClubMutant.ts`:
     - Stores `this.isPublic`.
     - On `onJoin`, if public:
       - Sets `player.name = mutant-${client.sessionId}` (unique per connection)
-      - Sets `player.anim = mutant_idle_down`
+      - Sets `player.textureId = TEXTURE_IDS.mutant` + `player.animId = packDirectionalAnimId('idle', 'down')`
     - Ignores `Message.UPDATE_PLAYER_NAME` when public.
-    - Sanitizes `Message.UPDATE_PLAYER_ACTION` animation keys to `mutant_*` when public.
-      - Allows special DJ/transition anim keys through: `mutant_djwip`, `mutant_boombox`, `mutant_transform`, `mutant_transform_reverse`.
+    - Forces `Message.UPDATE_PLAYER_ACTION` to `mutant` IDs when public.
 
 - **Client behavior**
 - Tracks `roomType` in Redux:
@@ -137,7 +141,7 @@ There are two parallel playback modes:
 
 ### Server-side room playlist behavior
 
-- `server/rooms/SkyOffice.ts`
+- `server/rooms/ClubMutant.ts`
   - `ROOM_PLAYLIST_ADD`: append a `RoomPlaylistItem`.
   - `ROOM_PLAYLIST_REMOVE`: remove only if `addedBySessionId === client.sessionId`.
     - Also adjusts `musicStream.roomPlaylistIndex` so the cursor stays stable.
@@ -302,9 +306,8 @@ Safari notes:
 - The transform animations (`mutant_transform`, `mutant_transform_reverse`) are treated like DJ anims for collision sizing.
 
 - Late-join collision mismatch:
-  - When an `OtherPlayer` is spawned with `newPlayer.anim` already set (e.g. DJ), `Game.handlePlayerJoined()` must call:
-    - `otherPlayer.updatePhysicsBodyForAnim(newPlayer.anim)`
-      otherwise the initial hitbox stays in the default shape until the next `anim` change.
+  - When an `OtherPlayer` is spawned while already in a DJ/transform anim, `Game.handlePlayerJoined()` must ensure it applies the correct hitbox sizing immediately.
+  - Current pattern: `Game.handlePlayerJoined()` decodes `textureId/animId` to an anim key and calls `otherPlayer.updateOtherPlayer('anim', animKey)`.
 
 ### DJ chat bubble scaling
 
@@ -314,6 +317,23 @@ Safari notes:
   - `client/src/components/ChatPanel.tsx` also scales the local immediate bubble (since it renders before the server echo).
 
 ## Recent learnings / gotchas (Jan 2026)
+
+### Bandwidth + server correctness refactors
+
+- **Compact player animation replication**
+  - Migrated from string `players[*].anim` to `{ textureId:uint8, animId:uint8 }` using `types/AnimationCodec.ts`.
+  - Server: `server/rooms/schema/OfficeState.ts` (`Player.textureId/animId`).
+  - Client: `Network.ts` encodes outgoing anim keys and decodes incoming ids back to anim keys for `OtherPlayer`.
+
+- **Movement validation + throttling**
+  - `Message.UPDATE_PLAYER_ACTION` is throttled (min interval) and validates max travel distance based on dt.
+
+- **Graceful leave / reconnection**
+  - `ClubMutant.onLeave` uses `allowReconnection(...)` with a grace window so transient disconnects can recover.
+
+- **MyPlayer movement/animation stability**
+  - Mutant uses isometric `up_left/up_right` (no `*_run_up`).
+  - Added snapping/advance for close waypoints and a small vx deadzone to prevent micro-jitter between `up_left` and `up_right`.
 
 ### VHS PostFX (Shadertoy port)
 
@@ -424,7 +444,7 @@ The VHS pipeline has been optimized for performance:
     - `Network.punchPlayer(targetId)` → `Message.PUNCH_PLAYER`
 
 - **Server authority (validation + effect)**
-  - `server/rooms/SkyOffice.ts` handles `Message.PUNCH_PLAYER`:
+  - `server/rooms/ClubMutant.ts` handles `Message.PUNCH_PLAYER`:
     - Rejects invalid targets / self-target.
     - Re-checks range server-side using the same constants:
       - `punchRangePx = 56`
@@ -434,10 +454,10 @@ The VHS pipeline has been optimized for performance:
       - `punchKnockbackPx = 10`
     - Victim hit animation is randomly selected:
       - `mutant_hit1_<dir>` or `mutant_hit2_<dir>`
-    - Currently only applies to victims whose `anim` texture prefix is `mutant`.
+    - Currently only applies to victims whose `textureId` is `mutant`.
 
 - **How the victim sees the hit**
-  - Server sets `victim.anim = hitAnimKey` (so late joiners see it), and also:
+  - Server sets `victim.textureId/animId` to the hit animation (so late joiners see it), and also:
     - Broadcasts `Message.UPDATE_PLAYER_ACTION` to everyone except the victim.
     - Sends `Message.PUNCH_PLAYER` _to the victim only_ with `{ anim, x, y }`.
   - Client receives the victim-only `Message.PUNCH_PLAYER` in:
@@ -558,7 +578,7 @@ YouTube ID into a direct playable video URL:
 - **Player entities**:
   - `client/src/characters/MyPlayer.ts`
   - `client/src/characters/OtherPlayer.ts`
-- **Music server logic**: `server/rooms/SkyOffice.ts`
+- **Music server logic**: `server/rooms/ClubMutant.ts`
 - **Server state schema**: `server/rooms/schema/OfficeState.ts`
 - **Client UI playback**: `client/src/components/YoutubePlayer.tsx`
 - **Shared message enum**: `types/Messages.ts`
@@ -566,7 +586,8 @@ YouTube ID into a direct playable video URL:
 ## Conventions / tips
 
 - Animation keys are plain strings like `mutant_idle_down`, `mutant_boombox`.
-- If you change a player animation locally and want others to see it, you must update `player.anim` via `Network.updatePlayerAction(...)`.
+- If you change a player animation locally and want others to see it, call `Network.updatePlayerAction(...)` with the anim key.
+  - The network layer encodes it into compact ids.
 - For shared state, prefer adding explicit fields to the server schema + shared interfaces in `types/` and use those on the client.
 
 ## Spritesheet extraction / atlas workflow (Mutant / `adam`)
