@@ -19,7 +19,7 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Assets: `client/public/assets`
 - `server/`
   - Colyseus rooms: `server/rooms/*`
-  - Main room: `server/rooms/SkyOffice.ts`
+  - Main room: `server/rooms/ClubMutant.ts`
   - Schema state: `server/rooms/schema/OfficeState.ts`
   - Commands: `server/rooms/commands/*`
 - `types/`
@@ -88,7 +88,7 @@ Public lobby differs from custom/private rooms:
 - **Server enforcement (authoritative)**
   - `server/index.ts` passes `isPublic: true` to the public room create options.
   - `types/Rooms.ts` includes `isPublic?: boolean` on `IRoomData`.
-  - `server/rooms/SkyOffice.ts`:
+  - `server/rooms/ClubMutant.ts`:
     - Stores `this.isPublic`.
     - On `onJoin`, if public:
       - Sets `player.name = mutant-${client.sessionId}` (unique per connection)
@@ -141,7 +141,7 @@ There are two parallel playback modes:
 
 ### Server-side room playlist behavior
 
-- `server/rooms/SkyOffice.ts`
+- `server/rooms/ClubMutant.ts`
   - `ROOM_PLAYLIST_ADD`: append a `RoomPlaylistItem`.
   - `ROOM_PLAYLIST_REMOVE`: remove only if `addedBySessionId === client.sessionId`.
     - Also adjusts `musicStream.roomPlaylistIndex` so the cursor stays stable.
@@ -329,7 +329,7 @@ Safari notes:
   - `Message.UPDATE_PLAYER_ACTION` is throttled (min interval) and validates max travel distance based on dt.
 
 - **Graceful leave / reconnection**
-  - `SkyOffice.onLeave` uses `allowReconnection(...)` with a grace window so transient disconnects can recover.
+  - `ClubMutant.onLeave` uses `allowReconnection(...)` with a grace window so transient disconnects can recover.
 
 - **MyPlayer movement/animation stability**
   - Mutant uses isometric `up_left/up_right` (no `*_run_up`).
@@ -444,7 +444,7 @@ The VHS pipeline has been optimized for performance:
     - `Network.punchPlayer(targetId)` → `Message.PUNCH_PLAYER`
 
 - **Server authority (validation + effect)**
-  - `server/rooms/SkyOffice.ts` handles `Message.PUNCH_PLAYER`:
+  - `server/rooms/ClubMutant.ts` handles `Message.PUNCH_PLAYER`:
     - Rejects invalid targets / self-target.
     - Re-checks range server-side using the same constants:
       - `punchRangePx = 56`
@@ -578,7 +578,7 @@ YouTube ID into a direct playable video URL:
 - **Player entities**:
   - `client/src/characters/MyPlayer.ts`
   - `client/src/characters/OtherPlayer.ts`
-- **Music server logic**: `server/rooms/SkyOffice.ts`
+- **Music server logic**: `server/rooms/ClubMutant.ts`
 - **Server state schema**: `server/rooms/schema/OfficeState.ts`
 - **Client UI playback**: `client/src/components/YoutubePlayer.tsx`
 - **Shared message enum**: `types/Messages.ts`

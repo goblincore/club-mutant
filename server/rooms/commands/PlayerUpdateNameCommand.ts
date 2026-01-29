@@ -1,14 +1,14 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 
-import type { SkyOffice } from '../SkyOffice'
+import type { ClubMutant } from '../ClubMutant'
 
 type Payload = {
   client: Client
   name: string
 }
 
-export default class PlayerUpdateNameCommand extends Command<SkyOffice, Payload> {
+export default class PlayerUpdateNameCommand extends Command<ClubMutant, Payload> {
   execute(data: Payload) {
     const { client, name } = data
 

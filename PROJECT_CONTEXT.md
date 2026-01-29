@@ -18,7 +18,7 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Assets: `client/public/assets`
 - `server/`
   - Colyseus rooms: `server/rooms/*`
-  - Main room: `server/rooms/SkyOffice.ts`
+  - Main room: `server/rooms/ClubMutant.ts`
   - Schema state: `server/rooms/schema/OfficeState.ts`
   - Commands: `server/rooms/commands/*`
 - `types/`
@@ -63,12 +63,13 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
 
 ### Player animation sync
 
-- Server stores each player’s current animation string in `players[*].anim`.
-- Client `MyPlayer` must call:
-  - `network.updatePlayerAction(x, y, animKey)`
-    so other clients receive it.
-- Other clients render it via:
-  - `client/src/characters/OtherPlayer.ts` → `updateOtherPlayer('anim', animKey)` → `this.anims.play(animKey, true)`.
+- Server stores each player’s current animation state as compact numeric IDs:
+  - `players[*].textureId` (`uint8`)
+  - `players[*].animId` (`uint8`)
+- Shared codec:
+  - `types/AnimationCodec.ts`
+- Client still drives local animations with string keys (e.g. `mutant_run_up_left`), but `Network.ts` encodes them before sending.
+- Other clients render by decoding ids back into an anim key (emitted as `Event.PLAYER_UPDATED` field `anim`).
 
 ## Public lobby: skip login + force Mutant identity
 
@@ -82,14 +83,13 @@ Public lobby differs from custom/private rooms:
 - **Server enforcement (authoritative)**
   - `server/index.ts` passes `isPublic: true` to the public room create options.
   - `types/Rooms.ts` includes `isPublic?: boolean` on `IRoomData`.
-  - `server/rooms/SkyOffice.ts`:
+  - `server/rooms/ClubMutant.ts`:
     - Stores `this.isPublic`.
     - On `onJoin`, if public:
       - Sets `player.name = mutant-${client.sessionId}` (unique per connection)
-      - Sets `player.anim = mutant_idle_down`
+      - Sets `player.textureId/animId` to Mutant idle-down
     - Ignores `Message.UPDATE_PLAYER_NAME` when public.
-    - Sanitizes `Message.UPDATE_PLAYER_ACTION` animation keys to `mutant_*` when public.
-      - Allows special DJ/transition anim keys through: `mutant_djwip`, `mutant_boombox`, `mutant_transform`, `mutant_transform_reverse`.
+    - Forces `Message.UPDATE_PLAYER_ACTION` to Mutant IDs when public.
 
 - **Client behavior**
   - Tracks `roomType` in Redux:
@@ -180,7 +180,7 @@ Public lobby differs from custom/private rooms:
     - Sends `Message.PUNCH_PLAYER` via `Network.punchPlayer(targetId)`.
 
 - **Server flow**
-  - `server/rooms/SkyOffice.ts`
+  - `server/rooms/ClubMutant.ts`
     - Validates the punch (target exists, not self, server-side range check).
     - Uses dy-weighted distance for isometric feel (`punchRangePx = 56`, `punchDyWeight = 1.5`).
     - After `punchImpactDelayMs = 350`, applies small knockback (`punchKnockbackPx = 10`) and forces a hit anim.
@@ -225,7 +225,7 @@ There are two parallel playback modes:
 
 ### Server-side room playlist behavior
 
-- `server/rooms/SkyOffice.ts`
+- `server/rooms/ClubMutant.ts`
   - `ROOM_PLAYLIST_ADD`: append a `RoomPlaylistItem`.
   - `ROOM_PLAYLIST_REMOVE`: remove only if `addedBySessionId === client.sessionId`.
     - Also adjusts `musicStream.roomPlaylistIndex` so the cursor stays stable.
@@ -358,7 +358,7 @@ YouTube ID into a direct playable video URL:
 - **Player entities**:
   - `client/src/characters/MyPlayer.ts`
   - `client/src/characters/OtherPlayer.ts`
-- **Music server logic**: `server/rooms/SkyOffice.ts`
+- **Music server logic**: `server/rooms/ClubMutant.ts`
 - **Server state schema**: `server/rooms/schema/OfficeState.ts`
 - **Client UI playback**: `client/src/components/YoutubePlayer.tsx`
 - **Shared message enum**: `types/Messages.ts`
@@ -367,7 +367,8 @@ YouTube ID into a direct playable video URL:
 ## Conventions / tips
 
 - Animation keys are plain strings like `mutant_idle_down`, `mutant_boombox`.
-- If you change a player animation locally and want others to see it, you must update `player.anim` via `Network.updatePlayerAction(...)`.
+- If you change a player animation locally and want others to see it, call `Network.updatePlayerAction(...)` with the anim key.
+  - The network layer encodes it into compact ids (`textureId/animId`).
 - For shared state, prefer adding explicit fields to the server schema + shared interfaces in `types/` and use those on the client.
 
 ## VHS PostFX (Shadertoy port)

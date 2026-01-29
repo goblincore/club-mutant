@@ -1,0 +1,112 @@
+import { Command } from '@colyseus/command'
+import { Client } from 'colyseus'
+
+import type { ClubMutant } from '../ClubMutant'
+import { Message } from '../../../types/Messages'
+import { TEXTURE_IDS, encodeAnimKey } from '../../../types/AnimationCodec'
+
+type Payload = {
+  client: Client
+  targetId: string
+}
+
+export default class PunchPlayerCommand extends Command<ClubMutant, Payload> {
+  execute(data: Payload) {
+    const attacker = this.state.players.get(data.client.sessionId)
+    if (!attacker) return
+
+    const targetId = typeof data.targetId === 'string' ? data.targetId : ''
+    if (!targetId) return
+
+    if (targetId === data.client.sessionId) return
+
+    const victim = this.state.players.get(targetId)
+    if (!victim) return
+
+    const dx = attacker.x - victim.x
+    const dy = attacker.y - victim.y
+    const punchRangePx = 56
+    const punchDyWeight = 1.5
+    const weightedDistanceSq = dx * dx + dy * punchDyWeight * (dy * punchDyWeight)
+    if (weightedDistanceSq > punchRangePx * punchRangePx) return
+
+    const absDx = Math.abs(dx)
+    const absDy = Math.abs(dy)
+
+    const diagonalThreshold = 0.5
+    const isDiagonal =
+      absDx > 0 &&
+      absDy > 0 &&
+      absDx / absDy > diagonalThreshold &&
+      absDy / absDx > diagonalThreshold
+
+    let dir: 'left' | 'right' | 'down' | 'down_left' | 'down_right' | 'up_left' | 'up_right'
+
+    if (isDiagonal) {
+      if (dy > 0) {
+        dir = dx >= 0 ? 'down_right' : 'down_left'
+      } else {
+        dir = dx >= 0 ? 'up_right' : 'up_left'
+      }
+    } else if (absDx >= absDy) {
+      dir = dx >= 0 ? 'right' : 'left'
+    } else {
+      dir = dy >= 0 ? 'down' : 'up_right'
+    }
+
+    if (victim.textureId !== TEXTURE_IDS.mutant) return
+
+    // Randomly pick hit1 or hit2
+    const hitType = Math.random() > 0.5 ? 'hit1' : 'hit2'
+    const hitAnimKey = `mutant_${hitType}_${dir}`
+
+    const punchImpactDelayMs = 350
+
+    const attackerAtPunch = { x: attacker.x, y: attacker.y }
+
+    this.clock.setTimeout(() => {
+      const victimCurrent = this.state.players.get(targetId)
+      if (!victimCurrent) return
+
+      const punchKnockbackPx = 10
+
+      const kbDx = victimCurrent.x - attackerAtPunch.x
+      const kbDy = victimCurrent.y - attackerAtPunch.y
+      const kbLen = Math.sqrt(kbDx * kbDx + kbDy * kbDy)
+
+      const kbUnitX = kbLen > 0 ? kbDx / kbLen : 0
+      const kbUnitY = kbLen > 0 ? kbDy / kbLen : 0
+
+      victimCurrent.x += kbUnitX * punchKnockbackPx
+      victimCurrent.y += kbUnitY * punchKnockbackPx
+
+      const hitEncoded = encodeAnimKey(hitAnimKey)
+      victimCurrent.textureId = hitEncoded.textureId
+      victimCurrent.animId = hitEncoded.animId
+
+      const victimClient = this.room.clients.find((c) => c.sessionId === targetId)
+
+      // Broadcast to everyone ELSE (OtherPlayer instances)
+      this.room.broadcast(
+        Message.UPDATE_PLAYER_ACTION,
+        {
+          x: victimCurrent.x,
+          y: victimCurrent.y,
+          textureId: victimCurrent.textureId,
+          animId: victimCurrent.animId,
+          sessionId: targetId,
+        },
+        { except: victimClient }
+      )
+
+      // Send to the victim specifically
+      if (victimClient) {
+        victimClient.send(Message.PUNCH_PLAYER, {
+          anim: hitAnimKey,
+          x: victimCurrent.x,
+          y: victimCurrent.y,
+        })
+      }
+    }, punchImpactDelayMs)
+  }
+}

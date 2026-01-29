@@ -3,7 +3,7 @@
 ## Goals
 
 - Update this repo to build/run on modern systems.
-- Keep the core SkyOffice-style multiplayer world (Phaser + Colyseus).
+- Keep the core ClubMutant-style multiplayer world (Phaser + Colyseus).
 - Rewrite player/playlist logic with a clear, server-authoritative DJ rotation model.
 
 ## Key Decisions (Locked)
