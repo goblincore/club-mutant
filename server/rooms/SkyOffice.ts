@@ -83,7 +83,6 @@ export class SkyOffice extends Room<OfficeState> {
     musicStream.currentDj.sessionId = ''
     musicStream.startTime = Date.now()
     musicStream.duration = 0
-    musicStream.videoBackgroundEnabled = false
 
     this.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
   }
