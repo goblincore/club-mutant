@@ -2,6 +2,15 @@
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
+## Club Mutant notes
+
+- The Phaser game lives in `client/src/scenes/Game.ts` and drives the local player + world entities.
+- Networking is handled by `client/src/services/Network.ts` which joins the Colyseus room and emits Phaser events.
+- Player animation replication is bandwidth-optimized:
+  - The client still produces animation keys like `mutant_run_up_left`.
+  - On the wire, the server replicates `{ textureId:uint8, animId:uint8 }`.
+  - The shared encode/decode helpers live in `types/AnimationCodec.ts`.
+
 ## Available Scripts
 
 In the project directory, you can run:
