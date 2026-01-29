@@ -273,6 +273,7 @@ export const myPlaylistSlice = createSlice({
     },
     closeMyPlaylistPanel: (state) => {
       state.myPlaylistPanelOpen = false
+      state.focused = false
     },
     setFocused: (state, action: PayloadAction<boolean>) => {
       state.focused = action.payload

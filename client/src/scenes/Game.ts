@@ -34,6 +34,10 @@ import { phaserEvents, Event } from '../events/EventCenter'
 import { VHS_POSTFX_PIPELINE_KEY, VhsPostFxPipeline } from '../pipelines/VhsPostFxPipeline'
 import { SOFT_POSTFX_PIPELINE_KEY, SoftPostFxPipeline } from '../pipelines/SoftPostFxPipeline'
 
+type BackgroundVideoRenderer = 'webgl' | 'iframe'
+
+const BACKGROUND_VIDEO_RENDERER: BackgroundVideoRenderer = 'webgl'
+
 export default class Game extends Phaser.Scene {
   network!: Network
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
@@ -101,6 +105,21 @@ export default class Game extends Phaser.Scene {
     this.myYoutubePlayer?.setAlpha(0)
   }
 
+  private applyIframeBackgroundStyles() {
+    const node = this.myYoutubePlayer?.node as HTMLElement | undefined
+    if (!node) return
+
+    node.style.opacity = '0.8'
+    node.style.mixBlendMode = 'overlay'
+
+    const iframe = node.querySelector('iframe')
+    if (iframe) {
+      iframe.style.pointerEvents = 'none'
+      iframe.style.opacity = '0.8'
+      iframe.style.mixBlendMode = 'overlay'
+    }
+  }
+
   private async resolveYoutubeDirectUrl(videoId: string): Promise<{
     url: string
     expiresAtMs: number | null
@@ -147,6 +166,11 @@ export default class Game extends Phaser.Scene {
     offsetSeconds: number
   ): Promise<boolean> {
     if (!this.backgroundVideo) return false
+
+    if (BACKGROUND_VIDEO_RENDERER !== 'webgl') {
+      await this.playIframeBackgroundVideo(videoId, offsetSeconds, false)
+      return true
+    }
 
     try {
       this.setBackgroundModeLabel('BG: WEBGL (resolving)')
@@ -226,11 +250,15 @@ export default class Game extends Phaser.Scene {
     }
   }
 
-  private async fallbackToDomYoutubeBackground(videoId: string, offsetSeconds: number) {
+  private async playIframeBackgroundVideo(
+    videoId: string,
+    offsetSeconds: number,
+    isFallback: boolean
+  ) {
     this.activeBackgroundVideoId = videoId
     this.activeBackgroundVideoIsWebgl = false
 
-    this.setBackgroundModeLabel('BG: DOM (fallback)')
+    this.setBackgroundModeLabel(isFallback ? 'BG: IFRAME (fallback)' : 'BG: IFRAME')
 
     this.backgroundVideoRefreshTimer?.remove(false)
     this.backgroundVideoRefreshTimer = undefined
@@ -245,6 +273,12 @@ export default class Game extends Phaser.Scene {
     this.myYoutubePlayer?.play()
     this.myYoutubePlayer?.setAlpha(1)
     this.myYoutubePlayer?.setVisible(true)
+
+    this.applyIframeBackgroundStyles()
+  }
+
+  private async fallbackToDomYoutubeBackground(videoId: string, offsetSeconds: number) {
+    await this.playIframeBackgroundVideo(videoId, offsetSeconds, true)
   }
 
   private getPlayerFeetPoint(sprite: Phaser.Physics.Arcade.Sprite): { x: number; y: number } {
@@ -806,11 +840,7 @@ export default class Game extends Phaser.Scene {
 
     // Ensure future iframes are also non-interactive
     this.myYoutubePlayer.on('ready', () => {
-      const node = this.myYoutubePlayer?.node as HTMLElement
-      const iframe = node?.querySelector('iframe')
-      if (iframe) {
-        iframe.style.pointerEvents = 'none'
-      }
+      this.applyIframeBackgroundStyles()
     })
 
     // Handle resize
