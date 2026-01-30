@@ -9,66 +9,56 @@ This document tracks the migration from inline YouTube scraping (`server/Youtube
 - [x] Create Go service with `/search` endpoint
 - [x] In-memory caching with TTL
 - [x] Dockerfile for deployment
-- [ ] Test locally with Go installed
-- [ ] Deploy to staging environment
+- [x] Test locally with Go installed
 
 ### Testing locally
 
 ```bash
 cd services/youtube-api
-go mod tidy
 go run .
 
 # In another terminal
 curl "http://localhost:8081/search?q=test&limit=5"
 ```
 
-## Phase 2: Colyseus Integration
+## Phase 2: Colyseus Integration ✅
 
-**Status: Not started**
+**Status: Complete**
 
-### Tasks
+- [x] Add `YOUTUBE_SERVICE_URL` env var to server
+- [x] Create `server/youtubeService.ts` client wrapper
+- [x] Modify `server/index.ts` to route `/youtube/:search` through the Go service
+- [x] Add fallback to `Youtube.js` if Go service unavailable
 
-- [ ] Add `YOUTUBE_SERVICE_URL` env var to server
-- [ ] Create `server/youtubeService.ts` client wrapper
-- [ ] Modify `server/index.ts` to route `/youtube/:search` through the Go service
-- [ ] Add fallback to `Youtube.js` if Go service unavailable
-- [ ] Test end-to-end with client playlist search
+## Phase 3: Resolve & Proxy Endpoints ✅
 
-### Server changes needed
+**Status: Complete**
 
-```typescript
-// server/youtubeService.ts (new file)
-const YOUTUBE_SERVICE_URL = process.env.YOUTUBE_SERVICE_URL || 'http://localhost:8081'
+Uses pure Go library (`github.com/kkdai/youtube/v2`) - no yt-dlp dependency!
 
-export async function searchYouTube(query: string, limit = 10) {
-  const url = `${YOUTUBE_SERVICE_URL}/search?q=${encodeURIComponent(query)}&limit=${limit}`
-  const response = await fetch(url)
-  if (!response.ok) throw new Error(`YouTube service error: ${response.status}`)
-  return response.json()
-}
-```
+- [x] Add `/resolve/{videoId}` endpoint to Go service
+- [x] Add `/proxy/{videoId}` endpoint with Range header support
+- [x] In-memory caching with expiry-aware TTL
+- [x] Colyseus integration with yt-dlp fallback
+- [x] Video-only streams for background visuals (lower bandwidth)
 
-## Phase 3: Resolve Endpoint Migration
+### Endpoints
 
-**Status: Not started**
+| Endpoint                                | Description                                |
+| --------------------------------------- | ------------------------------------------ |
+| `GET /resolve/{videoId}`                | Returns direct stream URL + expiry         |
+| `GET /resolve/{videoId}?videoOnly=true` | Video-only stream (no audio)               |
+| `GET /proxy/{videoId}`                  | Proxies video stream (default: video-only) |
+| `GET /proxy/{videoId}?videoOnly=false`  | Proxies combined audio+video               |
 
-### Tasks
+### Testing
 
-- [ ] Add `/resolve/:videoId` endpoint to Go service
-- [ ] Shell out to `yt-dlp` binary
-- [ ] Add caching with expiry-aware TTL
-- [ ] Migrate `server/youtubeResolver.ts` calls to use Go service
-- [ ] Update Dockerfile to include `yt-dlp` binary
+```bash
+# Resolve a video
+curl "http://localhost:8081/resolve/dQw4w9WgXcQ"
 
-### Dockerfile changes
-
-```dockerfile
-# Add yt-dlp to the runtime image
-FROM alpine:latest AS runtime
-RUN apk add --no-cache ca-certificates python3 py3-pip
-RUN pip3 install yt-dlp
-# ... copy Go binary
+# Proxy with range request
+curl -H "Range: bytes=0-1023" "http://localhost:8081/proxy/dQw4w9WgXcQ" -o /dev/null -w "%{http_code}\n"
 ```
 
 ## Phase 4: Redis + Scaling

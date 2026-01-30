@@ -9,7 +9,7 @@ import { monitor } from '@colyseus/monitor'
 
 import * as youtube from './Youtube'
 import { resolveYoutubeVideoUrl } from './youtubeResolver'
-import { searchYouTube } from './youtubeService'
+import { searchYouTube, resolveYouTubeVideo, proxyYouTubeVideo } from './youtubeService'
 import { RoomType } from '../types/Rooms'
 
 import { ClubMutant } from './rooms/ClubMutant'
@@ -53,71 +53,81 @@ app.get('/youtube/resolve/:videoId', async (req: Request, res: Response, next: N
   const { videoId } = req.params
 
   try {
-    const resolved = await resolveYoutubeVideoUrl(videoId)
+    const resolved = await resolveYouTubeVideo(videoId)
     res.json(resolved)
   } catch (e) {
-    if (e instanceof Error && e.message === 'invalid videoId') {
-      res.status(400).json({ error: 'invalid videoId' })
-      return
-    }
+    console.log('[youtube] Go service resolve failed, falling back to yt-dlp')
 
-    return next(e)
+    try {
+      const resolved = await resolveYoutubeVideoUrl(videoId)
+      res.json(resolved)
+    } catch (fallbackError) {
+      if (fallbackError instanceof Error && fallbackError.message === 'invalid videoId') {
+        res.status(400).json({ error: 'invalid videoId' })
+        return
+      }
+
+      return next(fallbackError)
+    }
   }
 })
 
 app.get('/youtube/proxy/:videoId', async (req: Request, res: Response, next: NextFunction) => {
   const { videoId } = req.params
+  const range = typeof req.headers.range === 'string' ? req.headers.range : undefined
 
   try {
-    const resolved = await resolveYoutubeVideoUrl(videoId)
-
-    console.log(`////app.get(/youtube/proxy/:videoId)`, videoId)
-
-    const range = req.headers.range
-    const headers: Record<string, string> = {}
-
-    if (typeof range === 'string' && range !== '') {
-      headers.Range = range
-    }
-
-    const upstream = await axios.get(resolved.url, {
-      responseType: 'stream',
-      headers,
-      validateStatus: (status) => status >= 200 && status < 400,
-      maxRedirects: 5,
-    })
-
-    res.status(upstream.status)
-
-    const passthroughHeaders = [
-      'content-type',
-      'content-length',
-      'content-range',
-      'accept-ranges',
-      'cache-control',
-    ] as const
-
-    for (const header of passthroughHeaders) {
-      const value = upstream.headers[header] as unknown
-
-      if (typeof value === 'string') {
-        res.setHeader(header, value)
-        continue
-      }
-
-      if (typeof value === 'number') {
-        res.setHeader(header, String(value))
-        continue
-      }
-
-      if (Array.isArray(value)) {
-        res.setHeader(header, value.map(String).join(', '))
-      }
-    }
-
-    upstream.data.pipe(res)
+    await proxyYouTubeVideo(videoId, range, res)
   } catch (e) {
-    return next(e)
+    console.log('[youtube] Go service proxy failed, falling back to yt-dlp + axios')
+
+    try {
+      const resolved = await resolveYoutubeVideoUrl(videoId)
+
+      const headers: Record<string, string> = {}
+      if (range) {
+        headers.Range = range
+      }
+
+      const upstream = await axios.get(resolved.url, {
+        responseType: 'stream',
+        headers,
+        validateStatus: (status) => status >= 200 && status < 400,
+        maxRedirects: 5,
+      })
+
+      res.status(upstream.status)
+
+      const passthroughHeaders = [
+        'content-type',
+        'content-length',
+        'content-range',
+        'accept-ranges',
+        'cache-control',
+      ] as const
+
+      for (const header of passthroughHeaders) {
+        const value = upstream.headers[header] as unknown
+
+        if (typeof value === 'string') {
+          res.setHeader(header, value)
+          continue
+        }
+
+        if (typeof value === 'number') {
+          res.setHeader(header, String(value))
+          continue
+        }
+
+        if (Array.isArray(value)) {
+          res.setHeader(header, value.map(String).join(', '))
+        }
+      }
+
+      upstream.data.pipe(res)
+    } catch (fallbackError) {
+      return next(fallbackError)
+    }
   }
 })
 

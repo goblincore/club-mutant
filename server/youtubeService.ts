@@ -1,5 +1,9 @@
+import type { Response } from 'express'
+import type { IncomingMessage } from 'http'
+
 const YOUTUBE_SERVICE_URL = process.env.YOUTUBE_SERVICE_URL || 'http://localhost:8081'
 const SERVICE_TIMEOUT_MS = 5000
+const RESOLVE_TIMEOUT_MS = 10000
 
 interface VideoResult {
   id: string
@@ -96,4 +100,101 @@ export async function isServiceHealthy(): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+export interface ResolveResponse {
+  videoId: string
+  url: string
+  expiresAtMs: number | null
+  resolvedAtMs: number
+  videoOnly?: boolean
+  quality?: string
+}
+
+export async function resolveYouTubeVideo(
+  videoId: string,
+  videoOnly = false
+): Promise<ResolveResponse> {
+  const params = videoOnly ? '?videoOnly=true' : ''
+  const url = `${YOUTUBE_SERVICE_URL}/resolve/${videoId}${params}`
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), RESOLVE_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      throw new Error(`YouTube service resolve error: ${response.status}`)
+    }
+
+    const data: ResolveResponse = await response.json()
+
+    console.log(`[youtubeService] Resolved ${videoId} -> ${data.quality ?? 'unknown'}`)
+
+    return data
+  } catch (e) {
+    clearTimeout(timeoutId)
+
+    if (e instanceof Error && e.name === 'AbortError') {
+      console.warn(`[youtubeService] Resolve timed out after ${RESOLVE_TIMEOUT_MS}ms`)
+    } else {
+      console.warn(`[youtubeService] Resolve failed:`, e)
+    }
+
+    throw e
+  }
+}
+
+export async function proxyYouTubeVideo(
+  videoId: string,
+  rangeHeader: string | undefined,
+  res: Response
+): Promise<void> {
+  const url = `${YOUTUBE_SERVICE_URL}/proxy/${videoId}`
+
+  const headers: Record<string, string> = {}
+  if (rangeHeader) {
+    headers['Range'] = rangeHeader
+  }
+
+  const upstream = await fetch(url, { headers })
+
+  if (!upstream.ok && upstream.status !== 206) {
+    throw new Error(`YouTube service proxy error: ${upstream.status}`)
+  }
+
+  res.status(upstream.status)
+
+  const passthroughHeaders = [
+    'content-type',
+    'content-length',
+    'content-range',
+    'accept-ranges',
+  ] as const
+
+  for (const header of passthroughHeaders) {
+    const value = upstream.headers.get(header)
+    if (value) {
+      res.setHeader(header, value)
+    }
+  }
+
+  if (!upstream.body) {
+    throw new Error('No response body from proxy')
+  }
+
+  const reader = upstream.body.getReader()
+
+  const pump = async (): Promise<void> => {
+    const { done, value } = await reader.read()
+    if (done) return
+    res.write(value)
+    return pump()
+  }
+
+  await pump()
+  res.end()
 }

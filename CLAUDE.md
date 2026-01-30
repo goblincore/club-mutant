@@ -764,47 +764,53 @@ The current `server/Youtube.js` uses fragile HTML/JSON scraping that runs inline
 ┌─────────────────┐     ┌──────────────────────────────┐
 │  Colyseus Game  │────▶│  YouTube Microservice (Go)   │
 │     Server      │     │  - GET /search?q=...         │
-└─────────────────┘     │  - GET /resolve/:videoId     │
-                        │  - (future) GET /proxy/...   │
+└─────────────────┘     │  - GET /resolve/{videoId}    │
+                        │  - GET /proxy/{videoId}      │
                         └──────────────┬───────────────┘
                                        │
                                        ▼
                         ┌──────────────────────────────┐
-                        │        Redis Cache           │
+                        │   In-memory Cache (Redis TBD)│
                         │  - search results (1hr TTL)  │
                         │  - resolved URLs (by expiry) │
                         └──────────────────────────────┘
 ```
 
-### Implementation phases
+### Implementation Status
 
-1. **Phase 1: Go service with search endpoint** (current)
+1. **Phase 1: Search endpoint** ✅
    - Location: `services/youtube-api/`
-   - Single endpoint: `GET /search?q=...&limit=10`
-   - Uses Go YouTube search library
-   - In-memory cache initially
-   - Dockerized for deployment
+   - Endpoint: `GET /search?q=...&limit=10`
+   - Uses `github.com/raitonoberu/ytsearch` library
+   - In-memory cache with TTL
 
-2. **Phase 2: Migrate resolve endpoint**
-   - Move `server/youtubeResolver.ts` logic to Go
-   - Shell out to `yt-dlp` binary
-   - Add caching with TTL based on URL expiry
+2. **Phase 2: Colyseus integration** ✅
+   - `server/youtubeService.ts` client wrapper
+   - Fallback to `Youtube.js` if Go service unavailable
 
-3. **Phase 3: Add Redis + proxy foundation**
+3. **Phase 3: Resolve & proxy endpoints** ✅
+   - `GET /resolve/{videoId}` - returns direct stream URL
+   - `GET /resolve/{videoId}?videoOnly=true` - video-only (no audio)
+   - `GET /proxy/{videoId}` - proxies stream (default: video-only)
+   - Uses pure Go: `github.com/kkdai/youtube/v2` (no yt-dlp!)
+   - Supports Range headers for seeking
+   - Fallback to yt-dlp in Node if Go service unavailable
+
+4. **Phase 4: Redis caching** (pending)
    - Redis for shared cache across instances
-   - Foundation for stream proxying
 
 ### Local development
 
-- Run standalone: `cd services/youtube-api && go run .`
-- Default port: `8081`
-- Environment variables:
-  - `PORT` - HTTP server port (default: 8081)
-  - `YOUTUBE_API_CACHE_TTL` - search cache TTL in seconds (default: 3600)
+```bash
+# Terminal 1: Go service
+cd services/youtube-api && go run .
 
-### Colyseus server integration
+# Terminal 2: Node server
+YOUTUBE_SERVICE_URL=http://localhost:8081 npm run start
+```
 
-The Node server calls the Go service via HTTP:
+### Environment variables
 
-- `YOUTUBE_SERVICE_URL` env var (default: `http://localhost:8081`)
-- Fallback to inline scraping if service unavailable (during migration)
+- `PORT` - Go service HTTP port (default: 8081)
+- `YOUTUBE_API_CACHE_TTL` - search cache TTL in seconds (default: 3600)
+- `YOUTUBE_SERVICE_URL` - Node server config (default: `http://localhost:8081`)
