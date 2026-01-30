@@ -354,8 +354,18 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[resolve] Selected format: %dp, audio=%d, mimeType=%s", selectedFormat.Height, selectedFormat.AudioChannels, selectedFormat.MimeType)
 	streamURL, err := s.ytClient.GetStreamURL(video, selectedFormat)
 	if err != nil {
-		log.Printf("[resolve] Failed to get stream URL for %s: %v", videoID, err)
-		http.Error(w, "Failed to get stream URL", http.StatusInternalServerError)
+		log.Printf("[resolve] GetStreamURL failed for %s: %v, trying yt-dlp fallback", videoID, err)
+
+		resolved, ytdlpErr := s.resolveWithYtDlp(videoID, videoOnly)
+		if ytdlpErr != nil {
+			log.Printf("[resolve] yt-dlp fallback also failed for %s: %v", videoID, ytdlpErr)
+			http.Error(w, "Failed to resolve video", http.StatusInternalServerError)
+			return
+		}
+
+		s.resolveCache.Set(cacheKey, *resolved, 5*time.Minute)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resolved)
 		return
 	}
 	log.Printf("[resolve] SUCCESS: Got stream URL for %s (expires: %d)", videoID, parseExpiresFromURL(streamURL))
