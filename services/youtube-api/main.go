@@ -203,6 +203,9 @@ func parseExpiresFromURL(rawURL string) *int64 {
 
 const cookiesFilePath = "/tmp/youtube_cookies.txt"
 
+// Semaphore to limit concurrent yt-dlp processes (prevents OOM)
+var ytdlpSemaphore = make(chan struct{}, 2)
+
 // initCookiesFile writes YouTube cookies from env var to a file (called once at startup)
 func initCookiesFile() {
 	cookies := os.Getenv("YOUTUBE_COOKIES")
@@ -221,6 +224,10 @@ func initCookiesFile() {
 
 // resolveWithYtDlp calls yt-dlp as a subprocess with PO token provider support
 func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveResponse, error) {
+	// Acquire semaphore to limit concurrent yt-dlp processes
+	ytdlpSemaphore <- struct{}{}
+	defer func() { <-ytdlpSemaphore }()
+
 	potProviderURL := os.Getenv("POT_PROVIDER_URL")
 	if potProviderURL == "" {
 		potProviderURL = "http://club-mutant-pot-provider.internal:4416"
