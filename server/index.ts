@@ -21,6 +21,10 @@ app.use(cors())
 app.use(express.json())
 // app.use(express.static('dist'))
 
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' })
+})
+
 const server = http.createServer(app)
 const gameServer = new Server({ server })
 

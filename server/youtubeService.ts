@@ -188,13 +188,27 @@ export async function proxyYouTubeVideo(
 
   const reader = upstream.body.getReader()
 
-  const pump = async (): Promise<void> => {
-    const { done, value } = await reader.read()
-    if (done) return
-    res.write(value)
-    return pump()
+  const stream = async (): Promise<void> => {
+    while (true) {
+      const { done, value } = await reader.read()
+
+      if (done) {
+        res.end()
+        return
+      }
+
+      const canContinue = res.write(value)
+
+      if (!canContinue) {
+        await new Promise<void>((resolve) => res.once('drain', resolve))
+      }
+    }
   }
 
-  await pump()
-  res.end()
+  try {
+    await stream()
+  } catch (e) {
+    reader.cancel()
+    throw e
+  }
 }

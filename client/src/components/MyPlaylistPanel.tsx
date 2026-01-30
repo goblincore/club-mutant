@@ -509,7 +509,8 @@ const MusicSearch = () => {
       return
     }
 
-    axios.get(`http://localhost:2567/youtube/${encodeURIComponent(query)}`).then((response) => {
+    const apiBase = import.meta.env.VITE_HTTP_ENDPOINT ?? 'http://localhost:2567'
+    axios.get(`${apiBase}/youtube/${encodeURIComponent(query)}`).then((response) => {
       setData((response?.data?.items as YoutubeSearchResult[]) ?? [])
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -2,6 +2,10 @@
   command = "cd types && npm i && cd ../client && npm i && npm run build"
   publish = "client/dist"
 
+[build.environment]
+  VITE_WS_ENDPOINT = "wss://club-mutant-server.fly.dev"
+  VITE_HTTP_ENDPOINT = "https://club-mutant-server.fly.dev"
+
 # Rule for router history mode
 [[redirects]]
   from = "/*"

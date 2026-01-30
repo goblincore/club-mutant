@@ -41,6 +41,7 @@ Uses pure Go library (`github.com/kkdai/youtube/v2`) - no yt-dlp dependency!
 - [x] In-memory caching with expiry-aware TTL
 - [x] Colyseus integration with yt-dlp fallback
 - [x] Video-only streams for background visuals (lower bandwidth)
+- [x] Safari WebGL video playback compatibility
 
 ### Endpoints
 
@@ -51,6 +52,24 @@ Uses pure Go library (`github.com/kkdai/youtube/v2`) - no yt-dlp dependency!
 | `GET /proxy/{videoId}`                  | Proxies video stream (default: video-only) |
 | `GET /proxy/{videoId}?videoOnly=false`  | Proxies combined audio+video               |
 
+### Video Format Selection
+
+The proxy defaults to **video-only** (no audio) for background visuals:
+
+- Lower bandwidth (~2MB vs ~10MB for combined)
+- Typically 144p resolution (itag 160)
+- Perfect for ambient background video in WebGL
+
+### Safari Compatibility
+
+Fixed intermittent video loading in Safari:
+
+- Removed 30s timeout on streaming connections
+- Increased client-side frame-ready timeout to 5s (was 1.5s)
+- Added proper `Content-Type: video/mp4` headers
+- Added `Cache-Control: no-cache` for Safari
+- Improved Node.js streaming with backpressure handling
+
 ### Testing
 
 ```bash
@@ -59,6 +78,9 @@ curl "http://localhost:8081/resolve/dQw4w9WgXcQ"
 
 # Proxy with range request
 curl -H "Range: bytes=0-1023" "http://localhost:8081/proxy/dQw4w9WgXcQ" -o /dev/null -w "%{http_code}\n"
+
+# Check format selection (should show "144p video-only")
+# Look for log: [proxy] Resolved dQw4w9WgXcQ -> 144p video-only (itag=160)
 ```
 
 ## Phase 4: Redis + Scaling
