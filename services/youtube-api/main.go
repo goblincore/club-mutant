@@ -447,88 +447,105 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	if !found {
 		video, err := s.ytClient.GetVideo(videoID)
 		if err != nil {
-			log.Printf("[proxy] Failed to get video %s: %v", videoID, err)
-			http.Error(w, "Failed to resolve video", http.StatusInternalServerError)
-			return
-		}
+			log.Printf("[proxy] Go library failed for %s: %v, trying yt-dlp fallback", videoID, err)
 
-		var selectedFormat *youtube.Format
-
-		if videoOnly {
-			for i := range video.Formats {
-				f := &video.Formats[i]
-				if f.AudioChannels == 0 && f.Height > 0 && f.Height <= 360 {
-					if selectedFormat == nil || f.Height < selectedFormat.Height {
-						selectedFormat = f
-					}
-				}
+			ytdlpResolved, ytdlpErr := s.resolveWithYtDlp(videoID, videoOnly)
+			if ytdlpErr != nil {
+				log.Printf("[proxy] yt-dlp fallback also failed for %s: %v", videoID, ytdlpErr)
+				http.Error(w, "Failed to resolve video", http.StatusInternalServerError)
+				return
 			}
 
-			if selectedFormat == nil {
+			s.resolveCache.Set(cacheKey, *ytdlpResolved, 5*time.Minute)
+			resolved = *ytdlpResolved
+		} else {
+			var selectedFormat *youtube.Format
+
+			if videoOnly {
 				for i := range video.Formats {
 					f := &video.Formats[i]
-					if f.AudioChannels == 0 && f.Height > 0 {
+					if f.AudioChannels == 0 && f.Height > 0 && f.Height <= 360 {
 						if selectedFormat == nil || f.Height < selectedFormat.Height {
 							selectedFormat = f
 						}
 					}
 				}
-			}
-		} else {
-			formats := video.Formats.WithAudioChannels()
-			for i := range formats {
-				f := &formats[i]
-				if f.Height > 0 && f.Height <= 360 {
-					if selectedFormat == nil || f.Height < selectedFormat.Height {
-						selectedFormat = f
+
+				if selectedFormat == nil {
+					for i := range video.Formats {
+						f := &video.Formats[i]
+						if f.AudioChannels == 0 && f.Height > 0 {
+							if selectedFormat == nil || f.Height < selectedFormat.Height {
+								selectedFormat = f
+							}
+						}
 					}
+				}
+			} else {
+				formats := video.Formats.WithAudioChannels()
+				for i := range formats {
+					f := &formats[i]
+					if f.Height > 0 && f.Height <= 360 {
+						if selectedFormat == nil || f.Height < selectedFormat.Height {
+							selectedFormat = f
+						}
+					}
+				}
+
+				if selectedFormat == nil && len(formats) > 0 {
+					selectedFormat = &formats[len(formats)-1]
 				}
 			}
 
-			if selectedFormat == nil && len(formats) > 0 {
-				selectedFormat = &formats[len(formats)-1]
+			if selectedFormat == nil {
+				http.Error(w, "No suitable format found", http.StatusNotFound)
+				return
+			}
+
+			streamURL, err := s.ytClient.GetStreamURL(video, selectedFormat)
+			if err != nil {
+				log.Printf("[proxy] GetStreamURL failed for %s: %v, trying yt-dlp fallback", videoID, err)
+
+				ytdlpResolved, ytdlpErr := s.resolveWithYtDlp(videoID, videoOnly)
+				if ytdlpErr != nil {
+					log.Printf("[proxy] yt-dlp fallback also failed for %s: %v", videoID, ytdlpErr)
+					http.Error(w, "Failed to get stream URL", http.StatusInternalServerError)
+					return
+				}
+
+				s.resolveCache.Set(cacheKey, *ytdlpResolved, 5*time.Minute)
+				resolved = *ytdlpResolved
+			} else {
+				qualityLabel := "video-only"
+				if !videoOnly {
+					qualityLabel = "combined"
+				}
+				if selectedFormat.Height > 0 {
+					qualityLabel = strconv.Itoa(selectedFormat.Height) + "p " + qualityLabel
+				}
+
+				log.Printf("[proxy] Resolved %s -> %s (itag=%d)", videoID, qualityLabel, selectedFormat.ItagNo)
+
+				resolved = ResolveResponse{
+					VideoID:     videoID,
+					URL:         streamURL,
+					ExpiresAtMs: parseExpiresFromURL(streamURL),
+					ResolvedAt:  time.Now().UnixMilli(),
+					VideoOnly:   videoOnly,
+					Quality:     qualityLabel,
+				}
+
+				ttl := 50 * time.Second
+				if resolved.ExpiresAtMs != nil {
+					untilExpiry := time.Until(time.UnixMilli(*resolved.ExpiresAtMs))
+					if untilExpiry > 2*time.Minute {
+						ttl = untilExpiry - time.Minute
+					}
+				}
+
+				s.resolveCache.Set(cacheKey, resolved, ttl)
 			}
 		}
-
-		if selectedFormat == nil {
-			http.Error(w, "No suitable format found", http.StatusNotFound)
-			return
-		}
-
-		streamURL, err := s.ytClient.GetStreamURL(video, selectedFormat)
-		if err != nil {
-			http.Error(w, "Failed to get stream URL", http.StatusInternalServerError)
-			return
-		}
-
-		qualityLabel := "video-only"
-		if !videoOnly {
-			qualityLabel = "combined"
-		}
-		if selectedFormat.Height > 0 {
-			qualityLabel = strconv.Itoa(selectedFormat.Height) + "p " + qualityLabel
-		}
-
-		log.Printf("[proxy] Resolved %s -> %s (itag=%d)", videoID, qualityLabel, selectedFormat.ItagNo)
-
-		resolved = ResolveResponse{
-			VideoID:     videoID,
-			URL:         streamURL,
-			ExpiresAtMs: parseExpiresFromURL(streamURL),
-			ResolvedAt:  time.Now().UnixMilli(),
-			VideoOnly:   videoOnly,
-			Quality:     qualityLabel,
-		}
-
-		ttl := 50 * time.Second
-		if resolved.ExpiresAtMs != nil {
-			untilExpiry := time.Until(time.UnixMilli(*resolved.ExpiresAtMs))
-			if untilExpiry > 2*time.Minute {
-				ttl = untilExpiry - time.Minute
-			}
-		}
-
-		s.resolveCache.Set(cacheKey, resolved, ttl)
 	}
 
 	req, err := http.NewRequest("GET", resolved.URL, nil)
