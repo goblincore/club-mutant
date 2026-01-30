@@ -747,3 +747,64 @@ Open guide-mode is still under active development; if blocks are mis-cropped, ex
 - Fixed UI click-through: check `event.target === canvas` to prevent movement when clicking UI elements.
 - Changed DJ booth activation to single-click when highlighted (removed double-click requirement).
 - A\* pathfinding now supports 8-directional movement with octile heuristic and no corner-cutting.
+
+## YouTube Microservice (services/youtube-api)
+
+### Motivation
+
+The current `server/Youtube.js` uses fragile HTML/JSON scraping that runs inline with the Colyseus game server. This is problematic:
+
+- CPU-intensive parsing blocks game state sync
+- Single point of failure for rate limiting
+- Difficult to scale independently
+
+### Architecture
+
+```
+┌─────────────────┐     ┌──────────────────────────────┐
+│  Colyseus Game  │────▶│  YouTube Microservice (Go)   │
+│     Server      │     │  - GET /search?q=...         │
+└─────────────────┘     │  - GET /resolve/:videoId     │
+                        │  - (future) GET /proxy/...   │
+                        └──────────────┬───────────────┘
+                                       │
+                                       ▼
+                        ┌──────────────────────────────┐
+                        │        Redis Cache           │
+                        │  - search results (1hr TTL)  │
+                        │  - resolved URLs (by expiry) │
+                        └──────────────────────────────┘
+```
+
+### Implementation phases
+
+1. **Phase 1: Go service with search endpoint** (current)
+   - Location: `services/youtube-api/`
+   - Single endpoint: `GET /search?q=...&limit=10`
+   - Uses Go YouTube search library
+   - In-memory cache initially
+   - Dockerized for deployment
+
+2. **Phase 2: Migrate resolve endpoint**
+   - Move `server/youtubeResolver.ts` logic to Go
+   - Shell out to `yt-dlp` binary
+   - Add caching with TTL based on URL expiry
+
+3. **Phase 3: Add Redis + proxy foundation**
+   - Redis for shared cache across instances
+   - Foundation for stream proxying
+
+### Local development
+
+- Run standalone: `cd services/youtube-api && go run .`
+- Default port: `8081`
+- Environment variables:
+  - `PORT` - HTTP server port (default: 8081)
+  - `YOUTUBE_API_CACHE_TTL` - search cache TTL in seconds (default: 3600)
+
+### Colyseus server integration
+
+The Node server calls the Go service via HTTP:
+
+- `YOUTUBE_SERVICE_URL` env var (default: `http://localhost:8081`)
+- Fallback to inline scraping if service unavailable (during migration)
