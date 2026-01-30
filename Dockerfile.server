@@ -19,9 +19,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install yt-dlp and python for video URL resolution
+# Install yt-dlp with PO token plugin for YouTube bot bypass
 RUN apk add --no-cache python3 py3-pip ffmpeg && \
-    pip3 install --break-system-packages yt-dlp
+    pip3 install --break-system-packages yt-dlp bgutil-ytdlp-pot-provider
 
 # Copy package files and install production deps only
 COPY package*.json ./

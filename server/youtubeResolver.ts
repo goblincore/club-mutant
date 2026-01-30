@@ -60,6 +60,9 @@ const resolveWithYtDlp = async (
 
   const url = `https://www.youtube.com/watch?v=${videoId}`
 
+  const potProviderUrl =
+    process.env.POT_PROVIDER_URL || 'http://club-mutant-pot-provider.internal:4416'
+
   const args = [
     url,
     '-f',
@@ -68,6 +71,8 @@ const resolveWithYtDlp = async (
     '--no-playlist',
     '--no-warnings',
     '--quiet',
+    '--extractor-args',
+    `youtubepot-bgutilhttp:base_url=${potProviderUrl}`,
   ]
 
   const { stdout } = await execFileAsync(ytDlpPath, args, {

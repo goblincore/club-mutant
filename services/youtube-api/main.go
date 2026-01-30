@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -197,6 +201,63 @@ func parseExpiresFromURL(rawURL string) *int64 {
 	return &expireMs
 }
 
+// resolveWithYtDlp calls yt-dlp as a subprocess with PO token provider support
+func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveResponse, error) {
+	potProviderURL := os.Getenv("POT_PROVIDER_URL")
+	if potProviderURL == "" {
+		potProviderURL = "http://club-mutant-pot-provider.internal:4416"
+	}
+
+	ytURL := "https://www.youtube.com/watch?v=" + videoID
+
+	formatArg := "worst[ext=mp4][height<=360]/worst[ext=mp4]/worst"
+	if videoOnly {
+		formatArg = "worst[ext=mp4][height<=360][acodec=none]/worst[ext=mp4][acodec=none]/worst[acodec=none]"
+	}
+
+	args := []string{
+		ytURL,
+		"-f", formatArg,
+		"-g",
+		"--no-playlist",
+		"--no-warnings",
+		"--quiet",
+		"--extractor-args", "youtubepot-bgutilhttp:base_url=" + potProviderURL,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		log.Printf("[yt-dlp] Failed for %s: %v, stderr: %s", videoID, err, stderr.String())
+		return nil, err
+	}
+
+	resolvedURL := strings.TrimSpace(strings.Split(stdout.String(), "\n")[0])
+	if resolvedURL == "" {
+		return nil, fmt.Errorf("yt-dlp returned empty URL")
+	}
+
+	qualityLabel := "360p combined"
+	if videoOnly {
+		qualityLabel = "360p video-only"
+	}
+
+	return &ResolveResponse{
+		VideoID:     videoID,
+		URL:         resolvedURL,
+		ExpiresAtMs: parseExpiresFromURL(resolvedURL),
+		ResolvedAt:  time.Now().UnixMilli(),
+		VideoOnly:   videoOnly,
+		Quality:     qualityLabel,
+	}, nil
+}
+
 func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 	videoID := r.PathValue("videoId")
 	if videoID == "" {
@@ -224,8 +285,18 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[resolve] Fetching video info for %s (videoOnly=%v)", videoID, videoOnly)
 	video, err := s.ytClient.GetVideo(videoID)
 	if err != nil {
-		log.Printf("[resolve] Failed to get video %s: %v", videoID, err)
-		http.Error(w, "Failed to resolve video", http.StatusInternalServerError)
+		log.Printf("[resolve] Go library failed for %s: %v, trying yt-dlp fallback", videoID, err)
+
+		resolved, ytdlpErr := s.resolveWithYtDlp(videoID, videoOnly)
+		if ytdlpErr != nil {
+			log.Printf("[resolve] yt-dlp fallback also failed for %s: %v", videoID, ytdlpErr)
+			http.Error(w, "Failed to resolve video", http.StatusInternalServerError)
+			return
+		}
+
+		s.resolveCache.Set(cacheKey, *resolved, 5*time.Minute)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resolved)
 		return
 	}
 	log.Printf("[resolve] Got video: %s, formats available: %d", video.Title, len(video.Formats))
