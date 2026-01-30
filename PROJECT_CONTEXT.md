@@ -23,6 +23,7 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Commands: `server/rooms/commands/*`
 - `types/`
   - Shared message enums + schema interfaces consumed by both client/server
+  - Shared DTOs (plain JSON payload contracts): `types/Dtos.ts`
 
 ## How to run
 
@@ -36,6 +37,36 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
 - If `tsc` outputs huge numbers of parse errors originating from `node_modules/ioredis/*`, upgrade the root toolchain (`typescript`, `ts-node`, `ts-node-dev`).
 
 ## Core runtime model
+
+## Type model (Schema vs Interfaces vs DTOs)
+
+This repo uses a **hybrid type model** to keep Colyseus runtime state (Schema) separate from the network payload contracts.
+
+### 1) Server runtime state (Colyseus Schema classes)
+
+- File: `server/rooms/schema/OfficeState.ts`
+- These are the authoritative state containers.
+- **Do not** make Schema classes `implement` shared `I*` interfaces (TypeScript structural mismatches with Colyseus internal Schema fields).
+
+### 2) Client room state typing (Schema-shaped interfaces)
+
+- File: `types/IOfficeState.ts`
+- These interfaces extend `Schema` and are intended for typing `Room<IOfficeState>` on the client.
+- Treat these as “Schema-shaped types”, not as network payload DTOs.
+
+### 3) Wire payload contracts (DTOs)
+
+- File: `types/Dtos.ts`
+- DTOs are **plain JSON** (no Schema inheritance) and are used for:
+  - `Room.send(...)` payloads
+  - server `onMessage(...)` payload typing
+  - dispatcher/command payload typing
+
+Rule of thumb:
+
+- Use **Schema** for authoritative room state.
+- Use **`IOfficeState` interfaces** for client-side typing of `room.state`.
+- Use **DTOs** for anything that crosses the network boundary.
 
 ### Colyseus state
 
