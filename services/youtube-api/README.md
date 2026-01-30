@@ -4,7 +4,7 @@ A lightweight Go service that provides YouTube search, video resolution, and str
 
 ## Prerequisites
 
-- Go 1.21+
+- Go 1.23+
 - (Optional) Docker for containerized deployment
 
 ## Quick Start
