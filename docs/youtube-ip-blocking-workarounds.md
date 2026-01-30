@@ -4,70 +4,91 @@ YouTube blocks or rate-limits requests from datacenter IPs (AWS, GCP, Fly.io, et
 
 ## Current Status
 
-| Approach                       | Status         | Notes                                                     |
-| ------------------------------ | -------------- | --------------------------------------------------------- |
-| **Go library (kkdai/youtube)** | ⚠️ Partial     | Works for some videos, fails for age-restricted/bot-check |
-| **yt-dlp fallback**            | ⚠️ Partial     | Same issue - blocked from datacenter IPs                  |
-| **iframe mode**                | ✅ Working     | Current production solution                               |
-| **PO Token Provider**          | 🔧 In Progress | Plugin installed but not loading                          |
+| Approach                       | Status     | Notes                                              |
+| ------------------------------ | ---------- | -------------------------------------------------- |
+| **Go library (kkdai/youtube)** | ✅ Working | Works for normal videos                            |
+| **yt-dlp + PO Token fallback** | ✅ Working | Fallback when Go library fails                     |
+| **iframe mode**                | ✅ Working | Ultimate fallback for restricted content           |
+| **Age-restricted content**     | ❌ Blocked | Requires YouTube cookies (not currently supported) |
 
-## Solutions
+## What Works
 
-### 1. iframe Mode (Current - Working)
+### Normal Videos (e.g., Rick Astley)
 
-The simplest solution. Uses YouTube's official embed which isn't blocked.
-
-```typescript
-// client/src/scenes/Game.ts
-const BACKGROUND_VIDEO_RENDERER: BackgroundVideoRenderer = 'iframe'
-```
-
-**Trade-off:** No WebGL shader effects on video, but reliable playback.
-
-### 2. PO Token Provider (In Progress)
-
-PO (Proof of Origin) tokens prove requests come from legitimate clients.
-
-**Architecture:**
-
-```
-YouTube API Service → PO Token Provider → yt-dlp → YouTube
-       (Go)              (Node.js)
-```
-
-**Services deployed:**
-
-- `club-mutant-pot-provider` - Generates PO tokens
-- `club-mutant-youtube-api` - Has yt-dlp with plugin installed
-
-**Issue:** The `bgutil-ytdlp-pot-provider` plugin is pip-installed but yt-dlp isn't loading it. May need manual plugin directory setup.
-
-**To debug:**
+Most videos resolve successfully via the Go library or yt-dlp with PO tokens:
 
 ```bash
-fly ssh console -a club-mutant-youtube-api
-yt-dlp --verbose https://www.youtube.com/watch?v=dQw4w9WgXcQ 2>&1 | grep -i plugin
+curl "https://club-mutant-youtube-api.fly.dev/resolve/dQw4w9WgXcQ"
+# Returns stream URL ✅
 ```
 
-### 3. Cloudflare WARP (Not Implemented)
+### What Doesn't Work
 
-Routes traffic through Cloudflare's IPs which YouTube doesn't block.
+**Age-restricted or embedding-disabled videos** fail because they require actual YouTube authentication (cookies), not just PO tokens:
 
-**Setup (for VPS):**
+- Age-restricted content → "login required to confirm your age"
+- Embedding disabled → "embedding of this video has been disabled"
+
+These restrictions are enforced **before** PO tokens come into play.
+
+## Architecture
+
+```
+Client Request
+      ↓
+YouTube API (Go) ─────────────────────┐
+      │                               │
+      ├─ Go library works? ──────────→ Return stream URL ✅
+      │
+      ├─ Go library fails?
+      │         ↓
+      │    yt-dlp fallback
+      │         ↓
+      │    PO Token Provider ← Generates attestation tokens
+      │         ↓
+      ├─ yt-dlp works? ──────────────→ Return stream URL ✅
+      │
+      └─ Both fail? ─────────────────→ Client uses iframe mode
+```
+
+## Services
+
+| Service                    | URL                                             | Purpose                |
+| -------------------------- | ----------------------------------------------- | ---------------------- |
+| `club-mutant-youtube-api`  | `https://club-mutant-youtube-api.fly.dev`       | Video search + resolve |
+| `club-mutant-pot-provider` | `http://club-mutant-pot-provider.internal:4416` | PO token generation    |
+
+## Cookie Workaround (Not Implemented)
+
+For age-restricted content, yt-dlp supports passing YouTube cookies:
 
 ```bash
-# Install WARP CLI
-curl -fsSL https://pkg.cloudflarewarp.com/cloudflare-warp-ascii.repo | sudo tee /etc/yum.repos.d/cloudflare-warp.repo
-sudo yum install cloudflare-warp
-
-# Register and connect
-warp-cli register
-warp-cli connect
+yt-dlp --cookies cookies.txt https://www.youtube.com/watch?v=VIDEO_ID
 ```
 
-For Docker/Fly.io, need to use [warproxy](https://github.com/kingcc/warproxy) container.
+**To export cookies:**
 
-### 4. Residential Proxy (Expensive)
+1. Install a browser extension like "Get cookies.txt LOCALLY"
+2. Log into YouTube
+3. Export cookies to `cookies.txt`
+4. Mount the file in the container
+
+**Implementation would require:**
+
+1. Securely storing cookies (Fly.io secrets or encrypted storage)
+2. Mounting cookies file in YouTube API container
+3. Adding `--cookies` flag to yt-dlp command
+4. Periodically refreshing cookies (they expire)
+
+**Trade-offs:**
+
+- Requires a YouTube account
+- Cookies expire and need refreshing
+- Account could get flagged for automated access
+
+## Alternative Solutions
+
+### Residential Proxy (Expensive)
 
 Use a residential proxy service for YouTube requests.
 
@@ -76,40 +97,20 @@ Use a residential proxy service for YouTube requests.
 | Bright Data | ~$15/GB |
 | IPRoyal     | ~$7/GB  |
 
-### 5. Home Server / VPS with Clean IP
+### Home Server / VPS with Clean IP
 
 Host on residential IP (home server) or find a VPS provider with less-flagged IPs.
 
-## Technical Details
+## Files
 
-### Why Datacenter IPs Are Blocked
-
-1. **Bot detection** - YouTube uses BotGuard to verify clients
-2. **PO Tokens** - Required proof that request is from legitimate app
-3. **IP reputation** - Datacenter IPs are flagged for abuse
-
-### What yt-dlp Does
-
-1. Impersonates different YouTube clients (Android, iOS, TV, Web)
-2. Can use PO token plugins for attestation
-3. Actively maintained to handle YouTube changes
-
-### What the Go Library Does
-
-- Uses `kkdai/youtube` which calls YouTube's Innertube API
-- Doesn't support PO tokens natively
-- Works from residential IPs, often blocked from datacenters
-
-## Files Modified
-
-- `client/src/scenes/Game.ts` - `BACKGROUND_VIDEO_RENDERER` setting
-- `services/youtube-api/main.go` - yt-dlp fallback function
-- `services/youtube-api/Dockerfile` - Added yt-dlp + plugin
+- `services/youtube-api/main.go` - Go library + yt-dlp fallback
+- `services/youtube-api/Dockerfile` - Alpine with yt-dlp, Node.js, PO token plugin
 - `services/pot-provider/` - PO token provider service
-- `server/youtubeResolver.ts` - PO token provider URL config
+- `client/src/scenes/Game.ts` - `BACKGROUND_VIDEO_RENDERER` setting
 
 ## Next Steps
 
-1. Fix yt-dlp plugin loading in container
-2. Or: Set up Cloudflare WARP proxy
-3. Or: Keep using iframe mode (works reliably)
+1. ✅ PO token provider working for normal videos
+2. Switch to WebGL mode for production (currently using iframe)
+3. (Optional) Implement cookie workaround for age-restricted content
+4. (Future) Add Redis caching for resolved URLs
