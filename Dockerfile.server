@@ -25,7 +25,8 @@ RUN npm ci --omit=dev
 
 # Copy built files (tsc outputs to lib/server/ due to include pattern)
 COPY --from=builder /app/server/lib/server ./server/lib
-COPY --from=builder /app/types ./types
+# Types need to be at server/types/ because compiled code uses '../types/' relative path
+COPY --from=builder /app/server/lib/types ./server/types
 
 # Copy runtime JS files that aren't compiled
 COPY server/*.js ./server/
