@@ -1,0 +1,41 @@
+# Build stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY server/tsconfig*.json ./server/
+COPY types/ ./types/
+
+# Install dependencies
+RUN npm ci
+
+# Copy source
+COPY server/ ./server/
+
+# Build TypeScript
+RUN cd server && npx tsc --project tsconfig.server.json
+
+# Runtime stage
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files and install production deps only
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Copy built files
+COPY --from=builder /app/server/lib ./server/lib
+COPY --from=builder /app/types ./types
+
+# Copy runtime JS files that aren't compiled
+COPY server/*.js ./server/
+
+ENV NODE_ENV=production
+ENV PORT=2567
+
+EXPOSE 2567
+
+CMD ["node", "server/lib/index.js"]

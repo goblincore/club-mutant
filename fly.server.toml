@@ -1,0 +1,39 @@
+# fly.toml app configuration file generated for club-mutant-server on 2026-01-30T13:06:41-05:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'club-mutant-server'
+primary_region = 'iad'
+
+[build]
+  dockerfile = 'Dockerfile.server'
+
+[env]
+  NODE_ENV = 'production'
+  PORT = '2567'
+
+[http_service]
+  internal_port = 2567
+  force_https = true
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = 'connections'
+    hard_limit = 1000
+    soft_limit = 800
+
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '30s'
+    method = 'GET'
+    path = '/health'
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 512

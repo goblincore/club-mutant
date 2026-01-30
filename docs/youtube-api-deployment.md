@@ -1,6 +1,26 @@
-# YouTube API Deployment Guide
+# Club Mutant Deployment Guide
 
-This guide covers deploying the YouTube API microservice to a VPS or container platform.
+This guide covers deploying Club Mutant services to Fly.io or a VPS.
+
+## Architecture
+
+```
+[Netlify]              [Fly.io]
+ Frontend  ──────────►  Colyseus Server ◄────► YouTube API
+ (static)               (club-mutant-server)   (club-mutant-youtube-api)
+                              │                      │
+                              └────── internal ──────┘
+```
+
+- **Frontend**: Static files on Netlify (existing setup)
+- **Colyseus Server**: Node.js game server with WebSockets
+- **YouTube API**: Go microservice (internal, not public)
+
+---
+
+# YouTube API Deployment
+
+This section covers deploying the YouTube API microservice.
 
 ## Quick Start Options
 
@@ -207,3 +227,106 @@ The proxy streams video data which can take time. Ensure:
 
 - Nginx `proxy_read_timeout` is high (300s)
 - No aggressive firewall timeouts
+
+---
+
+# Colyseus Server Deployment
+
+The main game server running Node.js with Colyseus for real-time multiplayer.
+
+## Fly.io Deployment
+
+```bash
+# From project root (not server/)
+fly deploy --config fly.server.toml
+
+# Or first time launch
+fly launch --config fly.server.toml --name club-mutant-server
+```
+
+## Environment Variables
+
+| Variable              | Default                 | Description                |
+| --------------------- | ----------------------- | -------------------------- |
+| `PORT`                | `2567`                  | HTTP/WebSocket server port |
+| `NODE_ENV`            | `development`           | Environment mode           |
+| `YOUTUBE_SERVICE_URL` | `http://localhost:8081` | YouTube API service URL    |
+
+## Connecting to YouTube API (Internal)
+
+On Fly.io, services in the same org can communicate via internal DNS:
+
+```bash
+# Set in fly.toml or via fly secrets
+fly secrets set YOUTUBE_SERVICE_URL=http://club-mutant-youtube-api.internal:8081
+```
+
+This keeps YouTube API traffic internal (faster, no public exposure).
+
+## WebSocket Considerations
+
+Colyseus uses WebSockets which require:
+
+1. **Sticky sessions**: Fly.io handles this automatically
+2. **Keep machines running**: Set `auto_stop_machines = false` in fly.toml
+3. **Minimum 1 machine**: Set `min_machines_running = 1`
+
+## Client Configuration
+
+Update your client's environment to point to the deployed server:
+
+```bash
+# .env or environment
+VITE_SERVER_URL=wss://club-mutant-server.fly.dev
+VITE_HTTP_ENDPOINT=https://club-mutant-server.fly.dev
+```
+
+## Health Check
+
+```bash
+curl https://club-mutant-server.fly.dev/health
+# Should return: {"status":"ok"}
+```
+
+## Monitoring
+
+```bash
+# View logs
+fly logs -a club-mutant-server
+
+# SSH into container
+fly ssh console -a club-mutant-server
+
+# Check status
+fly status -a club-mutant-server
+```
+
+---
+
+# Complete Deployment Checklist
+
+1. **Deploy YouTube API**
+
+   ```bash
+   cd services/youtube-api
+   fly deploy
+   ```
+
+2. **Deploy Colyseus Server**
+
+   ```bash
+   # From project root
+   fly secrets set YOUTUBE_SERVICE_URL=http://club-mutant-youtube-api.internal:8081 -a club-mutant-server
+   fly deploy --config fly.server.toml
+   ```
+
+3. **Update Netlify Environment**
+   - Set `VITE_SERVER_URL=wss://club-mutant-server.fly.dev`
+   - Set `VITE_HTTP_ENDPOINT=https://club-mutant-server.fly.dev`
+   - Trigger redeploy
+
+4. **Verify**
+   ```bash
+   curl https://club-mutant-youtube-api.fly.dev/health
+   curl https://club-mutant-server.fly.dev/health
+   ```
