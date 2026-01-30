@@ -222,6 +222,7 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 		"--no-playlist",
 		"--no-warnings",
 		"--quiet",
+		"--js-runtimes", "node",
 		"--extractor-args", "youtubepot-bgutilhttp:base_url=" + potProviderURL,
 	}
 
