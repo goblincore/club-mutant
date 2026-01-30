@@ -3,12 +3,12 @@ import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 import { PlaylistItem, DJUserInfo } from '../schema/OfficeState'
 import type { ClubMutant } from '../ClubMutant'
-import { IPlaylistItem } from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
+import type { PlaylistItemDto } from '../../../types/Dtos'
 
 type Payload = {
   client?: Client
-  item?: IPlaylistItem
+  item?: PlaylistItemDto
 }
 
 export class MusicStreamNextCommand extends Command<ClubMutant, Payload | undefined> {

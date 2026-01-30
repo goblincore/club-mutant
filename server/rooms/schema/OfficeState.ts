@@ -1,17 +1,7 @@
 import { Schema, ArraySchema, MapSchema, type } from '@colyseus/schema'
-import {
-  IOfficeState,
-  IPlayer,
-  IMusicStream,
-  IMusicBooth,
-  IChatMessage,
-  IPlaylistItem,
-  IDJUserInfo,
-  IRoomPlaylistItem,
-} from '../../../types/IOfficeState'
 import { TEXTURE_IDS, packDirectionalAnimId } from '../../../types/AnimationCodec'
 
-export class PlaylistItem extends Schema implements IPlaylistItem {
+export class PlaylistItem extends Schema {
   @type('string') id = ''
   @type('string') djId = ''
   @type('string') title = ''
@@ -21,7 +11,7 @@ export class PlaylistItem extends Schema implements IPlaylistItem {
   @type('string') trackMessage: string | null = null
 }
 
-export class RoomPlaylistItem extends Schema implements IRoomPlaylistItem {
+export class RoomPlaylistItem extends Schema {
   @type('string') id = ''
   @type('string') title = ''
   @type('string') link = ''
@@ -30,7 +20,7 @@ export class RoomPlaylistItem extends Schema implements IRoomPlaylistItem {
   @type('string') addedBySessionId = ''
 }
 
-export class Player extends Schema implements IPlayer {
+export class Player extends Schema {
   @type('string') id: string | null = null
   @type('string') djId: string | null = null
   @type('string') name = ''
@@ -46,18 +36,18 @@ export class Player extends Schema implements IPlayer {
   nextTwoPlaylist = new ArraySchema<PlaylistItem>()
 }
 
-export class ChatMessage extends Schema implements IChatMessage {
+export class ChatMessage extends Schema {
   @type('string') author = ''
   @type('number') createdAt = new Date().getTime()
   @type('string') content = ''
 }
 
-export class DJUserInfo extends Schema implements IDJUserInfo {
+export class DJUserInfo extends Schema {
   @type('string') name = ''
   @type('string') sessionId = ''
 }
 
-export class MusicStream extends Schema implements IMusicStream {
+export class MusicStream extends Schema {
   @type('string') status = 'waiting' // waiting or seeking or playing
   @type('number') streamId = 0
   @type('string') currentLink: string | null = null
@@ -74,11 +64,11 @@ export class MusicStream extends Schema implements IMusicStream {
   @type('boolean') isAmbient = false
 }
 
-export class MusicBooth extends Schema implements IMusicBooth {
+export class MusicBooth extends Schema {
   @type('string') connectedUser: string | null = null
 }
 
-export class OfficeState extends Schema implements IOfficeState {
+export class OfficeState extends Schema {
   @type({ map: Player })
   players = new MapSchema<Player>()
 
