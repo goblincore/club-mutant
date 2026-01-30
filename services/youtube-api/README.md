@@ -1,6 +1,6 @@
 # YouTube API Microservice
 
-A lightweight Go service that provides YouTube search functionality for Club Mutant, decoupled from the main Colyseus game server.
+A lightweight Go service that provides YouTube search, video resolution, and streaming proxy functionality for Club Mutant, decoupled from the main Colyseus game server.
 
 ## Prerequisites
 
@@ -145,16 +145,36 @@ docker run -p 8081:8081 youtube-api
 
 ## Architecture Notes
 
-This service uses the `ytsearch` library which scrapes YouTube's web interface. It's more reliable than manual parsing but may still break if YouTube changes their frontend significantly.
+### Libraries
+
+- **Search**: `github.com/raitonoberu/ytsearch` - scrapes YouTube's web interface
+- **Resolve/Proxy**: `github.com/kkdai/youtube/v2` - pure Go YouTube client (no yt-dlp needed)
 
 ### Caching
 
 - In-memory cache with configurable TTL
-- Cache key: `{query}:{limit}`
-- Automatic cleanup of expired entries every 5 minutes
+- Search cache key: `{query}:{limit}`
+- Resolve cache key: `{videoId}` or `{videoId}:video` for video-only
+- Automatic cleanup of expired entries
+- Resolve URLs cached until ~1 minute before expiry
 
-### Future Phases
+### Video Format Selection
 
-1. **Resolve endpoint**: Add `/resolve/:videoId` to get direct video URLs via `yt-dlp`
-2. **Redis cache**: Shared cache for horizontal scaling
-3. **Stream proxy**: Proxy video streams for playback
+| Endpoint                  | Default    | Format Selected               |
+| ------------------------- | ---------- | ----------------------------- |
+| `/resolve`                | combined   | 360p with audio               |
+| `/resolve?videoOnly=true` | video-only | ≤360p no audio                |
+| `/proxy`                  | video-only | ≤360p no audio (144p typical) |
+| `/proxy?videoOnly=false`  | combined   | 360p with audio               |
+
+### Browser Compatibility
+
+- Tested with Safari WebGL video playback
+- Supports HTTP Range requests for seeking
+- No timeout on streaming connections
+- Proper `Content-Type: video/mp4` headers
+
+### Future: Redis Cache
+
+- Replace in-memory cache for horizontal scaling
+- Share resolved URLs across service instances
