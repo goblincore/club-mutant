@@ -37,7 +37,7 @@ import { SOFT_POSTFX_PIPELINE_KEY, SoftPostFxPipeline } from '../pipelines/SoftP
 
 type BackgroundVideoRenderer = 'webgl' | 'iframe'
 
-const BACKGROUND_VIDEO_RENDERER: BackgroundVideoRenderer = 'iframe'
+const BACKGROUND_VIDEO_RENDERER: BackgroundVideoRenderer = 'webgl'
 
 export default class Game extends Phaser.Scene {
   network!: Network
@@ -207,13 +207,15 @@ export default class Game extends Phaser.Scene {
     }
 
     try {
+      const startTime = performance.now()
       this.setBackgroundModeLabel('BG: WEBGL (resolving)')
       const resolved = await this.resolveYoutubeDirectUrl(videoId)
+      console.log(`[YoutubeBG] Resolve took ${(performance.now() - startTime).toFixed(0)}ms`)
 
       this.activeBackgroundVideoId = videoId
       this.activeBackgroundVideoIsWebgl = true
 
-      this.setBackgroundModeLabel('BG: WEBGL')
+      this.setBackgroundModeLabel('BG: WEBGL (loading)')
 
       this.backgroundVideo.removeAllListeners()
       this.backgroundVideo
@@ -227,6 +229,7 @@ export default class Game extends Phaser.Scene {
       // Use a same-origin proxy URL to avoid googlevideo.com CORS issues.
       // loadHandler() skips Phaser's extension sniff (googlevideo URLs often have no .mp4 suffix).
       const proxiedUrl = this.getYoutubeProxyUrl(videoId)
+      const loadStartTime = performance.now()
       ;(
         this.backgroundVideo as unknown as {
           loadHandler: (
@@ -239,17 +242,22 @@ export default class Game extends Phaser.Scene {
       this.backgroundVideo.setMute(true)
 
       this.backgroundVideo.once('metadata', () => {
+        console.log(
+          `[YoutubeBG] Metadata loaded in ${(performance.now() - loadStartTime).toFixed(0)}ms`
+        )
         // When metadata loads, the underlying video element updates its intrinsic dimensions.
         // If we computed scale before that, the display size can be wrong until the next resize event.
         this.backgroundVideo?.setDisplaySize(this.scale.width, this.scale.height)
         this.backgroundVideo?.setCurrentTime(offsetSeconds)
         this.backgroundVideo?.play(true)
         this.backgroundVideo?.setAlpha(1)
+        this.setBackgroundModeLabel('BG: WEBGL')
       })
 
       // If CORS prevents WebGL from sampling video frames, this can result in a black rectangle.
       // If we don't get a first frame quickly, fall back to the DOM-based YouTube player.
-      this.time.delayedCall(1500, () => {
+      // Note: 5s timeout to allow for cold cache resolve + video metadata load
+      this.time.delayedCall(5000, () => {
         if (this.activeBackgroundVideoId !== videoId) return
         if (!this.activeBackgroundVideoIsWebgl) return
         if (!this.backgroundVideo) return
@@ -259,11 +267,18 @@ export default class Game extends Phaser.Scene {
         }
 
         if (videoWithFrameReady.frameReady !== true) {
+          console.log(`[YoutubeBG] Frame not ready after 5s, falling back`)
           void this.fallbackToDomYoutubeBackground(videoId, offsetSeconds)
         }
       })
 
-      this.backgroundVideo.once('error', () => {
+      this.backgroundVideo.once('error', (video: Phaser.GameObjects.Video) => {
+        const videoEl = video.video
+        const mediaError = videoEl?.error
+        const errorInfo = mediaError
+          ? `code=${mediaError.code} message="${mediaError.message}"`
+          : 'unknown'
+        console.error(`[YoutubeBG] Video error: ${errorInfo}`)
         void this.fallbackToDomYoutubeBackground(videoId, offsetSeconds)
       })
 

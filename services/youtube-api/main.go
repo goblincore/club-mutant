@@ -390,12 +390,23 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		qualityLabel := "video-only"
+		if !videoOnly {
+			qualityLabel = "combined"
+		}
+		if selectedFormat.Height > 0 {
+			qualityLabel = strconv.Itoa(selectedFormat.Height) + "p " + qualityLabel
+		}
+
+		log.Printf("[proxy] Resolved %s -> %s (itag=%d)", videoID, qualityLabel, selectedFormat.ItagNo)
+
 		resolved = ResolveResponse{
 			VideoID:     videoID,
 			URL:         streamURL,
 			ExpiresAtMs: parseExpiresFromURL(streamURL),
 			ResolvedAt:  time.Now().UnixMilli(),
 			VideoOnly:   videoOnly,
+			Quality:     qualityLabel,
 		}
 
 		ttl := 50 * time.Second
@@ -419,7 +430,8 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		req.Header.Set("Range", rangeHeader)
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	// No timeout for streaming - let the connection stay open
+	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("[proxy] Upstream request failed for %s: %v", videoID, err)
@@ -428,7 +440,13 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
+	// Set content type - default to video/mp4 if not provided
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "video/mp4"
+	}
+	w.Header().Set("Content-Type", contentType)
+
 	if cl := resp.Header.Get("Content-Length"); cl != "" {
 		w.Header().Set("Content-Length", cl)
 	}
@@ -437,11 +455,18 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Accept-Ranges", "bytes")
 
+	// Safari needs these for proper video handling
+	w.Header().Set("Cache-Control", "no-cache")
+
 	w.WriteHeader(resp.StatusCode)
 
-	bytesWritten, err := io.Copy(w, resp.Body)
+	// Use a larger buffer for more efficient streaming
+	buf := make([]byte, 32*1024)
+	bytesWritten, err := io.CopyBuffer(w, resp.Body, buf)
 	if err != nil {
 		log.Printf("[proxy] Stream copy error for %s after %d bytes: %v", videoID, bytesWritten, err)
+	} else {
+		log.Printf("[proxy] Streamed %d bytes for %s", bytesWritten, videoID)
 	}
 }
 
