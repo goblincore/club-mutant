@@ -201,6 +201,24 @@ func parseExpiresFromURL(rawURL string) *int64 {
 	return &expireMs
 }
 
+const cookiesFilePath = "/tmp/youtube_cookies.txt"
+
+// initCookiesFile writes YouTube cookies from env var to a file (called once at startup)
+func initCookiesFile() {
+	cookies := os.Getenv("YOUTUBE_COOKIES")
+	if cookies == "" {
+		log.Println("[cookies] No YOUTUBE_COOKIES env var set, age-restricted videos may fail")
+		return
+	}
+
+	if err := os.WriteFile(cookiesFilePath, []byte(cookies), 0600); err != nil {
+		log.Printf("[cookies] Failed to write cookies file: %v", err)
+		return
+	}
+
+	log.Println("[cookies] YouTube cookies file initialized")
+}
+
 // resolveWithYtDlp calls yt-dlp as a subprocess with PO token provider support
 func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveResponse, error) {
 	potProviderURL := os.Getenv("POT_PROVIDER_URL")
@@ -210,9 +228,9 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 
 	ytURL := "https://www.youtube.com/watch?v=" + videoID
 
-	formatArg := "worst[ext=mp4][height<=360]/worst[ext=mp4]/worst"
+	formatArg := "best[height<=360]/worst[height<=360]/best[height<=480]/worst"
 	if videoOnly {
-		formatArg = "worst[ext=mp4][height<=360][acodec=none]/worst[ext=mp4][acodec=none]/worst[acodec=none]"
+		formatArg = "best[height<=360][vcodec!=none]/worst[height<=360][vcodec!=none]/best[height<=480][vcodec!=none]/worst[vcodec!=none]"
 	}
 
 	args := []string{
@@ -223,7 +241,13 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 		"--no-warnings",
 		"--quiet",
 		"--js-runtimes", "node",
+		"--remote-components", "ejs:github",
 		"--extractor-args", "youtubepot-bgutilhttp:base_url=" + potProviderURL,
+	}
+
+	// Add cookies if available
+	if _, err := os.Stat(cookiesFilePath); err == nil {
+		args = append(args, "--cookies", cookiesFilePath)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -638,6 +662,9 @@ func main() {
 	if port == "" {
 		port = "8081"
 	}
+
+	// Initialize cookies file from env var if set
+	initCookiesFile()
 
 	cacheTTLSeconds := 3600
 	if ttlStr := os.Getenv("YOUTUBE_API_CACHE_TTL"); ttlStr != "" {
