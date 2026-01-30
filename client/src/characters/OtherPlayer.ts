@@ -195,10 +195,54 @@ export default class OtherPlayer extends Player {
 
     // update character velocity
     this.setVelocity(vx, vy)
-    body.velocity.setLength(speed)
+    if (vx !== 0 || vy !== 0) {
+      body.velocity.setLength(speed)
+    }
     // also update playerNameContainer velocity
     this.playContainerBody.setVelocity(vx, vy)
-    this.playContainerBody.velocity.setLength(speed)
+    if (vx !== 0 || vy !== 0) {
+      this.playContainerBody.velocity.setLength(speed)
+    }
+
+    // Automatically manage idle/run animation based on local movement state
+    // This prevents stale animations when server updates are delayed
+    if (currentAnimKey) {
+      const animParts = currentAnimKey.split('_')
+      const animType = animParts[1]
+      const animDir = animParts.length >= 3 ? animParts.slice(2).join('_') : 'down'
+
+      // Don't interfere with special animations
+      const isSpecialAnim =
+        animType === 'sit' ||
+        animType === 'djwip' ||
+        animType === 'transform' ||
+        animType === 'boombox' ||
+        animType === 'hit1' ||
+        animType === 'hit2' ||
+        currentAnimKey.includes('_action_') ||
+        currentAnimKey.includes('_debug_')
+
+      if (!isSpecialAnim) {
+        const isMoving = vx !== 0 || vy !== 0
+        const isRunAnim = animType === 'run'
+        const isIdleAnim = animType === 'idle'
+
+        // If moving but playing idle, switch to run
+        if (isMoving && isIdleAnim) {
+          const runKey = `${this.playerTexture}_run_${animDir}`
+          if (this.scene.anims.exists(runKey)) {
+            this.anims.play(runKey, true)
+          }
+        }
+        // If stopped but playing run, switch to idle
+        else if (!isMoving && isRunAnim) {
+          const idleKey = `${this.playerTexture}_idle_${animDir}`
+          if (this.scene.anims.exists(idleKey)) {
+            this.anims.play(idleKey, true)
+          }
+        }
+      }
+    }
 
     // while currently connected with myPlayer
     // if myPlayer and the otherPlayer stop overlapping, delete video stream
