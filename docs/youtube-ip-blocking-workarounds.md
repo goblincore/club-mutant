@@ -58,33 +58,29 @@ YouTube API (Go) ─────────────────────
 | `club-mutant-youtube-api`  | `https://club-mutant-youtube-api.fly.dev`       | Video search + resolve |
 | `club-mutant-pot-provider` | `http://club-mutant-pot-provider.internal:4416` | PO token generation    |
 
-## Cookie Workaround (Not Implemented)
+## Cookie Workaround (Implemented ✅)
 
-For age-restricted content, yt-dlp supports passing YouTube cookies:
+YouTube cookies are now supported for age-restricted content.
+
+**How it works:**
+
+1. Cookies stored as Fly.io secret (`YOUTUBE_COOKIES`)
+2. Written to `/tmp/youtube_cookies.txt` at startup
+3. Passed to yt-dlp with `--cookies` flag
+
+**To update cookies:**
 
 ```bash
-yt-dlp --cookies cookies.txt https://www.youtube.com/watch?v=VIDEO_ID
+# Export cookies from browser (use "Get cookies.txt LOCALLY" extension)
+# Then set as Fly.io secret:
+fly secrets set YOUTUBE_COOKIES="$(cat path/to/cookies.txt)" -a club-mutant-youtube-api
 ```
-
-**To export cookies:**
-
-1. Install a browser extension like "Get cookies.txt LOCALLY"
-2. Log into YouTube
-3. Export cookies to `cookies.txt`
-4. Mount the file in the container
-
-**Implementation would require:**
-
-1. Securely storing cookies (Fly.io secrets or encrypted storage)
-2. Mounting cookies file in YouTube API container
-3. Adding `--cookies` flag to yt-dlp command
-4. Periodically refreshing cookies (they expire)
 
 **Trade-offs:**
 
-- Requires a YouTube account
-- Cookies expire and need refreshing
+- Cookies expire and need periodic refreshing
 - Account could get flagged for automated access
+- Some videos with embedding disabled still won't work
 
 ## Alternative Solutions
 
