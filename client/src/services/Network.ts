@@ -12,6 +12,7 @@ import {
   IRoomPlaylistItem,
 } from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
+import type { PlaylistItemDto } from '../../../types/Dtos'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
 import { phaserEvents, Event } from '../events/EventCenter'
@@ -608,12 +609,48 @@ export default class Network {
 
   syncPlayerPlaylistQueue(items: PlaylistItem[]) {
     console.log('//Synchronize player queue playlist', items)
-    this.room?.send(Message.SYNC_USER_SHORT_PLAYLIST, { items })
+
+    const itemsDto: PlaylistItemDto[] = items.map((item) => ({
+      id: item.id,
+
+      djId: this.mySessionId,
+
+      title: item.title,
+
+      link: item.link,
+
+      duration: item.duration,
+
+      visualUrl: item.visualUrl ?? null,
+
+      trackMessage: item.trackMessage ?? null,
+    }))
+
+    this.room?.send(Message.SYNC_USER_SHORT_PLAYLIST, { items: itemsDto })
   }
 
   syncMusicStream(item?: PlaylistItem) {
     console.log('Synchronize music stream', item)
-    this.room?.send(Message.SYNC_MUSIC_STREAM, { item })
+
+    const itemDto: PlaylistItemDto | undefined = item
+      ? {
+          id: item.id,
+
+          djId: this.mySessionId,
+
+          title: item.title,
+
+          link: item.link,
+
+          duration: item.duration,
+
+          visualUrl: item.visualUrl ?? null,
+
+          trackMessage: item.trackMessage ?? null,
+        }
+      : undefined
+
+    this.room?.send(Message.SYNC_MUSIC_STREAM, { item: itemDto })
   }
 
   addRoomPlaylistItem(item: Pick<PlaylistItem, 'title' | 'link' | 'duration'>) {
@@ -662,11 +699,45 @@ export default class Network {
 
   setUserPlaylistItem(item: PlaylistItem) {
     console.log('Set User Playlist Item', item)
-    this.room?.send(Message.SET_USER_PLAYLIST_ITEM, { item })
+
+    const itemDto: PlaylistItemDto = {
+      id: item.id,
+
+      djId: this.mySessionId,
+
+      title: item.title,
+
+      link: item.link,
+
+      duration: item.duration,
+
+      visualUrl: item.visualUrl ?? null,
+
+      trackMessage: item.trackMessage ?? null,
+    }
+
+    this.room?.send(Message.SET_USER_PLAYLIST_ITEM, { item: itemDto })
   }
 
   setNextUserPlaylistItem(item: PlaylistItem) {
     console.log('Set User Playlist Item', item)
-    this.room?.send(Message.SET_USER_NEXT_PLAYLIST_ITEM, { item })
+
+    const itemDto: PlaylistItemDto = {
+      id: item.id,
+
+      djId: this.mySessionId,
+
+      title: item.title,
+
+      link: item.link,
+
+      duration: item.duration,
+
+      visualUrl: item.visualUrl ?? null,
+
+      trackMessage: item.trackMessage ?? null,
+    }
+
+    this.room?.send(Message.SET_USER_NEXT_PLAYLIST_ITEM, { item: itemDto })
   }
 }

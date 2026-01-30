@@ -1,14 +1,14 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 import type { ClubMutant } from '../ClubMutant'
-import { IPlaylistItem } from '../../../types/IOfficeState'
 import { PlaylistItem } from '../schema/OfficeState'
+import type { PlaylistItemDto } from '../../../types/Dtos'
 
 type Payload = {
   client?: Client
   index?: number
-  item?: IPlaylistItem
-  items?: IPlaylistItem[]
+  item?: PlaylistItemDto
+  items?: PlaylistItemDto[]
 }
 
 export class PlayerSyncShortPlaylist extends Command<ClubMutant, Payload> {

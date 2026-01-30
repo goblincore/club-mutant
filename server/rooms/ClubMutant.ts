@@ -3,16 +3,10 @@ import { Room, Client, ServerError } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
 import { v4 as uuidv4 } from 'uuid'
 
-import {
-  Player,
-  OfficeState,
-  MusicBooth,
-  PlaylistItem,
-  RoomPlaylistItem,
-  DJUserInfo,
-} from './schema/OfficeState'
+import { Player, OfficeState, MusicBooth, RoomPlaylistItem, DJUserInfo } from './schema/OfficeState'
 import { IRoomData } from '../../types/Rooms'
 import { Message } from '../../types/Messages'
+import type { PlaylistItemDto } from '../../types/Dtos'
 import {
   TEXTURE_IDS,
   packDirectionalAnimId,
@@ -324,7 +318,7 @@ export class ClubMutant extends Room<OfficeState> {
     })
 
     // when a player starts playing a song
-    this.onMessage(Message.SYNC_MUSIC_STREAM, (client, message: { item?: PlaylistItem }) => {
+    this.onMessage(Message.SYNC_MUSIC_STREAM, (client, message: { item?: PlaylistItemDto }) => {
       console.log('///ON MESSSAGE SYNYC MUSIC STREAM', message?.item)
       console.log('///ON MESSSAGE SYNC USER PLAYLIST QUEUE', message?.item)
 
@@ -494,7 +488,7 @@ export class ClubMutant extends Room<OfficeState> {
 
     this.onMessage(
       Message.SYNC_USER_SHORT_PLAYLIST,
-      (client, message: { items: PlaylistItem[] }) => {
+      (client, message: { items: PlaylistItemDto[] }) => {
         console.log('////onMessage, SYNC USER SHORT PLAYLIST', message.items)
         this.dispatcher.dispatch(new PlayerSyncShortPlaylist(), {
           client,
@@ -504,7 +498,7 @@ export class ClubMutant extends Room<OfficeState> {
     )
     this.onMessage(
       Message.SET_USER_NEXT_PLAYLIST_ITEM,
-      (client, message: { item: PlaylistItem }) => {
+      (client, message: { item: PlaylistItemDto }) => {
         console.log('////SET NEXT USER PLAYLIST ITEM', message.item)
         this.dispatcher.dispatch(new PlayerSetNextPlaylistItemCommand(), {
           client,
@@ -513,7 +507,7 @@ export class ClubMutant extends Room<OfficeState> {
       }
     )
 
-    this.onMessage(Message.SET_USER_PLAYLIST_ITEM, (client, message: { item: PlaylistItem }) => {
+    this.onMessage(Message.SET_USER_PLAYLIST_ITEM, (client, message: { item: PlaylistItemDto }) => {
       console.log('////SET USER PLAYLIST ITEM', message.item)
       this.dispatcher.dispatch(new PlayerSetCurrentPlaylistItemCommand(), {
         client,
