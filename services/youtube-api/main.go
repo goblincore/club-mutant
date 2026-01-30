@@ -2,13 +2,18 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/kkdai/youtube/v2"
 	"github.com/raitonoberu/ytsearch"
 )
 
@@ -91,8 +96,353 @@ func (c *Cache) cleanupLoop() {
 	}
 }
 
+type ResolveResponse struct {
+	VideoID     string `json:"videoId"`
+	URL         string `json:"url"`
+	ExpiresAtMs *int64 `json:"expiresAtMs"`
+	ResolvedAt  int64  `json:"resolvedAtMs"`
+	VideoOnly   bool   `json:"videoOnly"`
+	Quality     string `json:"quality"`
+}
+
+type ResolveCache struct {
+	mu      sync.RWMutex
+	entries map[string]ResolveCacheEntry
+}
+
+type ResolveCacheEntry struct {
+	Response  ResolveResponse
+	ExpiresAt time.Time
+}
+
+func NewResolveCache() *ResolveCache {
+	c := &ResolveCache{
+		entries: make(map[string]ResolveCacheEntry),
+	}
+
+	go c.cleanupLoop()
+
+	return c
+}
+
+func (c *ResolveCache) Get(key string) (ResolveResponse, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	entry, exists := c.entries[key]
+	if !exists {
+		return ResolveResponse{}, false
+	}
+
+	if time.Now().After(entry.ExpiresAt) {
+		return ResolveResponse{}, false
+	}
+
+	return entry.Response, true
+}
+
+func (c *ResolveCache) Set(key string, response ResolveResponse, ttl time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.entries[key] = ResolveCacheEntry{
+		Response:  response,
+		ExpiresAt: time.Now().Add(ttl),
+	}
+}
+
+func (c *ResolveCache) cleanupLoop() {
+	ticker := time.NewTicker(1 * time.Minute)
+	for range ticker.C {
+		c.mu.Lock()
+		now := time.Now()
+		for key, entry := range c.entries {
+			if now.After(entry.ExpiresAt) {
+				delete(c.entries, key)
+			}
+		}
+		c.mu.Unlock()
+	}
+}
+
 type Server struct {
-	cache *Cache
+	searchCache  *Cache
+	resolveCache *ResolveCache
+	ytClient     *youtube.Client
+}
+
+var videoIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{11}$`)
+
+func isValidVideoID(id string) bool {
+	return videoIDRegex.MatchString(id)
+}
+
+func parseExpiresFromURL(rawURL string) *int64 {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return nil
+	}
+
+	expireStr := parsed.Query().Get("expire")
+	if expireStr == "" {
+		return nil
+	}
+
+	expireSec, err := strconv.ParseInt(expireStr, 10, 64)
+	if err != nil {
+		return nil
+	}
+
+	expireMs := expireSec * 1000
+	return &expireMs
+}
+
+func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
+	videoID := r.PathValue("videoId")
+	if videoID == "" {
+		videoID = strings.TrimPrefix(r.URL.Path, "/resolve/")
+	}
+	videoID = strings.TrimSpace(videoID)
+
+	if !isValidVideoID(videoID) {
+		http.Error(w, "Invalid video ID", http.StatusBadRequest)
+		return
+	}
+
+	videoOnly := r.URL.Query().Get("videoOnly") == "true"
+	cacheKey := videoID
+	if videoOnly {
+		cacheKey += ":video"
+	}
+
+	if cached, found := s.resolveCache.Get(cacheKey); found {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(cached)
+		return
+	}
+
+	video, err := s.ytClient.GetVideo(videoID)
+	if err != nil {
+		log.Printf("[resolve] Failed to get video %s: %v", videoID, err)
+		http.Error(w, "Failed to resolve video", http.StatusInternalServerError)
+		return
+	}
+
+	var selectedFormat *youtube.Format
+	var quality string
+
+	if videoOnly {
+		for i := range video.Formats {
+			f := &video.Formats[i]
+			if f.AudioChannels == 0 && f.Height > 0 && f.Height <= 360 {
+				if selectedFormat == nil || f.Height < selectedFormat.Height {
+					selectedFormat = f
+				}
+			}
+		}
+
+		if selectedFormat == nil {
+			for i := range video.Formats {
+				f := &video.Formats[i]
+				if f.AudioChannels == 0 && f.Height > 0 {
+					if selectedFormat == nil || f.Height < selectedFormat.Height {
+						selectedFormat = f
+					}
+				}
+			}
+		}
+
+		quality = "video-only"
+	} else {
+		formats := video.Formats.WithAudioChannels()
+		for i := range formats {
+			f := &formats[i]
+			if f.Height > 0 && f.Height <= 360 {
+				if selectedFormat == nil || f.Height < selectedFormat.Height {
+					selectedFormat = f
+				}
+			}
+		}
+
+		if selectedFormat == nil && len(formats) > 0 {
+			selectedFormat = &formats[len(formats)-1]
+		}
+
+		quality = "combined"
+	}
+
+	if selectedFormat == nil {
+		log.Printf("[resolve] No suitable format found for %s", videoID)
+		http.Error(w, "No suitable format found", http.StatusNotFound)
+		return
+	}
+
+	streamURL, err := s.ytClient.GetStreamURL(video, selectedFormat)
+	if err != nil {
+		log.Printf("[resolve] Failed to get stream URL for %s: %v", videoID, err)
+		http.Error(w, "Failed to get stream URL", http.StatusInternalServerError)
+		return
+	}
+
+	qualityLabel := quality
+	if selectedFormat.Height > 0 {
+		qualityLabel = strconv.Itoa(selectedFormat.Height) + "p " + quality
+	}
+
+	response := ResolveResponse{
+		VideoID:     videoID,
+		URL:         streamURL,
+		ExpiresAtMs: parseExpiresFromURL(streamURL),
+		ResolvedAt:  time.Now().UnixMilli(),
+		VideoOnly:   videoOnly,
+		Quality:     qualityLabel,
+	}
+
+	ttl := 50 * time.Second
+	if response.ExpiresAtMs != nil {
+		untilExpiry := time.Until(time.UnixMilli(*response.ExpiresAtMs))
+		if untilExpiry > 2*time.Minute {
+			ttl = untilExpiry - time.Minute
+		}
+	}
+
+	s.resolveCache.Set(cacheKey, response, ttl)
+
+	log.Printf("[resolve] %s -> %s", videoID, qualityLabel)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
+	videoID := r.PathValue("videoId")
+	if videoID == "" {
+		videoID = strings.TrimPrefix(r.URL.Path, "/proxy/")
+	}
+	videoID = strings.TrimSpace(videoID)
+
+	if !isValidVideoID(videoID) {
+		http.Error(w, "Invalid video ID", http.StatusBadRequest)
+		return
+	}
+
+	videoOnly := r.URL.Query().Get("videoOnly") != "false"
+	cacheKey := videoID
+	if videoOnly {
+		cacheKey += ":video"
+	}
+
+	resolved, found := s.resolveCache.Get(cacheKey)
+	if !found {
+		video, err := s.ytClient.GetVideo(videoID)
+		if err != nil {
+			log.Printf("[proxy] Failed to get video %s: %v", videoID, err)
+			http.Error(w, "Failed to resolve video", http.StatusInternalServerError)
+			return
+		}
+
+		var selectedFormat *youtube.Format
+
+		if videoOnly {
+			for i := range video.Formats {
+				f := &video.Formats[i]
+				if f.AudioChannels == 0 && f.Height > 0 && f.Height <= 360 {
+					if selectedFormat == nil || f.Height < selectedFormat.Height {
+						selectedFormat = f
+					}
+				}
+			}
+
+			if selectedFormat == nil {
+				for i := range video.Formats {
+					f := &video.Formats[i]
+					if f.AudioChannels == 0 && f.Height > 0 {
+						if selectedFormat == nil || f.Height < selectedFormat.Height {
+							selectedFormat = f
+						}
+					}
+				}
+			}
+		} else {
+			formats := video.Formats.WithAudioChannels()
+			for i := range formats {
+				f := &formats[i]
+				if f.Height > 0 && f.Height <= 360 {
+					if selectedFormat == nil || f.Height < selectedFormat.Height {
+						selectedFormat = f
+					}
+				}
+			}
+
+			if selectedFormat == nil && len(formats) > 0 {
+				selectedFormat = &formats[len(formats)-1]
+			}
+		}
+
+		if selectedFormat == nil {
+			http.Error(w, "No suitable format found", http.StatusNotFound)
+			return
+		}
+
+		streamURL, err := s.ytClient.GetStreamURL(video, selectedFormat)
+		if err != nil {
+			http.Error(w, "Failed to get stream URL", http.StatusInternalServerError)
+			return
+		}
+
+		resolved = ResolveResponse{
+			VideoID:     videoID,
+			URL:         streamURL,
+			ExpiresAtMs: parseExpiresFromURL(streamURL),
+			ResolvedAt:  time.Now().UnixMilli(),
+			VideoOnly:   videoOnly,
+		}
+
+		ttl := 50 * time.Second
+		if resolved.ExpiresAtMs != nil {
+			untilExpiry := time.Until(time.UnixMilli(*resolved.ExpiresAtMs))
+			if untilExpiry > 2*time.Minute {
+				ttl = untilExpiry - time.Minute
+			}
+		}
+
+		s.resolveCache.Set(cacheKey, resolved, ttl)
+	}
+
+	req, err := http.NewRequest("GET", resolved.URL, nil)
+	if err != nil {
+		http.Error(w, "Failed to create upstream request", http.StatusInternalServerError)
+		return
+	}
+
+	if rangeHeader := r.Header.Get("Range"); rangeHeader != "" {
+		req.Header.Set("Range", rangeHeader)
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("[proxy] Upstream request failed for %s: %v", videoID, err)
+		http.Error(w, "Upstream request failed", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
+	if cl := resp.Header.Get("Content-Length"); cl != "" {
+		w.Header().Set("Content-Length", cl)
+	}
+	if cr := resp.Header.Get("Content-Range"); cr != "" {
+		w.Header().Set("Content-Range", cr)
+	}
+	w.Header().Set("Accept-Ranges", "bytes")
+
+	w.WriteHeader(resp.StatusCode)
+
+	bytesWritten, err := io.Copy(w, resp.Body)
+	if err != nil {
+		log.Printf("[proxy] Stream copy error for %s after %d bytes: %v", videoID, bytesWritten, err)
+	}
 }
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
@@ -117,7 +467,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	cacheKey := query + ":" + strconv.Itoa(limit)
 
-	if cached, found := s.cache.Get(cacheKey); found {
+	if cached, found := s.searchCache.Get(cacheKey); found {
 		cached.Cached = true
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(cached)
@@ -161,7 +511,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		CacheAt: time.Now().Unix(),
 	}
 
-	s.cache.Set(cacheKey, response)
+	s.searchCache.Set(cacheKey, response)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
@@ -186,12 +536,16 @@ func main() {
 	}
 
 	server := &Server{
-		cache: NewCache(time.Duration(cacheTTLSeconds) * time.Second),
+		searchCache:  NewCache(time.Duration(cacheTTLSeconds) * time.Second),
+		resolveCache: NewResolveCache(),
+		ytClient:     &youtube.Client{},
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/search", server.handleSearch)
-	mux.HandleFunc("/health", server.handleHealth)
+	mux.HandleFunc("GET /search", server.handleSearch)
+	mux.HandleFunc("GET /resolve/{videoId}", server.handleResolve)
+	mux.HandleFunc("GET /proxy/{videoId}", server.handleProxy)
+	mux.HandleFunc("GET /health", server.handleHealth)
 
 	handler := corsMiddleware(loggingMiddleware(mux))
 

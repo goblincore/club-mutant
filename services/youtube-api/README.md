@@ -61,6 +61,61 @@ curl "http://localhost:8081/search?q=lofi+hip+hop&limit=5"
 }
 ```
 
+### GET /resolve/:videoId
+
+Resolve a YouTube video ID to a direct stream URL.
+
+**Query Parameters:**
+
+- `videoOnly` (optional): Set to `true` to get video-only stream (no audio, lower bandwidth)
+
+**Example:**
+
+```bash
+# Combined audio+video (default)
+curl "http://localhost:8081/resolve/dQw4w9WgXcQ"
+
+# Video-only (for background visuals)
+curl "http://localhost:8081/resolve/dQw4w9WgXcQ?videoOnly=true"
+```
+
+**Response:**
+
+```json
+{
+  "videoId": "dQw4w9WgXcQ",
+  "url": "https://rr1---sn-xxx.googlevideo.com/videoplayback?...",
+  "expiresAtMs": 1706605234000,
+  "resolvedAtMs": 1706601234000,
+  "videoOnly": true,
+  "quality": "360p video-only"
+}
+```
+
+### GET /proxy/:videoId
+
+Stream a YouTube video through the server (avoids CORS issues for WebGL playback).
+
+**Query Parameters:**
+
+- `videoOnly` (optional): Set to `false` for combined audio+video (default: `true`)
+
+**Headers:**
+
+- Supports `Range` header for seeking
+
+**Example:**
+
+```bash
+# Stream video-only (default, best for background visuals)
+curl "http://localhost:8081/proxy/dQw4w9WgXcQ" --output video.mp4
+
+# Stream with audio
+curl "http://localhost:8081/proxy/dQw4w9WgXcQ?videoOnly=false" --output video.mp4
+```
+
+**Response:** Raw video stream with appropriate `Content-Type`, `Content-Length`, `Content-Range` headers.
+
 ### GET /health
 
 Health check endpoint.
