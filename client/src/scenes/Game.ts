@@ -792,42 +792,6 @@ export default class Game extends Phaser.Scene {
 
     this.physics.add.collider(this.myPlayer, groundLayer)
 
-    const obstacles = this.physics.add.staticGroup()
-
-    for (let i = 0; i < 3; i += 1) {
-      const x = Phaser.Math.Between(600, 900)
-      const y = Phaser.Math.Between(420, 650)
-
-      const chair = this.physics.add.staticSprite(x, y, 'chairs', 0)
-      chair.setDepth(y)
-      chair.setOrigin(0.5, 0.5)
-
-      const chairBody = chair.body as Phaser.Physics.Arcade.StaticBody | null
-      chairBody?.setSize(chair.width * 0.9, chair.height * 0.3)
-      chairBody?.setOffset(chair.width * 0.05, chair.height * 0.65)
-
-      obstacles.add(chair)
-      this.pathObstacles.push(chair)
-    }
-
-    for (let i = 0; i < 3; i += 1) {
-      const x = Phaser.Math.Between(600, 900)
-      const y = Phaser.Math.Between(420, 650)
-
-      const vending = this.physics.add.staticSprite(x, y, 'vendingmachines', 0)
-      vending.setDepth(y)
-      vending.setOrigin(0.5, 0.5)
-
-      const vendingBody = vending.body as Phaser.Physics.Arcade.StaticBody | null
-      vendingBody?.setSize(vending.width * 0.9, vending.height * 0.5)
-      vendingBody?.setOffset(vending.width * 0.05, vending.height * 0.5)
-
-      obstacles.add(vending)
-      this.pathObstacles.push(vending)
-    }
-
-    this.physics.add.collider(this.myPlayer, obstacles)
-
     this.physics.add.overlap(
       this.playerSelector,
       [musicBooths],
