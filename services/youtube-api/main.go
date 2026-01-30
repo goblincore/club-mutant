@@ -221,12 +221,14 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("[resolve] Fetching video info for %s (videoOnly=%v)", videoID, videoOnly)
 	video, err := s.ytClient.GetVideo(videoID)
 	if err != nil {
 		log.Printf("[resolve] Failed to get video %s: %v", videoID, err)
 		http.Error(w, "Failed to resolve video", http.StatusInternalServerError)
 		return
 	}
+	log.Printf("[resolve] Got video: %s, formats available: %d", video.Title, len(video.Formats))
 
 	var selectedFormat *youtube.Format
 	var quality string
@@ -277,12 +279,14 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("[resolve] Selected format: %dp, audio=%d, mimeType=%s", selectedFormat.Height, selectedFormat.AudioChannels, selectedFormat.MimeType)
 	streamURL, err := s.ytClient.GetStreamURL(video, selectedFormat)
 	if err != nil {
 		log.Printf("[resolve] Failed to get stream URL for %s: %v", videoID, err)
 		http.Error(w, "Failed to get stream URL", http.StatusInternalServerError)
 		return
 	}
+	log.Printf("[resolve] SUCCESS: Got stream URL for %s (expires: %d)", videoID, parseExpiresFromURL(streamURL))
 
 	qualityLabel := quality
 	if selectedFormat.Height > 0 {
