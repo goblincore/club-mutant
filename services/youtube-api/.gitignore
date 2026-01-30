@@ -1,0 +1,9 @@
+# Binary
+youtube-api
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store

@@ -9,6 +9,7 @@ import { monitor } from '@colyseus/monitor'
 
 import * as youtube from './Youtube'
 import { resolveYoutubeVideoUrl } from './youtubeResolver'
+import { searchYouTube } from './youtubeService'
 import { RoomType } from '../types/Rooms'
 
 import { ClubMutant } from './rooms/ClubMutant'
@@ -122,14 +123,20 @@ app.get('/youtube/proxy/:videoId', async (req: Request, res: Response, next: Nex
 
 app.get('/youtube/:search', async (req: Request, res: Response, next: NextFunction) => {
   const { search } = req.params
-  console.log('////app.get(/youtube/:search)', search)
+  console.log('[youtube] search:', search)
+
   try {
-    // We will be coding here
-    // const videos = await yt.search('dj lostboi')
-    const videos = await youtube.GetData(search, false, 24)
+    const videos = await searchYouTube(search, 24)
     res.json(videos)
   } catch (e) {
-    console.log('////app.get(/youtube/:search), catch, e', e)
-    return next(e)
+    console.log('[youtube] Go service failed, falling back to legacy scraping')
+
+    try {
+      const videos = await youtube.GetData(search, false, 24)
+      res.json(videos)
+    } catch (fallbackError) {
+      console.log('[youtube] Legacy fallback also failed:', fallbackError)
+      return next(fallbackError)
+    }
   }
 })
