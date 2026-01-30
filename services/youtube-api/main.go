@@ -228,9 +228,10 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 
 	ytURL := "https://www.youtube.com/watch?v=" + videoID
 
-	formatArg := "best[height<=360]/worst[height<=360]/best[height<=480]/worst"
+	// Prefer mp4 for browser compatibility, fallback to any format
+	formatArg := "best[height<=360][ext=mp4]/best[height<=480][ext=mp4]/best[ext=mp4]/best[height<=360]/best"
 	if videoOnly {
-		formatArg = "best[height<=360][vcodec!=none]/worst[height<=360][vcodec!=none]/best[height<=480][vcodec!=none]/worst[vcodec!=none]"
+		formatArg = "best[height<=360][ext=mp4][vcodec!=none]/best[height<=480][ext=mp4][vcodec!=none]/best[ext=mp4][vcodec!=none]/best[height<=360][vcodec!=none]/best[vcodec!=none]"
 	}
 
 	args := []string{
