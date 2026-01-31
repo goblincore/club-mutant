@@ -1,14 +1,16 @@
 # Build stage - use nightly Rust for edition2024 support
-FROM rustlang/rust:nightly-bookworm-slim as builder
+FROM rustlang/rust:nightly-bookworm-slim AS builder
 
-# Install build dependencies
+# Install build dependencies (curl needed to download V8 binaries)
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
+    curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install the Rust PO token provider with nightly
-RUN cargo +nightly install bgutil-ytdlp-pot-provider
+# Install the Rust PO token provider
+RUN cargo install bgutil-ytdlp-pot-provider
 
 # Runtime stage
 FROM debian:bookworm-slim
