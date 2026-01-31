@@ -1,4 +1,21 @@
-# Rust PO Token Provider
+# PO Token Provider Optimization
+
+## Node.js Provider (Current)
+
+### TOKEN_TTL Environment Variable
+
+The Node.js provider supports a `TOKEN_TTL` env var (in hours, default: 6) to control how long tokens are cached:
+
+```bash
+# On Fly.io
+fly secrets set TOKEN_TTL=12 -a club-mutant-pot-provider
+```
+
+This reduces token regeneration frequency.
+
+---
+
+## Rust Implementation (Future)
 
 The Rust implementation of bgutil-ytdlp-pot-provider is significantly faster than the Node.js version.
 

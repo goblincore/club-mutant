@@ -387,16 +387,42 @@ func initCookiesFile() {
 	log.Println("[cookies] YouTube cookies file initialized")
 }
 
-// resolveWithYtDlp calls yt-dlp as a subprocess with PO token provider support
+// isBotDetectionError checks if the error indicates YouTube bot detection
+func isBotDetectionError(stderr string) bool {
+	botIndicators := []string{
+		"Sign in to confirm you're not a bot",
+		"bot detection",
+		"Please sign in",
+		"HTTP Error 403",
+		"confirmed your age",
+	}
+	stderrLower := strings.ToLower(stderr)
+	for _, indicator := range botIndicators {
+		if strings.Contains(stderrLower, strings.ToLower(indicator)) {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveWithYtDlp calls yt-dlp - tries without PO token first, retries with PO on bot detection
 func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveResponse, error) {
+	// Try without PO token first (faster for videos that don't need it)
+	result, err := s.resolveWithYtDlpInternal(videoID, videoOnly, false)
+	if err == nil {
+		return result, nil
+	}
+
+	// Check if it's a bot detection error - if so, retry with PO token
+	log.Printf("[yt-dlp] First attempt failed for %s, retrying with PO token", videoID)
+	return s.resolveWithYtDlpInternal(videoID, videoOnly, true)
+}
+
+// resolveWithYtDlpInternal is the actual yt-dlp call with optional PO token support
+func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOToken bool) (*ResolveResponse, error) {
 	// Acquire semaphore to limit concurrent yt-dlp processes
 	ytdlpSemaphore <- struct{}{}
 	defer func() { <-ytdlpSemaphore }()
-
-	potProviderURL := os.Getenv("POT_PROVIDER_URL")
-	if potProviderURL == "" {
-		potProviderURL = "http://club-mutant-pot-provider.internal:4416"
-	}
 
 	ytURL := "https://www.youtube.com/watch?v=" + videoID
 
@@ -416,9 +442,19 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 		"--no-warnings",
 		"--quiet",
 		"--no-cache-dir",
-		"--js-runtimes", "node",
-		"--remote-components", "ejs:github",
-		"--extractor-args", "youtubepot-bgutilhttp:base_url=" + potProviderURL,
+	}
+
+	// Only add PO token args if needed
+	if usePOToken {
+		potProviderURL := os.Getenv("POT_PROVIDER_URL")
+		if potProviderURL == "" {
+			potProviderURL = "http://club-mutant-pot-provider.internal:4416"
+		}
+		args = append(args,
+			"--js-runtimes", "node",
+			"--remote-components", "ejs:github",
+			"--extractor-args", "youtubepot-bgutilhttp:base_url="+potProviderURL,
+		)
 	}
 
 	// Add cookies if available
@@ -426,8 +462,12 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 		args = append(args, "--cookies", cookiesFilePath)
 	}
 
-	// Increase timeout to 60s - PO token generation can take 10-20s, plus yt-dlp processing
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	// Shorter timeout without PO (15s), longer with PO (60s)
+	timeout := 15 * time.Second
+	if usePOToken {
+		timeout = 60 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
@@ -439,16 +479,21 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 	err := cmd.Run()
 	elapsed := time.Since(startTime)
 
+	poLabel := "without PO"
+	if usePOToken {
+		poLabel = "with PO"
+	}
+
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			log.Printf("[yt-dlp] TIMEOUT after %v for %s", elapsed, videoID)
+			log.Printf("[yt-dlp] TIMEOUT after %v for %s (%s)", elapsed, videoID, poLabel)
 		} else {
-			log.Printf("[yt-dlp] Failed for %s after %v: %v, stderr: %s", videoID, elapsed, err, stderr.String())
+			log.Printf("[yt-dlp] Failed for %s after %v (%s): %v, stderr: %s", videoID, elapsed, poLabel, err, stderr.String())
 		}
 		return nil, err
 	}
 
-	log.Printf("[yt-dlp] Completed %s in %v", videoID, elapsed)
+	log.Printf("[yt-dlp] Completed %s in %v (%s)", videoID, elapsed, poLabel)
 
 	resolvedURL := strings.TrimSpace(strings.Split(stdout.String(), "\n")[0])
 	if resolvedURL == "" {
