@@ -607,28 +607,6 @@ export default class Network {
     this.room?.send(Message.DISCONNECT_FROM_MUSIC_BOOTH, { musicBoothIndex: index })
   }
 
-  syncPlayerPlaylistQueue(items: PlaylistItem[]) {
-    console.log('//Synchronize player queue playlist', items)
-
-    const itemsDto: PlaylistItemDto[] = items.map((item) => ({
-      id: item.id,
-
-      djId: this.mySessionId,
-
-      title: item.title,
-
-      link: item.link,
-
-      duration: item.duration,
-
-      visualUrl: item.visualUrl ?? null,
-
-      trackMessage: item.trackMessage ?? null,
-    }))
-
-    this.room?.send(Message.SYNC_USER_SHORT_PLAYLIST, { items: itemsDto })
-  }
-
   syncMusicStream(item?: PlaylistItem) {
     console.log('Synchronize music stream', item)
 

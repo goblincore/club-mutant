@@ -20,7 +20,6 @@ import PlayerUpdateNameCommand from './commands/PlayerUpdateNameCommand'
 import {
   PlayerSetCurrentPlaylistItemCommand,
   PlayerSetNextPlaylistItemCommand,
-  PlayerSyncShortPlaylist,
 } from './commands/PlayerUpdatePlaylistCommand'
 
 import {
@@ -490,16 +489,6 @@ export class ClubMutant extends Room<OfficeState> {
       )
     })
 
-    this.onMessage(
-      Message.SYNC_USER_SHORT_PLAYLIST,
-      (client, message: { items: PlaylistItemDto[] }) => {
-        console.log('////onMessage, SYNC USER SHORT PLAYLIST', message.items)
-        this.dispatcher.dispatch(new PlayerSyncShortPlaylist(), {
-          client,
-          items: message.items,
-        })
-      }
-    )
     this.onMessage(
       Message.SET_USER_NEXT_PLAYLIST_ITEM,
       (client, message: { item: PlaylistItemDto }) => {
