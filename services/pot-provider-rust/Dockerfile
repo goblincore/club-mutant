@@ -1,5 +1,5 @@
-# Build stage
-FROM rust:1.75-slim-bookworm as builder
+# Build stage - use latest Rust for edition2024 support
+FROM rust:1.84-slim-bookworm as builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
