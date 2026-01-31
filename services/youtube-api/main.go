@@ -172,6 +172,133 @@ func (c *ResolveCache) cleanupLoop() {
 type Server struct {
 	searchCache  *Cache
 	resolveCache *ResolveCache
+	videoCache   *VideoCache
+}
+
+// VideoCache stores video bytes in memory with LRU eviction
+type VideoCache struct {
+	mu        sync.RWMutex
+	entries   map[string]*VideoCacheEntry
+	maxSize   int64
+	curSize   int64
+	lruOrder  []string
+}
+
+type VideoCacheEntry struct {
+	data      []byte
+	expiresAt time.Time
+	size      int64
+}
+
+const DefaultVideoCacheMaxSize = 100 * 1024 * 1024 // 100MB
+
+func NewVideoCache(maxSize int64) *VideoCache {
+	vc := &VideoCache{
+		entries:  make(map[string]*VideoCacheEntry),
+		maxSize:  maxSize,
+		lruOrder: make([]string, 0),
+	}
+
+	go vc.cleanupLoop()
+
+	return vc
+}
+
+func (vc *VideoCache) Get(key string) ([]byte, bool) {
+	vc.mu.Lock()
+	defer vc.mu.Unlock()
+
+	entry, exists := vc.entries[key]
+	if !exists {
+		return nil, false
+	}
+
+	if time.Now().After(entry.expiresAt) {
+		vc.removeEntryLocked(key)
+		return nil, false
+	}
+
+	// Move to end of LRU (most recently used)
+	vc.touchLocked(key)
+
+	return entry.data, true
+}
+
+func (vc *VideoCache) Set(key string, data []byte, ttl time.Duration) {
+	vc.mu.Lock()
+	defer vc.mu.Unlock()
+
+	size := int64(len(data))
+
+	// Don't cache if single item exceeds max size
+	if size > vc.maxSize {
+		return
+	}
+
+	// Remove existing entry if present
+	if existing, exists := vc.entries[key]; exists {
+		vc.curSize -= existing.size
+		vc.removeFromLRULocked(key)
+	}
+
+	// Evict LRU entries until we have space
+	for vc.curSize+size > vc.maxSize && len(vc.lruOrder) > 0 {
+		oldest := vc.lruOrder[0]
+		vc.removeEntryLocked(oldest)
+	}
+
+	vc.entries[key] = &VideoCacheEntry{
+		data:      data,
+		expiresAt: time.Now().Add(ttl),
+		size:      size,
+	}
+	vc.curSize += size
+	vc.lruOrder = append(vc.lruOrder, key)
+
+	log.Printf("[video-cache] Cached %s (%d bytes, total: %d/%d MB)", key, size, vc.curSize/(1024*1024), vc.maxSize/(1024*1024))
+}
+
+func (vc *VideoCache) removeEntryLocked(key string) {
+	if entry, exists := vc.entries[key]; exists {
+		vc.curSize -= entry.size
+		delete(vc.entries, key)
+		vc.removeFromLRULocked(key)
+		log.Printf("[video-cache] Evicted %s", key)
+	}
+}
+
+func (vc *VideoCache) removeFromLRULocked(key string) {
+	for i, k := range vc.lruOrder {
+		if k == key {
+			vc.lruOrder = append(vc.lruOrder[:i], vc.lruOrder[i+1:]...)
+			break
+		}
+	}
+}
+
+func (vc *VideoCache) touchLocked(key string) {
+	vc.removeFromLRULocked(key)
+	vc.lruOrder = append(vc.lruOrder, key)
+}
+
+func (vc *VideoCache) cleanupLoop() {
+	ticker := time.NewTicker(1 * time.Minute)
+	for range ticker.C {
+		vc.mu.Lock()
+		now := time.Now()
+		for key, entry := range vc.entries {
+			if now.After(entry.expiresAt) {
+				vc.removeEntryLocked(key)
+			}
+		}
+		vc.mu.Unlock()
+	}
+}
+
+func (vc *VideoCache) Stats() (entries int, size int64, maxSize int64) {
+	vc.mu.RLock()
+	defer vc.mu.RUnlock()
+	return len(vc.entries), vc.curSize, vc.maxSize
 }
 
 var videoIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{11}$`)
@@ -394,6 +521,22 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		cacheKey += ":video"
 	}
 
+	rangeHeader := r.Header.Get("Range")
+
+	// Check video byte cache first (only for non-range requests or initial request)
+	if rangeHeader == "" || rangeHeader == "bytes=0-" {
+		if cachedData, found := s.videoCache.Get(cacheKey); found {
+			log.Printf("[proxy] Video cache hit for %s (%d bytes)", videoID, len(cachedData))
+			w.Header().Set("Content-Type", "video/mp4")
+			w.Header().Set("Content-Length", strconv.Itoa(len(cachedData)))
+			w.Header().Set("Accept-Ranges", "bytes")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.WriteHeader(http.StatusOK)
+			w.Write(cachedData)
+			return
+		}
+	}
+
 	resolved, found := s.resolveCache.Get(cacheKey)
 	if !found {
 		// Use singleflight to coalesce duplicate requests
@@ -419,7 +562,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if rangeHeader := r.Header.Get("Range"); rangeHeader != "" {
+	if rangeHeader != "" {
 		req.Header.Set("Range", rangeHeader)
 	}
 
@@ -460,14 +603,115 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(resp.StatusCode)
 
+	// For non-range requests, try to cache the video bytes
+	shouldCache := rangeHeader == "" && resp.StatusCode == http.StatusOK
+	var videoData []byte
+	if shouldCache {
+		videoData = make([]byte, 0, 5*1024*1024) // Pre-allocate 5MB
+	}
+
 	// Use a larger buffer for more efficient streaming
 	buf := make([]byte, 32*1024)
-	bytesWritten, err := io.CopyBuffer(w, resp.Body, buf)
-	if err != nil {
-		log.Printf("[proxy] Stream copy error for %s after %d bytes: %v", videoID, bytesWritten, err)
-	} else {
-		log.Printf("[proxy] Streamed %d bytes for %s", bytesWritten, videoID)
+	bytesWritten := int64(0)
+
+	for {
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			_, writeErr := w.Write(buf[:n])
+			if writeErr != nil {
+				log.Printf("[proxy] Write error for %s after %d bytes: %v", videoID, bytesWritten, writeErr)
+				break
+			}
+			bytesWritten += int64(n)
+
+			// Accumulate data for caching (limit to 10MB to avoid memory issues)
+			if shouldCache && len(videoData)+n <= 10*1024*1024 {
+				videoData = append(videoData, buf[:n]...)
+			}
+		}
+
+		if readErr != nil {
+			if readErr != io.EOF {
+				log.Printf("[proxy] Read error for %s after %d bytes: %v", videoID, bytesWritten, readErr)
+			}
+			break
+		}
 	}
+
+	log.Printf("[proxy] Streamed %d bytes for %s", bytesWritten, videoID)
+
+	// Cache the video if we got a full response
+	if shouldCache && len(videoData) > 0 && len(videoData) <= 10*1024*1024 {
+		s.videoCache.Set(cacheKey, videoData, 5*time.Minute)
+	}
+}
+
+// handlePrefetch pre-fetches and caches a video for faster subsequent access
+func (s *Server) handlePrefetch(w http.ResponseWriter, r *http.Request) {
+	videoID := r.PathValue("videoId")
+	if videoID == "" {
+		http.Error(w, "Missing video ID", http.StatusBadRequest)
+		return
+	}
+
+	if !isValidVideoID(videoID) {
+		http.Error(w, "Invalid video ID", http.StatusBadRequest)
+		return
+	}
+
+	cacheKey := videoID + ":video"
+
+	// Check if already cached
+	if _, found := s.videoCache.Get(cacheKey); found {
+		log.Printf("[prefetch] Already cached: %s", videoID)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "already_cached"})
+		return
+	}
+
+	// Start prefetch in background
+	go func() {
+		log.Printf("[prefetch] Starting prefetch for %s", videoID)
+
+		// Resolve the video URL
+		result, err, _ := resolveGroup.Do(cacheKey, func() (interface{}, error) {
+			return s.resolveWithYtDlp(videoID, true)
+		})
+
+		if err != nil {
+			log.Printf("[prefetch] Resolve failed for %s: %v", videoID, err)
+			return
+		}
+
+		resolved := result.(*ResolveResponse)
+		s.resolveCache.Set(cacheKey, *resolved, 5*time.Minute)
+
+		// Fetch the video bytes
+		resp, err := http.Get(resolved.URL)
+		if err != nil {
+			log.Printf("[prefetch] Fetch failed for %s: %v", videoID, err)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("[prefetch] Bad status for %s: %d", videoID, resp.StatusCode)
+			return
+		}
+
+		// Read up to 10MB
+		data, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
+		if err != nil {
+			log.Printf("[prefetch] Read failed for %s: %v", videoID, err)
+			return
+		}
+
+		s.videoCache.Set(cacheKey, data, 5*time.Minute)
+		log.Printf("[prefetch] Cached %s (%d bytes)", videoID, len(data))
+	}()
+
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(map[string]string{"status": "prefetching"})
 }
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
@@ -563,15 +807,24 @@ func main() {
 		}
 	}
 
+	var videoCacheSize int64 = DefaultVideoCacheMaxSize
+	if sizeStr := os.Getenv("VIDEO_CACHE_SIZE_MB"); sizeStr != "" {
+		if parsed, err := strconv.Atoi(sizeStr); err == nil && parsed > 0 {
+			videoCacheSize = int64(parsed) * 1024 * 1024
+		}
+	}
+
 	server := &Server{
 		searchCache:  NewCache(time.Duration(cacheTTLSeconds) * time.Second),
 		resolveCache: NewResolveCache(),
+		videoCache:   NewVideoCache(videoCacheSize),
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /search", server.handleSearch)
 	mux.HandleFunc("GET /resolve/{videoId}", server.handleResolve)
 	mux.HandleFunc("GET /proxy/{videoId}", server.handleProxy)
+	mux.HandleFunc("POST /prefetch/{videoId}", server.handlePrefetch)
 	mux.HandleFunc("GET /health", server.handleHealth)
 
 	handler := corsMiddleware(loggingMiddleware(mux))
