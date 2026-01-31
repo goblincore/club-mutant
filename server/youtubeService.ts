@@ -254,3 +254,41 @@ export async function proxyYouTubeVideo(
     throw e
   }
 }
+
+// Extract video ID from YouTube link
+function extractVideoId(link: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /^([a-zA-Z0-9_-]{11})$/,
+  ]
+
+  for (const pattern of patterns) {
+    const match = link.match(pattern)
+    if (match) return match[1]
+  }
+
+  return null
+}
+
+// Trigger prefetch for a video (fire-and-forget)
+export function prefetchVideo(link: string): void {
+  const videoId = extractVideoId(link)
+  if (!videoId) {
+    console.warn(`[youtubeService] Could not extract video ID from: ${link}`)
+    return
+  }
+
+  const url = `${YOUTUBE_SERVICE_URL}/prefetch/${videoId}`
+
+  fetch(url, { method: 'POST' })
+    .then((res) => {
+      if (res.ok) {
+        console.log(`[youtubeService] Prefetch triggered for ${videoId}`)
+      } else {
+        console.warn(`[youtubeService] Prefetch failed for ${videoId}: ${res.status}`)
+      }
+    })
+    .catch((e) => {
+      console.warn(`[youtubeService] Prefetch error for ${videoId}:`, e)
+    })
+}

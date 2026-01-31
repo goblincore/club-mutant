@@ -7,6 +7,7 @@ import { Player, OfficeState, MusicBooth, RoomPlaylistItem, DJUserInfo } from '.
 import { IRoomData } from '../../types/Rooms'
 import { Message } from '../../types/Messages'
 import type { PlaylistItemDto } from '../../types/Dtos'
+import { prefetchVideo } from '../youtubeService'
 import {
   TEXTURE_IDS,
   packDirectionalAnimId,
@@ -221,6 +222,9 @@ export class ClubMutant extends Room<OfficeState> {
         item.addedBySessionId = client.sessionId
 
         this.state.roomPlaylist.push(item)
+
+        // Pre-fetch video to cache it before playback
+        prefetchVideo(message.link)
       }
     )
 
