@@ -20,8 +20,6 @@ export class PlayerSyncShortPlaylist extends Command<ClubMutant, Payload> {
     const player = this.state.players.get(client.sessionId)
     if (!player) return
 
-    console.log('//Player sync next two playlist command', items, 'client', client.sessionId)
-
     // clear existing list in-place (ArraySchema) to avoid duplication
     while (player.nextTwoPlaylist.length > 0) {
       player.nextTwoPlaylist.shift()
