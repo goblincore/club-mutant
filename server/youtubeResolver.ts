@@ -60,15 +60,31 @@ const resolveWithYtDlp = async (
 
   const url = `https://www.youtube.com/watch?v=${videoId}`
 
+  const potProviderUrl =
+    process.env.POT_PROVIDER_URL || 'http://club-mutant-pot-provider.internal:4416'
+
   const args = [
     url,
     '-f',
-    'worst[ext=mp4][height<=360]/worst[ext=mp4]/worst',
+    'best[height<=360][ext=mp4]/best[height<=480][ext=mp4]/best[ext=mp4]/best[height<=360]/best',
     '-g',
     '--no-playlist',
     '--no-warnings',
     '--quiet',
+    '--no-cache-dir',
+    '--js-runtimes',
+    'node',
+    '--remote-components',
+    'ejs:github',
+    '--extractor-args',
+    `youtubepot-bgutilhttp:base_url=${potProviderUrl}`,
   ]
+
+  // Add cookies if available
+  const cookiesPath = process.env.YOUTUBE_COOKIES_PATH
+  if (cookiesPath) {
+    args.push('--cookies', cookiesPath)
+  }
 
   const { stdout } = await execFileAsync(ytDlpPath, args, {
     timeout: options.execTimeoutMs,

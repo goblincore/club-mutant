@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
@@ -13,10 +13,13 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o youtube-api .
 
-# Runtime stage
-FROM scratch
+# Runtime stage - use Alpine for yt-dlp support
+FROM alpine:latest
 
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# Install yt-dlp with PO token plugin + Node.js for JS runtime (required for YouTube extraction)
+RUN apk add --no-cache ca-certificates python3 py3-pip ffmpeg nodejs && \
+    pip3 install --break-system-packages yt-dlp bgutil-ytdlp-pot-provider
+
 COPY --from=builder /app/youtube-api /youtube-api
 
 ENV PORT=8081

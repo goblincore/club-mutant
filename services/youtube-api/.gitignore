@@ -7,3 +7,7 @@ youtube-api
 
 # OS
 .DS_Store
+
+# Sensitive data
+*cookie*/
+cookies.txt

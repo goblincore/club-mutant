@@ -814,3 +814,69 @@ YOUTUBE_SERVICE_URL=http://localhost:8081 npm run start
 - `PORT` - Go service HTTP port (default: 8081)
 - `YOUTUBE_API_CACHE_TTL` - search cache TTL in seconds (default: 3600)
 - `YOUTUBE_SERVICE_URL` - Node server config (default: `http://localhost:8081`)
+
+### YouTube API Performance Optimizations (Jan 2026)
+
+The Go YouTube library (`github.com/kkdai/youtube/v2`) frequently fails with signature parsing errors due to YouTube cipher changes. The service now uses **yt-dlp exclusively** with several optimizations:
+
+#### Architecture Changes
+
+1. **Removed Go library** - Skipped entirely, go straight to yt-dlp (Go lib always failed with "error parsing signature tokens")
+2. **Removed Colyseus fallback** - The Colyseus server no longer has a local yt-dlp fallback (it didn't have cookies configured)
+
+#### Fly.io VM Optimizations
+
+| Issue               | Symptom                               | Fix                                                                                     |
+| ------------------- | ------------------------------------- | --------------------------------------------------------------------------------------- |
+| CPU Steal           | 90% steal on shared CPU               | Switch to `performance` CPU (`cpu_kind = 'performance'` in fly.toml)                    |
+| Disk I/O Throttling | 60-100 throttled events               | Use RAM disk: `TMPDIR=/dev/shm`, `XDG_CACHE_HOME=/dev/shm`                              |
+| OOM Kills           | yt-dlp processes killed               | Add semaphore to limit concurrent processes (`ytdlpSemaphore = make(chan struct{}, 2)`) |
+| Thundering Herd     | Same video resolved 5x simultaneously | Add singleflight request coalescing (`golang.org/x/sync/singleflight`)                  |
+
+#### yt-dlp Configuration
+
+```go
+args := []string{
+    url,
+    "-f", "best[height<=360][ext=mp4]/best[height<=480][ext=mp4]/best[ext=mp4]/best[height<=360]/best",
+    "-g",
+    "--no-playlist",
+    "--no-warnings",
+    "--quiet",
+    "--no-cache-dir",
+    "--js-runtimes", "node",
+    "--remote-components", "ejs:github",
+    "--extractor-args", "youtubepot-bgutilhttp:base_url=" + potProviderUrl,
+}
+// Add cookies if available
+if _, err := os.Stat(cookiesFilePath); err == nil {
+    args = append(args, "--cookies", cookiesFilePath)
+}
+```
+
+#### Cookie Authentication (Age-Restricted Content)
+
+- Cookies stored as Fly.io secret: `YOUTUBE_COOKIES`
+- Written to `/tmp/youtube_cookies.txt` at startup
+- Export from browser using a cookie extension (Netscape format)
+
+#### PO Token Provider
+
+A separate service (`club-mutant-pot-provider`) provides Proof of Origin tokens:
+
+- Uses `bgutil-ytdlp-pot-provider` Python package
+- Internal URL: `http://club-mutant-pot-provider.internal:4416`
+
+#### Monitoring Fly.io Metrics
+
+Key metrics to watch:
+
+- **CPU Steal**: Should be 0% with performance CPU
+- **Disk Throttled Events**: Should be minimal with RAM disk
+- **Network recv vs sent**: If recv >> sent, streams aren't reaching clients
+- **Load Average**: High values indicate yt-dlp queue backup
+
+#### Defaults
+
+- `videoOnly=true` on both `/resolve/` and `/proxy/` endpoints (smaller files, faster)
+- Cache TTL: 5 minutes for resolved URLs

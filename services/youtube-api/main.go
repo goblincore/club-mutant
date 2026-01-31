@@ -1,20 +1,24 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/kkdai/youtube/v2"
 	"github.com/raitonoberu/ytsearch"
+	"golang.org/x/sync/singleflight"
 )
 
 type VideoResult struct {
@@ -168,7 +172,6 @@ func (c *ResolveCache) cleanupLoop() {
 type Server struct {
 	searchCache  *Cache
 	resolveCache *ResolveCache
-	ytClient     *youtube.Client
 }
 
 var videoIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{11}$`)
@@ -197,6 +200,100 @@ func parseExpiresFromURL(rawURL string) *int64 {
 	return &expireMs
 }
 
+const cookiesFilePath = "/tmp/youtube_cookies.txt"
+
+// Semaphore to limit concurrent yt-dlp processes (prevents OOM)
+var ytdlpSemaphore = make(chan struct{}, 2)
+
+// Singleflight to coalesce duplicate requests for the same video
+var resolveGroup singleflight.Group
+
+// initCookiesFile writes YouTube cookies from env var to a file (called once at startup)
+func initCookiesFile() {
+	cookies := os.Getenv("YOUTUBE_COOKIES")
+	if cookies == "" {
+		log.Println("[cookies] No YOUTUBE_COOKIES env var set, age-restricted videos may fail")
+		return
+	}
+
+	if err := os.WriteFile(cookiesFilePath, []byte(cookies), 0600); err != nil {
+		log.Printf("[cookies] Failed to write cookies file: %v", err)
+		return
+	}
+
+	log.Println("[cookies] YouTube cookies file initialized")
+}
+
+// resolveWithYtDlp calls yt-dlp as a subprocess with PO token provider support
+func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveResponse, error) {
+	// Acquire semaphore to limit concurrent yt-dlp processes
+	ytdlpSemaphore <- struct{}{}
+	defer func() { <-ytdlpSemaphore }()
+
+	potProviderURL := os.Getenv("POT_PROVIDER_URL")
+	if potProviderURL == "" {
+		potProviderURL = "http://club-mutant-pot-provider.internal:4416"
+	}
+
+	ytURL := "https://www.youtube.com/watch?v=" + videoID
+
+	// Prefer mp4 for browser compatibility, fallback to any format
+	formatArg := "best[height<=360][ext=mp4]/best[height<=480][ext=mp4]/best[ext=mp4]/best[height<=360]/best"
+	if videoOnly {
+		formatArg = "best[height<=360][ext=mp4][vcodec!=none]/best[height<=480][ext=mp4][vcodec!=none]/best[ext=mp4][vcodec!=none]/best[height<=360][vcodec!=none]/best[vcodec!=none]"
+	}
+
+	args := []string{
+		ytURL,
+		"-f", formatArg,
+		"-g",
+		"--no-playlist",
+		"--no-warnings",
+		"--quiet",
+		"--no-cache-dir",
+		"--js-runtimes", "node",
+		"--remote-components", "ejs:github",
+		"--extractor-args", "youtubepot-bgutilhttp:base_url=" + potProviderURL,
+	}
+
+	// Add cookies if available
+	if _, err := os.Stat(cookiesFilePath); err == nil {
+		args = append(args, "--cookies", cookiesFilePath)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		log.Printf("[yt-dlp] Failed for %s: %v, stderr: %s", videoID, err, stderr.String())
+		return nil, err
+	}
+
+	resolvedURL := strings.TrimSpace(strings.Split(stdout.String(), "\n")[0])
+	if resolvedURL == "" {
+		return nil, fmt.Errorf("yt-dlp returned empty URL")
+	}
+
+	qualityLabel := "360p combined"
+	if videoOnly {
+		qualityLabel = "360p video-only"
+	}
+
+	return &ResolveResponse{
+		VideoID:     videoID,
+		URL:         resolvedURL,
+		ExpiresAtMs: parseExpiresFromURL(resolvedURL),
+		ResolvedAt:  time.Now().UnixMilli(),
+		VideoOnly:   videoOnly,
+		Quality:     qualityLabel,
+	}, nil
+}
+
 func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 	videoID := r.PathValue("videoId")
 	if videoID == "" {
@@ -209,7 +306,7 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	videoOnly := r.URL.Query().Get("videoOnly") == "true"
+	videoOnly := r.URL.Query().Get("videoOnly") != "false"
 	cacheKey := videoID
 	if videoOnly {
 		cacheKey += ":video"
@@ -221,97 +318,26 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	video, err := s.ytClient.GetVideo(videoID)
+	// Use singleflight to coalesce duplicate requests for the same video
+	result, err, shared := resolveGroup.Do(cacheKey, func() (interface{}, error) {
+		log.Printf("[resolve] Resolving %s via yt-dlp (videoOnly=%v)", videoID, videoOnly)
+		return s.resolveWithYtDlp(videoID, videoOnly)
+	})
+
+	if shared {
+		log.Printf("[resolve] Request for %s was coalesced with another in-flight request", videoID)
+	}
+
 	if err != nil {
-		log.Printf("[resolve] Failed to get video %s: %v", videoID, err)
+		log.Printf("[resolve] yt-dlp failed for %s: %v", videoID, err)
 		http.Error(w, "Failed to resolve video", http.StatusInternalServerError)
 		return
 	}
 
-	var selectedFormat *youtube.Format
-	var quality string
-
-	if videoOnly {
-		for i := range video.Formats {
-			f := &video.Formats[i]
-			if f.AudioChannels == 0 && f.Height > 0 && f.Height <= 360 {
-				if selectedFormat == nil || f.Height < selectedFormat.Height {
-					selectedFormat = f
-				}
-			}
-		}
-
-		if selectedFormat == nil {
-			for i := range video.Formats {
-				f := &video.Formats[i]
-				if f.AudioChannels == 0 && f.Height > 0 {
-					if selectedFormat == nil || f.Height < selectedFormat.Height {
-						selectedFormat = f
-					}
-				}
-			}
-		}
-
-		quality = "video-only"
-	} else {
-		formats := video.Formats.WithAudioChannels()
-		for i := range formats {
-			f := &formats[i]
-			if f.Height > 0 && f.Height <= 360 {
-				if selectedFormat == nil || f.Height < selectedFormat.Height {
-					selectedFormat = f
-				}
-			}
-		}
-
-		if selectedFormat == nil && len(formats) > 0 {
-			selectedFormat = &formats[len(formats)-1]
-		}
-
-		quality = "combined"
-	}
-
-	if selectedFormat == nil {
-		log.Printf("[resolve] No suitable format found for %s", videoID)
-		http.Error(w, "No suitable format found", http.StatusNotFound)
-		return
-	}
-
-	streamURL, err := s.ytClient.GetStreamURL(video, selectedFormat)
-	if err != nil {
-		log.Printf("[resolve] Failed to get stream URL for %s: %v", videoID, err)
-		http.Error(w, "Failed to get stream URL", http.StatusInternalServerError)
-		return
-	}
-
-	qualityLabel := quality
-	if selectedFormat.Height > 0 {
-		qualityLabel = strconv.Itoa(selectedFormat.Height) + "p " + quality
-	}
-
-	response := ResolveResponse{
-		VideoID:     videoID,
-		URL:         streamURL,
-		ExpiresAtMs: parseExpiresFromURL(streamURL),
-		ResolvedAt:  time.Now().UnixMilli(),
-		VideoOnly:   videoOnly,
-		Quality:     qualityLabel,
-	}
-
-	ttl := 50 * time.Second
-	if response.ExpiresAtMs != nil {
-		untilExpiry := time.Until(time.UnixMilli(*response.ExpiresAtMs))
-		if untilExpiry > 2*time.Minute {
-			ttl = untilExpiry - time.Minute
-		}
-	}
-
-	s.resolveCache.Set(cacheKey, response, ttl)
-
-	log.Printf("[resolve] %s -> %s", videoID, qualityLabel)
-
+	resolved := result.(*ResolveResponse)
+	s.resolveCache.Set(cacheKey, *resolved, 5*time.Minute)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(resolved)
 }
 
 func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
@@ -334,90 +360,21 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	resolved, found := s.resolveCache.Get(cacheKey)
 	if !found {
-		video, err := s.ytClient.GetVideo(videoID)
+		// Use singleflight to coalesce duplicate requests
+		result, err, _ := resolveGroup.Do(cacheKey, func() (interface{}, error) {
+			log.Printf("[proxy] Resolving %s via yt-dlp (videoOnly=%v)", videoID, videoOnly)
+			return s.resolveWithYtDlp(videoID, videoOnly)
+		})
+
 		if err != nil {
-			log.Printf("[proxy] Failed to get video %s: %v", videoID, err)
+			log.Printf("[proxy] yt-dlp failed for %s: %v", videoID, err)
 			http.Error(w, "Failed to resolve video", http.StatusInternalServerError)
 			return
 		}
 
-		var selectedFormat *youtube.Format
-
-		if videoOnly {
-			for i := range video.Formats {
-				f := &video.Formats[i]
-				if f.AudioChannels == 0 && f.Height > 0 && f.Height <= 360 {
-					if selectedFormat == nil || f.Height < selectedFormat.Height {
-						selectedFormat = f
-					}
-				}
-			}
-
-			if selectedFormat == nil {
-				for i := range video.Formats {
-					f := &video.Formats[i]
-					if f.AudioChannels == 0 && f.Height > 0 {
-						if selectedFormat == nil || f.Height < selectedFormat.Height {
-							selectedFormat = f
-						}
-					}
-				}
-			}
-		} else {
-			formats := video.Formats.WithAudioChannels()
-			for i := range formats {
-				f := &formats[i]
-				if f.Height > 0 && f.Height <= 360 {
-					if selectedFormat == nil || f.Height < selectedFormat.Height {
-						selectedFormat = f
-					}
-				}
-			}
-
-			if selectedFormat == nil && len(formats) > 0 {
-				selectedFormat = &formats[len(formats)-1]
-			}
-		}
-
-		if selectedFormat == nil {
-			http.Error(w, "No suitable format found", http.StatusNotFound)
-			return
-		}
-
-		streamURL, err := s.ytClient.GetStreamURL(video, selectedFormat)
-		if err != nil {
-			http.Error(w, "Failed to get stream URL", http.StatusInternalServerError)
-			return
-		}
-
-		qualityLabel := "video-only"
-		if !videoOnly {
-			qualityLabel = "combined"
-		}
-		if selectedFormat.Height > 0 {
-			qualityLabel = strconv.Itoa(selectedFormat.Height) + "p " + qualityLabel
-		}
-
-		log.Printf("[proxy] Resolved %s -> %s (itag=%d)", videoID, qualityLabel, selectedFormat.ItagNo)
-
-		resolved = ResolveResponse{
-			VideoID:     videoID,
-			URL:         streamURL,
-			ExpiresAtMs: parseExpiresFromURL(streamURL),
-			ResolvedAt:  time.Now().UnixMilli(),
-			VideoOnly:   videoOnly,
-			Quality:     qualityLabel,
-		}
-
-		ttl := 50 * time.Second
-		if resolved.ExpiresAtMs != nil {
-			untilExpiry := time.Until(time.UnixMilli(*resolved.ExpiresAtMs))
-			if untilExpiry > 2*time.Minute {
-				ttl = untilExpiry - time.Minute
-			}
-		}
-
-		s.resolveCache.Set(cacheKey, resolved, ttl)
+		ytdlpResolved := result.(*ResolveResponse)
+		s.resolveCache.Set(cacheKey, *ytdlpResolved, 5*time.Minute)
+		resolved = *ytdlpResolved
 	}
 
 	req, err := http.NewRequest("GET", resolved.URL, nil)
@@ -439,6 +396,13 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer resp.Body.Close()
+
+	log.Printf("[proxy] Upstream response for %s: status=%d, content-length=%s", videoID, resp.StatusCode, resp.Header.Get("Content-Length"))
+
+	// If YouTube returns an error, log it and pass through
+	if resp.StatusCode >= 400 {
+		log.Printf("[proxy] YouTube returned error %d for %s", resp.StatusCode, videoID)
+	}
 
 	// Set content type - default to video/mp4 if not provided
 	contentType := resp.Header.Get("Content-Type")
@@ -553,6 +517,9 @@ func main() {
 		port = "8081"
 	}
 
+	// Initialize cookies file from env var if set
+	initCookiesFile()
+
 	cacheTTLSeconds := 3600
 	if ttlStr := os.Getenv("YOUTUBE_API_CACHE_TTL"); ttlStr != "" {
 		if parsed, err := strconv.Atoi(ttlStr); err == nil && parsed > 0 {
@@ -563,7 +530,6 @@ func main() {
 	server := &Server{
 		searchCache:  NewCache(time.Duration(cacheTTLSeconds) * time.Second),
 		resolveCache: NewResolveCache(),
-		ytClient:     &youtube.Client{},
 	}
 
 	mux := http.NewServeMux()

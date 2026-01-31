@@ -37,7 +37,7 @@ import { SOFT_POSTFX_PIPELINE_KEY, SoftPostFxPipeline } from '../pipelines/SoftP
 
 type BackgroundVideoRenderer = 'webgl' | 'iframe'
 
-const BACKGROUND_VIDEO_RENDERER: BackgroundVideoRenderer = 'webgl'
+const BACKGROUND_VIDEO_RENDERER: BackgroundVideoRenderer = 'iframe'
 
 export default class Game extends Phaser.Scene {
   network!: Network
