@@ -426,7 +426,8 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 		args = append(args, "--cookies", cookiesFilePath)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Increase timeout to 60s - PO token generation can take 10-20s, plus yt-dlp processing
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
@@ -434,10 +435,20 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
-		log.Printf("[yt-dlp] Failed for %s: %v, stderr: %s", videoID, err, stderr.String())
+	startTime := time.Now()
+	err := cmd.Run()
+	elapsed := time.Since(startTime)
+
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			log.Printf("[yt-dlp] TIMEOUT after %v for %s", elapsed, videoID)
+		} else {
+			log.Printf("[yt-dlp] Failed for %s after %v: %v, stderr: %s", videoID, elapsed, err, stderr.String())
+		}
 		return nil, err
 	}
+
+	log.Printf("[yt-dlp] Completed %s in %v", videoID, elapsed)
 
 	resolvedURL := strings.TrimSpace(strings.Split(stdout.String(), "\n")[0])
 	if resolvedURL == "" {

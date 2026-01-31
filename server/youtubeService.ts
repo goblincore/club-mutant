@@ -3,7 +3,7 @@ import type { IncomingMessage } from 'http'
 
 const YOUTUBE_SERVICE_URL = process.env.YOUTUBE_SERVICE_URL || 'http://localhost:8081'
 const SERVICE_TIMEOUT_MS = 5000
-const RESOLVE_TIMEOUT_MS = 60000
+const RESOLVE_TIMEOUT_MS = 90000 // 90s to allow for 60s yt-dlp timeout + network overhead
 
 // In-memory cache for resolved URLs
 interface CachedResolve {
