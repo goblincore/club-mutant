@@ -803,6 +803,36 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+// prewarmPOToken warms up the PO token provider cache by making a request
+// This is done in the background on startup to reduce first-request latency
+func prewarmPOToken() {
+	potProviderURL := os.Getenv("POT_PROVIDER_URL")
+	if potProviderURL == "" {
+		potProviderURL = "http://club-mutant-pot-provider.internal:4416"
+	}
+
+	// The provider caches tokens, so hitting it once warms the cache
+	url := potProviderURL + "/pot?client=WEB"
+
+	log.Printf("[prewarm] Warming up PO token provider at %s", potProviderURL)
+	start := time.Now()
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		log.Printf("[prewarm] PO token provider unreachable: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	elapsed := time.Since(start)
+	if resp.StatusCode == http.StatusOK {
+		log.Printf("[prewarm] PO token provider warmed up in %v", elapsed)
+	} else {
+		log.Printf("[prewarm] PO token provider returned %d after %v", resp.StatusCode, elapsed)
+	}
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -843,6 +873,9 @@ func main() {
 
 	log.Printf("YouTube API service starting on port %s", port)
 	log.Printf("Cache TTL: %d seconds", cacheTTLSeconds)
+
+	// Pre-warm PO token cache in background
+	go prewarmPOToken()
 
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)
