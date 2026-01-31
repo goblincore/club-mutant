@@ -11,6 +11,8 @@ primary_region = 'iad'
 [env]
   PORT = '8081'
   YOUTUBE_API_CACHE_TTL = '3600'
+  TMPDIR = '/dev/shm'
+  XDG_CACHE_HOME = '/dev/shm'
 
 [http_service]
   internal_port = 8081
