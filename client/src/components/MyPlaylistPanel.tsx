@@ -134,38 +134,6 @@ export default function PlaylistDialog() {
   const activeItems = activePlaylist?.items ?? []
 
   useEffect(() => {
-    if (activeItems.length > 0) {
-      /* This currently handle syncing the players playlist on the server with the client */
-
-      console.log('currentlyPlayingsong', currentMusicStream)
-
-      if (activeItems.length < 2 && !currentMusicStream.link) {
-        const queueItems = activeItems
-          .slice(0, 2)
-          .map((item) => ({ ...item, ...trackMetaById[item.id] }))
-        console.log('queueItems', queueItems)
-        game.network.syncPlayerPlaylistQueue(queueItems)
-      }
-
-      if (currentMusicStream.link && currentMusicStream?.link === activeItems?.[0]?.link) {
-        const queueItems = activeItems
-          .slice(0, 2)
-          .map((item) => ({ ...item, ...trackMetaById[item.id] }))
-        console.log('queueItems', queueItems)
-        game.network.syncPlayerPlaylistQueue(queueItems)
-      }
-
-      if (currentMusicStream.link && currentMusicStream?.link !== activeItems?.[0]?.link) {
-        const queueItems = activeItems
-          .slice(0, 2)
-          .map((item) => ({ ...item, ...trackMetaById[item.id] }))
-        console.log('queueItems', queueItems)
-        game.network.syncPlayerPlaylistQueue(queueItems)
-      }
-    }
-  }, [activeItems, currentMusicStream.link, trackMetaById])
-
-  useEffect(() => {
     const input = game?.input
     if (!input) return
 
@@ -250,11 +218,6 @@ export default function PlaylistDialog() {
       // ignore localStorage errors
     }
   }, [panelWidthPx])
-
-  useEffect(() => {
-    console.log('player short queue changed', playQueue)
-    // game.network.syncPlayerPlaylistQueue(playQueue);
-  }, [playQueue])
 
   const handlePlay = () => {
     console.log('handlePlay')

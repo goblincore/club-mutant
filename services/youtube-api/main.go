@@ -172,6 +172,133 @@ func (c *ResolveCache) cleanupLoop() {
 type Server struct {
 	searchCache  *Cache
 	resolveCache *ResolveCache
+	videoCache   *VideoCache
+}
+
+// VideoCache stores video bytes in memory with LRU eviction
+type VideoCache struct {
+	mu        sync.RWMutex
+	entries   map[string]*VideoCacheEntry
+	maxSize   int64
+	curSize   int64
+	lruOrder  []string
+}
+
+type VideoCacheEntry struct {
+	data      []byte
+	expiresAt time.Time
+	size      int64
+}
+
+const DefaultVideoCacheMaxSize = 100 * 1024 * 1024 // 100MB
+
+func NewVideoCache(maxSize int64) *VideoCache {
+	vc := &VideoCache{
+		entries:  make(map[string]*VideoCacheEntry),
+		maxSize:  maxSize,
+		lruOrder: make([]string, 0),
+	}
+
+	go vc.cleanupLoop()
+
+	return vc
+}
+
+func (vc *VideoCache) Get(key string) ([]byte, bool) {
+	vc.mu.Lock()
+	defer vc.mu.Unlock()
+
+	entry, exists := vc.entries[key]
+	if !exists {
+		return nil, false
+	}
+
+	if time.Now().After(entry.expiresAt) {
+		vc.removeEntryLocked(key)
+		return nil, false
+	}
+
+	// Move to end of LRU (most recently used)
+	vc.touchLocked(key)
+
+	return entry.data, true
+}
+
+func (vc *VideoCache) Set(key string, data []byte, ttl time.Duration) {
+	vc.mu.Lock()
+	defer vc.mu.Unlock()
+
+	size := int64(len(data))
+
+	// Don't cache if single item exceeds max size
+	if size > vc.maxSize {
+		return
+	}
+
+	// Remove existing entry if present
+	if existing, exists := vc.entries[key]; exists {
+		vc.curSize -= existing.size
+		vc.removeFromLRULocked(key)
+	}
+
+	// Evict LRU entries until we have space
+	for vc.curSize+size > vc.maxSize && len(vc.lruOrder) > 0 {
+		oldest := vc.lruOrder[0]
+		vc.removeEntryLocked(oldest)
+	}
+
+	vc.entries[key] = &VideoCacheEntry{
+		data:      data,
+		expiresAt: time.Now().Add(ttl),
+		size:      size,
+	}
+	vc.curSize += size
+	vc.lruOrder = append(vc.lruOrder, key)
+
+	log.Printf("[video-cache] Cached %s (%d bytes, total: %d/%d MB)", key, size, vc.curSize/(1024*1024), vc.maxSize/(1024*1024))
+}
+
+func (vc *VideoCache) removeEntryLocked(key string) {
+	if entry, exists := vc.entries[key]; exists {
+		vc.curSize -= entry.size
+		delete(vc.entries, key)
+		vc.removeFromLRULocked(key)
+		log.Printf("[video-cache] Evicted %s", key)
+	}
+}
+
+func (vc *VideoCache) removeFromLRULocked(key string) {
+	for i, k := range vc.lruOrder {
+		if k == key {
+			vc.lruOrder = append(vc.lruOrder[:i], vc.lruOrder[i+1:]...)
+			break
+		}
+	}
+}
+
+func (vc *VideoCache) touchLocked(key string) {
+	vc.removeFromLRULocked(key)
+	vc.lruOrder = append(vc.lruOrder, key)
+}
+
+func (vc *VideoCache) cleanupLoop() {
+	ticker := time.NewTicker(1 * time.Minute)
+	for range ticker.C {
+		vc.mu.Lock()
+		now := time.Now()
+		for key, entry := range vc.entries {
+			if now.After(entry.expiresAt) {
+				vc.removeEntryLocked(key)
+			}
+		}
+		vc.mu.Unlock()
+	}
+}
+
+func (vc *VideoCache) Stats() (entries int, size int64, maxSize int64) {
+	vc.mu.RLock()
+	defer vc.mu.RUnlock()
+	return len(vc.entries), vc.curSize, vc.maxSize
 }
 
 var videoIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{11}$`)
@@ -260,23 +387,51 @@ func initCookiesFile() {
 	log.Println("[cookies] YouTube cookies file initialized")
 }
 
-// resolveWithYtDlp calls yt-dlp as a subprocess with PO token provider support
+// isBotDetectionError checks if the error indicates YouTube bot detection
+func isBotDetectionError(stderr string) bool {
+	botIndicators := []string{
+		"Sign in to confirm you're not a bot",
+		"bot detection",
+		"Please sign in",
+		"HTTP Error 403",
+		"confirmed your age",
+	}
+	stderrLower := strings.ToLower(stderr)
+	for _, indicator := range botIndicators {
+		if strings.Contains(stderrLower, strings.ToLower(indicator)) {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveWithYtDlp calls yt-dlp - tries without PO token first, retries with PO on bot detection
 func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveResponse, error) {
+	// Try without PO token first (faster for videos that don't need it)
+	result, err := s.resolveWithYtDlpInternal(videoID, videoOnly, false)
+	if err == nil {
+		return result, nil
+	}
+
+	// Check if it's a bot detection error - if so, retry with PO token
+	log.Printf("[yt-dlp] First attempt failed for %s, retrying with PO token", videoID)
+	return s.resolveWithYtDlpInternal(videoID, videoOnly, true)
+}
+
+// resolveWithYtDlpInternal is the actual yt-dlp call with optional PO token support
+func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOToken bool) (*ResolveResponse, error) {
 	// Acquire semaphore to limit concurrent yt-dlp processes
 	ytdlpSemaphore <- struct{}{}
 	defer func() { <-ytdlpSemaphore }()
 
-	potProviderURL := os.Getenv("POT_PROVIDER_URL")
-	if potProviderURL == "" {
-		potProviderURL = "http://club-mutant-pot-provider.internal:4416"
-	}
-
 	ytURL := "https://www.youtube.com/watch?v=" + videoID
 
-	// Prefer lowest resolution mp4 for smallest file size, fallback to higher
+	// Prefer lowest resolution for smallest file size
+	// - Use 'bv' (best video) for video-only streams, 'best' for combined streams
+	// - 144p video-only is ~1.5MB for a 3min video
 	formatArg := "best[height<=144][ext=mp4]/best[height<=240][ext=mp4]/best[height<=360][ext=mp4]/best[ext=mp4]/best"
 	if videoOnly {
-		formatArg = "best[height<=144][ext=mp4][vcodec!=none]/best[height<=240][ext=mp4][vcodec!=none]/best[height<=360][ext=mp4][vcodec!=none]/best[ext=mp4][vcodec!=none]/best[vcodec!=none]"
+		formatArg = "bv[height<=144][ext=mp4]/bv[height<=240][ext=mp4]/bv[height<=360][ext=mp4]/bv[ext=mp4]/bv"
 	}
 
 	args := []string{
@@ -287,9 +442,19 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 		"--no-warnings",
 		"--quiet",
 		"--no-cache-dir",
-		"--js-runtimes", "node",
-		"--remote-components", "ejs:github",
-		"--extractor-args", "youtubepot-bgutilhttp:base_url=" + potProviderURL,
+	}
+
+	// Only add PO token args if needed
+	if usePOToken {
+		potProviderURL := os.Getenv("POT_PROVIDER_URL")
+		if potProviderURL == "" {
+			potProviderURL = "http://club-mutant-pot-provider.internal:4416"
+		}
+		args = append(args,
+			"--js-runtimes", "node",
+			"--remote-components", "ejs:github",
+			"--extractor-args", "youtubepot-bgutilhttp:base_url="+potProviderURL,
+		)
 	}
 
 	// Add cookies if available
@@ -297,7 +462,12 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 		args = append(args, "--cookies", cookiesFilePath)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Shorter timeout without PO (15s), longer with PO (60s)
+	timeout := 15 * time.Second
+	if usePOToken {
+		timeout = 60 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
@@ -305,10 +475,25 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
-		log.Printf("[yt-dlp] Failed for %s: %v, stderr: %s", videoID, err, stderr.String())
+	startTime := time.Now()
+	err := cmd.Run()
+	elapsed := time.Since(startTime)
+
+	poLabel := "without PO"
+	if usePOToken {
+		poLabel = "with PO"
+	}
+
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			log.Printf("[yt-dlp] TIMEOUT after %v for %s (%s)", elapsed, videoID, poLabel)
+		} else {
+			log.Printf("[yt-dlp] Failed for %s after %v (%s): %v, stderr: %s", videoID, elapsed, poLabel, err, stderr.String())
+		}
 		return nil, err
 	}
+
+	log.Printf("[yt-dlp] Completed %s in %v (%s)", videoID, elapsed, poLabel)
 
 	resolvedURL := strings.TrimSpace(strings.Split(stdout.String(), "\n")[0])
 	if resolvedURL == "" {
@@ -393,6 +578,22 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		cacheKey += ":video"
 	}
 
+	rangeHeader := r.Header.Get("Range")
+
+	// Check video byte cache first (only for non-range requests or initial request)
+	if rangeHeader == "" || rangeHeader == "bytes=0-" {
+		if cachedData, found := s.videoCache.Get(cacheKey); found {
+			log.Printf("[proxy] Video cache hit for %s (%d bytes)", videoID, len(cachedData))
+			w.Header().Set("Content-Type", "video/mp4")
+			w.Header().Set("Content-Length", strconv.Itoa(len(cachedData)))
+			w.Header().Set("Accept-Ranges", "bytes")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.WriteHeader(http.StatusOK)
+			w.Write(cachedData)
+			return
+		}
+	}
+
 	resolved, found := s.resolveCache.Get(cacheKey)
 	if !found {
 		// Use singleflight to coalesce duplicate requests
@@ -418,7 +619,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if rangeHeader := r.Header.Get("Range"); rangeHeader != "" {
+	if rangeHeader != "" {
 		req.Header.Set("Range", rangeHeader)
 	}
 
@@ -459,14 +660,115 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(resp.StatusCode)
 
+	// For non-range requests, try to cache the video bytes
+	shouldCache := rangeHeader == "" && resp.StatusCode == http.StatusOK
+	var videoData []byte
+	if shouldCache {
+		videoData = make([]byte, 0, 5*1024*1024) // Pre-allocate 5MB
+	}
+
 	// Use a larger buffer for more efficient streaming
 	buf := make([]byte, 32*1024)
-	bytesWritten, err := io.CopyBuffer(w, resp.Body, buf)
-	if err != nil {
-		log.Printf("[proxy] Stream copy error for %s after %d bytes: %v", videoID, bytesWritten, err)
-	} else {
-		log.Printf("[proxy] Streamed %d bytes for %s", bytesWritten, videoID)
+	bytesWritten := int64(0)
+
+	for {
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			_, writeErr := w.Write(buf[:n])
+			if writeErr != nil {
+				log.Printf("[proxy] Write error for %s after %d bytes: %v", videoID, bytesWritten, writeErr)
+				break
+			}
+			bytesWritten += int64(n)
+
+			// Accumulate data for caching (limit to 10MB to avoid memory issues)
+			if shouldCache && len(videoData)+n <= 10*1024*1024 {
+				videoData = append(videoData, buf[:n]...)
+			}
+		}
+
+		if readErr != nil {
+			if readErr != io.EOF {
+				log.Printf("[proxy] Read error for %s after %d bytes: %v", videoID, bytesWritten, readErr)
+			}
+			break
+		}
 	}
+
+	log.Printf("[proxy] Streamed %d bytes for %s", bytesWritten, videoID)
+
+	// Cache the video if we got a full response
+	if shouldCache && len(videoData) > 0 && len(videoData) <= 10*1024*1024 {
+		s.videoCache.Set(cacheKey, videoData, 5*time.Minute)
+	}
+}
+
+// handlePrefetch pre-fetches and caches a video for faster subsequent access
+func (s *Server) handlePrefetch(w http.ResponseWriter, r *http.Request) {
+	videoID := r.PathValue("videoId")
+	if videoID == "" {
+		http.Error(w, "Missing video ID", http.StatusBadRequest)
+		return
+	}
+
+	if !isValidVideoID(videoID) {
+		http.Error(w, "Invalid video ID", http.StatusBadRequest)
+		return
+	}
+
+	cacheKey := videoID + ":video"
+
+	// Check if already cached
+	if _, found := s.videoCache.Get(cacheKey); found {
+		log.Printf("[prefetch] Already cached: %s", videoID)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "already_cached"})
+		return
+	}
+
+	// Start prefetch in background
+	go func() {
+		log.Printf("[prefetch] Starting prefetch for %s", videoID)
+
+		// Resolve the video URL
+		result, err, _ := resolveGroup.Do(cacheKey, func() (interface{}, error) {
+			return s.resolveWithYtDlp(videoID, true)
+		})
+
+		if err != nil {
+			log.Printf("[prefetch] Resolve failed for %s: %v", videoID, err)
+			return
+		}
+
+		resolved := result.(*ResolveResponse)
+		s.resolveCache.Set(cacheKey, *resolved, 5*time.Minute)
+
+		// Fetch the video bytes
+		resp, err := http.Get(resolved.URL)
+		if err != nil {
+			log.Printf("[prefetch] Fetch failed for %s: %v", videoID, err)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("[prefetch] Bad status for %s: %d", videoID, resp.StatusCode)
+			return
+		}
+
+		// Read up to 10MB
+		data, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
+		if err != nil {
+			log.Printf("[prefetch] Read failed for %s: %v", videoID, err)
+			return
+		}
+
+		s.videoCache.Set(cacheKey, data, 5*time.Minute)
+		log.Printf("[prefetch] Cached %s (%d bytes)", videoID, len(data))
+	}()
+
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(map[string]string{"status": "prefetching"})
 }
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
@@ -546,6 +848,36 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+// prewarmPOToken warms up the PO token provider cache by making a request
+// This is done in the background on startup to reduce first-request latency
+func prewarmPOToken() {
+	potProviderURL := os.Getenv("POT_PROVIDER_URL")
+	if potProviderURL == "" {
+		potProviderURL = "http://club-mutant-pot-provider.internal:4416"
+	}
+
+	// The provider caches tokens, so hitting it once warms the cache
+	url := potProviderURL + "/pot?client=WEB"
+
+	log.Printf("[prewarm] Warming up PO token provider at %s", potProviderURL)
+	start := time.Now()
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		log.Printf("[prewarm] PO token provider unreachable: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	elapsed := time.Since(start)
+	if resp.StatusCode == http.StatusOK {
+		log.Printf("[prewarm] PO token provider warmed up in %v", elapsed)
+	} else {
+		log.Printf("[prewarm] PO token provider returned %d after %v", resp.StatusCode, elapsed)
+	}
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -562,21 +894,33 @@ func main() {
 		}
 	}
 
+	var videoCacheSize int64 = DefaultVideoCacheMaxSize
+	if sizeStr := os.Getenv("VIDEO_CACHE_SIZE_MB"); sizeStr != "" {
+		if parsed, err := strconv.Atoi(sizeStr); err == nil && parsed > 0 {
+			videoCacheSize = int64(parsed) * 1024 * 1024
+		}
+	}
+
 	server := &Server{
 		searchCache:  NewCache(time.Duration(cacheTTLSeconds) * time.Second),
 		resolveCache: NewResolveCache(),
+		videoCache:   NewVideoCache(videoCacheSize),
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /search", server.handleSearch)
 	mux.HandleFunc("GET /resolve/{videoId}", server.handleResolve)
 	mux.HandleFunc("GET /proxy/{videoId}", server.handleProxy)
+	mux.HandleFunc("POST /prefetch/{videoId}", server.handlePrefetch)
 	mux.HandleFunc("GET /health", server.handleHealth)
 
 	handler := corsMiddleware(loggingMiddleware(mux))
 
 	log.Printf("YouTube API service starting on port %s", port)
 	log.Printf("Cache TTL: %d seconds", cacheTTLSeconds)
+
+	// Pre-warm PO token cache in background
+	go prewarmPOToken()
 
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)

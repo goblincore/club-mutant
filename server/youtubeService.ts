@@ -3,7 +3,18 @@ import type { IncomingMessage } from 'http'
 
 const YOUTUBE_SERVICE_URL = process.env.YOUTUBE_SERVICE_URL || 'http://localhost:8081'
 const SERVICE_TIMEOUT_MS = 5000
-const RESOLVE_TIMEOUT_MS = 10000
+const RESOLVE_TIMEOUT_MS = 90000 // 90s to allow for 60s yt-dlp timeout + network overhead
+
+// In-memory cache for resolved URLs
+interface CachedResolve {
+  response: ResolveResponse
+  expiresAt: number
+}
+
+const resolveCache = new Map<string, CachedResolve>()
+
+// In-flight request tracking for request coalescing
+const inFlightResolves = new Map<string, Promise<ResolveResponse>>()
 
 interface VideoResult {
   id: string
@@ -115,37 +126,68 @@ export async function resolveYouTubeVideo(
   videoId: string,
   videoOnly = false
 ): Promise<ResolveResponse> {
-  const params = videoOnly ? '?videoOnly=true' : ''
-  const url = `${YOUTUBE_SERVICE_URL}/resolve/${videoId}${params}`
+  const cacheKey = `${videoId}:${videoOnly}`
 
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), RESOLVE_TIMEOUT_MS)
-
-  try {
-    const response = await fetch(url, { signal: controller.signal })
-
-    clearTimeout(timeoutId)
-
-    if (!response.ok) {
-      throw new Error(`YouTube service resolve error: ${response.status}`)
-    }
-
-    const data: ResolveResponse = await response.json()
-
-    console.log(`[youtubeService] Resolved ${videoId} -> ${data.quality ?? 'unknown'}`)
-
-    return data
-  } catch (e) {
-    clearTimeout(timeoutId)
-
-    if (e instanceof Error && e.name === 'AbortError') {
-      console.warn(`[youtubeService] Resolve timed out after ${RESOLVE_TIMEOUT_MS}ms`)
-    } else {
-      console.warn(`[youtubeService] Resolve failed:`, e)
-    }
-
-    throw e
+  // Check cache first
+  const cached = resolveCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) {
+    console.log(`[youtubeService] Cache hit for ${videoId}`)
+    return cached.response
   }
+
+  // Check if there's already an in-flight request for this video
+  const inFlight = inFlightResolves.get(cacheKey)
+  if (inFlight) {
+    console.log(`[youtubeService] Coalescing request for ${videoId}`)
+    return inFlight
+  }
+
+  // Create the actual request promise
+  const requestPromise = (async (): Promise<ResolveResponse> => {
+    const params = videoOnly ? '?videoOnly=true' : ''
+    const url = `${YOUTUBE_SERVICE_URL}/resolve/${videoId}${params}`
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), RESOLVE_TIMEOUT_MS)
+
+    try {
+      const response = await fetch(url, { signal: controller.signal })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        throw new Error(`YouTube service resolve error: ${response.status}`)
+      }
+
+      const data: ResolveResponse = await response.json()
+
+      console.log(`[youtubeService] Resolved ${videoId} -> ${data.quality ?? 'unknown'}`)
+
+      // Cache the response - expire 1 minute before the actual URL expires
+      const expiresAt = data.expiresAtMs ? data.expiresAtMs - 60_000 : Date.now() + 5 * 60 * 1000
+      resolveCache.set(cacheKey, { response: data, expiresAt })
+
+      return data
+    } catch (e) {
+      clearTimeout(timeoutId)
+
+      if (e instanceof Error && e.name === 'AbortError') {
+        console.warn(`[youtubeService] Resolve timed out after ${RESOLVE_TIMEOUT_MS}ms`)
+      } else {
+        console.warn(`[youtubeService] Resolve failed:`, e)
+      }
+
+      throw e
+    } finally {
+      // Remove from in-flight map when done
+      inFlightResolves.delete(cacheKey)
+    }
+  })()
+
+  // Track in-flight request
+  inFlightResolves.set(cacheKey, requestPromise)
+
+  return requestPromise
 }
 
 export async function proxyYouTubeVideo(
@@ -211,4 +253,42 @@ export async function proxyYouTubeVideo(
     reader.cancel()
     throw e
   }
+}
+
+// Extract video ID from YouTube link
+function extractVideoId(link: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /^([a-zA-Z0-9_-]{11})$/,
+  ]
+
+  for (const pattern of patterns) {
+    const match = link.match(pattern)
+    if (match) return match[1]
+  }
+
+  return null
+}
+
+// Trigger prefetch for a video (fire-and-forget)
+export function prefetchVideo(link: string): void {
+  const videoId = extractVideoId(link)
+  if (!videoId) {
+    console.warn(`[youtubeService] Could not extract video ID from: ${link}`)
+    return
+  }
+
+  const url = `${YOUTUBE_SERVICE_URL}/prefetch/${videoId}`
+
+  fetch(url, { method: 'POST' })
+    .then((res) => {
+      if (res.ok) {
+        console.log(`[youtubeService] Prefetch triggered for ${videoId}`)
+      } else {
+        console.warn(`[youtubeService] Prefetch failed for ${videoId}: ${res.status}`)
+      }
+    })
+    .catch((e) => {
+      console.warn(`[youtubeService] Prefetch error for ${videoId}:`, e)
+    })
 }
