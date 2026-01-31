@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/raitonoberu/ytsearch"
+	"golang.org/x/sync/singleflight"
 )
 
 type VideoResult struct {
@@ -204,6 +205,9 @@ const cookiesFilePath = "/tmp/youtube_cookies.txt"
 // Semaphore to limit concurrent yt-dlp processes (prevents OOM)
 var ytdlpSemaphore = make(chan struct{}, 2)
 
+// Singleflight to coalesce duplicate requests for the same video
+var resolveGroup singleflight.Group
+
 // initCookiesFile writes YouTube cookies from env var to a file (called once at startup)
 func initCookiesFile() {
 	cookies := os.Getenv("YOUTUBE_COOKIES")
@@ -314,15 +318,23 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Skip Go library (signature parsing broken), go directly to yt-dlp
-	log.Printf("[resolve] Resolving %s via yt-dlp (videoOnly=%v)", videoID, videoOnly)
-	resolved, err := s.resolveWithYtDlp(videoID, videoOnly)
+	// Use singleflight to coalesce duplicate requests for the same video
+	result, err, shared := resolveGroup.Do(cacheKey, func() (interface{}, error) {
+		log.Printf("[resolve] Resolving %s via yt-dlp (videoOnly=%v)", videoID, videoOnly)
+		return s.resolveWithYtDlp(videoID, videoOnly)
+	})
+
+	if shared {
+		log.Printf("[resolve] Request for %s was coalesced with another in-flight request", videoID)
+	}
+
 	if err != nil {
 		log.Printf("[resolve] yt-dlp failed for %s: %v", videoID, err)
 		http.Error(w, "Failed to resolve video", http.StatusInternalServerError)
 		return
 	}
 
+	resolved := result.(*ResolveResponse)
 	s.resolveCache.Set(cacheKey, *resolved, 5*time.Minute)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resolved)
@@ -348,15 +360,19 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	resolved, found := s.resolveCache.Get(cacheKey)
 	if !found {
-		// Skip Go library (signature parsing broken), go directly to yt-dlp
-		log.Printf("[proxy] Resolving %s via yt-dlp (videoOnly=%v)", videoID, videoOnly)
-		ytdlpResolved, err := s.resolveWithYtDlp(videoID, videoOnly)
+		// Use singleflight to coalesce duplicate requests
+		result, err, _ := resolveGroup.Do(cacheKey, func() (interface{}, error) {
+			log.Printf("[proxy] Resolving %s via yt-dlp (videoOnly=%v)", videoID, videoOnly)
+			return s.resolveWithYtDlp(videoID, videoOnly)
+		})
+
 		if err != nil {
 			log.Printf("[proxy] yt-dlp failed for %s: %v", videoID, err)
 			http.Error(w, "Failed to resolve video", http.StatusInternalServerError)
 			return
 		}
 
+		ytdlpResolved := result.(*ResolveResponse)
 		s.resolveCache.Set(cacheKey, *ytdlpResolved, 5*time.Minute)
 		resolved = *ytdlpResolved
 	}
@@ -380,6 +396,13 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer resp.Body.Close()
+
+	log.Printf("[proxy] Upstream response for %s: status=%d, content-length=%s", videoID, resp.StatusCode, resp.Header.Get("Content-Length"))
+
+	// If YouTube returns an error, log it and pass through
+	if resp.StatusCode >= 400 {
+		log.Printf("[proxy] YouTube returned error %d for %s", resp.StatusCode, videoID)
+	}
 
 	// Set content type - default to video/mp4 if not provided
 	contentType := resp.Header.Get("Content-Type")
