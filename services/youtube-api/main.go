@@ -306,7 +306,7 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	videoOnly := r.URL.Query().Get("videoOnly") == "true"
+	videoOnly := r.URL.Query().Get("videoOnly") != "false"
 	cacheKey := videoID
 	if videoOnly {
 		cacheKey += ":video"
