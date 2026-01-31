@@ -10,7 +10,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install the Rust PO token provider
-RUN cargo install bgutil-ytdlp-pot-provider
+# Cache bust: v2
+RUN cargo install bgutil-ytdlp-pot-provider && \
+    ls -la /usr/local/cargo/bin/
 
 # Runtime stage
 FROM debian:bookworm-slim
