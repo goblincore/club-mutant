@@ -200,6 +200,42 @@ func parseExpiresFromURL(rawURL string) *int64 {
 	return &expireMs
 }
 
+func detectQualityFromURL(rawURL string, videoOnly bool) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "unknown"
+	}
+
+	itag := parsed.Query().Get("itag")
+
+	// Common YouTube itag -> resolution mapping
+	itagResolutions := map[string]string{
+		"17":  "144p",
+		"160": "144p",
+		"278": "144p",
+		"36":  "240p",
+		"133": "240p",
+		"242": "240p",
+		"18":  "360p",
+		"134": "360p",
+		"243": "360p",
+		"22":  "720p",
+		"135": "480p",
+		"136": "720p",
+		"137": "1080p",
+	}
+
+	resolution := "unknown"
+	if res, ok := itagResolutions[itag]; ok {
+		resolution = res
+	}
+
+	if videoOnly {
+		return resolution + " video-only"
+	}
+	return resolution + " combined"
+}
+
 const cookiesFilePath = "/tmp/youtube_cookies.txt"
 
 // Semaphore to limit concurrent yt-dlp processes (prevents OOM)
@@ -279,10 +315,9 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 		return nil, fmt.Errorf("yt-dlp returned empty URL")
 	}
 
-	qualityLabel := "360p combined"
-	if videoOnly {
-		qualityLabel = "360p video-only"
-	}
+	// Detect resolution from URL parameters (itag) or default
+	qualityLabel := detectQualityFromURL(resolvedURL, videoOnly)
+	log.Printf("[yt-dlp] Resolved %s -> %s", videoID, qualityLabel)
 
 	return &ResolveResponse{
 		VideoID:     videoID,
