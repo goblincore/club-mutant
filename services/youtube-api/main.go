@@ -400,11 +400,12 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 
 	ytURL := "https://www.youtube.com/watch?v=" + videoID
 
-	// Prefer lowest resolution mp4 for smallest file size, exclude HLS/DASH (protocol filter)
-	// HLS streams return m3u8 playlists with segment URLs that cause CORS issues
-	formatArg := "best[height<=144][ext=mp4][protocol^=http]/best[height<=240][ext=mp4][protocol^=http]/best[height<=360][ext=mp4][protocol^=http]/best[ext=mp4][protocol^=http]/best[protocol^=http]"
+	// Prefer lowest resolution for smallest file size
+	// - Use 'bv' (best video) for video-only streams, 'best' for combined streams
+	// - 144p video-only is ~1.5MB for a 3min video
+	formatArg := "best[height<=144][ext=mp4]/best[height<=240][ext=mp4]/best[height<=360][ext=mp4]/best[ext=mp4]/best"
 	if videoOnly {
-		formatArg = "best[height<=144][ext=mp4][vcodec!=none][protocol^=http]/best[height<=240][ext=mp4][vcodec!=none][protocol^=http]/best[height<=360][ext=mp4][vcodec!=none][protocol^=http]/best[ext=mp4][vcodec!=none][protocol^=http]/best[vcodec!=none][protocol^=http]"
+		formatArg = "bv[height<=144][ext=mp4]/bv[height<=240][ext=mp4]/bv[height<=360][ext=mp4]/bv[ext=mp4]/bv"
 	}
 
 	args := []string{
