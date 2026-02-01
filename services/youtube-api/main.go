@@ -487,12 +487,25 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 
 	ytURL := "https://www.youtube.com/watch?v=" + videoID
 
-	// Prefer lowest resolution for smallest file size
-	// Use itag 18 (360p mp4) as primary - universally available even through proxies
-	// Fallback to selector-based formats for flexibility
-	formatArg := "18/best[height<=360]/best"
-	if videoOnly {
-		formatArg = "160/133/134/bv[height<=360]/bv"
+	// Format selection depends on whether using proxy or PO token
+	// - Proxy path: use specific itags (no JS runtime needed)
+	// - PO token path: use selectors (JS runtime available)
+	proxyURL := os.Getenv("PROXY_URL")
+	var formatArg string
+	if proxyURL != "" && !usePOToken {
+		// Proxy path - use itags: 160=144p, 133=240p, 134=360p, 18=360p combined
+		formatArg = "18/160/133/134"
+		if videoOnly {
+			formatArg = "160/133/134"
+		}
+		log.Printf("[yt-dlp] Using proxy path with format: %s", formatArg)
+	} else {
+		// PO token path - use selectors (JS runtime available)
+		formatArg = "best[height<=360]/best"
+		if videoOnly {
+			formatArg = "bv[height<=360]/bv"
+		}
+		log.Printf("[yt-dlp] Using PO token path with format: %s", formatArg)
 	}
 
 	args := []string{
@@ -507,7 +520,6 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 
 	// Add proxy if configured AND we're not using PO token
 	// (PO token path doesn't use proxy - it uses the PO provider directly)
-	proxyURL := os.Getenv("PROXY_URL")
 	if proxyURL != "" && !usePOToken {
 		args = append(args, "--proxy", proxyURL)
 	}
@@ -529,9 +541,11 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 		)
 	}
 
-	// Add cookies if available
-	if _, err := os.Stat(cookiesFilePath); err == nil {
-		args = append(args, "--cookies", cookiesFilePath)
+	// Add cookies if available (only for PO token path - cookies can interfere with proxy)
+	if usePOToken {
+		if _, err := os.Stat(cookiesFilePath); err == nil {
+			args = append(args, "--cookies", cookiesFilePath)
+		}
 	}
 
 	// Shorter timeout without PO (15s), longer with PO (60s)
@@ -542,6 +556,7 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	log.Printf("[yt-dlp] Running: yt-dlp %v", args)
 	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
