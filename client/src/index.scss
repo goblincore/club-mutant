@@ -35,6 +35,10 @@ body {
 }
 
 #phaser-container.bg-iframe-overlay {
+  canvas {
+    mix-blend-mode: difference;
+  }
+
   > div {
     z-index: 2;
   }
