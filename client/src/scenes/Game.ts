@@ -77,6 +77,7 @@ export default class Game extends Phaser.Scene {
   private myYoutubePlayer?: MyYoutubePlayer
 
   private backgroundVideo?: Phaser.GameObjects.Video
+  private backgroundVideoCamera?: Phaser.Cameras.Scene2D.Camera
   private backgroundVideoRefreshTimer?: Phaser.Time.TimerEvent
   private activeBackgroundVideoId: string | null = null
   private activeBackgroundVideoIsWebgl = false
@@ -99,6 +100,8 @@ export default class Game extends Phaser.Scene {
   private resizeBackgroundSurfaces(width: number, height: number) {
     this.myYoutubePlayer?.resize(width, height)
     this.backgroundVideo?.setDisplaySize(width, height)
+
+    this.backgroundVideoCamera?.setSize(width, height)
   }
 
   private async stopBackgroundVideo() {
@@ -905,6 +908,18 @@ export default class Game extends Phaser.Scene {
     this.backgroundModeText.setDepth(100000)
     this.backgroundModeText.setVisible(true)
 
+    // Dedicated background camera for WebGL video background.
+    // This avoids any interaction with the gameplay camera follow/zoom.
+    this.backgroundVideoCamera = this.cameras.add(
+      0,
+      0,
+      this.scale.gameSize.width,
+      this.scale.gameSize.height
+    )
+    this.backgroundVideoCamera.setScroll(0, 0)
+    this.backgroundVideoCamera.setZoom(1)
+    this.backgroundVideoCamera.setRoundPixels(false)
+
     this.backgroundVideo = this.add.video(0, 0)
     this.backgroundVideo.setOrigin(0, 0)
     this.backgroundVideo.setScrollFactor(0)
@@ -912,6 +927,12 @@ export default class Game extends Phaser.Scene {
     this.backgroundVideo.setAlpha(0)
     this.backgroundVideo.setVisible(false)
     this.backgroundVideo.setDisplaySize(this.scale.gameSize.width, this.scale.gameSize.height)
+
+    // Ensure the background video is only rendered by the background camera.
+    this.cameras.main.ignore(this.backgroundVideo)
+    this.backgroundVideoCamera.ignore(
+      this.children.list.filter((child) => child !== this.backgroundVideo)
+    )
 
     // Youtube background player (Phaser-native)
     this.myYoutubePlayer = new MyYoutubePlayer({
