@@ -414,16 +414,10 @@ func isBotDetectionError(stderr string) bool {
 	return false
 }
 
-// resolveWithYtDlp calls yt-dlp - tries without PO token first, retries with PO on bot detection
+// resolveWithYtDlp calls yt-dlp - always uses PO token since most requests require it
 func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveResponse, error) {
-	// Try without PO token first (faster for videos that don't need it)
-	result, err := s.resolveWithYtDlpInternal(videoID, videoOnly, false)
-	if err == nil {
-		return result, nil
-	}
-
-	// Check if it's a bot detection error - if so, retry with PO token
-	log.Printf("[yt-dlp] First attempt failed for %s, retrying with PO token", videoID)
+	// Always use PO token - the "try without first" approach was wasting 2-3s per request
+	// since most videos require PO token for format selection to work properly
 	return s.resolveWithYtDlpInternal(videoID, videoOnly, true)
 }
 
@@ -570,6 +564,7 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
+	proxyStart := time.Now()
 	videoID := r.PathValue("videoId")
 	if videoID == "" {
 		videoID = strings.TrimPrefix(r.URL.Path, "/proxy/")
@@ -603,6 +598,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	resolveStart := time.Now()
 	resolved, found := s.resolveCache.Get(cacheKey)
 	if !found {
 		// Use singleflight to coalesce duplicate requests
@@ -620,6 +616,9 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		ytdlpResolved := result.(*ResolveResponse)
 		s.resolveCache.Set(cacheKey, *ytdlpResolved, 5*time.Minute)
 		resolved = *ytdlpResolved
+		log.Printf("[proxy] Resolve for %s took %dms", videoID, time.Since(resolveStart).Milliseconds())
+	} else {
+		log.Printf("[proxy] Resolve cache hit for %s", videoID)
 	}
 
 	req, err := http.NewRequest("GET", resolved.URL, nil)
@@ -633,6 +632,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Use shared client with connection pooling for better performance
+	upstreamStart := time.Now()
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		log.Printf("[proxy] Upstream request failed for %s: %v", videoID, err)
@@ -641,7 +641,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	log.Printf("[proxy] Upstream response for %s: status=%d, content-length=%s", videoID, resp.StatusCode, resp.Header.Get("Content-Length"))
+	log.Printf("[proxy] Upstream connect for %s took %dms, status=%d, content-length=%s", videoID, time.Since(upstreamStart).Milliseconds(), resp.StatusCode, resp.Header.Get("Content-Length"))
 
 	// If YouTube returns an error, log it and pass through
 	if resp.StatusCode >= 400 {
@@ -703,7 +703,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	log.Printf("[proxy] Streamed %d bytes for %s", bytesWritten, videoID)
+	log.Printf("[proxy] Streamed %d bytes for %s in %dms", bytesWritten, videoID, time.Since(proxyStart).Milliseconds())
 
 	// Cache the video if we got a full response
 	if shouldCache && len(videoData) > 0 && len(videoData) <= 10*1024*1024 {
