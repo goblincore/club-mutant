@@ -186,6 +186,41 @@ type Server struct {
 	searchCache  *Cache
 	resolveCache *ResolveCache
 	videoCache   *VideoCache
+	potCache     *POTokenCache
+}
+
+// POTokenCache caches PO tokens to avoid regenerating on every yt-dlp call
+type POTokenCache struct {
+	mu         sync.RWMutex
+	token      string
+	expiresAt  time.Time
+	fetching   bool
+	fetchCond  *sync.Cond
+}
+
+func NewPOTokenCache() *POTokenCache {
+	c := &POTokenCache{}
+	c.fetchCond = sync.NewCond(&c.mu)
+	return c
+}
+
+func (c *POTokenCache) Get() (string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.token == "" || time.Now().After(c.expiresAt) {
+		return "", false
+	}
+
+	return c.token, true
+}
+
+func (c *POTokenCache) Set(token string, ttl time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.token = token
+	c.expiresAt = time.Now().Add(ttl)
 }
 
 // Shared HTTP client with connection pooling
@@ -462,14 +497,18 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 
 	// Only add PO token args if needed
 	if usePOToken {
-		potProviderURL := os.Getenv("POT_PROVIDER_URL")
-		if potProviderURL == "" {
-			potProviderURL = "http://club-mutant-pot-provider.internal:4416"
+		// Use localhost to hit our caching proxy instead of the remote provider
+		// This allows us to cache PO tokens and avoid regenerating on every call
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "8081"
 		}
+		localPotURL := "http://127.0.0.1:" + port
+
 		args = append(args,
 			"--js-runtimes", "node",
 			"--remote-components", "ejs:github",
-			"--extractor-args", "youtubepot-bgutilhttp:base_url="+potProviderURL,
+			"--extractor-args", "youtubepot-bgutilhttp:base_url="+localPotURL,
 		)
 	}
 
@@ -869,12 +908,62 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+// handlePOToken is a caching proxy for PO tokens
+// It caches tokens locally to avoid hitting the slow Rust provider on every yt-dlp call
+func (s *Server) handlePOToken(w http.ResponseWriter, r *http.Request) {
+	// Check cache first
+	if token, ok := s.potCache.Get(); ok {
+		log.Printf("[pot] Cache hit, returning cached token")
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write([]byte(token))
+		return
+	}
+
+	// Cache miss - fetch from upstream provider
+	potProviderURL := os.Getenv("POT_PROVIDER_URL")
+	if potProviderURL == "" {
+		potProviderURL = "http://club-mutant-pot-provider-rust.internal:4416"
+	}
+
+	// Forward the query string (client parameter)
+	upstreamURL := potProviderURL + "/pot?" + r.URL.RawQuery
+
+	log.Printf("[pot] Cache miss, fetching from %s", potProviderURL)
+	start := time.Now()
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(upstreamURL)
+	if err != nil {
+		log.Printf("[pot] Upstream error: %v", err)
+		http.Error(w, "PO token provider unavailable", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("[pot] Failed to read response: %v", err)
+		http.Error(w, "Failed to read token", http.StatusInternalServerError)
+		return
+	}
+
+	elapsed := time.Since(start)
+	log.Printf("[pot] Fetched token in %v, caching for 30 minutes", elapsed)
+
+	// Cache the token for 30 minutes (PO tokens are valid for ~6 hours)
+	s.potCache.Set(string(body), 30*time.Minute)
+
+	w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
+	w.WriteHeader(resp.StatusCode)
+	w.Write(body)
+}
+
 // prewarmPOToken warms up the PO token provider cache by making a request
 // This is done in the background on startup to reduce first-request latency
 func prewarmPOToken() {
 	potProviderURL := os.Getenv("POT_PROVIDER_URL")
 	if potProviderURL == "" {
-		potProviderURL = "http://club-mutant-pot-provider.internal:4416"
+		potProviderURL = "http://club-mutant-pot-provider-rust.internal:4416"
 	}
 
 	// The provider caches tokens, so hitting it once warms the cache
@@ -926,6 +1015,7 @@ func main() {
 		searchCache:  NewCache(time.Duration(cacheTTLSeconds) * time.Second),
 		resolveCache: NewResolveCache(),
 		videoCache:   NewVideoCache(videoCacheSize),
+		potCache:     NewPOTokenCache(),
 	}
 
 	mux := http.NewServeMux()
@@ -934,6 +1024,7 @@ func main() {
 	mux.HandleFunc("GET /proxy/{videoId}", server.handleProxy)
 	mux.HandleFunc("POST /prefetch/{videoId}", server.handlePrefetch)
 	mux.HandleFunc("GET /health", server.handleHealth)
+	mux.HandleFunc("GET /pot", server.handlePOToken)
 
 	handler := corsMiddleware(loggingMiddleware(mux))
 

@@ -13,6 +13,7 @@ primary_region = 'iad'
   YOUTUBE_API_CACHE_TTL = '3600'
   TMPDIR = '/dev/shm'
   XDG_CACHE_HOME = '/dev/shm'
+  POT_PROVIDER_URL = 'http://club-mutant-pot-provider-rust.internal:4416'
 
 [http_service]
   internal_port = 8081
