@@ -81,6 +81,10 @@ export default class Game extends Phaser.Scene {
   private backgroundModeText?: Phaser.GameObjects.Text
   private lastBackgroundModeLabel: string | null = null
 
+  // Client-side resolve caching and coalescing
+  private resolveCache = new Map<string, { url: string; expiresAtMs: number | null }>()
+  private inFlightResolves = new Map<string, Promise<{ url: string; expiresAtMs: number | null }>>()
+
   private setBackgroundModeLabel(label: string) {
     if (this.lastBackgroundModeLabel === label) return
     this.lastBackgroundModeLabel = label
@@ -207,10 +211,43 @@ export default class Game extends Phaser.Scene {
     }
 
     try {
+      // 1. Skip if already active and playing/loading
+      if (this.activeBackgroundVideoId === videoId && this.backgroundVideo?.isPlaying()) {
+        return true
+      }
+
       const startTime = performance.now()
-      this.setBackgroundModeLabel('BG: WEBGL (resolving)')
-      const resolved = await this.resolveYoutubeDirectUrl(videoId)
-      console.log(`[YoutubeBG] Resolve took ${(performance.now() - startTime).toFixed(0)}ms`)
+
+      // 2. Check Cache
+      const cached = this.resolveCache.get(videoId)
+      let resolved: { url: string; expiresAtMs: number | null }
+
+      if (cached && (cached.expiresAtMs === null || cached.expiresAtMs > Date.now())) {
+        resolved = cached
+        console.log(`[YoutubeBG] Cache hit for ${videoId}`)
+      } else {
+        // 3. Check In-flight
+        const inFlight = this.inFlightResolves.get(videoId)
+        if (inFlight) {
+          console.log(`[YoutubeBG] Coalescing request for ${videoId}`)
+          resolved = await inFlight
+        } else {
+          this.setBackgroundModeLabel('BG: WEBGL (resolving)')
+          const resolvePromise = this.resolveYoutubeDirectUrl(videoId)
+          this.inFlightResolves.set(videoId, resolvePromise)
+
+          try {
+            resolved = await resolvePromise
+            console.log(`[YoutubeBG] Resolve took ${(performance.now() - startTime).toFixed(0)}ms`)
+
+            // Cache for 5 minutes or until expiry
+            const expiresAt = resolved.expiresAtMs ?? Date.now() + 5 * 60 * 1000
+            this.resolveCache.set(videoId, { ...resolved, expiresAtMs: expiresAt })
+          } finally {
+            this.inFlightResolves.delete(videoId)
+          }
+        }
+      }
 
       this.activeBackgroundVideoId = videoId
       this.activeBackgroundVideoIsWebgl = true
@@ -910,10 +947,6 @@ export default class Game extends Phaser.Scene {
 
     // Late-join sync: if a stream is already playing (and background video is already enabled),
     // we may have missed the initial START_PLAYING_MEDIA emit during Network.initialize().
-    this.time.delayedCall(0, () => {
-      this.handleVideoBackgroundEnabledChanged(store.getState().musicStream.videoBackgroundEnabled)
-    })
-
     this.time.delayedCall(250, () => {
       this.handleVideoBackgroundEnabledChanged(store.getState().musicStream.videoBackgroundEnabled)
     })
