@@ -145,13 +145,26 @@ func (c *ResolveCache) Get(key string) (ResolveResponse, bool) {
 	return entry.Response, true
 }
 
-func (c *ResolveCache) Set(key string, response ResolveResponse, ttl time.Duration) {
+func (c *ResolveCache) Set(key string, response ResolveResponse, fallbackTTL time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Use the actual YouTube URL expiry time if available (typically 6 hours)
+	// Fall back to provided TTL if not available
+	expiresAt := time.Now().Add(fallbackTTL)
+	if response.ExpiresAtMs != nil {
+		urlExpiry := time.UnixMilli(*response.ExpiresAtMs)
+		// Use URL expiry minus 5 minute buffer to be safe
+		safeExpiry := urlExpiry.Add(-5 * time.Minute)
+		if safeExpiry.After(time.Now()) {
+			expiresAt = safeExpiry
+			log.Printf("[cache] Using URL expiry for %s: %s (in %s)", response.VideoID, urlExpiry.Format(time.RFC3339), time.Until(safeExpiry).Round(time.Minute))
+		}
+	}
+
 	c.entries[key] = ResolveCacheEntry{
 		Response:  response,
-		ExpiresAt: time.Now().Add(ttl),
+		ExpiresAt: expiresAt,
 	}
 }
 
