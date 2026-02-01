@@ -101,13 +101,12 @@ func (c *Cache) cleanupLoop() {
 }
 
 type ResolveResponse struct {
-	VideoID      string `json:"videoId"`
-	URL          string `json:"url"`
-	ExpiresAtMs  *int64 `json:"expiresAtMs"`
-	ResolvedAt   int64  `json:"resolvedAtMs"`
-	VideoOnly    bool   `json:"videoOnly"`
-	Quality      string `json:"quality"`
-	UsedProxy    bool   `json:"usedProxy"`    // True if resolved via ISP proxy (URL is IP-locked)
+	VideoID     string `json:"videoId"`
+	URL         string `json:"url"`
+	ExpiresAtMs *int64 `json:"expiresAtMs"`
+	ResolvedAt  int64  `json:"resolvedAtMs"`
+	VideoOnly   bool   `json:"videoOnly"`
+	Quality     string `json:"quality"`
 }
 
 type ResolveCache struct {
@@ -224,35 +223,30 @@ func (c *POTokenCache) Set(token string, ttl time.Duration) {
 	c.expiresAt = time.Now().Add(ttl)
 }
 
-// Shared HTTP clients (initialized in init())
-var httpClient *http.Client      // Direct client (for PO token resolved URLs)
-var httpProxyClient *http.Client // Proxy client (for ISP proxy resolved URLs)
+// Shared HTTP client with connection pooling (initialized in init())
+var httpClient *http.Client
 
 func init() {
-	// Direct client - no proxy, for URLs resolved via PO token
-	httpClient = &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 10,
-			IdleConnTimeout:     90 * time.Second,
-		},
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
 	}
 
-	// Proxy client - for URLs resolved via ISP proxy (IP-locked)
+	// If ISP proxy is configured, route video streaming through it
+	// This is needed because YouTube URLs are IP-locked to the resolver's IP
 	if proxyURL := os.Getenv("PROXY_URL"); proxyURL != "" {
-		proxyTransport := &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 10,
-			IdleConnTimeout:     90 * time.Second,
-		}
 		proxyParsed, err := url.Parse(proxyURL)
 		if err == nil {
-			proxyTransport.Proxy = http.ProxyURL(proxyParsed)
-			httpProxyClient = &http.Client{Transport: proxyTransport}
-			log.Printf("[init] Proxy HTTP client configured: %s", proxyURL)
+			transport.Proxy = http.ProxyURL(proxyParsed)
+			log.Printf("[init] HTTP client configured with proxy: %s", proxyURL)
 		} else {
 			log.Printf("[init] Failed to parse PROXY_URL: %v", err)
 		}
+	}
+
+	httpClient = &http.Client{
+		Transport: transport,
 	}
 }
 
@@ -615,10 +609,6 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 	qualityLabel := detectQualityFromURL(resolvedURL, videoOnly)
 	log.Printf("[yt-dlp] Resolved %s -> %s", videoID, qualityLabel)
 
-	// URL is IP-locked if resolved via proxy (not PO token)
-	// proxyURL already declared at top of function
-	usedProxy := proxyURL != "" && !usePOToken
-
 	return &ResolveResponse{
 		VideoID:     videoID,
 		URL:         resolvedURL,
@@ -626,7 +616,6 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 		ResolvedAt:  time.Now().UnixMilli(),
 		VideoOnly:   videoOnly,
 		Quality:     qualityLabel,
-		UsedProxy:   usedProxy,
 	}, nil
 }
 
@@ -744,19 +733,9 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		req.Header.Set("Range", rangeHeader)
 	}
 
-	// Choose HTTP client based on how URL was resolved
-	// - Proxy-resolved URLs are IP-locked, must stream via proxy
-	// - PO token-resolved URLs work from any IP, use direct client (faster)
-	client := httpClient
-	if resolved.UsedProxy && httpProxyClient != nil {
-		client = httpProxyClient
-		log.Printf("[proxy] Using proxy client for %s (IP-locked URL)", videoID)
-	} else {
-		log.Printf("[proxy] Using direct client for %s", videoID)
-	}
-
+	// Use shared client with connection pooling for better performance
 	upstreamStart := time.Now()
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		log.Printf("[proxy] Upstream request failed for %s: %v", videoID, err)
 		http.Error(w, "Upstream request failed", http.StatusBadGateway)
