@@ -114,7 +114,10 @@ export default class Game extends Phaser.Scene {
 
   private applyIframeBackgroundStyles() {
     const node = this.myYoutubePlayer?.node as HTMLElement | undefined
-    if (!node) return
+    if (!node) {
+      console.warn('[YoutubeBG] applyIframeBackgroundStyles: node not found')
+      return
+    }
 
     const container = document.getElementById('phaser-container')
     if (BACKGROUND_VIDEO_RENDERER === 'iframe') {
@@ -127,9 +130,17 @@ export default class Game extends Phaser.Scene {
 
     const targetOpacity = isIframeOverlay ? '0.2' : '0.8'
 
+    // Ensure the DOM element is visible and positioned correctly
     node.style.setProperty('opacity', targetOpacity, 'important')
+    node.style.setProperty('display', 'block', 'important')
+    node.style.setProperty('visibility', 'visible', 'important')
     node.style.mixBlendMode = isIframeOverlay ? 'normal' : 'overlay'
     node.style.backgroundColor = 'transparent'
+    node.style.setProperty('position', 'absolute', 'important')
+    node.style.setProperty('left', '0px', 'important')
+    node.style.setProperty('top', '0px', 'important')
+    node.style.setProperty('width', '100%', 'important')
+    node.style.setProperty('height', '100%', 'important')
 
     // Rex/Phaser DOM wrappers can apply their own opacity/layout; ensure the wrapper is also translucent.
     const wrapper = node.parentElement
@@ -137,6 +148,8 @@ export default class Game extends Phaser.Scene {
       wrapper.style.setProperty('opacity', targetOpacity, 'important')
       wrapper.style.setProperty('pointer-events', 'none', 'important')
       wrapper.style.setProperty('background-color', 'transparent', 'important')
+      wrapper.style.setProperty('display', 'block', 'important')
+      wrapper.style.setProperty('visibility', 'visible', 'important')
     }
 
     const iframe = node.querySelector('iframe')
@@ -144,6 +157,8 @@ export default class Game extends Phaser.Scene {
       iframe.style.setProperty('pointer-events', 'none', 'important')
       iframe.style.setProperty('opacity', targetOpacity, 'important')
       iframe.style.mixBlendMode = isIframeOverlay ? 'normal' : 'overlay'
+      iframe.style.setProperty('width', '100%', 'important')
+      iframe.style.setProperty('height', '100%', 'important')
     }
 
     // Best-effort: request low playback quality if rex exposes the underlying YouTube player.
@@ -353,12 +368,19 @@ export default class Game extends Phaser.Scene {
     this.backgroundVideo?.setAlpha(0)
     this.backgroundVideo?.setVisible(false)
 
-    this.myYoutubePlayer?.load(videoId, true)
-    this.myYoutubePlayer?.setMute(true)
-    this.myYoutubePlayer?.setPlaybackTime(offsetSeconds)
-    this.myYoutubePlayer?.play()
-    this.myYoutubePlayer?.setAlpha(1)
-    this.myYoutubePlayer?.setVisible(true)
+    if (!this.myYoutubePlayer) {
+      console.error('[YoutubeBG] myYoutubePlayer is not initialized')
+      return
+    }
+
+    this.myYoutubePlayer.setVisible(true)
+    this.myYoutubePlayer.setAlpha(1)
+    this.myYoutubePlayer.load(videoId, true)
+    this.myYoutubePlayer.setMute(true)
+    this.myYoutubePlayer.setPlaybackTime(offsetSeconds)
+    this.myYoutubePlayer.play()
+
+    console.log(`[YoutubeBG] Iframe player loaded for ${videoId}, alpha=${this.myYoutubePlayer.alpha}, visible=${this.myYoutubePlayer.visible}`)
 
     this.applyIframeBackgroundStyles()
 
@@ -367,6 +389,14 @@ export default class Game extends Phaser.Scene {
       if (this.activeBackgroundVideoId !== videoId) return
       if (this.activeBackgroundVideoIsWebgl) return
       this.applyIframeBackgroundStyles()
+    })
+
+    // Additional retry for visibility
+    this.time.delayedCall(1000, () => {
+      if (this.activeBackgroundVideoId !== videoId) return
+      if (this.activeBackgroundVideoIsWebgl) return
+      this.applyIframeBackgroundStyles()
+      console.log('[YoutubeBG] Final iframe styling retry')
     })
   }
 
