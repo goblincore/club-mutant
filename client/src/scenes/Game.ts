@@ -72,6 +72,9 @@ export default class Game extends Phaser.Scene {
   private hoveredInteractable: Item | null = null
   private selectorInteractable: Item | null = null
   private highlightedInteractable: Item | null = null
+  private hideOverlays() {
+    // ...
+  }
   private hoverGlowFx = new WeakMap<Item, Phaser.FX.Glow>()
   myPlayer!: MyPlayer
   private playerSelector!: PlayerSelector
@@ -99,6 +102,11 @@ export default class Game extends Phaser.Scene {
 
     this.backgroundModeText?.setText(label)
     console.log(`[YoutubeBG] ${label}`)
+  }
+
+  private resizeBackgroundSurfaces(width: number, height: number) {
+    this.myYoutubePlayer?.resize(width, height)
+    this.backgroundVideo?.setDisplaySize(width, height)
   }
 
   private async stopBackgroundVideo() {
@@ -307,7 +315,7 @@ export default class Game extends Phaser.Scene {
         )
         // When metadata loads, the underlying video element updates its intrinsic dimensions.
         // If we computed scale before that, the display size can be wrong until the next resize event.
-        this.backgroundVideo?.setDisplaySize(this.scale.width, this.scale.height)
+        this.resizeBackgroundSurfaces(this.scale.gameSize.width, this.scale.gameSize.height)
         this.backgroundVideo?.setCurrentTime(offsetSeconds)
         this.backgroundVideo?.play(true)
         this.backgroundVideo?.setAlpha(1)
@@ -911,15 +919,15 @@ export default class Game extends Phaser.Scene {
     this.backgroundVideo.setDepth(-20)
     this.backgroundVideo.setAlpha(0)
     this.backgroundVideo.setVisible(false)
-    this.backgroundVideo.setDisplaySize(this.scale.width, this.scale.height)
+    this.backgroundVideo.setDisplaySize(this.scale.gameSize.width, this.scale.gameSize.height)
 
     // Youtube background player (Phaser-native)
     this.myYoutubePlayer = new MyYoutubePlayer({
       scene: this,
       x: 0,
       y: 0,
-      width: this.scale.width,
-      height: this.scale.height,
+      width: this.scale.gameSize.width,
+      height: this.scale.gameSize.height,
       config: {
         autoPlay: true,
         controls: false,
@@ -952,8 +960,18 @@ export default class Game extends Phaser.Scene {
 
     // Handle resize
     this.scale.on(Phaser.Scale.Events.RESIZE, (gameSize: Phaser.Structs.Size) => {
-      this.myYoutubePlayer?.resize(gameSize.width, gameSize.height)
-      this.backgroundVideo?.setDisplaySize(gameSize.width, gameSize.height)
+      this.resizeBackgroundSurfaces(gameSize.width, gameSize.height)
+    })
+
+    // Ensure correct initial sizing (Phaser doesn't always emit RESIZE on first layout)
+    this.time.delayedCall(0, () => {
+      this.scale.refresh()
+      this.resizeBackgroundSurfaces(this.scale.gameSize.width, this.scale.gameSize.height)
+    })
+
+    this.time.delayedCall(200, () => {
+      this.scale.refresh()
+      this.resizeBackgroundSurfaces(this.scale.gameSize.width, this.scale.gameSize.height)
     })
 
     // Interaction to allow autoplay
