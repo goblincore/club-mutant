@@ -175,6 +175,15 @@ type Server struct {
 	videoCache   *VideoCache
 }
 
+// Shared HTTP client with connection pooling
+var httpClient = &http.Client{
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+	},
+}
+
 // VideoCache stores video bytes in memory with LRU eviction
 type VideoCache struct {
 	mu        sync.RWMutex
@@ -623,9 +632,8 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		req.Header.Set("Range", rangeHeader)
 	}
 
-	// No timeout for streaming - let the connection stay open
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	// Use shared client with connection pooling for better performance
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		log.Printf("[proxy] Upstream request failed for %s: %v", videoID, err)
 		http.Error(w, "Upstream request failed", http.StatusBadGateway)
@@ -667,8 +675,8 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		videoData = make([]byte, 0, 5*1024*1024) // Pre-allocate 5MB
 	}
 
-	// Use a larger buffer for more efficient streaming
-	buf := make([]byte, 32*1024)
+	// Use a larger buffer for more efficient streaming (128KB)
+	buf := make([]byte, 128*1024)
 	bytesWritten := int64(0)
 
 	for {
