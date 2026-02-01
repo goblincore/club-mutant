@@ -1,0 +1,15 @@
+{
+  email admin@mutante.club
+}
+
+api.mutante.club {
+  encode gzip
+
+  reverse_proxy server:2567
+}
+
+yt.mutante.club {
+  encode gzip
+
+  reverse_proxy youtube-api:8081
+}
