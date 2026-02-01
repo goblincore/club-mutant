@@ -37,15 +37,7 @@ import { SOFT_POSTFX_PIPELINE_KEY, SoftPostFxPipeline } from '../pipelines/SoftP
 
 type BackgroundVideoRenderer = 'webgl' | 'iframe'
 
-// Safari has slow video metadata loading (waits for moov atom at end of file)
-// Use iframe fallback for Safari to avoid 20-30s delays
-const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-
-const BACKGROUND_VIDEO_RENDERER: BackgroundVideoRenderer = isSafari ? 'iframe' : 'webgl'
-
-if (isSafari) {
-  console.log('[YoutubeBG] Safari detected, using iframe renderer')
-}
+const BACKGROUND_VIDEO_RENDERER: BackgroundVideoRenderer = 'webgl'
 
 export default class Game extends Phaser.Scene {
   network!: Network
