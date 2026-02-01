@@ -3,8 +3,8 @@
   publish = "client/dist"
 
 [build.environment]
-  VITE_WS_ENDPOINT = "wss://club-mutant-server.fly.dev"
-  VITE_HTTP_ENDPOINT = "https://club-mutant-server.fly.dev"
+  VITE_WS_ENDPOINT = "wss://api.mutante.club"
+  VITE_HTTP_ENDPOINT = "https://api.mutante.club"
 
 # Rule for router history mode
 [[redirects]]
