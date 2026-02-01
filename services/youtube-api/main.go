@@ -462,10 +462,20 @@ func isBotDetectionError(stderr string) bool {
 	return false
 }
 
-// resolveWithYtDlp calls yt-dlp - always uses PO token since most requests require it
+// resolveWithYtDlp calls yt-dlp - tries ISP proxy first (faster), falls back to PO token
 func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveResponse, error) {
-	// Always use PO token - the "try without first" approach was wasting 2-3s per request
-	// since most videos require PO token for format selection to work properly
+	// If ISP proxy is configured, try without PO token first (faster ~4s vs ~7s)
+	// Fall back to PO token if proxy fails
+	proxyURL := os.Getenv("PROXY_URL")
+	if proxyURL != "" {
+		resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, false)
+		if err == nil {
+			return resp, nil
+		}
+		log.Printf("[resolve] Proxy failed for %s, falling back to PO token: %v", videoID, err)
+	}
+	
+	// Use PO token (slower but more reliable)
 	return s.resolveWithYtDlpInternal(videoID, videoOnly, true)
 }
 
@@ -478,11 +488,11 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 	ytURL := "https://www.youtube.com/watch?v=" + videoID
 
 	// Prefer lowest resolution for smallest file size
-	// - Use 'bv' (best video) for video-only streams, 'best' for combined streams
-	// - 144p video-only is ~1.5MB for a 3min video
-	formatArg := "best[height<=144][ext=mp4]/best[height<=240][ext=mp4]/best[height<=360][ext=mp4]/best[ext=mp4]/best"
+	// Use itag 18 (360p mp4) as primary - universally available even through proxies
+	// Fallback to selector-based formats for flexibility
+	formatArg := "18/best[height<=360]/best"
 	if videoOnly {
-		formatArg = "bv[height<=144][ext=mp4]/bv[height<=240][ext=mp4]/bv[height<=360][ext=mp4]/bv[ext=mp4]/bv"
+		formatArg = "160/133/134/bv[height<=360]/bv"
 	}
 
 	args := []string{
@@ -495,7 +505,14 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 		"--no-cache-dir",
 	}
 
-	// Only add PO token args if needed
+	// Add proxy if configured AND we're not using PO token
+	// (PO token path doesn't use proxy - it uses the PO provider directly)
+	proxyURL := os.Getenv("PROXY_URL")
+	if proxyURL != "" && !usePOToken {
+		args = append(args, "--proxy", proxyURL)
+	}
+
+	// Add PO token args if requested
 	if usePOToken {
 		// Use localhost to hit our caching proxy instead of the remote provider
 		// This allows us to cache PO tokens and avoid regenerating on every call
