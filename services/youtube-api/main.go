@@ -808,8 +808,17 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[proxy] Streamed %d bytes for %s in %dms", bytesWritten, videoID, time.Since(proxyStart).Milliseconds())
 
 	// Cache the video if we got a full response
+	// Use URL expiry for TTL (typically ~6 hours) instead of fixed 5 minutes
 	if shouldCache && len(videoData) > 0 && len(videoData) <= 10*1024*1024 {
-		s.videoCache.Set(cacheKey, videoData, 5*time.Minute)
+		cacheTTL := 6 * time.Hour // Default fallback
+		if resolved.ExpiresAtMs != nil {
+			urlExpiry := time.UnixMilli(*resolved.ExpiresAtMs)
+			ttl := time.Until(urlExpiry) - 5*time.Minute // 5min buffer
+			if ttl > 0 {
+				cacheTTL = ttl
+			}
+		}
+		s.videoCache.Set(cacheKey, videoData, cacheTTL)
 	}
 }
 
@@ -873,8 +882,17 @@ func (s *Server) handlePrefetch(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		s.videoCache.Set(cacheKey, data, 5*time.Minute)
-		log.Printf("[prefetch] Cached %s (%d bytes)", videoID, len(data))
+		// Use URL expiry for TTL (typically ~6 hours)
+		cacheTTL := 6 * time.Hour
+		if resolved.ExpiresAtMs != nil {
+			urlExpiry := time.UnixMilli(*resolved.ExpiresAtMs)
+			ttl := time.Until(urlExpiry) - 5*time.Minute
+			if ttl > 0 {
+				cacheTTL = ttl
+			}
+		}
+		s.videoCache.Set(cacheKey, data, cacheTTL)
+		log.Printf("[prefetch] Cached %s (%d bytes, TTL: %s)", videoID, len(data), cacheTTL.Round(time.Minute))
 	}()
 
 	w.WriteHeader(http.StatusAccepted)

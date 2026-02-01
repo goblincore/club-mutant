@@ -1020,7 +1020,7 @@ VIDEO_CACHE_SIZE_MB=500  // 500MB cache
 #### Cache Behavior
 
 - **LRU eviction** when cache is full
-- **TTL**: 5 minutes per entry
+- **TTL**: Based on URL expiry (~6 hours), with 5-minute safety buffer
 - **Only caches** non-range requests (full video downloads)
 - **Max entry size**: 10MB (larger videos stream without caching)
 
