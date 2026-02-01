@@ -145,13 +145,26 @@ func (c *ResolveCache) Get(key string) (ResolveResponse, bool) {
 	return entry.Response, true
 }
 
-func (c *ResolveCache) Set(key string, response ResolveResponse, ttl time.Duration) {
+func (c *ResolveCache) Set(key string, response ResolveResponse, fallbackTTL time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Use the actual YouTube URL expiry time if available (typically 6 hours)
+	// Fall back to provided TTL if not available
+	expiresAt := time.Now().Add(fallbackTTL)
+	if response.ExpiresAtMs != nil {
+		urlExpiry := time.UnixMilli(*response.ExpiresAtMs)
+		// Use URL expiry minus 5 minute buffer to be safe
+		safeExpiry := urlExpiry.Add(-5 * time.Minute)
+		if safeExpiry.After(time.Now()) {
+			expiresAt = safeExpiry
+			log.Printf("[cache] Using URL expiry for %s: %s (in %s)", response.VideoID, urlExpiry.Format(time.RFC3339), time.Until(safeExpiry).Round(time.Minute))
+		}
+	}
+
 	c.entries[key] = ResolveCacheEntry{
 		Response:  response,
-		ExpiresAt: time.Now().Add(ttl),
+		ExpiresAt: expiresAt,
 	}
 }
 
@@ -173,6 +186,68 @@ type Server struct {
 	searchCache  *Cache
 	resolveCache *ResolveCache
 	videoCache   *VideoCache
+	potCache     *POTokenCache
+}
+
+// POTokenCache caches PO tokens to avoid regenerating on every yt-dlp call
+type POTokenCache struct {
+	mu         sync.RWMutex
+	token      string
+	expiresAt  time.Time
+	fetching   bool
+	fetchCond  *sync.Cond
+}
+
+func NewPOTokenCache() *POTokenCache {
+	c := &POTokenCache{}
+	c.fetchCond = sync.NewCond(&c.mu)
+	return c
+}
+
+func (c *POTokenCache) Get() (string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.token == "" || time.Now().After(c.expiresAt) {
+		return "", false
+	}
+
+	return c.token, true
+}
+
+func (c *POTokenCache) Set(token string, ttl time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.token = token
+	c.expiresAt = time.Now().Add(ttl)
+}
+
+// Shared HTTP client with connection pooling (initialized in init())
+var httpClient *http.Client
+
+func init() {
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+	}
+
+	// If ISP proxy is configured, route video streaming through it
+	// This is needed because YouTube URLs are IP-locked to the resolver's IP
+	if proxyURL := os.Getenv("PROXY_URL"); proxyURL != "" {
+		proxyParsed, err := url.Parse(proxyURL)
+		if err == nil {
+			transport.Proxy = http.ProxyURL(proxyParsed)
+			log.Printf("[init] HTTP client configured with proxy: %s", proxyURL)
+		} else {
+			log.Printf("[init] Failed to parse PROXY_URL: %v", err)
+		}
+	}
+
+	httpClient = &http.Client{
+		Transport: transport,
+	}
 }
 
 // VideoCache stores video bytes in memory with LRU eviction
@@ -405,16 +480,20 @@ func isBotDetectionError(stderr string) bool {
 	return false
 }
 
-// resolveWithYtDlp calls yt-dlp - tries without PO token first, retries with PO on bot detection
+// resolveWithYtDlp calls yt-dlp - tries ISP proxy first (faster), falls back to PO token
 func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveResponse, error) {
-	// Try without PO token first (faster for videos that don't need it)
-	result, err := s.resolveWithYtDlpInternal(videoID, videoOnly, false)
-	if err == nil {
-		return result, nil
+	// If ISP proxy is configured, try without PO token first (faster ~4s vs ~7s)
+	// Fall back to PO token if proxy fails
+	proxyURL := os.Getenv("PROXY_URL")
+	if proxyURL != "" {
+		resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, false)
+		if err == nil {
+			return resp, nil
+		}
+		log.Printf("[resolve] Proxy failed for %s, falling back to PO token: %v", videoID, err)
 	}
-
-	// Check if it's a bot detection error - if so, retry with PO token
-	log.Printf("[yt-dlp] First attempt failed for %s, retrying with PO token", videoID)
+	
+	// Use PO token (slower but more reliable)
 	return s.resolveWithYtDlpInternal(videoID, videoOnly, true)
 }
 
@@ -426,12 +505,25 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 
 	ytURL := "https://www.youtube.com/watch?v=" + videoID
 
-	// Prefer lowest resolution for smallest file size
-	// - Use 'bv' (best video) for video-only streams, 'best' for combined streams
-	// - 144p video-only is ~1.5MB for a 3min video
-	formatArg := "best[height<=144][ext=mp4]/best[height<=240][ext=mp4]/best[height<=360][ext=mp4]/best[ext=mp4]/best"
-	if videoOnly {
-		formatArg = "bv[height<=144][ext=mp4]/bv[height<=240][ext=mp4]/bv[height<=360][ext=mp4]/bv[ext=mp4]/bv"
+	// Format selection depends on whether using proxy or PO token
+	// - Proxy path: use specific itags (no JS runtime needed)
+	// - PO token path: use selectors (JS runtime available)
+	proxyURL := os.Getenv("PROXY_URL")
+	var formatArg string
+	if proxyURL != "" && !usePOToken {
+		// Proxy path - use itags: 160=144p, 133=240p, 134=360p, 18=360p combined
+		formatArg = "18/160/133/134"
+		if videoOnly {
+			formatArg = "160/133/134"
+		}
+		log.Printf("[yt-dlp] Using proxy path with format: %s", formatArg)
+	} else {
+		// PO token path - use selectors (JS runtime available)
+		formatArg = "best[height<=360]/best"
+		if videoOnly {
+			formatArg = "bv[height<=360]/bv"
+		}
+		log.Printf("[yt-dlp] Using PO token path with format: %s", formatArg)
 	}
 
 	args := []string{
@@ -444,22 +536,34 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 		"--no-cache-dir",
 	}
 
-	// Only add PO token args if needed
+	// Add proxy if configured AND we're not using PO token
+	// (PO token path doesn't use proxy - it uses the PO provider directly)
+	if proxyURL != "" && !usePOToken {
+		args = append(args, "--proxy", proxyURL)
+	}
+
+	// Add PO token args if requested
 	if usePOToken {
-		potProviderURL := os.Getenv("POT_PROVIDER_URL")
-		if potProviderURL == "" {
-			potProviderURL = "http://club-mutant-pot-provider.internal:4416"
+		// Use localhost to hit our caching proxy instead of the remote provider
+		// This allows us to cache PO tokens and avoid regenerating on every call
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "8081"
 		}
+		localPotURL := "http://127.0.0.1:" + port
+
 		args = append(args,
 			"--js-runtimes", "node",
 			"--remote-components", "ejs:github",
-			"--extractor-args", "youtubepot-bgutilhttp:base_url="+potProviderURL,
+			"--extractor-args", "youtubepot-bgutilhttp:base_url="+localPotURL,
 		)
 	}
 
-	// Add cookies if available
-	if _, err := os.Stat(cookiesFilePath); err == nil {
-		args = append(args, "--cookies", cookiesFilePath)
+	// Add cookies if available (only for PO token path - cookies can interfere with proxy)
+	if usePOToken {
+		if _, err := os.Stat(cookiesFilePath); err == nil {
+			args = append(args, "--cookies", cookiesFilePath)
+		}
 	}
 
 	// Shorter timeout without PO (15s), longer with PO (60s)
@@ -470,6 +574,7 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	log.Printf("[yt-dlp] Running: yt-dlp %v", args)
 	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -561,6 +666,7 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
+	proxyStart := time.Now()
 	videoID := r.PathValue("videoId")
 	if videoID == "" {
 		videoID = strings.TrimPrefix(r.URL.Path, "/proxy/")
@@ -594,6 +700,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	resolveStart := time.Now()
 	resolved, found := s.resolveCache.Get(cacheKey)
 	if !found {
 		// Use singleflight to coalesce duplicate requests
@@ -611,6 +718,9 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		ytdlpResolved := result.(*ResolveResponse)
 		s.resolveCache.Set(cacheKey, *ytdlpResolved, 5*time.Minute)
 		resolved = *ytdlpResolved
+		log.Printf("[proxy] Resolve for %s took %dms", videoID, time.Since(resolveStart).Milliseconds())
+	} else {
+		log.Printf("[proxy] Resolve cache hit for %s", videoID)
 	}
 
 	req, err := http.NewRequest("GET", resolved.URL, nil)
@@ -623,9 +733,9 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		req.Header.Set("Range", rangeHeader)
 	}
 
-	// No timeout for streaming - let the connection stay open
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	// Use shared client with connection pooling for better performance
+	upstreamStart := time.Now()
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		log.Printf("[proxy] Upstream request failed for %s: %v", videoID, err)
 		http.Error(w, "Upstream request failed", http.StatusBadGateway)
@@ -633,7 +743,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	log.Printf("[proxy] Upstream response for %s: status=%d, content-length=%s", videoID, resp.StatusCode, resp.Header.Get("Content-Length"))
+	log.Printf("[proxy] Upstream connect for %s took %dms, status=%d, content-length=%s", videoID, time.Since(upstreamStart).Milliseconds(), resp.StatusCode, resp.Header.Get("Content-Length"))
 
 	// If YouTube returns an error, log it and pass through
 	if resp.StatusCode >= 400 {
@@ -667,8 +777,8 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		videoData = make([]byte, 0, 5*1024*1024) // Pre-allocate 5MB
 	}
 
-	// Use a larger buffer for more efficient streaming
-	buf := make([]byte, 32*1024)
+	// Use a larger buffer for more efficient streaming (128KB)
+	buf := make([]byte, 128*1024)
 	bytesWritten := int64(0)
 
 	for {
@@ -695,7 +805,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	log.Printf("[proxy] Streamed %d bytes for %s", bytesWritten, videoID)
+	log.Printf("[proxy] Streamed %d bytes for %s in %dms", bytesWritten, videoID, time.Since(proxyStart).Milliseconds())
 
 	// Cache the video if we got a full response
 	if shouldCache && len(videoData) > 0 && len(videoData) <= 10*1024*1024 {
@@ -848,12 +958,62 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+// handlePOToken is a caching proxy for PO tokens
+// It caches tokens locally to avoid hitting the slow Rust provider on every yt-dlp call
+func (s *Server) handlePOToken(w http.ResponseWriter, r *http.Request) {
+	// Check cache first
+	if token, ok := s.potCache.Get(); ok {
+		log.Printf("[pot] Cache hit, returning cached token")
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write([]byte(token))
+		return
+	}
+
+	// Cache miss - fetch from upstream provider
+	potProviderURL := os.Getenv("POT_PROVIDER_URL")
+	if potProviderURL == "" {
+		potProviderURL = "http://club-mutant-pot-provider-rust.internal:4416"
+	}
+
+	// Forward the query string (client parameter)
+	upstreamURL := potProviderURL + "/pot?" + r.URL.RawQuery
+
+	log.Printf("[pot] Cache miss, fetching from %s", potProviderURL)
+	start := time.Now()
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(upstreamURL)
+	if err != nil {
+		log.Printf("[pot] Upstream error: %v", err)
+		http.Error(w, "PO token provider unavailable", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("[pot] Failed to read response: %v", err)
+		http.Error(w, "Failed to read token", http.StatusInternalServerError)
+		return
+	}
+
+	elapsed := time.Since(start)
+	log.Printf("[pot] Fetched token in %v, caching for 30 minutes", elapsed)
+
+	// Cache the token for 30 minutes (PO tokens are valid for ~6 hours)
+	s.potCache.Set(string(body), 30*time.Minute)
+
+	w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
+	w.WriteHeader(resp.StatusCode)
+	w.Write(body)
+}
+
 // prewarmPOToken warms up the PO token provider cache by making a request
 // This is done in the background on startup to reduce first-request latency
 func prewarmPOToken() {
 	potProviderURL := os.Getenv("POT_PROVIDER_URL")
 	if potProviderURL == "" {
-		potProviderURL = "http://club-mutant-pot-provider.internal:4416"
+		potProviderURL = "http://club-mutant-pot-provider-rust.internal:4416"
 	}
 
 	// The provider caches tokens, so hitting it once warms the cache
@@ -905,6 +1065,7 @@ func main() {
 		searchCache:  NewCache(time.Duration(cacheTTLSeconds) * time.Second),
 		resolveCache: NewResolveCache(),
 		videoCache:   NewVideoCache(videoCacheSize),
+		potCache:     NewPOTokenCache(),
 	}
 
 	mux := http.NewServeMux()
@@ -913,6 +1074,7 @@ func main() {
 	mux.HandleFunc("GET /proxy/{videoId}", server.handleProxy)
 	mux.HandleFunc("POST /prefetch/{videoId}", server.handlePrefetch)
 	mux.HandleFunc("GET /health", server.handleHealth)
+	mux.HandleFunc("GET /pot", server.handlePOToken)
 
 	handler := corsMiddleware(loggingMiddleware(mux))
 

@@ -134,7 +134,7 @@ export default class Game extends Phaser.Scene {
     node.style.setProperty('opacity', targetOpacity, 'important')
     node.style.setProperty('display', 'block', 'important')
     node.style.setProperty('visibility', 'visible', 'important')
-    node.style.mixBlendMode = isIframeOverlay ? 'normal' : 'overlay'
+    node.style.mixBlendMode = isIframeOverlay ? 'difference' : 'overlay'
     node.style.backgroundColor = 'transparent'
     node.style.setProperty('position', 'absolute', 'important')
     node.style.setProperty('left', '0px', 'important')
@@ -156,7 +156,7 @@ export default class Game extends Phaser.Scene {
     if (iframe) {
       iframe.style.setProperty('pointer-events', 'none', 'important')
       iframe.style.setProperty('opacity', targetOpacity, 'important')
-      iframe.style.mixBlendMode = isIframeOverlay ? 'normal' : 'overlay'
+      iframe.style.mixBlendMode = isIframeOverlay ? 'difference' : 'overlay'
       iframe.style.setProperty('width', '100%', 'important')
       iframe.style.setProperty('height', '100%', 'important')
     }
@@ -380,7 +380,9 @@ export default class Game extends Phaser.Scene {
     this.myYoutubePlayer.setPlaybackTime(offsetSeconds)
     this.myYoutubePlayer.play()
 
-    console.log(`[YoutubeBG] Iframe player loaded for ${videoId}, alpha=${this.myYoutubePlayer.alpha}, visible=${this.myYoutubePlayer.visible}`)
+    console.log(
+      `[YoutubeBG] Iframe player loaded for ${videoId}, alpha=${this.myYoutubePlayer.alpha}, visible=${this.myYoutubePlayer.visible}`
+    )
 
     this.applyIframeBackgroundStyles()
 
@@ -1190,6 +1192,38 @@ export default class Game extends Phaser.Scene {
       void this.tryPlayWebglBackgroundVideo(videoId, offset)
     } else {
       void this.stopBackgroundVideo()
+    }
+
+    this.prefetchNextVideoInQueue(isRoomPlaylist, roomPlaylistIndex)
+  }
+
+  private prefetchNextVideoInQueue(isRoomPlaylist: boolean, currentIndex: number | null) {
+    try {
+      const state = store.getState()
+      let nextVideoLink: string | null = null
+
+      if (isRoomPlaylist && typeof currentIndex === 'number') {
+        const roomPlaylist = state.roomPlaylist.items
+        const nextItem = roomPlaylist[currentIndex + 1]
+        if (nextItem) {
+          nextVideoLink = nextItem.link
+        }
+      }
+
+      if (nextVideoLink) {
+        const nextVideoId = this.getYouTubeVideoId(nextVideoLink)
+        console.log(`[Prefetch] Prefetching next video in queue: ${nextVideoId}`)
+
+        const youtubeServiceUrl =
+          import.meta.env.VITE_YOUTUBE_SERVICE_URL || 'http://localhost:8081'
+        void fetch(`${youtubeServiceUrl}/prefetch/${nextVideoId}`, {
+          method: 'POST',
+        }).catch((err) => {
+          console.warn(`[Prefetch] Failed to prefetch ${nextVideoId}:`, err)
+        })
+      }
+    } catch (err) {
+      console.warn('[Prefetch] Error in prefetchNextVideoInQueue:', err)
     }
   }
 

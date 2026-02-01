@@ -64,9 +64,56 @@ fly secrets set YOUTUBE_COOKIES="$(cat path/to/cookies.txt)" -a club-mutant-yout
 
 ## Alternative Solutions
 
+### ISP Proxy (Recommended)
+
+ISP proxies (static residential) are datacenter IPs registered to consumer ISPs. YouTube trusts them more than pure datacenter IPs, potentially allowing you to skip PO token generation entirely.
+
+| Type                | YouTube Trust | Cost       | Speed    |
+| ------------------- | ------------- | ---------- | -------- |
+| Datacenter (Fly.io) | Low ❌        | ~$1-2/GB   | Fast     |
+| **ISP Proxy**       | Medium ✅     | ~$2-5/GB   | Fast     |
+| Residential         | High ✅✅     | ~$10-15/GB | Variable |
+
+**Providers:**
+
+- **Bright Data** - ISP proxy option
+- **Oxylabs** - "Datacenter Proxies from ISPs"
+- **IPRoyal** - Static residential
+- **Smartproxy** - ISP option
+
+**Integration in Go service:**
+
+1. Set proxy URL as Fly.io secret:
+
+```bash
+fly secrets set PROXY_URL="http://user:pass@proxy.example.com:port" -a club-mutant-youtube-api
+```
+
+2. Add to yt-dlp args in `main.go`:
+
+```go
+// In resolveWithYtDlpInternal(), add before running command:
+if proxyURL := os.Getenv("PROXY_URL"); proxyURL != "" {
+    args = append(args, "--proxy", proxyURL)
+
+    // With ISP proxy, try WITHOUT PO token first (faster if it works)
+    // YouTube may not require PO token from trusted IPs
+}
+```
+
+3. **Test without PO token first:**
+
+```bash
+# If this works without bot detection, you can skip PO token entirely
+yt-dlp --proxy "http://user:pass@isp-proxy:port" \
+  "https://youtube.com/watch?v=dQw4w9WgXcQ" -g -f "bv[height<=360]"
+```
+
+**Expected improvement:** 6-7s → 2-3s (if PO token can be skipped)
+
 ### Residential Proxy (Expensive)
 
-Use a residential proxy service for YouTube requests.
+Use a residential proxy service for YouTube requests. Higher trust than ISP proxies but more expensive and slower.
 
 | Service     | Cost    |
 | ----------- | ------- |
