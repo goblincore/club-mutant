@@ -223,13 +223,31 @@ func (c *POTokenCache) Set(token string, ttl time.Duration) {
 	c.expiresAt = time.Now().Add(ttl)
 }
 
-// Shared HTTP client with connection pooling
-var httpClient = &http.Client{
-	Transport: &http.Transport{
+// Shared HTTP client with connection pooling (initialized in init())
+var httpClient *http.Client
+
+func init() {
+	transport := &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 10,
 		IdleConnTimeout:     90 * time.Second,
-	},
+	}
+
+	// If ISP proxy is configured, route video streaming through it
+	// This is needed because YouTube URLs are IP-locked to the resolver's IP
+	if proxyURL := os.Getenv("PROXY_URL"); proxyURL != "" {
+		proxyParsed, err := url.Parse(proxyURL)
+		if err == nil {
+			transport.Proxy = http.ProxyURL(proxyParsed)
+			log.Printf("[init] HTTP client configured with proxy: %s", proxyURL)
+		} else {
+			log.Printf("[init] Failed to parse PROXY_URL: %v", err)
+		}
+	}
+
+	httpClient = &http.Client{
+		Transport: transport,
+	}
 }
 
 // VideoCache stores video bytes in memory with LRU eviction
