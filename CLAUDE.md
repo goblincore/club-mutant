@@ -880,3 +880,181 @@ Key metrics to watch:
 
 - `videoOnly=true` on both `/resolve/` and `/proxy/` endpoints (smaller files, faster)
 - Cache TTL: 5 minutes for resolved URLs
+
+### ISP Proxy Integration (Feb 2026)
+
+YouTube aggressively rate-limits datacenter IPs, requiring PO tokens for every request (~6-7s overhead). ISP proxies provide residential IPs that bypass this detection.
+
+#### Architecture
+
+```
+┌─────────────┐     ┌──────────────────────────┐     ┌─────────────┐     ┌──────────┐
+│   Client    │────▶│  YouTube API (Fly.io)    │────▶│  ISP Proxy  │────▶│ YouTube  │
+│  (Browser)  │     │  - resolve via yt-dlp    │     │  (IPRoyal)  │     │   CDN    │
+└─────────────┘     │  - stream via HTTP proxy │     └─────────────┘     └──────────┘
+                    └──────────────────────────┘
+```
+
+#### Key Learnings
+
+| Issue                                | Cause                                                           | Solution                                                                       |
+| ------------------------------------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **403 on video stream**              | YouTube URLs are IP-locked to resolver's IP                     | Stream video through same ISP proxy used for resolve                           |
+| **"Requested format not available"** | yt-dlp selectors like `bv[height<=360]` need JavaScript runtime | Use specific itags (`160/133/134`) for proxy path, selectors for PO token path |
+| **Cookies interfere with proxy**     | YouTube cookies can override proxy session                      | Only pass `--cookies` arg when using PO token path                             |
+
+#### Format Selection Strategy
+
+```go
+// Proxy path - no JS runtime, use specific itags
+// itag 18 = 360p combined, 160 = 144p video, 133 = 240p video, 134 = 360p video
+formatArg = "18/160/133/134"  // or "160/133/134" for video-only
+
+// PO token path - JS runtime available, use selectors
+formatArg = "best[height<=360]/best"  // or "bv[height<=360]/bv" for video-only
+```
+
+#### Fallback Strategy
+
+```go
+func resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveResponse, error) {
+    proxyURL := os.Getenv("PROXY_URL")
+    if proxyURL != "" {
+        // Try ISP proxy first (faster ~4s)
+        resp, err := resolveWithYtDlpInternal(videoID, videoOnly, false)
+        if err == nil {
+            return resp, nil
+        }
+        log.Printf("Proxy failed, falling back to PO token: %v", err)
+    }
+    // Fall back to PO token (slower ~7s but more reliable)
+    return resolveWithYtDlpInternal(videoID, videoOnly, true)
+}
+```
+
+#### HTTP Client Proxy Configuration
+
+```go
+func init() {
+    transport := &http.Transport{...}
+
+    // Route all video streaming through ISP proxy
+    if proxyURL := os.Getenv("PROXY_URL"); proxyURL != "" {
+        proxyParsed, _ := url.Parse(proxyURL)
+        transport.Proxy = http.ProxyURL(proxyParsed)
+    }
+
+    httpClient = &http.Client{Transport: transport}
+}
+```
+
+#### Environment Variables
+
+- `PROXY_URL` - ISP proxy URL (format: `http://user:pass@host:port`)
+- Set as Fly.io secret: `fly secrets set PROXY_URL="http://..."`
+
+#### Performance
+
+| Path      | Resolve Time | Notes                                 |
+| --------- | ------------ | ------------------------------------- |
+| ISP Proxy | ~4s          | No PO token needed, itag-based format |
+| PO Token  | ~6-7s        | Selector-based format, JS runtime     |
+| Cached    | ~10ms        | 6-hour cache based on URL expiry      |
+
+### Safari Video Background (Feb 2026)
+
+Safari has significantly slower video metadata loading compared to Chrome for WebGL video backgrounds.
+
+#### Root Cause
+
+- Safari waits for the **moov atom** (MP4 metadata) before firing `loadedmetadata`
+- Chrome uses range requests to seek directly to metadata at end of file
+- Safari downloads more of the file sequentially, causing 20-30s delays
+
+#### Solution
+
+Detect Safari and use iframe YouTube player instead of WebGL video:
+
+```typescript
+// client/src/scenes/Game.ts
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+const BACKGROUND_VIDEO_RENDERER: BackgroundVideoRenderer = isSafari ? 'iframe' : 'webgl'
+```
+
+#### Iframe Fallback Styling
+
+When using iframe fallback, the YouTube player needs to render above the Phaser canvas with blend mode:
+
+```scss
+// client/src/index.scss
+#phaser-container.bg-iframe-overlay {
+  canvas {
+    mix-blend-mode: difference;
+  }
+  > div {
+    z-index: 2; // Above canvas (z-index: 1)
+  }
+}
+```
+
+#### Browser Behavior Summary
+
+| Browser | Renderer                    | Background Style                |
+| ------- | --------------------------- | ------------------------------- |
+| Chrome  | WebGL `Video`               | Behind canvas (z-index: -20)    |
+| Safari  | iframe (rex YouTube player) | Above canvas + difference blend |
+
+### Video Byte Caching (Go Service)
+
+The Go service caches full video bytes in memory for faster subsequent requests.
+
+#### Configuration
+
+```go
+const DefaultVideoCacheMaxSize = 100 * 1024 * 1024  // 100MB
+
+// Configurable via environment variable
+VIDEO_CACHE_SIZE_MB=500  // 500MB cache
+```
+
+#### Cache Behavior
+
+- **LRU eviction** when cache is full
+- **TTL**: 5 minutes per entry
+- **Only caches** non-range requests (full video downloads)
+- **Max entry size**: 10MB (larger videos stream without caching)
+
+#### Cache Flow
+
+```
+Request → Check video cache
+            ↓ miss
+          Resolve URL (yt-dlp)
+            ↓
+          Stream from YouTube (via proxy)
+            ↓
+          Cache bytes (if < 10MB)
+            ↓
+          Return to client
+```
+
+### Resolve URL Caching
+
+Resolved YouTube URLs are cached based on their expiry time (parsed from `expire=` query param).
+
+```go
+// Parse expiry from URL like ...&expire=1769954631&...
+func parseExpiresFromURL(rawURL string) *int64 {
+    // Extract expire param, convert to milliseconds
+}
+
+// Cache with TTL = expiry - now - 5min buffer
+func cacheResolvedURL(key string, resp ResolveResponse) {
+    if resp.ExpiresAtMs != nil {
+        ttl := time.Until(time.UnixMilli(*resp.ExpiresAtMs)) - 5*time.Minute
+        resolveCache.Set(key, resp, ttl)
+    }
+}
+```
+
+Typical YouTube URL expiry: **~6 hours** from resolve time.
