@@ -11,26 +11,22 @@ import OpenInFullIcon from '@mui/icons-material/OpenInFull'
 import MinimizeIcon from '@mui/icons-material/Minimize'
 import FullscreenIcon from '@mui/icons-material/Fullscreen'
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 
 import Game from '../scenes/Game'
 import phaserGame from '../PhaserGame'
 import { useAppSelector, useAppDispatch } from '../hooks'
-import { sanitizeId } from '../util'
 import { timeSync } from '../services/TimeSync'
 import { phaserEvents, Event } from '../events/EventCenter'
-import {
-  openMyPlaylistPanel,
-  closeMyPlaylistPanel,
-  setFocused,
-  shiftMyPlaylist,
-} from '../stores/MyPlaylistStore'
-import store from '../stores'
+import { shiftMyPlaylist } from '../stores/MyPlaylistStore'
 import { RoomType } from '../../../types/Rooms'
 
 const Backdrop = styled.div`
   position: fixed;
   top: 0;
   left: 0;
+  width: min(480px, calc(100vw - 32px));
+  max-width: 480px;
   background: transparent;
   overflow: hidden;
   padding: 16px 16px 16px 16px;
@@ -101,6 +97,18 @@ const Controls = styled.div`
   display: flex;
   gap: 8px;
   padding: 8px;
+  align-items: center;
+
+  .MuiIconButton-root {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(8px);
+    border-radius: 10px;
+  }
+
+  .MuiIconButton-root:hover {
+    background: rgba(0, 0, 0, 0.4);
+  }
 
   button {
     color: rgba(255, 255, 255, 0.9);
@@ -137,6 +145,7 @@ const RoomPlaylist = styled.div`
     gap: 8px;
     padding: 6px 0;
     border-top: 1px solid rgba(255, 255, 255, 0.15);
+    align-items: center;
   }
 
   .row.active {
@@ -148,6 +157,26 @@ const RoomPlaylist = styled.div`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .title.marquee {
+    position: relative;
+    text-overflow: clip;
+  }
+
+  .titleInner {
+    display: inline-block;
+    padding-left: 100%;
+    animation: room-track-marquee 12s linear infinite;
+  }
+
+  @keyframes room-track-marquee {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-100%);
+    }
   }
 
   .meta {
@@ -176,7 +205,6 @@ export default function YoutubePlayer() {
   const isAmbient = useAppSelector((state) => state.musicStream.isAmbient)
   const connectedBoothIndex = useAppSelector((state) => state.musicBooth.musicBoothIndex)
   const mySessionId = useAppSelector((state) => state.user.sessionId)
-  const playerNameMap = useAppSelector((state) => state.user.playerNameMap)
   const roomPlaylist = useAppSelector((state) => state.roomPlaylist.items)
   const [isBuffering, setIsBuffering] = useState(true)
   const [isPlaying, setIsPlaying] = useState(true)
@@ -370,11 +398,6 @@ export default function YoutubePlayer() {
       window.clearInterval(intervalId)
     }
   }, [computeExpectedSeconds, isPlaying, link, resyncPlayer, streamId])
-
-  const getDisplayName = (sessionId: string) => {
-    const resolved = playerNameMap.get(sanitizeId(sessionId))
-    return resolved && resolved !== '' ? resolved : sessionId
-  }
 
   const formatDuration = (seconds: number) => {
     if (!Number.isFinite(seconds) || seconds < 0) return ''
@@ -622,49 +645,56 @@ export default function YoutubePlayer() {
 
             {!isNonDjPublic ? (
               <Controls>
-                <button
-                  disabled={link === null}
-                  onClick={() => {
-                    setIsPlaying(false)
-                  }}
-                >
-                  Pause
-                </button>
-                <button
-                  disabled={link === null}
+                <IconButton
+                  aria-label="previous track"
+                  size="small"
+                  disabled={!canControlRoomPlaylist}
                   onClick={() => {
                     setIsPlaying(true)
+                    game.network.prevRoomPlaylist()
+                  }}
+                >
+                  <SkipPreviousIcon fontSize="inherit" />
+                </IconButton>
+
+                <IconButton
+                  aria-label={isPlaying ? 'pause' : 'play'}
+                  size="small"
+                  disabled={!isStreaming && !canControlRoomPlaylist}
+                  onClick={() => {
+                    if (isPlaying) {
+                      setIsPlaying(false)
+                      return
+                    }
+
+                    setIsPlaying(true)
+
+                    if (!isStreaming) {
+                      game.network.playRoomPlaylist()
+                      return
+                    }
+
                     resyncPlayer()
                   }}
                 >
-                  Resume
-                </button>
-                <button
-                  disabled={link === null}
-                  onClick={() => {
-                    resyncPlayer()
-                  }}
-                >
-                  Resync
-                </button>
-                <button
-                  disabled={connectedBoothIndex === null || roomPlaylist.length === 0}
-                  onClick={() => {
-                    setIsPlaying(true)
-                    game.network.playRoomPlaylist()
-                  }}
-                >
-                  Play
-                </button>
-                <button
-                  disabled={connectedBoothIndex === null || roomPlaylist.length === 0}
+                  {isPlaying ? (
+                    <PauseIcon fontSize="inherit" />
+                  ) : (
+                    <PlayArrowIcon fontSize="inherit" />
+                  )}
+                </IconButton>
+
+                <IconButton
+                  aria-label="next track"
+                  size="small"
+                  disabled={!canControlRoomPlaylist}
                   onClick={() => {
                     setIsPlaying(true)
                     game.network.skipRoomPlaylist()
                   }}
                 >
-                  Skip
-                </button>
+                  <SkipNextIcon fontSize="inherit" />
+                </IconButton>
               </Controls>
             ) : null}
 
@@ -676,26 +706,33 @@ export default function YoutubePlayer() {
                 </div>
               ) : (
                 roomPlaylist.map((item, index) => {
-                  const displayName = getDisplayName(item.addedBySessionId)
                   const canRemove = item.addedBySessionId === mySessionId
                   const durationText = formatDuration(item.duration)
                   const isActive = isRoomPlaylist && index === roomPlaylistIndex
+                  const needsMarquee = item.title.length > 34
 
                   return (
                     <div key={item.id} className={isActive ? 'row active' : 'row'}>
-                      <div className="title">{item.title}</div>
-                      <div className="meta">
-                        @{displayName}
-                        {durationText ? ` · ${durationText}` : ''}
-                      </div>
+                      {needsMarquee ? (
+                        <div className="title marquee">
+                          <div className="titleInner">{item.title}</div>
+                        </div>
+                      ) : (
+                        <div className="title">{item.title}</div>
+                      )}
+
+                      <div className="meta">{durationText}</div>
+
                       {canRemove && !isNonDjPublic ? (
-                        <button
+                        <IconButton
+                          aria-label="remove room playlist item"
+                          size="small"
                           onClick={() => {
                             game.network.removeRoomPlaylistItem(item.id)
                           }}
                         >
-                          Remove
-                        </button>
+                          <DeleteOutlineIcon fontSize="inherit" />
+                        </IconButton>
                       ) : null}
                     </div>
                   )

@@ -16,14 +16,14 @@ export default class MusicBooth extends Item {
     this.itemType = ItemType.MUSIC_BOOTH
   }
 
-  onOverlapDialog() {
-    console.log('////onOverlapDialog', this.currentUser)
-    if (this.currentUser === null) {
-      this.setDialogBox('Press R to be the DJ')
-    } else {
-      this.clearDialogBox()
-    }
-  }
+  // onOverlapDialog() {
+  //   console.log('////onOverlapDialog', this.currentUser)
+  //   if (this.currentUser === null) {
+  //     this.setDialogBox('Press R to be the DJ')
+  //   } else {
+  //     this.clearDialogBox()
+  //   }
+  // }
 
   addCurrentUser(userId: string) {
     console.log('////addCurrentUser userId', userId)
