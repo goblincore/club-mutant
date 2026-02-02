@@ -87,7 +87,7 @@ export default function YoutubePlayer() {
   // Derived values
   const canControlRoomPlaylist = Boolean(connectedBoothIndex !== null && roomPlaylist.length > 0)
   const isStreaming = link !== null
-  const canToggleVideoBackground = Boolean(connectedBoothIndex !== null)
+  const canToggleVideoBackground = true // Allow all users to toggle their local video background
   const syncTime = (Date.now() - startTime) / 1000
   const url = link ? 'https://www.youtube.com/watch?v=' + link : ''
 
@@ -278,19 +278,27 @@ export default function YoutubePlayer() {
           </IconButton>
         </div>
 
-        {/* Video player */}
-        <VideoPlayer
-          url={url}
-          isPlaying={isPlaying}
-          isMuted={globallyMuted}
-          isHidden={isNonDjPublic}
-          videoBackgroundEnabled={videoBackgroundEnabled}
-          canToggleBackground={canToggleVideoBackground}
-          onReady={handleReady}
-          onEnded={handleOnEnded}
-          onBufferEnd={handleOnBufferEnd}
-          onToggleBackground={handleToggleBackground}
-        />
+        {/* Video player - always rendered for audio, visually hidden when minimized */}
+        <div
+          style={
+            minimized
+              ? { position: 'fixed', left: -10000, opacity: 0, pointerEvents: 'none' }
+              : undefined
+          }
+        >
+          <VideoPlayer
+            url={url}
+            isPlaying={isPlaying}
+            isMuted={globallyMuted}
+            isHidden={false}
+            videoBackgroundEnabled={videoBackgroundEnabled}
+            canToggleBackground={canToggleVideoBackground}
+            onReady={handleReady}
+            onEnded={handleOnEnded}
+            onBufferEnd={handleOnBufferEnd}
+            onToggleBackground={handleToggleBackground}
+          />
+        </div>
 
         {/* Info */}
         <RoomInfo>
