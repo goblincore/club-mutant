@@ -1,7 +1,7 @@
 {
-  "name": "skyoffice",
+  "name": "club-mutant",
   "version": "1.0.0",
-  "description": "Server for SkyOffice",
+  "description": "Server for Club Mutant",
   "main": ".eslintrc.js",
   "scripts": {
     "start": "cd server && ts-node-dev --project tsconfig.server.json --respawn --transpile-only index.ts",
@@ -10,15 +10,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kevinshen56714/SkyOffice.git"
+    "url": "git+https://github.com/goblincore/club-mutant.git"
   },
   "keywords": [],
-  "author": "kevinshen56714",
+  "author": "goblincore",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/kevinshen56714/SkyOffice/issues"
+    "url": "https://github.com/goblincore/club-mutant/issues"
   },
-  "homepage": "https://github.com/kevinshen56714/SkyOffice#readme",
+  "homepage": "https://github.com/goblincore/club-mutant/#readme",
   "devDependencies": {
     "@types/bcrypt": "^5.0.0",
     "@types/cors": "^2.8.6",

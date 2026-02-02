@@ -5,7 +5,7 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
 ## What this project is
 
 -
-- A multiplayer 2D top-down Phaser game (client) with a Colyseus authoritative server that is about playing and listening to music together in the form of playlists and 'dj' sessions.
+- A multiplayer 2D top-down Phaser game (client) with a Colyseus authoritative server that is about playing and listening to music together in the form of playlists and 'dj' sessions. Kind of like turntable.fm (now defunct).
 - React/Redux overlays provide UI (playlist, YouTube player, chat UI, etc.).
 - Real-time player state sync is done via Colyseus Schema (`OfficeState`) + `player.onChange` events.
 
