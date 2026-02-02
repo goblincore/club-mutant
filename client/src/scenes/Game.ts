@@ -133,21 +133,22 @@ export default class Game extends Phaser.Scene {
 
     if (isIframeFallback) {
       container?.classList.add('bg-iframe-overlay')
-      // Apply opacity to phaser container when in fallback mode so iframe shows through
-      container?.style.setProperty('opacity', '0.8', 'important')
     } else {
       container?.classList.remove('bg-iframe-overlay')
-      // Clear the styles when using WebGL
-      container?.style.removeProperty('opacity')
     }
 
-    const targetOpacity = isIframeFallback ? '0.2' : '0.8'
+    // In fallback mode: iframe sits ON TOP of game with blend mode
+    // In WebGL mode: iframe is hidden or behind
+    const iframeZIndex = isIframeFallback ? '1000' : '-1'
+    const iframeOpacity = isIframeFallback ? '0.8' : '0'
+    const iframeBlendMode = isIframeFallback ? 'difference' : 'normal'
 
     // Ensure the DOM element is visible and positioned correctly
-    node.style.setProperty('opacity', targetOpacity, 'important')
+    node.style.setProperty('opacity', iframeOpacity, 'important')
     node.style.setProperty('display', 'block', 'important')
     node.style.setProperty('visibility', 'visible', 'important')
-    node.style.mixBlendMode = isIframeFallback ? 'difference' : 'overlay'
+    node.style.setProperty('z-index', iframeZIndex, 'important')
+    node.style.setProperty('mix-blend-mode', iframeBlendMode, 'important')
     node.style.backgroundColor = 'transparent'
     node.style.setProperty('position', 'absolute', 'important')
     node.style.setProperty('left', '0px', 'important')
@@ -155,21 +156,23 @@ export default class Game extends Phaser.Scene {
     node.style.setProperty('width', '100%', 'important')
     node.style.setProperty('height', '100%', 'important')
 
-    // Rex/Phaser DOM wrappers can apply their own opacity/layout; ensure the wrapper is also translucent.
+    // Rex/Phaser DOM wrappers can apply their own opacity/layout
     const wrapper = node.parentElement
     if (wrapper) {
-      wrapper.style.setProperty('opacity', targetOpacity, 'important')
+      wrapper.style.setProperty('opacity', iframeOpacity, 'important')
       wrapper.style.setProperty('pointer-events', 'none', 'important')
       wrapper.style.setProperty('background-color', 'transparent', 'important')
       wrapper.style.setProperty('display', 'block', 'important')
       wrapper.style.setProperty('visibility', 'visible', 'important')
+      wrapper.style.setProperty('z-index', iframeZIndex, 'important')
+      wrapper.style.setProperty('mix-blend-mode', iframeBlendMode, 'important')
     }
 
     const iframe = node.querySelector('iframe')
     if (iframe) {
       iframe.style.setProperty('pointer-events', 'none', 'important')
-      iframe.style.setProperty('opacity', targetOpacity, 'important')
-      iframe.style.mixBlendMode = isIframeFallback ? 'difference' : 'overlay'
+      iframe.style.setProperty('opacity', iframeOpacity, 'important')
+      iframe.style.setProperty('mix-blend-mode', iframeBlendMode, 'important')
       iframe.style.setProperty('width', '100%', 'important')
       iframe.style.setProperty('height', '100%', 'important')
     }
