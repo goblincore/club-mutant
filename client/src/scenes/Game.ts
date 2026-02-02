@@ -128,21 +128,26 @@ export default class Game extends Phaser.Scene {
     }
 
     const container = document.getElementById('phaser-container')
-    if (BACKGROUND_VIDEO_RENDERER === 'iframe') {
+    // Use runtime state to detect fallback mode (not the hardcoded constant)
+    const isIframeFallback = !this.activeBackgroundVideoIsWebgl
+
+    if (isIframeFallback) {
       container?.classList.add('bg-iframe-overlay')
+      // Apply opacity to phaser container when in fallback mode so iframe shows through
+      container?.style.setProperty('opacity', '0.8', 'important')
     } else {
       container?.classList.remove('bg-iframe-overlay')
+      // Clear the styles when using WebGL
+      container?.style.removeProperty('opacity')
     }
 
-    const isIframeOverlay = BACKGROUND_VIDEO_RENDERER === 'iframe'
-
-    const targetOpacity = isIframeOverlay ? '0.2' : '0.8'
+    const targetOpacity = isIframeFallback ? '0.2' : '0.8'
 
     // Ensure the DOM element is visible and positioned correctly
     node.style.setProperty('opacity', targetOpacity, 'important')
     node.style.setProperty('display', 'block', 'important')
     node.style.setProperty('visibility', 'visible', 'important')
-    node.style.mixBlendMode = isIframeOverlay ? 'difference' : 'overlay'
+    node.style.mixBlendMode = isIframeFallback ? 'difference' : 'overlay'
     node.style.backgroundColor = 'transparent'
     node.style.setProperty('position', 'absolute', 'important')
     node.style.setProperty('left', '0px', 'important')
@@ -164,7 +169,7 @@ export default class Game extends Phaser.Scene {
     if (iframe) {
       iframe.style.setProperty('pointer-events', 'none', 'important')
       iframe.style.setProperty('opacity', targetOpacity, 'important')
-      iframe.style.mixBlendMode = isIframeOverlay ? 'difference' : 'overlay'
+      iframe.style.mixBlendMode = isIframeFallback ? 'difference' : 'overlay'
       iframe.style.setProperty('width', '100%', 'important')
       iframe.style.setProperty('height', '100%', 'important')
     }
@@ -1034,7 +1039,9 @@ export default class Game extends Phaser.Scene {
 
     // set selected item and set up new dialog
     playerSelector.selectedItem = selectionItem
-    selectionItem.onOverlapDialog()
+    if (typeof selectionItem.onOverlapDialog === 'function') {
+      selectionItem.onOverlapDialog()
+    }
 
     this.setSelectorInteractable(selectionItem)
   }
