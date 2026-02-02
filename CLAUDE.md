@@ -879,7 +879,7 @@ Key metrics to watch:
 #### Defaults
 
 - `videoOnly=true` on both `/resolve/` and `/proxy/` endpoints (smaller files, faster)
-- Cache TTL: 5 minutes for resolved URLs
+- Cache TTL: based on resolved URL expiry (~6 hours), with a 5-minute safety buffer (never cache past expiry)
 
 ### ISP Proxy Integration (Feb 2026)
 
@@ -889,7 +889,7 @@ YouTube aggressively rate-limits datacenter IPs, requiring PO tokens for every r
 
 ```
 ┌─────────────┐     ┌──────────────────────────┐     ┌─────────────┐     ┌──────────┐
-│   Client    │────▶│  YouTube API (Fly.io)    │────▶│  ISP Proxy  │────▶│ YouTube  │
+│   Client    │────▶│  YouTube API (Go)        │────▶│  ISP Proxy  │────▶│ YouTube  │
 │  (Browser)  │     │  - resolve via yt-dlp    │     │  (IPRoyal)  │     │   CDN    │
 └─────────────┘     │  - stream via HTTP proxy │     └─────────────┘     └──────────┘
                     └──────────────────────────┘
@@ -903,36 +903,7 @@ YouTube aggressively rate-limits datacenter IPs, requiring PO tokens for every r
 | **"Requested format not available"** | yt-dlp selectors like `bv[height<=360]` need JavaScript runtime | Use specific itags (`160/133/134`) for proxy path, selectors for PO token path |
 | **Cookies interfere with proxy**     | YouTube cookies can override proxy session                      | Only pass `--cookies` arg when using PO token path                             |
 
-#### Format Selection Strategy
-
-```go
-// Proxy path - no JS runtime, use specific itags
-// itag 18 = 360p combined, 160 = 144p video, 133 = 240p video, 134 = 360p video
-formatArg = "18/160/133/134"  // or "160/133/134" for video-only
-
-// PO token path - JS runtime available, use selectors
-formatArg = "best[height<=360]/best"  // or "bv[height<=360]/bv" for video-only
-```
-
-#### Fallback Strategy
-
-```go
-func resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveResponse, error) {
-    proxyURL := os.Getenv("PROXY_URL")
-    if proxyURL != "" {
-        // Try ISP proxy first (faster ~4s)
-        resp, err := resolveWithYtDlpInternal(videoID, videoOnly, false)
-        if err == nil {
-            return resp, nil
-        }
-        log.Printf("Proxy failed, falling back to PO token: %v", err)
-    }
-    // Fall back to PO token (slower ~7s but more reliable)
-    return resolveWithYtDlpInternal(videoID, videoOnly, true)
-}
-```
-
-#### HTTP Client Proxy Configuration
+#### ISP Proxy Configuration
 
 ```go
 func init() {
@@ -951,7 +922,7 @@ func init() {
 #### Environment Variables
 
 - `PROXY_URL` - ISP proxy URL (format: `http://user:pass@host:port`)
-- Set as Fly.io secret: `fly secrets set PROXY_URL="http://..."`
+- For Hetzner deployment: set in `deploy/hetzner/.env` (consumed by `deploy/hetzner/docker-compose.yml`)
 
 #### Performance
 
@@ -999,10 +970,17 @@ When using iframe fallback, the YouTube player needs to render above the Phaser 
 
 #### Browser Behavior Summary
 
-| Browser | Renderer                    | Background Style                |
-| ------- | --------------------------- | ------------------------------- |
-| Chrome  | WebGL `Video`               | Behind canvas (z-index: -20)    |
-| Safari  | iframe (rex YouTube player) | Above canvas + difference blend |
+| Browser | Renderer                    | Background Style                          |
+| ------- | --------------------------- | ----------------------------------------- |
+| Chrome  | WebGL `Video`               | Behind canvas (Phaser display list + CSS) |
+| Safari  | iframe (rex YouTube player) | Above canvas + difference blend           |
+
+#### WebGL background video sizing
+
+The WebGL background video can initially render at the wrong size if you use `window.innerWidth/innerHeight` before Phaser's ScaleManager settles.
+
+- Use `this.scale.gameSize` as the authoritative width/height.
+- Force an early `this.scale.refresh()` and run a delayed resize pass so both rex YouTube player and the WebGL `Video` get correct dimensions.
 
 ### Video Byte Caching (Go Service)
 
@@ -1014,7 +992,7 @@ The Go service caches full video bytes in memory for faster subsequent requests.
 const DefaultVideoCacheMaxSize = 100 * 1024 * 1024  // 100MB
 
 // Configurable via environment variable
-VIDEO_CACHE_SIZE_MB=500  // 500MB cache
+VIDEO_CACHE_SIZE_MB=1000  // 1000MB cache (see deploy/hetzner/docker-compose.yml)
 ```
 
 #### Cache Behavior
@@ -1058,3 +1036,44 @@ func cacheResolvedURL(key string, resp ResolveResponse) {
 ```
 
 Typical YouTube URL expiry: **~6 hours** from resolve time.
+
+### Deployment (Hetzner VPS + Caddy) (Feb 2026)
+
+This repo now includes a working VPS deployment bundle under `deploy/hetzner/` that runs:
+
+- **Caddy** reverse proxy (automatic HTTPS)
+- **Colyseus Node server** (port `2567` internal)
+- **YouTube API (Go)** (port `8081` internal)
+- **PO token provider** (port `4416` internal)
+
+#### Domains
+
+- `api.mutante.club` → Colyseus server (WebSocket + HTTP)
+- `yt.mutante.club` → YouTube API (HTTP)
+
+#### Key files
+
+- `deploy/hetzner/docker-compose.yml`
+- `deploy/hetzner/Caddyfile`
+- `deploy/hetzner/.env.example` (copy to `.env` on the VPS; do not commit)
+
+#### Ports
+
+- Public inbound:
+  - `80` / `443` (Caddy)
+- Container-internal:
+  - `2567` (server)
+  - `8081` (youtube-api)
+  - `4416` (pot-provider)
+
+#### Environment variables (VPS)
+
+- `PROXY_URL` (recommended)
+- `YOUTUBE_COOKIES` (optional; for age-restricted content)
+
+#### Client build config (Netlify)
+
+The client uses these at build time (see `netlify.toml`):
+
+- `VITE_WS_ENDPOINT=wss://api.mutante.club`
+- `VITE_HTTP_ENDPOINT=https://api.mutante.club`
