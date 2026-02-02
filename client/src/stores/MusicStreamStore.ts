@@ -32,7 +32,7 @@ const initialState: MusicStreamState = {
   },
   isRoomPlaylist: false,
   roomPlaylistIndex: 0,
-  videoBackgroundEnabled: false,
+  videoBackgroundEnabled: true,
   isAmbient: false,
 }
 
@@ -84,10 +84,8 @@ export const musicStreamSlice = createSlice({
         state.currentDj = action.payload.currentDj
         state.isRoomPlaylist = action.payload.isRoomPlaylist ?? false
         state.roomPlaylistIndex = action.payload.roomPlaylistIndex ?? 0
-        state.videoBackgroundEnabled =
-          typeof action.payload.videoBackgroundEnabled === 'boolean'
-            ? action.payload.videoBackgroundEnabled
-            : state.videoBackgroundEnabled
+        // videoBackgroundEnabled is now local-only, not synced from server
+        // state.videoBackgroundEnabled = ...
         state.isAmbient = action.payload.isAmbient ?? false
       } catch (e) {
         console.warn('Failed setting music stream')
