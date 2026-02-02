@@ -1,7 +1,7 @@
 import IconButton from '@mui/material/IconButton'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import { RoomPlaylist } from './YoutubePlayer.styles'
-import type { RoomPlaylistItem } from '../../../types/IOfficeState'
+import { RoomPlaylistItem } from '../stores/RoomPlaylistStore'
 
 interface RoomPlaylistViewProps {
   items: RoomPlaylistItem[]
