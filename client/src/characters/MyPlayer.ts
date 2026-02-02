@@ -625,7 +625,7 @@ export default class MyPlayer extends Player {
 
           this.musicBoothOnSit.closeDialog(network)
           this.musicBoothOnSit.clearDialogBox()
-          this.musicBoothOnSit.setDialogBox('Press R to be the DJ')
+          // this.musicBoothOnSit.setDialogBox('Press R to be the DJ')
           this.djTransitionTarget = null
 
           const reverseKey = 'mutant_transform_reverse'
@@ -676,7 +676,7 @@ export default class MyPlayer extends Player {
           store.dispatch(disconnectFromMusicBooth())
           this.musicBoothOnSit?.closeDialog(network)
           this.musicBoothOnSit?.clearDialogBox()
-          this.musicBoothOnSit?.setDialogBox('Press R to be the DJ')
+          // this.musicBoothOnSit?.setDialogBox('Press R to be the DJ')
           this.djTransitionTarget = null
 
           const idleAnimKey = `${this.playerTexture}_idle_down`
@@ -744,7 +744,7 @@ export default class MyPlayer extends Player {
 
     musicBoothItem.openDialog(network)
     musicBoothItem.clearDialogBox()
-    musicBoothItem.setDialogBox('Press R to leave the DJ booth')
+    // musicBoothItem.setDialogBox('Press R to leave the DJ booth')
     this.musicBoothOnSit = musicBoothItem
     this.djBoothDepth = this.depth
     if (this.playerTexture === 'adam' || this.playerTexture === 'mutant') {
