@@ -34,7 +34,7 @@ import { RoomType } from '../../../types/Rooms'
 import { phaserEvents, Event } from '../events/EventCenter'
 
 import { VHS_POSTFX_PIPELINE_KEY, VhsPostFxPipeline } from '../pipelines/VhsPostFxPipeline'
-import { SOFT_POSTFX_PIPELINE_KEY, SoftPostFxPipeline } from '../pipelines/SoftPostFxPipeline'
+import { CRT_POSTFX_PIPELINE_KEY, CrtPostFxPipeline } from '../pipelines/CrtPostFxPipeline'
 
 type BackgroundVideoRenderer = 'webgl' | 'iframe'
 
@@ -628,23 +628,30 @@ export default class Game extends Phaser.Scene {
     }
   }
 
-  private toggleSoftPostFx() {
+  private toggleCrtPostFx() {
     const camera = this.cameras.main
-    const existing = camera.getPostPipeline(SOFT_POSTFX_PIPELINE_KEY)
+    const existing = camera.getPostPipeline(CRT_POSTFX_PIPELINE_KEY)
     const hasExisting = Array.isArray(existing) ? existing.length > 0 : !!existing
 
     if (hasExisting) {
-      camera.removePostPipeline(SOFT_POSTFX_PIPELINE_KEY)
+      camera.removePostPipeline(CRT_POSTFX_PIPELINE_KEY)
+      console.log('[CRT] OFF')
       return
     }
 
-    camera.setPostPipeline(SOFT_POSTFX_PIPELINE_KEY)
+    camera.setPostPipeline(CRT_POSTFX_PIPELINE_KEY)
 
-    const pipeline = camera.getPostPipeline(SOFT_POSTFX_PIPELINE_KEY)
+    const pipeline = camera.getPostPipeline(CRT_POSTFX_PIPELINE_KEY)
     const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
 
-    if (instance && instance instanceof SoftPostFxPipeline) {
-      instance.applyPreset('chaotic')
+    if (instance && instance instanceof CrtPostFxPipeline) {
+      // Default settings: aperture grille with slight curve
+      instance.setUniforms({
+        maskType: 2,
+        curve: 0.05,
+        colorOffset: 0.01,
+      })
+      console.log('[CRT] ON')
     }
   }
 
@@ -756,7 +763,7 @@ export default class Game extends Phaser.Scene {
 
     keyboard.on('keydown-B', () => {
       if (this.game.renderer.type !== Phaser.WEBGL) return
-      this.toggleSoftPostFx()
+      this.toggleCrtPostFx()
     })
   }
 
