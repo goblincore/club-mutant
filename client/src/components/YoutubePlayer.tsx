@@ -203,6 +203,7 @@ export default function YoutubePlayer() {
             isHidden={false}
             videoBackgroundEnabled={videoBackgroundEnabled}
             canToggleBackground={canToggleVideoBackground}
+            playerRef={playerRef}
             onReady={handleReady}
             onEnded={handleOnEnded}
             onBufferEnd={handleOnBufferEnd}
@@ -293,6 +294,7 @@ export default function YoutubePlayer() {
             isHidden={false}
             videoBackgroundEnabled={videoBackgroundEnabled}
             canToggleBackground={canToggleVideoBackground}
+            playerRef={playerRef}
             onReady={handleReady}
             onEnded={handleOnEnded}
             onBufferEnd={handleOnBufferEnd}

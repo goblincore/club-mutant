@@ -1,4 +1,3 @@
-import { useRef } from 'react'
 import ReactPlayer from 'react-player/youtube'
 import IconButton from '@mui/material/IconButton'
 import FullscreenIcon from '@mui/icons-material/Fullscreen'
@@ -12,6 +11,7 @@ interface VideoPlayerProps {
   isHidden: boolean
   videoBackgroundEnabled: boolean
   canToggleBackground: boolean
+  playerRef: React.MutableRefObject<any>
   onReady: () => void
   onEnded: () => void
   onBufferEnd: () => void
@@ -25,13 +25,12 @@ export function VideoPlayer({
   isHidden,
   videoBackgroundEnabled,
   canToggleBackground,
+  playerRef,
   onReady,
   onEnded,
   onBufferEnd,
   onToggleBackground,
 }: VideoPlayerProps) {
-  const playerRef = useRef<any>(null)
-
   const hiddenStyle = isHidden
     ? {
         position: 'fixed' as const,
@@ -51,7 +50,9 @@ export function VideoPlayer({
       <div style={{ position: 'relative', display: 'inline-block' }}>
         <EmptyVideo>Room Stream</EmptyVideo>
         <IconButton
-          aria-label={videoBackgroundEnabled ? 'disable video background' : 'enable video background'}
+          aria-label={
+            videoBackgroundEnabled ? 'disable video background' : 'enable video background'
+          }
           disabled={!canToggleBackground}
           onClick={onToggleBackground}
           size="small"
@@ -90,7 +91,9 @@ export function VideoPlayer({
           url={url}
         />
         <IconButton
-          aria-label={videoBackgroundEnabled ? 'disable video background' : 'enable video background'}
+          aria-label={
+            videoBackgroundEnabled ? 'disable video background' : 'enable video background'
+          }
           disabled={!canToggleBackground}
           onClick={onToggleBackground}
           size="small"

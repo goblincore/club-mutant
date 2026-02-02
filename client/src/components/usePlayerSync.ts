@@ -24,7 +24,7 @@ export function usePlayerSync({
 }: UsePlayerSyncOptions) {
   const playerRef = useRef<any>(null)
   const [isBuffering, setIsBuffering] = useState(true)
-  const [isPlaying, setIsPlaying] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(true)
 
   const computeExpectedSeconds = useCallback(() => {
     if (!link) return 0
@@ -181,7 +181,26 @@ export function usePlayerSync({
   }, [globallyMuted, isAmbient, onSetAmbientMuted, startTime])
 
   const handleReady = useCallback(() => {
-    resyncPlayer()
+    // Request fresh time sync before seeking to ensure accurate position
+    game.network.requestTimeSyncNow()
+
+    // If we already have a sync, resync immediately
+    if (timeSync.hasSync()) {
+      resyncPlayer()
+    }
+
+    // Resync multiple times with increasing delays to catch the time sync response
+    const resyncAttempt = () => {
+      if (timeSync.hasSync()) {
+        resyncPlayer()
+      }
+    }
+
+    // Multiple attempts to ensure we catch the time sync
+    window.setTimeout(resyncAttempt, 150)
+    window.setTimeout(resyncAttempt, 400)
+    window.setTimeout(resyncAttempt, 800)
+    window.setTimeout(resyncAttempt, 1500)
 
     if (isAmbient && !globallyMuted) {
       window.setTimeout(() => {
@@ -191,7 +210,7 @@ export function usePlayerSync({
         internalPlayer?.playVideo?.()
       }, 250)
     }
-  }, [isAmbient, globallyMuted, resyncPlayer])
+  }, [game.network, isAmbient, globallyMuted, resyncPlayer])
 
   const handleOnBufferEnd = useCallback(() => {
     if (isBuffering) {
