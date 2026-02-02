@@ -1,12 +1,12 @@
-version: "3.8"
+version: '3.8'
 
 services:
   caddy:
     image: caddy:2
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -25,7 +25,7 @@ services:
       - PORT=2567
       - YOUTUBE_SERVICE_URL=http://youtube-api:8081
     expose:
-      - "2567"
+      - '2567'
 
   youtube-api:
     build:
@@ -34,12 +34,12 @@ services:
     environment:
       - PORT=8081
       - YOUTUBE_API_CACHE_TTL=3600
-      - VIDEO_CACHE_SIZE_MB=200
+      - VIDEO_CACHE_SIZE_MB=1000
       - PROXY_URL=${PROXY_URL}
       - POT_PROVIDER_URL=http://pot-provider:4416
       - YOUTUBE_COOKIES=${YOUTUBE_COOKIES}
     expose:
-      - "8081"
+      - '8081'
     depends_on:
       - pot-provider
 
@@ -47,7 +47,7 @@ services:
     image: ghcr.io/jim60105/bgutil-pot:latest
     restart: unless-stopped
     expose:
-      - "4416"
+      - '4416'
 
 volumes:
   caddy_data:

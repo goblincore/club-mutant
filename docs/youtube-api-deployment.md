@@ -277,8 +277,15 @@ Update your client's environment to point to the deployed server:
 
 ```bash
 # .env or environment
-VITE_SERVER_URL=wss://club-mutant-server.fly.dev
+VITE_WS_ENDPOINT=wss://club-mutant-server.fly.dev
 VITE_HTTP_ENDPOINT=https://club-mutant-server.fly.dev
+```
+
+If you're deploying on a VPS behind Caddy (see `deploy/hetzner/`), these typically become:
+
+```bash
+VITE_WS_ENDPOINT=wss://api.mutante.club
+VITE_HTTP_ENDPOINT=https://api.mutante.club
 ```
 
 ## Health Check
@@ -321,7 +328,7 @@ fly status -a club-mutant-server
    ```
 
 3. **Update Netlify Environment**
-   - Set `VITE_SERVER_URL=wss://club-mutant-server.fly.dev`
+   - Set `VITE_WS_ENDPOINT=wss://club-mutant-server.fly.dev`
    - Set `VITE_HTTP_ENDPOINT=https://club-mutant-server.fly.dev`
    - Trigger redeploy
 
