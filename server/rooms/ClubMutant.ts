@@ -48,6 +48,17 @@ export class ClubMutant extends Room<OfficeState> {
 
   private ambientPublicVideoId = 'CAWJ2PO1V_g'
 
+  private clearRoomPlaylistAfterDjLeft() {
+    const list = this.state.roomPlaylist
+    if (list.length > 0) {
+      list.splice(0, list.length)
+    }
+
+    const musicStream = this.state.musicStream
+    musicStream.roomPlaylistIndex = 0
+    musicStream.videoBackgroundEnabled = false
+  }
+
   private setStoppedMusicStream() {
     const musicStream = this.state.musicStream
 
@@ -377,10 +388,16 @@ export class ClubMutant extends Room<OfficeState> {
             : 0
 
         if (musicBoothIndex < 0 || musicBoothIndex >= this.state.musicBooths.length) return
+
+        const wasDj = this.state.musicBooths[musicBoothIndex]?.connectedUser === client.sessionId
         this.dispatcher.dispatch(new MusicBoothDisconnectUserCommand(), {
           client,
           musicBoothIndex,
         })
+
+        if (wasDj && musicBoothIndex === 0) {
+          this.clearRoomPlaylistAfterDjLeft()
+        }
 
         if (this.isPublic && !this.state.musicBooths[musicBoothIndex]?.connectedUser) {
           this.startAmbientIfNeeded()
@@ -587,13 +604,22 @@ export class ClubMutant extends Room<OfficeState> {
           musicBoothIndex: index,
         })
 
+        if (index === 0) {
+          this.clearRoomPlaylistAfterDjLeft()
+        }
+
         if (this.isPublic) {
           this.startAmbientIfNeeded()
           return
         }
 
         if (this.state.musicStream.currentBooth === index) {
-          this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+          if (this.state.musicStream.isRoomPlaylist) {
+            this.setStoppedMusicStream()
+            this.broadcast(Message.STOP_MUSIC_STREAM, {})
+          } else {
+            this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+          }
         }
       }
     })

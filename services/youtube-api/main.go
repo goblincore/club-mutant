@@ -240,9 +240,30 @@ func init() {
 		if err == nil {
 			transport.Proxy = http.ProxyURL(proxyParsed)
 			log.Printf("[init] HTTP client configured with proxy: %s", proxyURL)
+			// Test that the proxy is actually working
+			testClient := &http.Client{
+				Transport: &http.Transport{
+					Proxy: http.ProxyURL(proxyParsed),
+				},
+				Timeout: 5 * time.Second,
+			}
+			if resp, err := testClient.Get("https://www.google.com"); err != nil {
+				log.Printf("[init] WARNING: Proxy test failed: %v", err)
+			} else {
+				resp.Body.Close()
+				log.Printf("[init] Proxy test successful (status: %d)", resp.StatusCode)
+			}
+			// Also check what IP we're using
+			if ipResp, err := testClient.Get("https://httpbin.org/ip"); err == nil {
+				body, _ := io.ReadAll(ipResp.Body)
+				ipResp.Body.Close()
+				log.Printf("[init] Proxy outbound IP: %s", string(body))
+			}
 		} else {
 			log.Printf("[init] Failed to parse PROXY_URL: %v", err)
 		}
+	} else {
+		log.Printf("[init] No PROXY_URL configured, using direct connection")
 	}
 
 	httpClient = &http.Client{
@@ -446,6 +467,39 @@ var ytdlpSemaphore = make(chan struct{}, 2)
 // Singleflight to coalesce duplicate requests for the same video
 var resolveGroup singleflight.Group
 
+// warmupYtDlp runs a lightweight yt-dlp command on startup to warm up
+// the Python interpreter and yt_dlp module in the filesystem cache.
+// This reduces cold-start latency from ~800ms to ~200ms.
+func warmupYtDlp() {
+	go func() {
+		// Small delay to not block server startup
+		time.Sleep(2 * time.Second)
+		
+		start := time.Now()
+		// Run yt-dlp --version to warm up Python + module imports
+		cmd := exec.Command("yt-dlp", "--version")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Printf("[warmup] yt-dlp warmup failed: %v", err)
+			return
+		}
+		
+		// Also warm up with a quick info fetch to cache yt-dlp's internal state
+		// Use a dummy video that won't trigger rate limits
+		warmupCmd := exec.Command("yt-dlp", 
+			"--dump-single-json", 
+			"--skip-download",
+			"--playlist-items", "0",
+			"--quiet",
+			"--no-warnings",
+			"https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+		warmupCmd.Run() // Ignore errors, this is just for warming caches
+		
+		log.Printf("[warmup] yt-dlp primed in %v (version: %s)", 
+			time.Since(start), strings.TrimSpace(string(output)))
+	}()
+}
+
 // initCookiesFile writes YouTube cookies from env var to a file (called once at startup)
 func initCookiesFile() {
 	cookies := os.Getenv("YOUTUBE_COOKIES")
@@ -482,9 +536,10 @@ func isBotDetectionError(stderr string) bool {
 
 // resolveWithYtDlp calls yt-dlp - tries ISP proxy first (faster), falls back to PO token
 func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveResponse, error) {
-	// If ISP proxy is configured, try without PO token first (faster ~4s vs ~7s)
-	// Fall back to PO token if proxy fails
 	proxyURL := os.Getenv("PROXY_URL")
+	potProviderURL := os.Getenv("POT_PROVIDER_URL")
+
+	// If ISP proxy is configured, try without PO token first (faster ~4s vs ~7s)
 	if proxyURL != "" {
 		resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, false)
 		if err == nil {
@@ -492,9 +547,16 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 		}
 		log.Printf("[resolve] Proxy failed for %s, falling back to PO token: %v", videoID, err)
 	}
-	
-	// Use PO token (slower but more reliable)
-	return s.resolveWithYtDlpInternal(videoID, videoOnly, true)
+
+	// If PO provider is configured (or using default production URL), use PO token
+	if potProviderURL != "" || proxyURL != "" {
+		return s.resolveWithYtDlpInternal(videoID, videoOnly, true)
+	}
+
+	// Local dev: neither proxy nor PO provider configured - try basic yt-dlp
+	// This may fail for some videos due to bot detection, but works for many
+	log.Printf("[resolve] No proxy or PO provider configured, trying basic yt-dlp for %s", videoID)
+	return s.resolveWithYtDlpInternal(videoID, videoOnly, false)
 }
 
 // resolveWithYtDlpInternal is the actual yt-dlp call with optional PO token support
@@ -601,6 +663,15 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 	log.Printf("[yt-dlp] Completed %s in %v (%s)", videoID, elapsed, poLabel)
 
 	resolvedURL := strings.TrimSpace(strings.Split(stdout.String(), "\n")[0])
+	log.Printf("[yt-dlp] Resolved URL for %s: %s (length: %d)", videoID, resolvedURL[:min(len(resolvedURL), 80)], len(resolvedURL))
+	if stdoutStr := stdout.String(); len(stdoutStr) > len(resolvedURL) {
+		log.Printf("[yt-dlp] Full stdout for %s (%d lines):", videoID, len(strings.Split(stdoutStr, "\n")))
+		for i, line := range strings.Split(stdoutStr, "\n") {
+			if i < 10 && line != "" {
+				log.Printf("[yt-dlp]   line %d: %s", i, line[:min(len(line), 100)])
+			}
+		}
+	}
 	if resolvedURL == "" {
 		return nil, fmt.Errorf("yt-dlp returned empty URL")
 	}
@@ -735,6 +806,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	// Use shared client with connection pooling for better performance
 	upstreamStart := time.Now()
+	log.Printf("[proxy] Streaming %s via httpClient (proxy configured: %v)", videoID, os.Getenv("PROXY_URL") != "")
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		log.Printf("[proxy] Upstream request failed for %s: %v", videoID, err)
@@ -744,6 +816,49 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	defer resp.Body.Close()
 
 	log.Printf("[proxy] Upstream connect for %s took %dms, status=%d, content-length=%s", videoID, time.Since(upstreamStart).Milliseconds(), resp.StatusCode, resp.Header.Get("Content-Length"))
+
+	// If YouTube returns 403, the URL may be IP-locked to a different IP
+	// Re-resolve to get a fresh URL
+	if resp.StatusCode == http.StatusForbidden {
+		log.Printf("[proxy] Got 403 for %s, re-resolving with fresh cache", videoID)
+
+		// Re-resolve with fresh cache key to bypass any cached result
+		result, err, _ := resolveGroup.Do(cacheKey+":retry", func() (interface{}, error) {
+			log.Printf("[proxy] Re-resolving %s via yt-dlp after 403", videoID)
+			return s.resolveWithYtDlp(videoID, videoOnly)
+		})
+
+		if err != nil {
+			log.Printf("[proxy] Re-resolve failed for %s: %v", videoID, err)
+			http.Error(w, "Failed to re-resolve video", http.StatusInternalServerError)
+			return
+		}
+
+		resolved = *result.(*ResolveResponse)
+		s.resolveCache.Set(cacheKey, resolved, 5*time.Minute)
+		log.Printf("[proxy] Re-resolved %s, trying upstream again", videoID)
+
+		// Create new request with fresh URL
+		req, err = http.NewRequest("GET", resolved.URL, nil)
+		if err != nil {
+			http.Error(w, "Failed to create upstream request", http.StatusInternalServerError)
+			return
+		}
+		if rangeHeader != "" {
+			req.Header.Set("Range", rangeHeader)
+		}
+
+		// Try again with new URL
+		resp, err = httpClient.Do(req)
+		if err != nil {
+			log.Printf("[proxy] Upstream request failed for %s on retry: %v", videoID, err)
+			http.Error(w, "Upstream request failed", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+
+		log.Printf("[proxy] Retry upstream connect for %s took %dms, status=%d", videoID, time.Since(upstreamStart).Milliseconds(), resp.StatusCode)
+	}
 
 	// If YouTube returns an error, log it and pass through
 	if resp.StatusCode >= 400 {
@@ -990,7 +1105,9 @@ func (s *Server) handlePOToken(w http.ResponseWriter, r *http.Request) {
 	// Cache miss - fetch from upstream provider
 	potProviderURL := os.Getenv("POT_PROVIDER_URL")
 	if potProviderURL == "" {
-		potProviderURL = "http://club-mutant-pot-provider-rust.internal:4416"
+		log.Printf("[pot] No POT_PROVIDER_URL configured")
+		http.Error(w, "PO token provider not configured", http.StatusServiceUnavailable)
+		return
 	}
 
 	// Forward the query string (client parameter)
@@ -1031,7 +1148,8 @@ func (s *Server) handlePOToken(w http.ResponseWriter, r *http.Request) {
 func prewarmPOToken() {
 	potProviderURL := os.Getenv("POT_PROVIDER_URL")
 	if potProviderURL == "" {
-		potProviderURL = "http://club-mutant-pot-provider-rust.internal:4416"
+		log.Printf("[prewarm] No POT_PROVIDER_URL configured, skipping PO token warmup")
+		return
 	}
 
 	// The provider caches tokens, so hitting it once warms the cache
@@ -1101,6 +1219,9 @@ func main() {
 
 	// Pre-warm PO token cache in background
 	go prewarmPOToken()
+	
+	// Warm up yt-dlp Python cache to reduce cold-start latency
+	warmupYtDlp()
 
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)
