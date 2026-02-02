@@ -645,11 +645,16 @@ export default class Game extends Phaser.Scene {
     const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
 
     if (instance && instance instanceof CrtPostFxPipeline) {
-      // Default settings: aperture grille with slight curve
+      // Balanced CRT effect - visible but not overwhelming
       instance.setUniforms({
         maskType: 2,
-        curve: 0.05,
-        colorOffset: 0.01,
+        curve: 0.03,
+        colorOffset: 0.15,
+        sharpness: 0.85,
+        texSize: 400,
+        scanlineBrightness: 0.9,
+        minScanlineThickness: 0.65,
+        maskBrightness: 0.85,
       })
       console.log('[CRT] ON')
     }
