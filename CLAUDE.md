@@ -748,6 +748,64 @@ Open guide-mode is still under active development; if blocks are mis-cropped, ex
 - Changed DJ booth activation to single-click when highlighted (removed double-click requirement).
 - A\* pathfinding now supports 8-directional movement with octile heuristic and no corner-cutting.
 
+## Recent noteworthy commits (Feb 2026)
+
+- Refactored `YoutubePlayer.tsx` into modular components and hooks (see **YoutubePlayer Architecture** below).
+- Made video background toggle local-only (no longer broadcast to server).
+- Non-DJ users can now see the miniplayer and toggle background video.
+- Fixed music sync on late-join (TimeSync + playerRef issues).
+- Fixed background video sync for both WebGL and iframe fallback renderers.
+
+## YoutubePlayer Architecture (Feb 2026 refactor)
+
+The `YoutubePlayer.tsx` was refactored from a monolithic component into modular pieces:
+
+### Files
+
+- `client/src/components/YoutubePlayer.tsx` - Main container component
+- `client/src/components/YoutubePlayer.styles.ts` - Styled components (extracted)
+- `client/src/components/VideoPlayer.tsx` - ReactPlayer wrapper with background toggle button
+- `client/src/components/PlayerControls.tsx` - Play/pause/skip buttons
+- `client/src/components/RoomPlaylistView.tsx` - Room playlist UI
+- `client/src/components/usePlayerSync.ts` - Custom hook for player synchronization
+
+### Key learnings from refactor
+
+1. **playerRef must be shared**: When extracting ReactPlayer into a sub-component, the `playerRef` used for `seekTo()` must be passed from the parent/hook to the child component. Creating a local ref in the child breaks seeking.
+
+2. **isPlaying should default to true**: The original code had `isPlaying: true` by default. Changing to conditional initialization (`link !== null`) broke auto-play on join.
+
+3. **TimeSync must be ready before seeking**: On late-join, `timeSync.getServerNowMs()` returns `Date.now()` until the first sync response arrives. The `handleReady` callback now:
+   - Requests fresh time sync via `game.network.requestTimeSyncNow()`
+   - Checks `timeSync.hasSync()` before seeking
+   - Retries at 150ms, 400ms, 800ms, 1500ms to catch the sync response
+
+### Background video sync (WebGL + iframe)
+
+Both renderers need to calculate offset using server-synced time, not `Date.now()`:
+
+```ts
+const freshOffset = startTime > 0 ? (timeSync.getServerNowMs() - startTime) / 1000 : 0
+```
+
+**WebGL video** (`Game.ts`):
+
+- Recalculates offset in the `metadata` event handler (after resolve + load)
+
+**Iframe fallback** (`Game.ts`):
+
+- Recalculates offset in `fallbackToDomYoutubeBackground`
+- Multiple delayed seek attempts at 500ms, 1500ms, 3000ms (YouTube iframe needs time to initialize before seeking works)
+
+### Video background toggle (local-only)
+
+The video background toggle (`videoBackgroundEnabled`) is now:
+
+- Local-only (stored in Redux, not synced to server)
+- Defaults to `true`
+- Available to all users (not just DJ)
+- Dispatches Redux action + emits Phaser event for Game.ts to react
+
 ## YouTube Microservice (services/youtube-api)
 
 ### Motivation
