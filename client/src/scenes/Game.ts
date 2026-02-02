@@ -20,6 +20,7 @@ import { PlayerBehavior } from '../../../types/Players'
 import { ItemType } from '../../../types/Items'
 
 import Network from '../services/Network'
+import { timeSync } from '../services/TimeSync'
 
 import store from '../stores'
 import { setShowChat } from '../stores/ChatStore'
@@ -423,12 +424,28 @@ export default class Game extends Phaser.Scene {
     this.myYoutubePlayer.setAlpha(1)
     this.myYoutubePlayer.load(videoId, true)
     this.myYoutubePlayer.setMute(true)
-    this.myYoutubePlayer.setPlaybackTime(offsetSeconds)
     this.myYoutubePlayer.play()
 
-    console.log(
-      `[YoutubeBG] Iframe player loaded for ${videoId}, alpha=${this.myYoutubePlayer.alpha}, visible=${this.myYoutubePlayer.visible}`
-    )
+    console.log(`[YoutubeBG] Iframe player loaded for ${videoId} at offset ${offsetSeconds}s`)
+
+    // Seek after delays to ensure video is ready - YouTube iframe needs time to initialize
+    const seekToOffset = () => {
+      if (this.activeBackgroundVideoId !== videoId) return
+      if (this.activeBackgroundVideoIsWebgl) return
+      if (!this.myYoutubePlayer) return
+
+      // Recalculate fresh offset each time since time passes
+      const { startTime } = store.getState().musicStream
+      const freshOffset = startTime > 0 ? (timeSync.getServerNowMs() - startTime) / 1000 : 0
+
+      console.log(`[YoutubeBG] Seeking iframe to ${freshOffset}s`)
+      this.myYoutubePlayer.setPlaybackTime(freshOffset)
+    }
+
+    // Multiple seek attempts with increasing delays
+    this.time.delayedCall(500, seekToOffset)
+    this.time.delayedCall(1500, seekToOffset)
+    this.time.delayedCall(3000, seekToOffset)
 
     this.applyIframeBackgroundStyles()
 
@@ -448,8 +465,11 @@ export default class Game extends Phaser.Scene {
     })
   }
 
-  private async fallbackToDomYoutubeBackground(videoId: string, offsetSeconds: number) {
-    await this.playIframeBackgroundVideo(videoId, offsetSeconds, true)
+  private async fallbackToDomYoutubeBackground(videoId: string, _offsetSeconds: number) {
+    // Recalculate offset using fresh server time since time may have passed since WebGL attempt
+    const { startTime } = store.getState().musicStream
+    const freshOffset = startTime > 0 ? (timeSync.getServerNowMs() - startTime) / 1000 : 0
+    await this.playIframeBackgroundVideo(videoId, freshOffset, true)
   }
 
   private getPlayerFeetPoint(sprite: Phaser.Physics.Arcade.Sprite): { x: number; y: number } {
@@ -1035,7 +1055,9 @@ export default class Game extends Phaser.Scene {
 
     // Late-join sync: if a stream is already playing (and background video is already enabled),
     // we may have missed the initial START_PLAYING_MEDIA emit during Network.initialize().
-    this.time.delayedCall(250, () => {
+    // Request time sync first, then sync background video after a delay to ensure time sync is ready.
+    this.network.requestTimeSyncNow()
+    this.time.delayedCall(500, () => {
       this.handleVideoBackgroundEnabledChanged(store.getState().musicStream.videoBackgroundEnabled)
     })
   }
@@ -1048,7 +1070,7 @@ export default class Game extends Phaser.Scene {
       return
     }
 
-    const offset = startTime > 0 ? (Date.now() - startTime) / 1000 : 0
+    const offset = startTime > 0 ? (timeSync.getServerNowMs() - startTime) / 1000 : 0
     const videoId = this.getYouTubeVideoId(url)
 
     console.log(
