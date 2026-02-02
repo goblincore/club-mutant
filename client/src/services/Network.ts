@@ -145,7 +145,7 @@ export default class Network {
 
       if (!ms) {
         store.dispatch(setMusicStream(null))
-        store.dispatch(setVideoBackgroundEnabled(false))
+        // videoBackgroundEnabled is local-only, don't reset from server
         phaserEvents.emit(Event.STOP_PLAYING_MEDIA)
         return
       }
@@ -170,7 +170,7 @@ export default class Network {
           currentDj: ms.currentDj,
           isRoomPlaylist: ms.isRoomPlaylist,
           roomPlaylistIndex: ms.roomPlaylistIndex,
-          videoBackgroundEnabled: ms.videoBackgroundEnabled,
+          // videoBackgroundEnabled is local-only, not from server
           isAmbient: ms.isAmbient,
         })
       )
@@ -395,20 +395,13 @@ export default class Network {
       }
     )
 
-    store.dispatch(setVideoBackgroundEnabled(false))
+    // videoBackgroundEnabled is now local-only, default true
     store.dispatch(setMusicStream(null))
 
     syncMusicStreamFromState()
 
-    stateCallbacks.musicStream.listen(
-      'videoBackgroundEnabled',
-      (value) => {
-        const enabled = Boolean(value)
-        store.dispatch(setVideoBackgroundEnabled(enabled))
-        phaserEvents.emit(Event.VIDEO_BACKGROUND_ENABLED_CHANGED, enabled)
-      },
-      true
-    )
+    // videoBackgroundEnabled is now local-only, not synced from server
+    // stateCallbacks.musicStream.listen('videoBackgroundEnabled', ...)
 
     stateCallbacks.musicStream.listen('status', () => {
       syncMusicStreamFromState()
@@ -656,8 +649,9 @@ export default class Network {
     this.room?.send(Message.ROOM_PLAYLIST_PLAY, {})
   }
 
-  setVideoBackgroundEnabled(enabled: boolean) {
-    this.room?.send(Message.SET_VIDEO_BACKGROUND, { enabled })
+  // videoBackgroundEnabled is now local-only, no server sync
+  setVideoBackgroundEnabled(_enabled: boolean) {
+    // No-op: toggle is handled locally via Redux
   }
 
   addMyPlaylistItem(item: PlaylistItem) {

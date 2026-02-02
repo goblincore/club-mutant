@@ -9,6 +9,7 @@ import phaserGame from '../PhaserGame'
 import { useAppSelector, useAppDispatch } from '../hooks'
 import { phaserEvents, Event } from '../events/EventCenter'
 import { shiftMyPlaylist } from '../stores/MyPlaylistStore'
+import { setVideoBackgroundEnabled } from '../stores/MusicStreamStore'
 import { RoomType } from '../../../types/Rooms'
 
 import { Backdrop, MiniBar, Marquee, MarqueeInner, Wrapper, RoomInfo } from './YoutubePlayer.styles'
@@ -134,8 +135,10 @@ export default function YoutubePlayer() {
   )
 
   const handleToggleBackground = useCallback(() => {
-    game.network.setVideoBackgroundEnabled(!videoBackgroundEnabled)
-  }, [game.network, videoBackgroundEnabled])
+    const newValue = !videoBackgroundEnabled
+    dispatch(setVideoBackgroundEnabled(newValue))
+    phaserEvents.emit(Event.VIDEO_BACKGROUND_ENABLED_CHANGED, newValue)
+  }, [dispatch, videoBackgroundEnabled])
 
   const handleOnEnded = useCallback(() => {
     if (isAmbient) {

@@ -175,6 +175,36 @@ export default class Game extends Phaser.Scene {
       iframe.style.setProperty('mix-blend-mode', iframeBlendMode, 'important')
       iframe.style.setProperty('width', '100%', 'important')
       iframe.style.setProperty('height', '100%', 'important')
+
+      // Add transparent overlay div to prevent YouTube context menu
+      const existingOverlay = node.querySelector('.yt-blocker-overlay') as HTMLElement | null
+      if (!existingOverlay && isIframeFallback) {
+        const overlay = document.createElement('div')
+        overlay.className = 'yt-blocker-overlay'
+        overlay.style.cssText = `
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+          z-index: 1001 !important;
+          background: transparent !important;
+          pointer-events: auto !important;
+          -webkit-user-select: none !important;
+          user-select: none !important;
+          -webkit-touch-callout: none !important;
+          touch-action: none !important;
+        `
+        // Prevent context menu on the overlay (Chrome)
+        overlay.addEventListener('contextmenu', (e) => e.preventDefault())
+        // Prevent context menu on the overlay (Safari/WebKit)
+        overlay.addEventListener('mousedown', (e) => {
+          if (e.button === 2) e.preventDefault()
+        })
+        node.appendChild(overlay)
+      } else if (existingOverlay && !isIframeFallback) {
+        existingOverlay.remove()
+      }
     }
 
     // Best-effort: request low playback quality if rex exposes the underlying YouTube player.
@@ -1209,12 +1239,14 @@ export default class Game extends Phaser.Scene {
         startTime,
         isRoomPlaylist,
         roomPlaylistIndex,
-        videoBackgroundEnabled,
+        // videoBackgroundEnabled is local-only, not from server
         isAmbient,
       })
     )
 
-    if (videoBackgroundEnabled && url && !isAmbient) {
+    // Use local state for video background toggle since it's now local-only
+    const localVideoBgEnabled = store.getState().musicStream.videoBackgroundEnabled
+    if (localVideoBgEnabled && url && !isAmbient) {
       const videoId = this.getYouTubeVideoId(url)
       console.log(`[YoutubeBG] Loading Video ID: ${videoId} at offset: ${offset}`)
       void this.tryPlayWebglBackgroundVideo(videoId, offset)
