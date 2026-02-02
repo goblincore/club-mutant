@@ -1077,3 +1077,55 @@ The client uses these at build time (see `netlify.toml`):
 
 - `VITE_WS_ENDPOINT=wss://api.mutante.club`
 - `VITE_HTTP_ENDPOINT=https://api.mutante.club`
+
+### Local Development 403 Troubleshooting (Feb 2026)
+
+**Problem**: YouTube video streaming returns 403 locally even though yt-dlp resolution works.
+
+**Symptom**:
+
+```
+[proxy] Upstream connect status=403
+[proxy] YouTube returned error 403
+```
+
+**Root Cause** (Investigated but not fully resolved):
+
+- yt-dlp can resolve URLs through proxy fine
+- httpClient streaming gets 403 even with same proxy
+- Works fine in production (Hetzner VPS)
+- Suspected cause: IPRoyal proxy may assign different exit IPs per connection when routing from residential IPs vs datacenter IPs
+
+**Implemented Fixes**:
+
+1. **Browser headers on streaming requests** - Go httpClient sends `Go-http-client/1.1` User-Agent by default; added browser-like headers:
+
+   ```go
+   req.Header.Set("User-Agent", "Mozilla/5.0 ...")
+   req.Header.Set("Origin", "https://www.youtube.com")
+   req.Header.Set("Referer", "https://www.youtube.com/")
+   ```
+
+2. **Cache busting on 403** - Re-resolves URL if streaming returns 403:
+
+   ```go
+   if resp.StatusCode == http.StatusForbidden {
+       s.resolveCache.Del(cacheKey)
+       // Re-resolve with fresh URL and retry
+   }
+   ```
+
+3. **Local dev fallback** - When no `PROXY_URL` or `POT_PROVIDER_URL` configured, tries basic yt-dlp without PO tokens (works for some videos)
+
+4. **Better logging** - Logs proxy config status, resolved URLs, retry attempts
+
+**Workaround for Local Dev**:
+
+- Use iframe player fallback instead of WebGL video (`BACKGROUND_VIDEO_RENDERER = 'iframe'`)
+- Or test video backgrounds in production only
+
+**Files Modified**:
+
+- `services/youtube-api/main.go` - Added headers, cache busting, logging
+
+**Key Insight**: Production works because the datacenter IP gets consistent proxy routing; local residential IP may get different treatment from IPRoyal.

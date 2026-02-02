@@ -800,6 +800,13 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set headers to mimic a browser request - YouTube CDN rejects requests without proper headers
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Origin", "https://www.youtube.com")
+	req.Header.Set("Referer", "https://www.youtube.com/")
+
 	if rangeHeader != "" {
 		req.Header.Set("Range", rangeHeader)
 	}
@@ -844,6 +851,11 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to create upstream request", http.StatusInternalServerError)
 			return
 		}
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		req.Header.Set("Accept", "*/*")
+		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+		req.Header.Set("Origin", "https://www.youtube.com")
+		req.Header.Set("Referer", "https://www.youtube.com/")
 		if rangeHeader != "" {
 			req.Header.Set("Range", rangeHeader)
 		}
