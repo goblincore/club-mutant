@@ -347,7 +347,13 @@ export default class Game extends Phaser.Scene {
         // When metadata loads, the underlying video element updates its intrinsic dimensions.
         // If we computed scale before that, the display size can be wrong until the next resize event.
         this.resizeBackgroundSurfaces(this.scale.gameSize.width, this.scale.gameSize.height)
-        this.backgroundVideo?.setCurrentTime(offsetSeconds)
+
+        // Recalculate fresh offset since time may have passed during resolve/load
+        const { startTime } = store.getState().musicStream
+        const freshOffset = startTime > 0 ? (timeSync.getServerNowMs() - startTime) / 1000 : 0
+        console.log(`[YoutubeBG] Seeking WebGL video to ${freshOffset}s`)
+
+        this.backgroundVideo?.setCurrentTime(freshOffset)
         this.backgroundVideo?.play(true)
         this.backgroundVideo?.setAlpha(1)
         this.setBackgroundModeLabel('BG: WEBGL')
