@@ -481,9 +481,8 @@ The VHS pipeline has been optimized for performance:
   - `server/rooms/ClubMutant.ts` dispatches `Message.PUNCH_PLAYER` into a command:
     - `server/rooms/commands/PunchPlayerCommand.ts`
     - Rejects invalid targets / self-target.
-    - Re-checks range server-side using the same constants:
-      - `punchRangePx = 50`
-      - `punchDyWeight = 1.0`
+    - Re-checks range server-side:
+      - `punchRange = 50` (circular, slightly larger than client for latency forgiveness)
     - Applies a small knockback after an impact delay:
       - `punchImpactDelayMs = 370`
       - `punchKnockbackDelayMs = 150`
@@ -515,7 +514,6 @@ The VHS pipeline has been optimized for performance:
   - Camera zoom is `1.5x` (`this.cameras.main.zoom = 1.5`).
   - World distance of 50px appears as ~75px on screen.
   - Punch range values must account for this: use smaller world-space values so visual distance looks correct.
-  - Current tuned values: `punchRangePx = 50`, `punchDyWeight = 1.0` (no vertical penalty).
 
 - **Double-click to punch (avoiding accidental movement)**
   - Problem: Single-click to punch caused accidental movement when trying to attack.
@@ -534,19 +532,38 @@ The VHS pipeline has been optimized for performance:
   - `handlePointerMove()` checks `getHoveredOtherPlayer()` using same elliptical detection.
   - Sets `this.game.canvas.style.cursor = 'pointer'` when hovering over a player.
 
+- **Sprite overlap for visual punch connection (Feb 2026)**
+  - Problem: Physics collision prevented characters from getting close enough for punches to look visually connected.
+  - Solution: **Dynamically disable player-to-player collision during punch approach**:
+    - Store reference to `playerCollider` (the collider between `myPlayer` and `otherPlayers`).
+    - When within 80px of punch target: `this.playerCollider.active = false`.
+    - Re-enable collision when punch completes or is cancelled.
+  - This allows sprites to overlap for visual punch connection while maintaining collision for general movement.
+  - **Punch range tuning**:
+    - Client: `punchRange = 48px` (circular distance check).
+    - Server: `punchRange = 50px` (slightly larger to account for position sync latency).
+    - Character approaches target feet directly (no offset) since collision is disabled.
+  - **South approach issue**: When approaching from below, physics bodies prevent getting closer than ~44-47px even with collision disabled. Solution: Set punch range to 48px to fire reliably from this distance.
+
+- **Player hitbox positioning (Feb 2026)**
+  - Hitboxes moved up 15px from feet for better body centering.
+  - Applied in both `Player.ts` and `OtherPlayer.ts`.
+  - Improves visual alignment of collision boxes with sprite bodies.
+
 - **Auto-approach when not in range**
   - Problem: Character stops at pathfinding destination but may still be outside punch range.
   - Solution: In the update loop, if `pendingPunchTargetId` is set and character is stopped but not in range:
-    - Calculate an approach point offset from target (40px toward attacker).
+    - Walk directly to target feet position (collision is disabled when close).
     - Call `setMoveTarget()` to continue moving closer.
   - This ensures the character keeps approaching until punch can execute.
 
 - **Debugging tips**
-  - Add `console.log` for: `canMove`, `normDist`, `isDoubleClick`, `timeSinceLastClick`, `inRange`.
+  - Add `console.log` for: `canMove`, `normDist`, `isDoubleClick`, `timeSinceLastClick`, `inRange`, `distToTarget`, `colliderActive`.
   - Check if click handler even runs (`canMove=true`).
   - Check if player is detected (`normDist < 1`).
   - Check if double-click registers (`isDoubleClick=true`).
-  - Check if in punch range (`inRange=true`, compare `weightedDistSq` vs `maxDistSq`).
+  - Check if in punch range (`inRange=true`, compare distance vs `punchRange`).
+  - Check if collision is being disabled (`colliderActive=false` when close).
 
 ### Click-to-move pathfinding
 
