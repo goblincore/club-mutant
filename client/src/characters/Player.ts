@@ -63,17 +63,13 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.scene.physics.world.enable(this.playerContainer)
     const playContainerBody = this.playerContainer.body as Phaser.Physics.Arcade.Body
     // Tiny collision box that won't block punching
-    // Position at the feet of the sprite
-    // The container is at the sprite's center position
-    // Sprite origin is center (0.5, 0.5), so feet are at y = height/2 in sprite space
+    // Position slightly above feet for better body centering
     const collisionWidth = this.width * 0.2
     const collisionHeight = this.height * 0.08
-    // Center horizontally, place at feet vertically
+    // Center horizontally, move up 15px from feet
     const offsetX = -collisionWidth * 0.5
-    const offsetY = this.height * 0.5 - collisionHeight
-    playContainerBody
-      .setSize(collisionWidth, collisionHeight)
-      .setOffset(offsetX, offsetY)
+    const offsetY = this.height * 0.5 - collisionHeight - 15
+    playContainerBody.setSize(collisionWidth, collisionHeight).setOffset(offsetX, offsetY)
   }
 
   updatePhysicsBodyForAnim(animKey?: string) {
@@ -98,7 +94,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     const offsetX = isDjAnim ? djFeetRightEdgeX - collisionWidth : baseOffsetX
 
     body.setSize(collisionWidth, collisionHeight)
-    body.setOffset(offsetX, this.height - collisionHeight)
+    // Move hitbox up 15px from feet for better body centering
+    body.setOffset(offsetX, this.height - collisionHeight - 15)
   }
 
   updateDialogBubble(content: string, scale = 1) {

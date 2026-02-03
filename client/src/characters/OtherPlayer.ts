@@ -309,7 +309,10 @@ export default class OtherPlayer extends Player {
     }
 
     // Only update depth if Y changed significantly
-    if (this.lastDepthY === null || Math.abs(targetDepth - this.lastDepthY) > this.DEPTH_THRESHOLD) {
+    if (
+      this.lastDepthY === null ||
+      Math.abs(targetDepth - this.lastDepthY) > this.DEPTH_THRESHOLD
+    ) {
       this.setDepth(targetDepth)
       this.lastDepthY = targetDepth
     }
@@ -357,7 +360,8 @@ Phaser.GameObjects.GameObjectFactory.register(
       body.setImmovable(true)
       ;(body as unknown as { pushable: boolean }).pushable = false
       body.setSize(collisionWidth, collisionHeight)
-      body.setOffset((sprite.width - collisionWidth) * 0.5, sprite.height - collisionHeight)
+      // Move hitbox up 15px from feet for better body centering
+      body.setOffset((sprite.width - collisionWidth) * 0.5, sprite.height - collisionHeight - 15)
     }
 
     sprite.updatePhysicsBodyForAnim()
