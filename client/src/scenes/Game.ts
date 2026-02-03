@@ -61,6 +61,8 @@ export default class Game extends Phaser.Scene {
   private map!: Phaser.Tilemaps.Tilemap
   private groundLayer!: Phaser.Tilemaps.TilemapLayer
   private pathObstacles: Array<{ getBounds: () => Phaser.Geom.Rectangle }> = []
+  private cachedBlockedGrid: { width: number; height: number; blocked: Uint8Array } | null = null
+  private blockedGridDirty = true
   private lastPointerDownTime = 0
   private lastOtherPlayerClickTime = 0
   private lastOtherPlayerClickId: string | null = null
@@ -877,6 +879,11 @@ export default class Game extends Phaser.Scene {
   }
 
   private buildBlockedGrid(): { width: number; height: number; blocked: Uint8Array } {
+    // Return cached grid if available and not dirty
+    if (!this.blockedGridDirty && this.cachedBlockedGrid) {
+      return this.cachedBlockedGrid
+    }
+
     const width = this.map.width
     const height = this.map.height
 
@@ -926,7 +933,17 @@ export default class Game extends Phaser.Scene {
       }
     }
 
-    return { width, height, blocked: expanded }
+    // Cache the result
+    this.cachedBlockedGrid = { width, height, blocked: expanded }
+    this.blockedGridDirty = false
+
+    return this.cachedBlockedGrid
+  }
+
+  // Call this when obstacles are added/removed in the future
+  markBlockedGridDirty() {
+    this.blockedGridDirty = true
+    this.cachedBlockedGrid = null
   }
 
   private findNearestOpenTile(params: {

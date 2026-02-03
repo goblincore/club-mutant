@@ -11,6 +11,10 @@ export default class OtherPlayer extends Player {
   private connected = false
   private playContainerBody: Phaser.Physics.Arcade.Body
   private myPlayer?: MyPlayer
+  private frameCounter = 0
+  private lastDepthY: number | null = null
+  private readonly DEPTH_THRESHOLD = 2
+  private cachedAnimKey?: string
 
   constructor(
     scene: Phaser.Scene,
@@ -136,6 +140,28 @@ export default class OtherPlayer extends Player {
     const body = this.body as Phaser.Physics.Arcade.Body | null
     if (!body) return
 
+    // Increment frame counter for throttling
+    this.frameCounter++
+
+    // Only update every 2nd frame
+    if (this.frameCounter % 2 !== 0) return
+
+    // Skip if off-screen
+    if (!this.isInViewport()) {
+      // Pause animation if playing
+      if (this.anims.isPlaying) {
+        this.cachedAnimKey = this.anims.currentAnim?.key
+        this.anims.pause()
+      }
+      return
+    }
+
+    // Resume animation if we were paused
+    if (!this.anims.isPlaying && this.cachedAnimKey) {
+      this.anims.resume()
+      this.cachedAnimKey = undefined
+    }
+
     // if Phaser has not updated the canvas (when the game tab is not active) for more than 1 sec
     // directly snap player to their current locations
     if (this.lastUpdateTimestamp && t - this.lastUpdateTimestamp > 750) {
@@ -150,31 +176,11 @@ export default class OtherPlayer extends Player {
     this.lastUpdateTimestamp = t
     const currentAnimKey = this.anims.currentAnim?.key
 
-    if (
-      currentAnimKey === 'mutant_djwip' ||
-      currentAnimKey === 'mutant_transform' ||
-      currentAnimKey === 'mutant_transform_reverse'
-    ) {
-      this.setDepth(this.y - 1)
-    } else if (currentAnimKey === 'mutant_boombox') {
-      this.setDepth(this.y + 1)
-    } else {
-      this.setDepth(this.y) // change player.depth based on player.y
-    }
-
-    const animParts = (currentAnimKey ?? '').split('_')
-    const animState = animParts[1]
-    if (animState === 'sit') {
-      const animDir = animParts[2]
-      const sittingShift = sittingShiftData[animDir]
-      if (sittingShift) {
-        // set hardcoded depth (differs between directions) if player sits down
-        this.setDepth(this.depth + sittingShiftData[animDir][2])
-      }
-    }
+    // Optimized depth updates - only when Y changes significantly
+    this.updateDepth(currentAnimKey)
 
     const speed = 200 // speed is in unit of pixels per second
-    const delta = (speed / 1000) * dt // minimum distance that a player can move in a frame (dt is in unit of ms)
+    const delta = (speed / 1000) * dt * 2 // Multiply by 2 since we update every 2nd frame
     let dx = this.targetPosition[0] - this.x
     let dy = this.targetPosition[1] - this.y
 
@@ -265,6 +271,47 @@ export default class OtherPlayer extends Player {
       phaserEvents.emit(Event.PLAYER_DISCONNECTED, this.playerId)
       this.connectionBufferTime = 0
       this.connected = false
+    }
+  }
+
+  private isInViewport(): boolean {
+    const camera = this.scene.cameras.main
+    const margin = 100 // pixels outside viewport to still update
+    return (
+      this.x > camera.scrollX - margin &&
+      this.x < camera.scrollX + camera.width + margin &&
+      this.y > camera.scrollY - margin &&
+      this.y < camera.scrollY + camera.height + margin
+    )
+  }
+
+  private updateDepth(currentAnimKey: string | undefined) {
+    let targetDepth = this.y
+
+    if (
+      currentAnimKey === 'mutant_djwip' ||
+      currentAnimKey === 'mutant_transform' ||
+      currentAnimKey === 'mutant_transform_reverse'
+    ) {
+      targetDepth = this.y - 1
+    } else if (currentAnimKey === 'mutant_boombox') {
+      targetDepth = this.y + 1
+    }
+
+    const animParts = (currentAnimKey ?? '').split('_')
+    const animState = animParts[1]
+    if (animState === 'sit') {
+      const animDir = animParts[2]
+      const sittingShift = sittingShiftData[animDir]
+      if (sittingShift) {
+        targetDepth += sittingShiftData[animDir][2]
+      }
+    }
+
+    // Only update depth if Y changed significantly
+    if (this.lastDepthY === null || Math.abs(targetDepth - this.lastDepthY) > this.DEPTH_THRESHOLD) {
+      this.setDepth(targetDepth)
+      this.lastDepthY = targetDepth
     }
   }
 }
