@@ -104,9 +104,13 @@ const MessageWrapper = styled.div`
   }
 `
 
-const InputWrapper = styled.form`
-  box-shadow: 10px 10px 10px #00000018;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+const InputWrapper = styled.form<{ $focused?: boolean }>`
+  box-shadow: ${(p) =>
+    p.$focused
+      ? '0 0 8px 2px rgba(255, 255, 255, 0.8), 0 0 20px 6px rgba(200, 230, 255, 0.5), 0 0 40px 12px rgba(255, 255, 255, 0.2), 10px 10px 10px #00000018'
+      : '10px 10px 10px #00000018'};
+  border: 1px solid
+    ${(p) => (p.$focused ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.25)')};
   border-radius: 10px;
   display: flex;
   flex-direction: row;
@@ -114,6 +118,28 @@ const InputWrapper = styled.form`
   font-family: monospace;
   background: rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(8px);
+  transition:
+    box-shadow 0.15s ease-out,
+    border-color 0.15s ease-out;
+  animation: ${(p) => (p.$focused ? 'plasma-pulse 2s ease-in-out infinite' : 'none')};
+
+  @keyframes plasma-pulse {
+    0%,
+    100% {
+      box-shadow:
+        0 0 8px 2px rgba(255, 255, 255, 0.8),
+        0 0 20px 6px rgba(200, 230, 255, 0.5),
+        0 0 40px 12px rgba(255, 255, 255, 0.2),
+        10px 10px 10px #00000018;
+    }
+    50% {
+      box-shadow:
+        0 0 12px 3px rgba(255, 255, 255, 0.95),
+        0 0 30px 10px rgba(220, 240, 255, 0.7),
+        0 0 60px 20px rgba(255, 255, 255, 0.35),
+        10px 10px 10px #00000018;
+    }
+  }
 `
 
 const InputTextField = styled(InputBase)`
@@ -314,6 +340,7 @@ export default function Chat() {
 
         <InputWrapper
           onSubmit={handleSubmit}
+          $focused={focused}
           style={{ borderRadius: showChat ? '0px 0px 10px 10px' : '10px' }}
         >
           <IconButton
