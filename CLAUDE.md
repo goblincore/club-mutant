@@ -464,7 +464,9 @@ The VHS pipeline has been optimized for performance:
 ### Punching (click-to-punch + server-authoritative hit)
 
 - **UX / control**
-  - Click another player to auto-walk toward them and punch when in range.
+  - **Double-click** another player to auto-walk toward them and punch when in range.
+  - Single-click on a player delays action (waits for potential double-click).
+  - Cursor changes to `pointer` when hovering over clickable players.
   - Client tracks a pending target via `pendingPunchTargetId`.
 
 - **Client implementation**
@@ -480,11 +482,12 @@ The VHS pipeline has been optimized for performance:
     - `server/rooms/commands/PunchPlayerCommand.ts`
     - Rejects invalid targets / self-target.
     - Re-checks range server-side using the same constants:
-      - `punchRangePx = 56`
-      - `punchDyWeight = 1.5` (vertical distance is “heavier” to match isometric feel)
+      - `punchRangePx = 50`
+      - `punchDyWeight = 1.0`
     - Applies a small knockback after an impact delay:
-      - `punchImpactDelayMs = 350`
-      - `punchKnockbackPx = 10`
+      - `punchImpactDelayMs = 370`
+      - `punchKnockbackDelayMs = 150`
+      - `punchKnockbackPx = 6`
     - Victim hit animation is randomly selected:
       - `mutant_hit1_<dir>` or `mutant_hit2_<dir>`
     - Currently only applies to victims whose `textureId` is `mutant`.
@@ -505,6 +508,45 @@ The VHS pipeline has been optimized for performance:
   - Punch anims: `mutant_punch_*`
   - Hit anims: `mutant_hit1_*`, `mutant_hit2_*`
   - Defined/overridden in `client/src/anims/CharacterAnims.ts`.
+
+### Punch system debugging learnings (Feb 2026)
+
+- **Camera zoom affects distance calculations**
+  - Camera zoom is `1.5x` (`this.cameras.main.zoom = 1.5`).
+  - World distance of 50px appears as ~75px on screen.
+  - Punch range values must account for this: use smaller world-space values so visual distance looks correct.
+  - Current tuned values: `punchRangePx = 50`, `punchDyWeight = 1.0` (no vertical penalty).
+
+- **Double-click to punch (avoiding accidental movement)**
+  - Problem: Single-click to punch caused accidental movement when trying to attack.
+  - Solution: Require double-click (300ms threshold) to initiate punch.
+  - Single-click on a player is delayed; if no second click comes, character walks toward player without attacking.
+  - Properties used: `lastOtherPlayerClickTime`, `lastOtherPlayerClickId`, `pendingSingleClickTimer`.
+
+- **Click detection on overlapping sprites**
+  - Problem: When your sprite overlaps the target's sprite, clicking the target was unreliable.
+  - Solution: Use **elliptical proximity detection** instead of sprite bounds.
+  - Detection radii: `clickRadiusX = 40`, `clickRadiusY = 70` (taller to match sprite height).
+  - Normalized distance formula: `(dx²/rx²) + (dy²/ry²) <= 1`.
+  - Falls back to sprite bounds check if elliptical detection misses.
+
+- **Hover cursor for UX feedback**
+  - `handlePointerMove()` checks `getHoveredOtherPlayer()` using same elliptical detection.
+  - Sets `this.game.canvas.style.cursor = 'pointer'` when hovering over a player.
+
+- **Auto-approach when not in range**
+  - Problem: Character stops at pathfinding destination but may still be outside punch range.
+  - Solution: In the update loop, if `pendingPunchTargetId` is set and character is stopped but not in range:
+    - Calculate an approach point offset from target (40px toward attacker).
+    - Call `setMoveTarget()` to continue moving closer.
+  - This ensures the character keeps approaching until punch can execute.
+
+- **Debugging tips**
+  - Add `console.log` for: `canMove`, `normDist`, `isDoubleClick`, `timeSinceLastClick`, `inRange`.
+  - Check if click handler even runs (`canMove=true`).
+  - Check if player is detected (`normDist < 1`).
+  - Check if double-click registers (`isDoubleClick=true`).
+  - Check if in punch range (`inRange=true`, compare `weightedDistSq` vs `maxDistSq`).
 
 ### Click-to-move pathfinding
 

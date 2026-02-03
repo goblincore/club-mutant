@@ -62,10 +62,18 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.scene.physics.world.enable(this.playerContainer)
     const playContainerBody = this.playerContainer.body as Phaser.Physics.Arcade.Body
-    const collisionScale = [0.5, 0.2]
+    // Tiny collision box that won't block punching
+    // Position at the feet of the sprite
+    // The container is at the sprite's center position
+    // Sprite origin is center (0.5, 0.5), so feet are at y = height/2 in sprite space
+    const collisionWidth = this.width * 0.2
+    const collisionHeight = this.height * 0.08
+    // Center horizontally, place at feet vertically
+    const offsetX = -collisionWidth * 0.5
+    const offsetY = this.height * 0.5 - collisionHeight
     playContainerBody
-      .setSize(this.width * collisionScale[0], this.height * collisionScale[1])
-      .setOffset(-8, this.height * (1 - collisionScale[1]) + 6)
+      .setSize(collisionWidth, collisionHeight)
+      .setOffset(offsetX, offsetY)
   }
 
   updatePhysicsBodyForAnim(animKey?: string) {
@@ -79,8 +87,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       key === 'mutant_transform' ||
       key === 'mutant_transform_reverse'
 
-    const widthScale = isDjAnim ? 0.44 : 0.5
-    const heightScale = isDjAnim ? 0.2 : 0.25
+    const widthScale = isDjAnim ? 0.44 : 0.35
+    const heightScale = isDjAnim ? 0.2 : 0.15
 
     const collisionWidth = Math.min(this.width, Math.max(this.width * widthScale, 18))
     const collisionHeight = Math.min(this.height, Math.max(this.height * heightScale, 12))
