@@ -25,9 +25,10 @@ import Bootstrap from '../scenes/Bootstrap'
 
 const MessageText = styled.p`
   margin: 10px;
-  font-size: 18px;
-  color: #eee;
+  font-size: 12px;
+  color: #000000;
   text-align: center;
+  font-family: 'Times New Roman', Times, serif;
 `
 
 const CustomRoomTableContainer = styled(TableContainer)`
@@ -79,7 +80,9 @@ const PasswordDialog = styled(Dialog)`
   }
 
   .MuiDialog-paper {
-    background: #222639;
+    background: #ffffff;
+    border: 2px solid #0000ff;
+    border-radius: 0;
   }
 `
 
