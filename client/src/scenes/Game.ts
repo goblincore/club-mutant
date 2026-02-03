@@ -62,6 +62,9 @@ export default class Game extends Phaser.Scene {
   private groundLayer!: Phaser.Tilemaps.TilemapLayer
   private pathObstacles: Array<{ getBounds: () => Phaser.Geom.Rectangle }> = []
   private lastPointerDownTime = 0
+  private lastOtherPlayerClickTime = 0
+  private lastOtherPlayerClickId: string | null = null
+  private pendingSingleClickTimer: number | null = null
   private interactables: Item[] = []
   private hoveredInteractable: Item | null = null
   private selectorInteractable: Item | null = null
@@ -764,18 +767,49 @@ export default class Game extends Phaser.Scene {
   private handlePointerMove(pointer: Phaser.Input.Pointer) {
     if (!this.isPointerOverCanvas(pointer)) {
       this.setHoveredInteractable(null)
+      this.game.canvas.style.cursor = 'default'
       return
     }
 
     const event = pointer.event
     if (event && 'target' in event && event.target && event.target !== this.game.canvas) {
       this.setHoveredInteractable(null)
+      this.game.canvas.style.cursor = 'default'
       return
     }
 
     const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
 
+    // Check if hovering over another player
+    const hoveredPlayer = this.getHoveredOtherPlayer(worldPoint.x, worldPoint.y)
+    if (hoveredPlayer) {
+      this.game.canvas.style.cursor = 'pointer'
+    } else {
+      this.game.canvas.style.cursor = 'default'
+    }
+
     this.setHoveredInteractable(this.findTopInteractableAt(worldPoint))
+  }
+
+  private getHoveredOtherPlayer(x: number, y: number): OtherPlayer | null {
+    // Use same elliptical check as click detection
+    const clickRadiusX = 40
+    const clickRadiusY = 70
+
+    for (const otherPlayer of this.otherPlayerMap.values()) {
+      if (!otherPlayer.active || !otherPlayer.visible) continue
+
+      const dx = x - otherPlayer.x
+      const dy = y - otherPlayer.y
+      const normDist =
+        (dx * dx) / (clickRadiusX * clickRadiusX) + (dy * dy) / (clickRadiusY * clickRadiusY)
+
+      if (normDist <= 1) {
+        return otherPlayer
+      }
+    }
+
+    return null
   }
 
   registerKeys() {
@@ -1419,6 +1453,33 @@ export default class Game extends Phaser.Scene {
           const y = worldPoint.y
 
           const clickedOtherPlayer = (() => {
+            // Use elliptical proximity detection - sprites are taller than wide
+            // Check against sprite center with generous radii
+            const clickRadiusX = 40
+            const clickRadiusY = 70
+            let closest: OtherPlayer | null = null
+            let closestNormDist = Infinity
+
+            for (const otherPlayer of this.otherPlayerMap.values()) {
+              if (!otherPlayer.active || !otherPlayer.visible) continue
+
+              const dx = x - otherPlayer.x
+              const dy = y - otherPlayer.y
+
+              // Elliptical distance check (normalized so 1.0 = on the ellipse boundary)
+              const normDist =
+                (dx * dx) / (clickRadiusX * clickRadiusX) +
+                (dy * dy) / (clickRadiusY * clickRadiusY)
+
+              if (normDist <= 1 && normDist < closestNormDist) {
+                closestNormDist = normDist
+                closest = otherPlayer
+              }
+            }
+
+            if (closest) return closest
+
+            // Fallback: check sprite bounds
             let topMost: OtherPlayer | null = null
             let topDepth = -Infinity
 
@@ -1531,8 +1592,32 @@ export default class Game extends Phaser.Scene {
             const approachX = targetFeet.x
             const approachY = targetFeet.y
 
-            moveToWorld(approachX, approachY, 12)
-            this.pendingPunchTargetId = clickedOtherPlayer.playerId
+            const now = Date.now()
+            const doubleClickThresholdMs = 300
+            const isDoubleClick =
+              this.lastOtherPlayerClickId === clickedOtherPlayer.playerId &&
+              now - this.lastOtherPlayerClickTime < doubleClickThresholdMs
+
+            this.lastOtherPlayerClickTime = now
+            this.lastOtherPlayerClickId = clickedOtherPlayer.playerId
+
+            // Cancel any pending single-click action
+            if (this.pendingSingleClickTimer !== null) {
+              window.clearTimeout(this.pendingSingleClickTimer)
+              this.pendingSingleClickTimer = null
+            }
+
+            if (isDoubleClick) {
+              // Double-click: initiate punch immediately
+              moveToWorld(approachX, approachY, 12)
+              this.pendingPunchTargetId = clickedOtherPlayer.playerId
+            } else {
+              // Single click: delay action to wait for potential double-click
+              this.pendingSingleClickTimer = window.setTimeout(() => {
+                this.pendingSingleClickTimer = null
+                moveToWorld(approachX, approachY, 12)
+              }, doubleClickThresholdMs)
+            }
             return
           }
 
@@ -1550,8 +1635,8 @@ export default class Game extends Phaser.Scene {
 
           const dx = targetFeet.x - myFeet.x
           const dy = targetFeet.y - myFeet.y
-          const punchRangePx = 56
-          const punchDyWeight = 1.5
+          const punchRangePx = 63
+          const punchDyWeight = 2.2
           const weightedDistanceSq = dx * dx + dy * punchDyWeight * (dy * punchDyWeight)
 
           if (weightedDistanceSq <= punchRangePx * punchRangePx) {
