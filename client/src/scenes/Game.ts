@@ -773,17 +773,19 @@ export default class Game extends Phaser.Scene {
   }
 
   disableKeys() {
-    const keyboard = this.input.keyboard
-    if (!keyboard) return
-
-    keyboard.enabled = false
+    // Only disable WASD keys, keep arrow keys (cursor keys) working
+    if (this.keyW) this.keyW.enabled = false
+    if (this.keyA) this.keyA.enabled = false
+    if (this.keyS) this.keyS.enabled = false
+    if (this.keyD) this.keyD.enabled = false
   }
 
   enableKeys() {
-    const keyboard = this.input.keyboard
-    if (!keyboard) return
-
-    keyboard.enabled = true
+    // Re-enable WASD keys
+    if (this.keyW) this.keyW.enabled = true
+    if (this.keyA) this.keyA.enabled = true
+    if (this.keyS) this.keyS.enabled = true
+    if (this.keyD) this.keyD.enabled = true
   }
 
   private buildBlockedGrid(): { width: number; height: number; blocked: Uint8Array } {
@@ -1347,7 +1349,6 @@ export default class Game extends Phaser.Scene {
         const state = store.getState()
 
         const canMove =
-          !state.chat.focused &&
           !state.myPlaylist.focused &&
           !state.myPlaylist.myPlaylistPanelOpen &&
           this.myPlayer.playerBehavior === PlayerBehavior.IDLE &&
