@@ -18,6 +18,7 @@ const CreateRoomFormWrapper = styled.form`
   flex-direction: column;
   width: 320px;
   gap: 20px;
+  font-family: 'Times New Roman', Times, serif;
 `
 
 export const CreateRoomForm = () => {

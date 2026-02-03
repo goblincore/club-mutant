@@ -25,55 +25,15 @@ const Backdrop = styled.div`
   align-items: center;
   justify-content: center;
   pointer-events: auto;
-
-  background: radial-gradient(
-    1100px 700px at 50% 45%,
-    rgba(25, 255, 120, 0.11),
-    rgba(0, 0, 0, 0.96)
-  );
-  background-color: #020403;
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background-image: repeating-linear-gradient(
-      to bottom,
-      rgba(0, 0, 0, 0.15) 0,
-      rgba(0, 0, 0, 0.15) 1px,
-      rgba(0, 0, 0, 0) 3px,
-      rgba(0, 0, 0, 0) 5px
-    );
-    opacity: 0.35;
-    mix-blend-mode: multiply;
-  }
+  background: #ffffff;
 `
 
 const Wrapper = styled.div`
   position: relative;
-  border-radius: 18px;
+  border-radius: 0;
   padding: 34px 54px;
-  background: rgba(3, 10, 5, 0.88);
-  border: 1px solid rgba(80, 255, 160, 0.25);
-  box-shadow:
-    0 0 0 1px rgba(0, 255, 140, 0.15),
-    0 20px 60px rgba(0, 0, 0, 0.65),
-    0 0 45px rgba(0, 255, 140, 0.16);
-  backdrop-filter: blur(10px);
-
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 10px;
-    border-radius: 14px;
-    pointer-events: none;
-    box-shadow: inset 0 0 35px rgba(0, 255, 140, 0.12);
-  }
-
-  .MuiIconButton-root {
-    color: rgba(130, 255, 180, 0.9);
-  }
+  background: #ffffff;
+  border: 2px solid #0000ff;
 `
 
 const CustomRoomWrapper = styled.div`
@@ -96,17 +56,11 @@ const BackButtonWrapper = styled.div`
 `
 
 const Title = styled.h1`
-  font-size: 26px;
-  color: rgba(170, 255, 205, 0.95);
+  font-size: 24px;
+  color: #0000ff;
   text-align: center;
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-    monospace;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-shadow:
-    0 0 18px rgba(0, 255, 140, 0.35),
-    0 0 2px rgba(0, 255, 140, 0.45);
+  font-family: 'Times New Roman', Times, serif;
+  text-decoration: underline;
 `
 
 const Content = styled.div`
@@ -121,31 +75,25 @@ const Content = styled.div`
     height: 140px;
     width: auto;
     image-rendering: pixelated;
-    filter: drop-shadow(0 0 18px rgba(0, 255, 140, 0.25));
   }
 `
 
 const TerminalButton = styled(Button)`
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-    monospace;
-  letter-spacing: 0.05em;
-  text-transform: none;
-  padding: 10px 14px;
-  border-radius: 10px;
-  color: rgba(165, 255, 205, 0.95);
-  border: 1px solid rgba(80, 255, 160, 0.35);
-  background: rgba(0, 0, 0, 0.22);
-  box-shadow:
-    0 0 0 1px rgba(0, 255, 140, 0.15),
-    0 0 18px rgba(0, 255, 140, 0.12);
+  && {
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 12px;
+    text-transform: none;
+    padding: 10px 20px;
+    border-radius: 0;
+    color: #0000ff;
+    border: 2px solid #0000ff;
+    background: #ffffff;
 
-  &:hover {
-    border: 1px solid rgba(80, 255, 160, 0.6);
-    background: rgba(0, 30, 14, 0.45);
-    box-shadow:
-      0 0 0 1px rgba(0, 255, 140, 0.25),
-      0 0 26px rgba(0, 255, 140, 0.22);
+    &:hover {
+      background: #0000ff;
+      color: #ffffff;
+      border: 2px solid #0000ff;
+    }
   }
 `
 
@@ -155,11 +103,10 @@ const ProgressBarWrapper = styled.div`
   align-items: center;
 
   h3 {
-    color: rgba(165, 255, 205, 0.9);
-    font-family:
-      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-      monospace;
-    letter-spacing: 0.05em;
+    color: #000000;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 12px;
+    font-weight: normal;
   }
 `
 
@@ -235,19 +182,19 @@ export default function RoomSelectionDialog() {
                 </IconButton>
               </BackButtonWrapper>
               <CustomRoomTable />
-              <Button
-                variant="contained"
-                color="secondary"
+              <TerminalButton
+                variant="outlined"
+                disableRipple
                 onClick={() => setShowCreateRoomForm(true)}
               >
                 Create new room
-              </Button>
+              </TerminalButton>
             </CustomRoomWrapper>
           ) : (
             <>
               <Title>Club Mutant</Title>
               <Content>
-                <img src="assets/ui/mutantspin.gif" alt="mutant" />
+                <img src="assets/mutantpeeflower.gif" alt="mutant" />
                 <TerminalButton variant="outlined" disableRipple onClick={handleConnect}>
                   Connect to public lobby
                 </TerminalButton>
