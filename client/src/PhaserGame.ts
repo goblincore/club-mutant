@@ -13,8 +13,8 @@ const config: Phaser.Types.Core.GameConfig = {
   pixelArt: false,
   scale: {
     mode: Phaser.Scale.ScaleModes.RESIZE,
-    width: window.innerWidth,
-    height: window.innerHeight,
+    width: window.innerWidth/2,
+    height: window.innerHeight/2,
   },
   physics: {
     default: 'arcade',
