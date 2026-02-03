@@ -415,6 +415,23 @@ The VHS pipeline has been optimized for performance:
   - D: tracking + wave + warp + white noise
   - Image: vignette + final output
 
+### OtherPlayer Update Optimizations (reverted Feb 2026)
+
+Attempted optimizations to reduce `OtherPlayer.preUpdate()` cost were reverted because they made the game feel slower:
+
+- **Frame skipping (every 2nd frame)**: Added `frameCounter % 2 !== 0` early return
+  - **Problem**: Delta compensation was wrong. Multiplied `dt * 2` but Phaser's `dt` is time since last `preUpdate` call, not last _processed_ frame. This caused jerky, inconsistent movement.
+
+- **Viewport culling + animation pause/resume**: Skipped processing for off-screen players and called `anims.pause()`/`anims.resume()`
+  - **Problem**: Players near viewport edge constantly toggled pause/resume as camera moved. `anims.pause()` and `anims.resume()` have overhead and cause stuttering.
+
+- **Depth threshold (only update when Y changes >2px)**: Added `lastDepthY` tracking
+  - **Problem**: Minor overhead savings, but added complexity without noticeable benefit.
+
+**Lesson**: These micro-optimizations add branching/state overhead that can exceed the cost they're trying to avoid, especially for small player counts. The original simple loop was already efficient enough.
+
+**Kept**: Pathfinding cache in `Game.ts` (`cachedBlockedGrid` + `blockedGridDirty`) is a valid optimization—no per-frame cost, just caches on demand.
+
 ### Follow-up tasks (per-track metadata)
 
 - **Broadcast track metadata**: when a track starts playing, broadcast `visualUrl` and `trackMessage` so all clients see the same background/message.
@@ -516,16 +533,13 @@ The punch system was redesigned to be more skill-based and visually satisfying:
   - Previous system auto-approached and punched; new system requires positioning first
   - Double-clicking a player when **outside** melee range just moves toward them
   - Double-clicking a player when **inside** melee range executes the punch immediately
-  
 - **Collision handling**: Player-to-player collision is disabled when within 80px of punch target
   - Allows sprites to overlap visually for satisfying punch connection
   - Collision re-enabled after punch completes
-  
-- **Melee range detection**: 
+- **Melee range detection**:
   - Client: `meleeRange = 60px` (circular)
   - Server: `punchRange = 65px` (slightly larger for latency forgiveness)
   - Diagonal threshold: `0.3` (more forgiving for diagonal punches)
-  
 - **Implementation details**:
   - `Game.ts` click handler checks `inMeleeRange` before allowing punch
   - If in range: sets `pendingPunchTargetId` and executes punch
@@ -1338,6 +1352,7 @@ Implemented four key Phaser rendering performance optimizations to handle 20+ co
 **Problem**: `buildBlockedGrid()` was rebuilding the walkability grid on every click-to-move, iterating through all map tiles and obstacles each time.
 
 **Solution**:
+
 - Added `cachedBlockedGrid` and `blockedGridDirty` properties
 - Grid is cached after first build and reused until marked dirty
 - Added `markBlockedGridDirty()` method for future dynamic obstacles
@@ -1364,6 +1379,7 @@ private buildBlockedGrid(): { width: number; height: number; blocked: Uint8Array
 **Problem**: `preUpdate()` runs every frame for every remote player, even when they're off-screen or stationary.
 
 **Solution**:
+
 - Added `frameCounter` to track update frequency
 - Updates now run every 2nd frame instead of every frame
 - Adjusted delta calculations to account for 2x frame interval
@@ -1383,6 +1399,7 @@ const delta = (speed / 1000) * dt * 2 // Account for 2x interval
 **Problem**: Even when players are off-screen, Phaser still processes their animations and physics.
 
 **Solution**:
+
 - Added `isInViewport()` check with 100px margin
 - Off-screen players skip ALL processing (physics, animations, depth updates)
 - Animations pause when off-screen, resume when visible (using `cachedAnimKey`)
@@ -1409,6 +1426,7 @@ private isInViewport(): boolean {
 **Problem**: `setDepth()` was called every frame during movement, causing unnecessary WebGL state changes.
 
 **Solution**:
+
 - Added `lastDepthY` tracking with `DEPTH_THRESHOLD = 2` pixels
 - Consolidated all depth logic into `updateDepth()` method
 - Only updates depth when Y position changes by >2px
@@ -1419,7 +1437,7 @@ private isInViewport(): boolean {
 private updateDepth(currentAnimKey: string | undefined) {
   let targetDepth = this.y
   // ... calculate target depth based on animation ...
-  
+
   if (this.lastDepthY === null || Math.abs(targetDepth - this.lastDepthY) > this.DEPTH_THRESHOLD) {
     this.setDepth(targetDepth)
     this.lastDepthY = targetDepth
@@ -1430,6 +1448,7 @@ private updateDepth(currentAnimKey: string | undefined) {
 ### Expected Performance Gains
 
 With 20 concurrent players (4 visible on screen):
+
 - **Pathfinding**: ~100ms saved per click
 - **OtherPlayer updates**: ~90% reduction in CPU usage (16 players skipped + 4 at half rate)
 - **Animation system**: ~80% reduction in animation overhead (16 players paused)
