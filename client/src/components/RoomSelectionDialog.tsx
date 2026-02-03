@@ -97,21 +97,34 @@ const TerminalButton = styled(Button)`
   }
 `
 
-const ProgressBarWrapper = styled.div`
+const ProgressBarWrapper = styled.div<{ $visible?: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
+  visibility: ${(p) => (p.$visible ? 'visible' : 'hidden')};
+  opacity: ${(p) => (p.$visible ? 1 : 0)};
+  transition: opacity 0.2s ease;
+  min-height: 60px;
 
   h3 {
-    color: #000000;
+    color: #0000ff;
     font-family: 'Times New Roman', Times, serif;
     font-size: 12px;
     font-weight: normal;
+    margin: 0 0 8px 0;
   }
 `
 
 const ProgressBar = styled(LinearProgress)`
   width: 360px;
+
+  &.MuiLinearProgress-root {
+    background-color: #ccccff;
+  }
+
+  & .MuiLinearProgress-bar {
+    background-color: #0000ff;
+  }
 `
 
 export default function RoomSelectionDialog() {
@@ -209,12 +222,10 @@ export default function RoomSelectionDialog() {
             </>
           )}
         </Wrapper>
-        {!lobbyJoined && (
-          <ProgressBarWrapper>
-            <h3> Connecting to server...</h3>
-            <ProgressBar color="secondary" />
-          </ProgressBarWrapper>
-        )}
+        <ProgressBarWrapper $visible={!lobbyJoined}>
+          <h3>Connecting to server...</h3>
+          <ProgressBar />
+        </ProgressBarWrapper>
       </Backdrop>
     </>
   )
