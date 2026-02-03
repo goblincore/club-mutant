@@ -1685,8 +1685,8 @@ export default class Game extends Phaser.Scene {
             this.playerCollider.active = true
           }
 
-          // Simple circular punch range - 45 matches minimum approach distance
-          const punchRange = 45
+          // Simple circular punch range - 48 accounts for south approach minimum distance
+          const punchRange = 48
           const inRange = distToTarget <= punchRange
 
           // If not in range, keep moving toward an approach point (offset from target toward us)
