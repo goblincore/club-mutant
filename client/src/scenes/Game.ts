@@ -99,7 +99,24 @@ export default class Game extends Phaser.Scene {
 
   private resizeBackgroundSurfaces(width: number, height: number) {
     this.myYoutubePlayer?.resize(width, height)
-    this.backgroundVideo?.setDisplaySize(width, height)
+
+    // Use setScale instead of setDisplaySize for Video objects.
+    // setDisplaySize requires video.frame to be loaded (metadata ready),
+    // but setScale works immediately and Phaser will apply it correctly.
+    if (this.backgroundVideo) {
+      const video = this.backgroundVideo.video
+      if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+        // Video metadata loaded - scale based on intrinsic dimensions
+        const scaleX = width / video.videoWidth
+        const scaleY = height / video.videoHeight
+        this.backgroundVideo.setScale(scaleX, scaleY)
+      } else {
+        // Fallback: assume 16:9 aspect ratio (1920x1080) until metadata loads
+        const scaleX = width / 1920
+        const scaleY = height / 1080
+        this.backgroundVideo.setScale(scaleX, scaleY)
+      }
+    }
   }
 
   private async stopBackgroundVideo() {
@@ -989,7 +1006,10 @@ export default class Game extends Phaser.Scene {
     this.backgroundVideo.setDepth(-20)
     this.backgroundVideo.setAlpha(0)
     this.backgroundVideo.setVisible(false)
-    this.backgroundVideo.setDisplaySize(this.scale.gameSize.width, this.scale.gameSize.height)
+    // Use setScale with assumed 16:9 aspect ratio - will be corrected when metadata loads
+    const initScaleX = this.scale.gameSize.width / 1920
+    const initScaleY = this.scale.gameSize.height / 1080
+    this.backgroundVideo.setScale(initScaleX, initScaleY)
 
     // Youtube background player (Phaser-native)
     this.myYoutubePlayer = new MyYoutubePlayer({
