@@ -62,13 +62,12 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.scene.physics.world.enable(this.playerContainer)
     const playContainerBody = this.playerContainer.body as Phaser.Physics.Arcade.Body
-    // Tiny collision box that won't block punching
-    // Position slightly above feet for better body centering
-    const collisionWidth = this.width * 0.2
+    // Small collision box at the feet - allows sprite overlap but provides physics presence
+    const collisionWidth = this.width * 0.15
     const collisionHeight = this.height * 0.08
-    // Center horizontally, move up 15px from feet
+    // Center horizontally, place at feet
     const offsetX = -collisionWidth * 0.5
-    const offsetY = this.height * 0.5 - collisionHeight - 15
+    const offsetY = this.height * 0.5 - collisionHeight
     playContainerBody.setSize(collisionWidth, collisionHeight).setOffset(offsetX, offsetY)
   }
 

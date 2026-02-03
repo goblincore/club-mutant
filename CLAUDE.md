@@ -508,6 +508,31 @@ The VHS pipeline has been optimized for performance:
   - Hit anims: `mutant_hit1_*`, `mutant_hit2_*`
   - Defined/overridden in `client/src/anims/CharacterAnims.ts`.
 
+### Melee Punch System (Feb 2026 Redesign)
+
+The punch system was redesigned to be more skill-based and visually satisfying:
+
+- **Melee range requirement**: You must be within **60px circular range** to punch
+  - Previous system auto-approached and punched; new system requires positioning first
+  - Double-clicking a player when **outside** melee range just moves toward them
+  - Double-clicking a player when **inside** melee range executes the punch immediately
+  
+- **Collision handling**: Player-to-player collision is disabled when within 80px of punch target
+  - Allows sprites to overlap visually for satisfying punch connection
+  - Collision re-enabled after punch completes
+  
+- **Melee range detection**: 
+  - Client: `meleeRange = 60px` (circular)
+  - Server: `punchRange = 65px` (slightly larger for latency forgiveness)
+  - Diagonal threshold: `0.3` (more forgiving for diagonal punches)
+  
+- **Implementation details**:
+  - `Game.ts` click handler checks `inMeleeRange` before allowing punch
+  - If in range: sets `pendingPunchTargetId` and executes punch
+  - If out of range: just moves toward target using `setMoveTarget()`
+  - Update loop handles punch execution when `pendingPunchTargetId` is set
+  - Direction calculation uses diagonal threshold of 0.3 for better diagonal detection
+
 ### Punch system debugging learnings (Feb 2026)
 
 - **Camera zoom affects distance calculations**

@@ -25,8 +25,8 @@ export default class PunchPlayerCommand extends Command<ClubMutant, Payload> {
 
     const dx = attacker.x - victim.x
     const dy = attacker.y - victim.y
-    // Server range slightly larger than client (45) to account for position sync latency
-    const punchRange = 50
+    // Generous server range to match client - allows hitting with small collision boxes
+    const punchRange = 65
     const distSq = dx * dx + dy * dy
     if (distSq > punchRange * punchRange) return
 
