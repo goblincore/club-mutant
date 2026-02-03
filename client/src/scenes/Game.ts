@@ -35,6 +35,7 @@ import { phaserEvents, Event } from '../events/EventCenter'
 
 import { VHS_POSTFX_PIPELINE_KEY, VhsPostFxPipeline } from '../pipelines/VhsPostFxPipeline'
 import { CRT_POSTFX_PIPELINE_KEY, CrtPostFxPipeline } from '../pipelines/CrtPostFxPipeline'
+import { WAXY_POSTFX_PIPELINE_KEY, WaxyPostFxPipeline } from '../pipelines/WaxyPostFxPipeline'
 
 type BackgroundVideoRenderer = 'webgl' | 'iframe'
 
@@ -677,6 +678,37 @@ export default class Game extends Phaser.Scene {
     }
   }
 
+  private toggleWaxyPostFx() {
+    const camera = this.cameras.main
+    const existing = camera.getPostPipeline(WAXY_POSTFX_PIPELINE_KEY)
+    const hasExisting = Array.isArray(existing) ? existing.length > 0 : !!existing
+
+    if (hasExisting) {
+      camera.removePostPipeline(WAXY_POSTFX_PIPELINE_KEY)
+      console.log('[Waxy] OFF')
+      return
+    }
+
+    camera.setPostPipeline(WAXY_POSTFX_PIPELINE_KEY)
+
+    const pipeline = camera.getPostPipeline(WAXY_POSTFX_PIPELINE_KEY)
+    const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
+
+    if (instance && instance instanceof WaxyPostFxPipeline) {
+      // Subtle plastic look - less chrome, more plastic
+      instance.setUniforms({
+        smoothness: 0.3,
+        specularPower: 15.0,
+        specularIntensity: 0.3,
+        rimPower: 3.0,
+        rimIntensity: 0.2,
+        saturation: 1.2,
+        lightDir: [1, 1, 2],
+      })
+      console.log('[Waxy] ON')
+    }
+  }
+
   private clearHoverHighlight(item: Item) {
     const glow = this.hoverGlowFx.get(item)
     if (glow && item.postFX) {
@@ -786,6 +818,11 @@ export default class Game extends Phaser.Scene {
     keyboard.on('keydown-B', () => {
       if (this.game.renderer.type !== Phaser.WEBGL) return
       this.toggleCrtPostFx()
+    })
+
+    keyboard.on('keydown-N', () => {
+      if (this.game.renderer.type !== Phaser.WEBGL) return
+      this.toggleWaxyPostFx()
     })
   }
 

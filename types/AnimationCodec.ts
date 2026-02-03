@@ -75,6 +75,9 @@ const SPECIAL_ANIM_IDS = {
 
 const HIT1_BASE = 32
 const HIT2_BASE = 40
+const PUNCH_BASE = 48
+const BURN_BASE = 56
+const FLAMETHROWER_BASE = 64
 
 type EncodedAnim = {
   textureId: number
@@ -103,6 +106,13 @@ export const sanitizeAnimId = (animId: unknown, textureId: number): number => {
   if (textureId === TEXTURE_IDS.mutant && aid >= HIT1_BASE && aid < HIT1_BASE + 8) return aid
 
   if (textureId === TEXTURE_IDS.mutant && aid >= HIT2_BASE && aid < HIT2_BASE + 8) return aid
+
+  if (textureId === TEXTURE_IDS.mutant && aid >= PUNCH_BASE && aid < PUNCH_BASE + 8) return aid
+
+  if (textureId === TEXTURE_IDS.mutant && aid >= BURN_BASE && aid < BURN_BASE + 8) return aid
+
+  if (textureId === TEXTURE_IDS.mutant && aid >= FLAMETHROWER_BASE && aid < FLAMETHROWER_BASE + 8)
+    return aid
 
   return packDirectionalAnimId('idle', 'down')
 }
@@ -144,16 +154,28 @@ export const encodeAnimKey = (animKey: string): EncodedAnim => {
     }
   }
 
-  if (animKey.startsWith('mutant_hit1_') || animKey.startsWith('mutant_hit2_')) {
+  if (
+    animKey.startsWith('mutant_hit1_') ||
+    animKey.startsWith('mutant_hit2_') ||
+    animKey.startsWith('mutant_punch_') ||
+    animKey.startsWith('mutant_burn_') ||
+    animKey.startsWith('mutant_flamethrower_')
+  ) {
     const parts = animKey.split('_')
     const kindRaw = parts[1] ?? 'hit1'
     const dirRaw = parts.length >= 3 ? parts.slice(2).join('_') : 'down'
     const dirId = (DIR_IDS as Record<string, number>)[dirRaw]
     const safeDirId = typeof dirId === 'number' ? dirId : DIR_IDS.down
 
+    let base = HIT1_BASE
+    if (kindRaw === 'hit2') base = HIT2_BASE
+    else if (kindRaw === 'punch') base = PUNCH_BASE
+    else if (kindRaw === 'burn') base = BURN_BASE
+    else if (kindRaw === 'flamethrower') base = FLAMETHROWER_BASE
+
     return {
       textureId: TEXTURE_IDS.mutant,
-      animId: (kindRaw === 'hit2' ? HIT2_BASE : HIT1_BASE) + safeDirId,
+      animId: base + safeDirId,
     }
   }
 
@@ -196,6 +218,24 @@ export const decodeAnimKey = (textureId: number, animId: number): string => {
       const dirId = animId - HIT2_BASE
       const dir = dirNamesById[dirId] ?? 'down'
       return `mutant_hit2_${dir}`
+    }
+
+    if (animId >= PUNCH_BASE && animId < PUNCH_BASE + 8) {
+      const dirId = animId - PUNCH_BASE
+      const dir = dirNamesById[dirId] ?? 'down'
+      return `mutant_punch_${dir}`
+    }
+
+    if (animId >= BURN_BASE && animId < BURN_BASE + 8) {
+      const dirId = animId - BURN_BASE
+      const dir = dirNamesById[dirId] ?? 'down'
+      return `mutant_burn_${dir}`
+    }
+
+    if (animId >= FLAMETHROWER_BASE && animId < FLAMETHROWER_BASE + 8) {
+      const dirId = animId - FLAMETHROWER_BASE
+      const dir = dirNamesById[dirId] ?? 'down'
+      return `mutant_flamethrower_${dir}`
     }
 
     const special = (Object.keys(SPECIAL_ANIM_IDS) as Array<keyof typeof SPECIAL_ANIM_IDS>).find(

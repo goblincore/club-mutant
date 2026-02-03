@@ -65,13 +65,18 @@ export default class OtherPlayer extends Player {
           }
 
           if (this.scene.anims.exists(requestedKey)) {
-            // If it's a hit animation, we don't want to use 'ignoreIfPlaying' (2nd arg)
-            // because hits should always interrupt current state
-            const isHit = requestedKey.includes('_hit1_') || requestedKey.includes('_hit2_')
-            this.anims.play(requestedKey, !isHit)
+            // Action animations should interrupt current state and return to idle when complete
+            const isActionAnim =
+              requestedKey.includes('_hit1_') ||
+              requestedKey.includes('_hit2_') ||
+              requestedKey.includes('_punch_') ||
+              requestedKey.includes('_burn_') ||
+              requestedKey.includes('_flamethrower_')
+
+            this.anims.play(requestedKey, !isActionAnim)
             this.updatePhysicsBodyForAnim(requestedKey)
 
-            if (isHit) {
+            if (isActionAnim) {
               const parts = requestedKey.split('_')
               const dir = parts.slice(2).join('_') || 'down'
 
@@ -219,6 +224,9 @@ export default class OtherPlayer extends Player {
         animType === 'boombox' ||
         animType === 'hit1' ||
         animType === 'hit2' ||
+        animType === 'punch' ||
+        animType === 'burn' ||
+        animType === 'flamethrower' ||
         currentAnimKey.includes('_action_') ||
         currentAnimKey.includes('_debug_')
 

@@ -908,7 +908,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
   overrideLoop('mutant_run_up_left', walkPrefix, 50, 59, animsFrameRate)
 
   // Unarmed Punch Override
-  const punchFrameRate = animsFrameRate * 1.6
+  const punchFrameRate = animsFrameRate * 1.0
   overrideNoLoop('mutant_punch_up_right', 'mutant-unarmed-punch-', 0, 10, punchFrameRate)
   overrideNoLoop('mutant_punch_right', 'mutant-unarmed-punch-', 11, 21, punchFrameRate)
   overrideNoLoop('mutant_punch_down_right', 'mutant-unarmed-punch-', 22, 32, punchFrameRate)
