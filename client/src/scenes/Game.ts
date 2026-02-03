@@ -35,6 +35,7 @@ import { phaserEvents, Event } from '../events/EventCenter'
 
 import { VHS_POSTFX_PIPELINE_KEY, VhsPostFxPipeline } from '../pipelines/VhsPostFxPipeline'
 import { CRT_POSTFX_PIPELINE_KEY, CrtPostFxPipeline } from '../pipelines/CrtPostFxPipeline'
+import { WAXY_POSTFX_PIPELINE_KEY, WaxyPostFxPipeline } from '../pipelines/WaxyPostFxPipeline'
 
 type BackgroundVideoRenderer = 'webgl' | 'iframe'
 
@@ -60,7 +61,12 @@ export default class Game extends Phaser.Scene {
   private map!: Phaser.Tilemaps.Tilemap
   private groundLayer!: Phaser.Tilemaps.TilemapLayer
   private pathObstacles: Array<{ getBounds: () => Phaser.Geom.Rectangle }> = []
+  private cachedBlockedGrid: { width: number; height: number; blocked: Uint8Array } | null = null
+  private blockedGridDirty = true
   private lastPointerDownTime = 0
+  private lastOtherPlayerClickTime = 0
+  private lastOtherPlayerClickId: string | null = null
+  private pendingSingleClickTimer: number | null = null
   private interactables: Item[] = []
   private hoveredInteractable: Item | null = null
   private selectorInteractable: Item | null = null
@@ -74,6 +80,7 @@ export default class Game extends Phaser.Scene {
   private otherPlayers!: Phaser.Physics.Arcade.Group
   private otherPlayerMap = new Map<string, OtherPlayer>()
   private pendingPunchTargetId: string | null = null
+  private playerCollider!: Phaser.Physics.Arcade.Collider
   private musicBoothMap = new Map<number, MusicBooth>()
   private myYoutubePlayer?: MyYoutubePlayer
 
@@ -99,7 +106,24 @@ export default class Game extends Phaser.Scene {
 
   private resizeBackgroundSurfaces(width: number, height: number) {
     this.myYoutubePlayer?.resize(width, height)
-    this.backgroundVideo?.setDisplaySize(width, height)
+
+    // Use setScale instead of setDisplaySize for Video objects.
+    // setDisplaySize requires video.frame to be loaded (metadata ready),
+    // but setScale works immediately and Phaser will apply it correctly.
+    if (this.backgroundVideo) {
+      const video = this.backgroundVideo.video
+      if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+        // Video metadata loaded - scale based on intrinsic dimensions
+        const scaleX = width / video.videoWidth
+        const scaleY = height / video.videoHeight
+        this.backgroundVideo.setScale(scaleX, scaleY)
+      } else {
+        // Fallback: assume 16:9 aspect ratio (1920x1080) until metadata loads
+        const scaleX = width / 1920
+        const scaleY = height / 1080
+        this.backgroundVideo.setScale(scaleX, scaleY)
+      }
+    }
   }
 
   private async stopBackgroundVideo() {
@@ -660,6 +684,37 @@ export default class Game extends Phaser.Scene {
     }
   }
 
+  private toggleWaxyPostFx() {
+    const camera = this.cameras.main
+    const existing = camera.getPostPipeline(WAXY_POSTFX_PIPELINE_KEY)
+    const hasExisting = Array.isArray(existing) ? existing.length > 0 : !!existing
+
+    if (hasExisting) {
+      camera.removePostPipeline(WAXY_POSTFX_PIPELINE_KEY)
+      console.log('[Waxy] OFF')
+      return
+    }
+
+    camera.setPostPipeline(WAXY_POSTFX_PIPELINE_KEY)
+
+    const pipeline = camera.getPostPipeline(WAXY_POSTFX_PIPELINE_KEY)
+    const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
+
+    if (instance && instance instanceof WaxyPostFxPipeline) {
+      // Subtle plastic look - less chrome, more plastic
+      instance.setUniforms({
+        smoothness: 0.3,
+        specularPower: 15.0,
+        specularIntensity: 0.3,
+        rimPower: 3.0,
+        rimIntensity: 0.2,
+        saturation: 1.2,
+        lightDir: [1, 1, 2],
+      })
+      console.log('[Waxy] ON')
+    }
+  }
+
   private clearHoverHighlight(item: Item) {
     const glow = this.hoverGlowFx.get(item)
     if (glow && item.postFX) {
@@ -715,18 +770,49 @@ export default class Game extends Phaser.Scene {
   private handlePointerMove(pointer: Phaser.Input.Pointer) {
     if (!this.isPointerOverCanvas(pointer)) {
       this.setHoveredInteractable(null)
+      this.game.canvas.style.cursor = 'default'
       return
     }
 
     const event = pointer.event
     if (event && 'target' in event && event.target && event.target !== this.game.canvas) {
       this.setHoveredInteractable(null)
+      this.game.canvas.style.cursor = 'default'
       return
     }
 
     const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
 
+    // Check if hovering over another player
+    const hoveredPlayer = this.getHoveredOtherPlayer(worldPoint.x, worldPoint.y)
+    if (hoveredPlayer) {
+      this.game.canvas.style.cursor = 'pointer'
+    } else {
+      this.game.canvas.style.cursor = 'default'
+    }
+
     this.setHoveredInteractable(this.findTopInteractableAt(worldPoint))
+  }
+
+  private getHoveredOtherPlayer(x: number, y: number): OtherPlayer | null {
+    // Use same elliptical check as click detection
+    const clickRadiusX = 40
+    const clickRadiusY = 70
+
+    for (const otherPlayer of this.otherPlayerMap.values()) {
+      if (!otherPlayer.active || !otherPlayer.visible) continue
+
+      const dx = x - otherPlayer.x
+      const dy = y - otherPlayer.y
+      const normDist =
+        (dx * dx) / (clickRadiusX * clickRadiusX) + (dy * dy) / (clickRadiusY * clickRadiusY)
+
+      if (normDist <= 1) {
+        return otherPlayer
+      }
+    }
+
+    return null
   }
 
   registerKeys() {
@@ -770,6 +856,11 @@ export default class Game extends Phaser.Scene {
       if (this.game.renderer.type !== Phaser.WEBGL) return
       this.toggleCrtPostFx()
     })
+
+    keyboard.on('keydown-N', () => {
+      if (this.game.renderer.type !== Phaser.WEBGL) return
+      this.toggleWaxyPostFx()
+    })
   }
 
   disableKeys() {
@@ -789,6 +880,11 @@ export default class Game extends Phaser.Scene {
   }
 
   private buildBlockedGrid(): { width: number; height: number; blocked: Uint8Array } {
+    // Return cached grid if available and not dirty
+    if (!this.blockedGridDirty && this.cachedBlockedGrid) {
+      return this.cachedBlockedGrid
+    }
+
     const width = this.map.width
     const height = this.map.height
 
@@ -838,7 +934,17 @@ export default class Game extends Phaser.Scene {
       }
     }
 
-    return { width, height, blocked: expanded }
+    // Cache the result
+    this.cachedBlockedGrid = { width, height, blocked: expanded }
+    this.blockedGridDirty = false
+
+    return this.cachedBlockedGrid
+  }
+
+  // Call this when obstacles are added/removed in the future
+  markBlockedGridDirty() {
+    this.blockedGridDirty = true
+    this.cachedBlockedGrid = null
   }
 
   private findNearestOpenTile(params: {
@@ -970,7 +1076,7 @@ export default class Game extends Phaser.Scene {
       this
     )
 
-    this.physics.add.collider(this.myPlayer, this.otherPlayers)
+    this.playerCollider = this.physics.add.collider(this.myPlayer, this.otherPlayers)
 
     this.backgroundModeText = this.add.text(12, 12, 'BG: OFF', {
       fontFamily: 'monospace',
@@ -989,7 +1095,10 @@ export default class Game extends Phaser.Scene {
     this.backgroundVideo.setDepth(-20)
     this.backgroundVideo.setAlpha(0)
     this.backgroundVideo.setVisible(false)
-    this.backgroundVideo.setDisplaySize(this.scale.gameSize.width, this.scale.gameSize.height)
+    // Use setScale with assumed 16:9 aspect ratio - will be corrected when metadata loads
+    const initScaleX = this.scale.gameSize.width / 1920
+    const initScaleY = this.scale.gameSize.height / 1080
+    this.backgroundVideo.setScale(initScaleX, initScaleY)
 
     // Youtube background player (Phaser-native)
     this.myYoutubePlayer = new MyYoutubePlayer({
@@ -1362,6 +1471,33 @@ export default class Game extends Phaser.Scene {
           const y = worldPoint.y
 
           const clickedOtherPlayer = (() => {
+            // Use elliptical proximity detection - sprites are taller than wide
+            // Check against sprite center with generous radii
+            const clickRadiusX = 40
+            const clickRadiusY = 70
+            let closest: OtherPlayer | null = null
+            let closestNormDist = Infinity
+
+            for (const otherPlayer of this.otherPlayerMap.values()) {
+              if (!otherPlayer.active || !otherPlayer.visible) continue
+
+              const dx = x - otherPlayer.x
+              const dy = y - otherPlayer.y
+
+              // Elliptical distance check (normalized so 1.0 = on the ellipse boundary)
+              const normDist =
+                (dx * dx) / (clickRadiusX * clickRadiusX) +
+                (dy * dy) / (clickRadiusY * clickRadiusY)
+
+              if (normDist <= 1 && normDist < closestNormDist) {
+                closestNormDist = normDist
+                closest = otherPlayer
+              }
+            }
+
+            if (closest) return closest
+
+            // Fallback: check sprite bounds
             let topMost: OtherPlayer | null = null
             let topDepth = -Infinity
 
@@ -1379,6 +1515,7 @@ export default class Game extends Phaser.Scene {
 
           if (!clickedOtherPlayer) {
             this.pendingPunchTargetId = null
+            this.playerCollider.active = true
           }
 
           const clickedItem = this.findTopInteractableAt({ x, y })
@@ -1471,11 +1608,55 @@ export default class Game extends Phaser.Scene {
 
           if (clickedOtherPlayer) {
             const targetFeet = this.getPlayerFeetPoint(clickedOtherPlayer)
-            const approachX = targetFeet.x
-            const approachY = targetFeet.y
 
-            moveToWorld(approachX, approachY, 12)
-            this.pendingPunchTargetId = clickedOtherPlayer.playerId
+            // Calculate approach offset based on click position relative to target
+            // This ensures we pathfind to a point adjacent to the target, not inside them
+            const clickDx = x - clickedOtherPlayer.x
+            const clickDy = y - clickedOtherPlayer.y
+            const clickDist = Math.sqrt(clickDx * clickDx + clickDy * clickDy) || 1
+
+            // Approach distance should get us close enough to punch visually
+            // We want the sprites to overlap slightly so punches look like they connect
+            // Using small values means we pathfind close to the target
+            // The collision boxes will prevent actual overlap, but sprites will be touching
+            // When clicking south of target, we want to approach from the south (positive Y offset from target)
+            // The direction vector points from target to click, so we ADD it to get the approach point
+            // These values are small to allow sprite overlap (collision box is ~10px tall)
+            const approachDistanceX = 15
+            const approachDistanceY = 10
+            const approachX = targetFeet.x + (clickDx / clickDist) * approachDistanceX
+            const approachY = targetFeet.y + (clickDy / clickDist) * approachDistanceY
+
+            const now = Date.now()
+            const doubleClickThresholdMs = 300
+            const timeSinceLastClick = now - this.lastOtherPlayerClickTime
+            const isDoubleClick =
+              this.lastOtherPlayerClickId === clickedOtherPlayer.playerId &&
+              timeSinceLastClick < doubleClickThresholdMs
+
+            this.lastOtherPlayerClickTime = now
+            this.lastOtherPlayerClickId = clickedOtherPlayer.playerId
+
+            // Cancel any pending single-click action
+            if (this.pendingSingleClickTimer !== null) {
+              window.clearTimeout(this.pendingSingleClickTimer)
+              this.pendingSingleClickTimer = null
+            }
+
+            if (isDoubleClick) {
+              // Double-click: initiate punch immediately
+              // Use direct movement without pathfinding to get as close as possible
+              // Physics collision will stop us at the right distance
+              this.myPlayer.setMoveTarget(approachX, approachY)
+              this.pendingPunchTargetId = clickedOtherPlayer.playerId
+            } else {
+              // Single click: delay action to wait for potential double-click
+              this.pendingSingleClickTimer = window.setTimeout(() => {
+                this.pendingSingleClickTimer = null
+                // Use direct movement without pathfinding
+                this.myPlayer.setMoveTarget(approachX, approachY)
+              }, doubleClickThresholdMs)
+            }
             return
           }
 
@@ -1487,17 +1668,54 @@ export default class Game extends Phaser.Scene {
         const target = this.otherPlayerMap.get(this.pendingPunchTargetId)
         if (!target) {
           this.pendingPunchTargetId = null
+          this.playerCollider.active = true
         } else {
           const myFeet = this.getPlayerFeetPoint(this.myPlayer)
           const targetFeet = this.getPlayerFeetPoint(target)
 
           const dx = targetFeet.x - myFeet.x
           const dy = targetFeet.y - myFeet.y
-          const punchRangePx = 56
-          const punchDyWeight = 1.5
-          const weightedDistanceSq = dx * dx + dy * punchDyWeight * (dy * punchDyWeight)
 
-          if (weightedDistanceSq <= punchRangePx * punchRangePx) {
+          // Disable collision when close to target to allow sprite overlap
+          const distToTarget = Math.sqrt(dx * dx + dy * dy)
+          const closeApproachRange = 80
+          if (distToTarget < closeApproachRange) {
+            this.playerCollider.active = false
+          } else {
+            this.playerCollider.active = true
+          }
+
+          // Simple circular punch range - 48 accounts for south approach minimum distance
+          const punchRange = 48
+          const inRange = distToTarget <= punchRange
+
+          // If not in range, keep moving toward an approach point (offset from target toward us)
+          const body = this.myPlayer.body as Phaser.Physics.Arcade.Body
+          const isMoving = body && (Math.abs(body.velocity.x) > 1 || Math.abs(body.velocity.y) > 1)
+
+          // Check if we're blocked by collision (trying to move but not making progress)
+          const isBlocked =
+            body &&
+            isMoving &&
+            body.blocked.up &&
+            body.blocked.down &&
+            body.blocked.left &&
+            body.blocked.right
+
+          if (!inRange && !isMoving && !isBlocked) {
+            // Calculate approach point: move toward target but get close for visual punch
+            // Use smaller distance (15x/10y) to get sprites overlapping
+            // If blocked by collision, we'll stop naturally at the collision boundary
+            const dist = Math.sqrt(dx * dx + dy * dy)
+            // Clamp minimum distance to avoid division issues
+            const safeDist = Math.max(dist, 1)
+            // Walk directly to target feet (collision is disabled at this point)
+            const approachX = targetFeet.x
+            const approachY = targetFeet.y
+            this.myPlayer.setMoveTarget(approachX, approachY)
+          }
+
+          if (inRange) {
             this.myPlayer.cancelMoveNavigation()
 
             const absDx = Math.abs(dx)
@@ -1530,6 +1748,7 @@ export default class Game extends Phaser.Scene {
 
             this.network.punchPlayer(target.playerId)
             this.pendingPunchTargetId = null
+            this.playerCollider.active = true
           }
         }
       }

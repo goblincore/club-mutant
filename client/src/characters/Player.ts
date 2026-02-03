@@ -62,10 +62,13 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.scene.physics.world.enable(this.playerContainer)
     const playContainerBody = this.playerContainer.body as Phaser.Physics.Arcade.Body
-    const collisionScale = [0.5, 0.2]
-    playContainerBody
-      .setSize(this.width * collisionScale[0], this.height * collisionScale[1])
-      .setOffset(-8, this.height * (1 - collisionScale[1]) + 6)
+    // Small collision box at the feet - allows sprite overlap but provides physics presence
+    const collisionWidth = this.width * 0.15
+    const collisionHeight = this.height * 0.08
+    // Center horizontally, place at feet
+    const offsetX = -collisionWidth * 0.5
+    const offsetY = this.height * 0.5 - collisionHeight
+    playContainerBody.setSize(collisionWidth, collisionHeight).setOffset(offsetX, offsetY)
   }
 
   updatePhysicsBodyForAnim(animKey?: string) {
@@ -79,8 +82,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       key === 'mutant_transform' ||
       key === 'mutant_transform_reverse'
 
-    const widthScale = isDjAnim ? 0.44 : 0.5
-    const heightScale = isDjAnim ? 0.2 : 0.25
+    const widthScale = isDjAnim ? 0.44 : 0.35
+    const heightScale = isDjAnim ? 0.2 : 0.15
 
     const collisionWidth = Math.min(this.width, Math.max(this.width * widthScale, 18))
     const collisionHeight = Math.min(this.height, Math.max(this.height * heightScale, 12))
@@ -90,7 +93,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     const offsetX = isDjAnim ? djFeetRightEdgeX - collisionWidth : baseOffsetX
 
     body.setSize(collisionWidth, collisionHeight)
-    body.setOffset(offsetX, this.height - collisionHeight)
+    // Move hitbox up 15px from feet for better body centering
+    body.setOffset(offsetX, this.height - collisionHeight - 15)
   }
 
   updateDialogBubble(content: string, scale = 1) {

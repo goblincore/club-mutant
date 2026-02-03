@@ -25,10 +25,10 @@ export default class PunchPlayerCommand extends Command<ClubMutant, Payload> {
 
     const dx = attacker.x - victim.x
     const dy = attacker.y - victim.y
-    const punchRangePx = 56
-    const punchDyWeight = 1.5
-    const weightedDistanceSq = dx * dx + dy * punchDyWeight * (dy * punchDyWeight)
-    if (weightedDistanceSq > punchRangePx * punchRangePx) return
+    // Generous server range to match client - allows hitting with small collision boxes
+    const punchRange = 65
+    const distSq = dx * dx + dy * dy
+    if (distSq > punchRange * punchRange) return
 
     const absDx = Math.abs(dx)
     const absDy = Math.abs(dy)
@@ -60,25 +60,16 @@ export default class PunchPlayerCommand extends Command<ClubMutant, Payload> {
     const hitType = Math.random() > 0.5 ? 'hit1' : 'hit2'
     const hitAnimKey = `mutant_${hitType}_${dir}`
 
-    const punchImpactDelayMs = 350
+    const punchImpactDelayMs = 370
+    const punchKnockbackDelayMs = 150
+    const punchKnockbackPx = 6
 
     const attackerAtPunch = { x: attacker.x, y: attacker.y }
 
+    // First: trigger hit animation
     this.clock.setTimeout(() => {
       const victimCurrent = this.state.players.get(targetId)
       if (!victimCurrent) return
-
-      const punchKnockbackPx = 10
-
-      const kbDx = victimCurrent.x - attackerAtPunch.x
-      const kbDy = victimCurrent.y - attackerAtPunch.y
-      const kbLen = Math.sqrt(kbDx * kbDx + kbDy * kbDy)
-
-      const kbUnitX = kbLen > 0 ? kbDx / kbLen : 0
-      const kbUnitY = kbLen > 0 ? kbDy / kbLen : 0
-
-      victimCurrent.x += kbUnitX * punchKnockbackPx
-      victimCurrent.y += kbUnitY * punchKnockbackPx
 
       const hitEncoded = encodeAnimKey(hitAnimKey)
       victimCurrent.textureId = hitEncoded.textureId
@@ -107,6 +98,22 @@ export default class PunchPlayerCommand extends Command<ClubMutant, Payload> {
           y: victimCurrent.y,
         })
       }
+
+      // Second: apply knockback after a short delay
+      this.clock.setTimeout(() => {
+        const victimForKnockback = this.state.players.get(targetId)
+        if (!victimForKnockback) return
+
+        const kbDx = victimForKnockback.x - attackerAtPunch.x
+        const kbDy = victimForKnockback.y - attackerAtPunch.y
+        const kbLen = Math.sqrt(kbDx * kbDx + kbDy * kbDy)
+
+        const kbUnitX = kbLen > 0 ? kbDx / kbLen : 0
+        const kbUnitY = kbLen > 0 ? kbDy / kbLen : 0
+
+        victimForKnockback.x += kbUnitX * punchKnockbackPx
+        victimForKnockback.y += kbUnitY * punchKnockbackPx
+      }, punchKnockbackDelayMs)
     }, punchImpactDelayMs)
   }
 }

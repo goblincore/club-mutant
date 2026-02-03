@@ -65,13 +65,18 @@ export default class OtherPlayer extends Player {
           }
 
           if (this.scene.anims.exists(requestedKey)) {
-            // If it's a hit animation, we don't want to use 'ignoreIfPlaying' (2nd arg)
-            // because hits should always interrupt current state
-            const isHit = requestedKey.includes('_hit1_') || requestedKey.includes('_hit2_')
-            this.anims.play(requestedKey, !isHit)
+            // Action animations should interrupt current state and return to idle when complete
+            const isActionAnim =
+              requestedKey.includes('_hit1_') ||
+              requestedKey.includes('_hit2_') ||
+              requestedKey.includes('_punch_') ||
+              requestedKey.includes('_burn_') ||
+              requestedKey.includes('_flamethrower_')
+
+            this.anims.play(requestedKey, !isActionAnim)
             this.updatePhysicsBodyForAnim(requestedKey)
 
-            if (isHit) {
+            if (isActionAnim) {
               const parts = requestedKey.split('_')
               const dir = parts.slice(2).join('_') || 'down'
 
@@ -145,31 +150,11 @@ export default class OtherPlayer extends Player {
     this.lastUpdateTimestamp = t
     const currentAnimKey = this.anims.currentAnim?.key
 
-    if (
-      currentAnimKey === 'mutant_djwip' ||
-      currentAnimKey === 'mutant_transform' ||
-      currentAnimKey === 'mutant_transform_reverse'
-    ) {
-      this.setDepth(this.y - 1)
-    } else if (currentAnimKey === 'mutant_boombox') {
-      this.setDepth(this.y + 1)
-    } else {
-      this.setDepth(this.y) // change player.depth based on player.y
-    }
-
-    const animParts = (currentAnimKey ?? '').split('_')
-    const animState = animParts[1]
-    if (animState === 'sit') {
-      const animDir = animParts[2]
-      const sittingShift = sittingShiftData[animDir]
-      if (sittingShift) {
-        // set hardcoded depth (differs between directions) if player sits down
-        this.setDepth(this.depth + sittingShiftData[animDir][2])
-      }
-    }
+    // Update depth based on Y position and animation state
+    this.updateDepth(currentAnimKey)
 
     const speed = 200 // speed is in unit of pixels per second
-    const delta = (speed / 1000) * dt // minimum distance that a player can move in a frame (dt is in unit of ms)
+    const delta = (speed / 1000) * dt
     let dx = this.targetPosition[0] - this.x
     let dy = this.targetPosition[1] - this.y
 
@@ -219,6 +204,9 @@ export default class OtherPlayer extends Player {
         animType === 'boombox' ||
         animType === 'hit1' ||
         animType === 'hit2' ||
+        animType === 'punch' ||
+        animType === 'burn' ||
+        animType === 'flamethrower' ||
         currentAnimKey.includes('_action_') ||
         currentAnimKey.includes('_debug_')
 
@@ -258,6 +246,32 @@ export default class OtherPlayer extends Player {
       this.connectionBufferTime = 0
       this.connected = false
     }
+  }
+
+  private updateDepth(currentAnimKey: string | undefined) {
+    let targetDepth = this.y
+
+    if (
+      currentAnimKey === 'mutant_djwip' ||
+      currentAnimKey === 'mutant_transform' ||
+      currentAnimKey === 'mutant_transform_reverse'
+    ) {
+      targetDepth = this.y - 1
+    } else if (currentAnimKey === 'mutant_boombox') {
+      targetDepth = this.y + 1
+    }
+
+    const animParts = (currentAnimKey ?? '').split('_')
+    const animState = animParts[1]
+    if (animState === 'sit') {
+      const animDir = animParts[2]
+      const sittingShift = sittingShiftData[animDir]
+      if (sittingShift) {
+        targetDepth += sittingShiftData[animDir][2]
+      }
+    }
+
+    this.setDepth(targetDepth)
   }
 }
 
@@ -302,7 +316,8 @@ Phaser.GameObjects.GameObjectFactory.register(
       body.setImmovable(true)
       ;(body as unknown as { pushable: boolean }).pushable = false
       body.setSize(collisionWidth, collisionHeight)
-      body.setOffset((sprite.width - collisionWidth) * 0.5, sprite.height - collisionHeight)
+      // Move hitbox up 15px from feet for better body centering
+      body.setOffset((sprite.width - collisionWidth) * 0.5, sprite.height - collisionHeight - 15)
     }
 
     sprite.updatePhysicsBodyForAnim()
