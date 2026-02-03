@@ -533,6 +533,60 @@ The punch system was redesigned to be more skill-based and visually satisfying:
   - Update loop handles punch execution when `pendingPunchTargetId` is set
   - Direction calculation uses diagonal threshold of 0.3 for better diagonal detection
 
+### Punch System Optimizations (Feb 2026)
+
+Key optimizations made during the punch system iteration:
+
+- **Collision box reduction**: Reduced from 50% width × 20% height → 15% width × 8% height
+  - Allows sprites to overlap significantly during punches
+  - Maintains enough physics presence for normal movement
+  - Positioned at feet for natural movement feel
+
+- **Circular range vs elliptical**: Changed from 30x/20y ellipse → 60px circle
+  - Elliptical ranges made diagonal punches frustrating (distance varied by angle)
+  - Circular range provides consistent feel from all directions
+  - Visual distance matches player expectations better
+
+- **Diagonal threshold optimization**: Reduced from 0.5 → 0.3
+  - Original threshold required nearly equal x/y components to count as diagonal
+  - Lower threshold makes diagonal punches trigger more reliably
+  - Players don't have to be perfectly aligned for diagonal attacks
+
+- **Collision disabling at 80px**: Dynamically disable player-to-player collision when close
+  - Allows sprites to overlap for visual punch connection
+  - Re-enabled after punch completes
+  - Solves "can't get close enough" issue without removing collision entirely
+
+### Punch System Final Parameters (Feb 2026)
+
+After extensive iteration, the final punch system parameters:
+
+- **Melee range**: `60px` circular
+  - Initial attempts used elliptical ranges (e.g., 30x/20y) but diagonal punches were frustrating
+  - Circular range feels more consistent from all angles
+  - Lowered diagonal threshold from 0.5 to 0.3 for better diagonal punch detection
+
+- **Collision box size**: 15% width × 8% height of sprite
+  - Tiny hitbox allows sprites to overlap significantly during punches
+  - Positioned at feet: `offsetY = this.height * 0.5 - collisionHeight`
+  - Collision disabled within 80px to allow visual overlap
+
+- **Double-click system**: 300ms threshold
+  - Single-click: move toward target
+  - Double-click in range: punch
+  - Double-click out of range: just move (no auto-punch)
+
+- **Key insight**: Melee combat needs "commitment"
+  - Auto-approach + auto-punch felt disconnected
+  - Manual positioning + deliberate double-click feels more skill-based
+  - Players learn the 60px range through trial and error
+
+- **Step-in experiment** (reverted):
+  - Tried adding a 15-20px "step-in" movement before punching
+  - Intended to guarantee sprite overlap for visual connection
+  - Result: Not noticeably better than collision-disabled approach
+  - Lesson: Simple is often better; extra movement step adds complexity without clear benefit
+
 ### Punch system debugging learnings (Feb 2026)
 
 - **Camera zoom affects distance calculations**
@@ -839,6 +893,7 @@ Open guide-mode is still under active development; if blocks are mis-cropped, ex
 - Non-DJ users can now see the miniplayer and toggle background video.
 - Fixed music sync on late-join (TimeSync + playerRef issues).
 - Fixed background video sync for both WebGL and iframe fallback renderers.
+- **Phaser Rendering Performance Optimizations** (see **Client Rendering Optimizations** below)
 
 ## YoutubePlayer Architecture (Feb 2026 refactor)
 
