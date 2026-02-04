@@ -13,6 +13,7 @@ import MuteButton from './components/MuteButton'
 import YoutubePlayer from './components/YoutubePlayer'
 import DjStatusPill from './components/DjStatusPill'
 import MutantRippedAnimDebug from './components/MutantRippedAnimDebug'
+import ElectronFeatures from './components/ElectronFeatures'
 
 import { timeSync } from './services/TimeSync'
 
@@ -153,6 +154,7 @@ function App() {
     ui = (
       <>
         <MutantRippedAnimDebug />
+        <ElectronFeatures />
         <DjStatusPill />
         <ChatPanel />
         <MyPlaylistPanel />

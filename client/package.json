@@ -1,7 +1,8 @@
 {
-  "name": "sky-office-client",
+  "name": "club-mutant",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "dependencies": {
     "@emoji-mart/data": "^1.1.2",
     "@emoji-mart/react": "^1.1.1",
@@ -33,14 +34,43 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:electron": "npm run build:electron && electron .",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build:electron": "tsc electron/main.ts electron/preload.ts --outDir electron --module commonjs --esModuleInterop --target es2020 --declaration",
+    "preview": "vite preview",
+    "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "build": {
+    "appId": "com.clubmutant.app",
+    "productName": "Club Mutant",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*.js",
+      "package.json"
+    ],
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.games"
+    },
+    "win": {
+      "target": ["nsis", "portable"]
+    }
   },
   "devDependencies": {
     "@types/node": "^18.19.0",
     "@types/react": "^18.0.17",
     "@types/react-dom": "^18.0.6",
     "@vitejs/plugin-react": "^2.0.1",
+    "electron": "^40.1.0",
+    "electron-builder": "^26.7.0",
+    "electron-store": "^11.0.2",
+    "electron-updater": "^6.7.3",
     "vite": "^3.0.9"
   }
 }

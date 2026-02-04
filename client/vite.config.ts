@@ -22,4 +22,10 @@ export default defineConfig({
       '@colyseus/httpie': '@colyseus/httpie/xhr',
     },
   },
+
+  base: './',
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+  },
 })
