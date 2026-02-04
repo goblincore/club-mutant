@@ -5,11 +5,13 @@ import { listen } from '@colyseus/tools'
 import { uWebSocketsTransport } from '@colyseus/uwebsockets-transport'
 
 // Set CORS headers for Colyseus matchmaker routes
-matchMaker.controller.getCorsHeaders = function () {
+matchMaker.controller.getCorsHeaders = function (req) {
+  const origin = req?.headers?.origin || 'https://mutante.club'
   return {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Credentials': 'true',
   }
 }
 
