@@ -5,6 +5,7 @@
 [build.environment]
   VITE_WS_ENDPOINT = "wss://api.mutante.club"
   VITE_HTTP_ENDPOINT = "https://api.mutante.club"
+  VITE_YOUTUBE_SERVICE_URL = "https://yt.mutante.club"
 
 # Serve static assets directly (don't redirect)
 [[redirects]]
