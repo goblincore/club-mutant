@@ -18,7 +18,7 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Redux stores: `client/src/stores`
   - Client networking: `client/src/services/Network.ts`
   - Assets: `client/public/assets`
-  - Types (copied from root): `client/src/types/`
+  - Electron types: `client/src/types/electron.d.ts`
 - `server/`
   - **Has its own `package.json` with `"type": "module"`** (required for Colyseus 0.17 decorator support)
   - Server code lives in `server/src/`
@@ -27,10 +27,9 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Main room: `server/src/rooms/ClubMutant.ts`
   - Schema state: `server/src/rooms/schema/OfficeState.ts`
   - Commands: `server/src/rooms/commands/*`
-  - Types (copied from root): `server/src/types/`
 - `types/`
-  - Canonical shared types (source of truth)
-  - Copied to `client/src/types/` and `server/src/types/` for proper module resolution
+  - Shared types workspace package (`@club-mutant/types`)
+  - Imported via pnpm workspace (no copying needed)
 
 ## How to run
 
@@ -109,11 +108,47 @@ Types are shared via pnpm workspaces - no more copying:
 
 To add/modify types, edit files in `types/` directly. All packages share the same source.
 
+### uWebSockets Transport
+
+Server uses `@colyseus/uwebsockets-transport` for better performance:
+
+```typescript
+import { uWebSocketsTransport } from '@colyseus/uwebsockets-transport'
+
+const server = defineServer({
+  transport: new uWebSocketsTransport({
+    maxPayloadLength: 1024 * 1024,
+  }),
+  // ...
+})
+```
+
+CORS is handled via express middleware (not transport options):
+
+```typescript
+express: (app) => {
+  app.use(
+    cors({
+      origin: ['https://mutante.club', 'http://localhost:5173', 'http://localhost:3000'],
+      methods: ['GET', 'POST', 'OPTIONS'],
+      allowedHeaders: ['Content-Type'],
+    })
+  )
+}
+```
+
 ### Deployment
 
-- **Dockerfile.server**: Uses pnpm workspaces for production build
-- **Hetzner**: `deploy/hetzner/docker-compose.yml` orchestrates server + youtube-api + caddy
-- **Deploy command**: `./deploy/hetzner/deploy.sh` (run on VPS after git pull)
+- **Server (Hetzner VPS)**:
+  - `Dockerfile.server`: Multi-stage build using pnpm workspaces
+  - `deploy/hetzner/docker-compose.yml`: Orchestrates server + youtube-api + caddy
+  - Deploy: `ssh vps "cd /path/to/club-mutant && git pull && docker-compose up -d --build server"`
+
+- **Client (Netlify)**:
+  - Config: `netlify.toml`
+  - Build command: `corepack enable && pnpm install --frozen-lockfile && pnpm --filter club-mutant build`
+  - Publish dir: `client/dist`
+  - Note: `postinstall` skips electron-builder on Netlify via `$NETLIFY` env check
 
 ## Core runtime model
 

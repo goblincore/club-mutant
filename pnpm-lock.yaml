@@ -15,7 +15,7 @@ importers:
         specifier: ^0.17.7
         version: 0.17.7(@colyseus/better-call@1.2.1(zod@4.3.6))(@colyseus/schema@4.0.8(typescript@5.9.3))(@colyseus/ws-transport@0.17.8)(@pm2/io@6.1.0)(zod@4.3.6)
       '@colyseus/uwebsockets-transport':
-        specifier: ^0.17.0
+        specifier: ^0.17.12
         version: 0.17.12(@colyseus/core@0.17.29)(uwebsockets-express@2.0.2(@types/express@5.0.6))
       '@udecode/zustood':
         specifier: ^0.4.4
@@ -239,7 +239,7 @@ importers:
         specifier: ^0.17.0
         version: 0.17.18(@colyseus/core@0.17.29)(@colyseus/ws-transport@0.17.8)
       '@colyseus/uwebsockets-transport':
-        specifier: ^0.17.0
+        specifier: ^0.17.12
         version: 0.17.12(@colyseus/core@0.17.29)(uwebsockets-express@2.0.2(@types/express@5.0.6))
       bcrypt:
         specifier: ^5.1.1
@@ -256,6 +256,9 @@ importers:
       uuid:
         specifier: ^8.3.2
         version: 8.3.2
+      uwebsockets-express:
+        specifier: ^2.0.2
+        version: 2.0.2(@types/express@5.0.6)
     devDependencies:
       '@types/bcrypt':
         specifier: ^5.0.2

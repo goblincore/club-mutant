@@ -38,7 +38,7 @@
   "dependencies": {
     "@colyseus/command": "^0.2.1",
     "@colyseus/monitor": "^0.17.7",
-    "@colyseus/uwebsockets-transport": "^0.17.0",
+    "@colyseus/uwebsockets-transport": "^0.17.12",
     "@udecode/zustood": "^0.4.4",
     "axios": "^0.26.0",
     "bcrypt": "^5.0.1",
