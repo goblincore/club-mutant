@@ -1,5 +1,5 @@
 import { Schema, ArraySchema, MapSchema, type } from '@colyseus/schema'
-import { TEXTURE_IDS, packDirectionalAnimId } from '../../types/AnimationCodec'
+import { TEXTURE_IDS, packDirectionalAnimId } from '@club-mutant/types/AnimationCodec'
 
 export class PlaylistItem extends Schema {
   @type('string') id = ''

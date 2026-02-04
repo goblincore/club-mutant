@@ -3,8 +3,8 @@ import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 import { PlaylistItem, DJUserInfo } from '../schema/OfficeState'
 import type { ClubMutant } from '../ClubMutant'
-import { Message } from '../../types/Messages'
-import type { PlaylistItemDto } from '../../types/Dtos'
+import { Message } from '@club-mutant/types/Messages'
+import type { PlaylistItemDto } from '@club-mutant/types/Dtos'
 
 type Payload = {
   client?: Client

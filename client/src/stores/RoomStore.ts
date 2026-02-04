@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { RoomAvailable } from '@colyseus/sdk'
-import { RoomType } from '../types/Rooms'
+import { RoomType } from '@club-mutant/types/Rooms'
 
 /**
  * Colyseus' real time room list always includes the public lobby so we have to remove it manually.

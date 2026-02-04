@@ -4,16 +4,16 @@ import { Dispatcher } from '@colyseus/command'
 import { v4 as uuidv4 } from 'uuid'
 
 import { Player, OfficeState, MusicBooth, RoomPlaylistItem, DJUserInfo } from './schema/OfficeState'
-import { IRoomData } from '../types/Rooms'
-import { Message } from '../types/Messages'
-import type { PlaylistItemDto } from '../types/Dtos'
+import { IRoomData } from '@club-mutant/types/Rooms'
+import { Message } from '@club-mutant/types/Messages'
+import type { PlaylistItemDto } from '@club-mutant/types/Dtos'
 import { prefetchVideo } from '../youtubeService'
 import {
   TEXTURE_IDS,
   packDirectionalAnimId,
   sanitizeAnimId,
   sanitizeTextureId,
-} from '../types/AnimationCodec'
+} from '@club-mutant/types/AnimationCodec'
 
 import PlayerUpdateActionCommand from './commands/PlayerUpdateActionCommand'
 import PlayerUpdateNameCommand from './commands/PlayerUpdateNameCommand'

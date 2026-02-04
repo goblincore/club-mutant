@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { PlayerBehavior } from '../types/Players'
+import { PlayerBehavior } from '@club-mutant/types/Players'
 /**
  * shifting distance for sitting animation
  * format: direction: [xShift, yShift, depthShift]

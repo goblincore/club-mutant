@@ -12,7 +12,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 import * as youtube from './Youtube'
 import { searchYouTube, resolveYouTubeVideo, proxyYouTubeVideo } from './youtubeService'
-import { RoomType } from './types/Rooms'
+import { RoomType } from '@club-mutant/types/Rooms'
 
 import { ClubMutant } from './rooms/ClubMutant'
 

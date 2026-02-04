@@ -11,14 +11,20 @@
     "clean": "rimraf lib"
   },
   "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.6",
     "@types/express": "^5.0.0",
+    "@types/uuid": "^8.3.4",
     "rimraf": "^5.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@club-mutant/types": "workspace:*",
+    "@colyseus/command": "^0.2.1",
     "@colyseus/core": "^0.17.0",
+    "bcrypt": "^5.1.1",
+    "uuid": "^8.3.2",
     "@colyseus/monitor": "^0.17.0",
     "@colyseus/schema": "^4.0.0",
     "@colyseus/tools": "^0.17.0",

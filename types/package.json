@@ -1,8 +1,13 @@
 {
-  "name": "sky-office-types",
+  "name": "@club-mutant/types",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Shared types for Club Mutant",
+  "type": "module",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    "./*": "./*.ts"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

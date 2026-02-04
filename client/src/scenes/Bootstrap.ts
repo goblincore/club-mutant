@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import Network from '../services/Network'
-import { BackgroundMode } from '../types/Backgrounds'
+import { BackgroundMode } from '@club-mutant/types/Backgrounds'
 import store from '../stores'
 import { setRoomJoined } from '../stores/RoomStore'
 
