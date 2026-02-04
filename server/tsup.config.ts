@@ -7,7 +7,9 @@ export default defineConfig({
   outDir: 'lib',
   clean: true,
   sourcemap: true,
-  // Don't bundle dependencies - they're installed separately
+  // Don't bundle node_modules dependencies - they're installed separately
+  // But DO bundle @club-mutant/types since it's TypeScript source
+  noExternal: ['@club-mutant/types'],
   external: [
     'express',
     'cors',
@@ -21,7 +23,6 @@ export default defineConfig({
     'bcrypt',
     'uuid',
     'uwebsockets-express',
-    '@club-mutant/types',
   ],
   // Copy JS files that aren't TypeScript
   onSuccess: 'cp src/Youtube.js src/Queue.js lib/',
