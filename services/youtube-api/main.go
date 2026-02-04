@@ -268,6 +268,7 @@ func init() {
 
 	httpClient = &http.Client{
 		Transport: transport,
+		Timeout:   5 * time.Minute, // Allow time for large video downloads
 	}
 }
 
@@ -1014,6 +1015,9 @@ func (s *Server) handlePrefetch(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[prefetch] Bad status for %s: %d", videoID, resp.StatusCode)
 			return
 		}
+
+		contentLength := resp.ContentLength
+		log.Printf("[prefetch] Downloading %s (Content-Length: %d, Transfer-Encoding: %s)", videoID, contentLength, resp.TransferEncoding)
 
 		// Read up to 10MB
 		data, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
