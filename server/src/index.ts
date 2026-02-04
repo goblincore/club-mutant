@@ -1,6 +1,7 @@
 import express from 'express'
 import { defineServer, defineRoom, LobbyRoom } from 'colyseus'
 import { listen } from '@colyseus/tools'
+import { uWebSocketsTransport } from '@colyseus/uwebsockets-transport'
 
 process.on('unhandledRejection', (reason, promise) => {
   if (reason === undefined) {
@@ -17,6 +18,10 @@ import { RoomType } from '@club-mutant/types/Rooms'
 import { ClubMutant } from './rooms/ClubMutant'
 
 const server = defineServer({
+  transport: new uWebSocketsTransport({
+    maxPayloadLength: 1024 * 1024, // 1MB max message size
+  }),
+
   rooms: {
     [RoomType.LOBBY]: defineRoom(LobbyRoom),
     [RoomType.PUBLIC]: defineRoom(ClubMutant, {

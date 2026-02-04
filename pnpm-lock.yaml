@@ -238,9 +238,9 @@ importers:
       '@colyseus/tools':
         specifier: ^0.17.0
         version: 0.17.18(@colyseus/core@0.17.29)(@colyseus/ws-transport@0.17.8)
-      '@colyseus/ws-transport':
+      '@colyseus/uwebsockets-transport':
         specifier: ^0.17.0
-        version: 0.17.8(@colyseus/core@0.17.29)(express@5.2.1)
+        version: 0.17.12(@colyseus/core@0.17.29)(uwebsockets-express@2.0.2(@types/express@5.0.6))
       bcrypt:
         specifier: ^5.1.1
         version: 5.1.1(encoding@0.1.13)
