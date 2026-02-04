@@ -17,17 +17,7 @@ export default class PlayerUpdateActionCommand extends Command<ClubMutant, Paylo
 
     const player = this.state.players.get(client.sessionId)
 
-    if (!player) {
-      console.log(`[PlayerUpdate] No player found for ${client.sessionId}`)
-      return
-    }
-
-    const changed = player.x !== x || player.y !== y || player.animId !== animId
-    if (changed) {
-      console.log(
-        `[PlayerUpdate] ${client.sessionId}: (${player.x.toFixed(0)},${player.y.toFixed(0)}) -> (${x.toFixed(0)},${y.toFixed(0)}) anim=${animId}`
-      )
-    }
+    if (!player) return
 
     player.x = x
     player.y = y

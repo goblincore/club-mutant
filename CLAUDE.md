@@ -1575,3 +1575,85 @@ With 20 concurrent players (4 visible on screen):
 - **Animation behavior**: Off-screen players freeze on their current frame. When they re-enter viewport, they resume from where they left off.
 - **Dirty flag for future**: The pathfinding cache is ready for dynamic obstacles - just call `markBlockedGridDirty()` when obstacles change.
 - **No visual impact**: All optimizations are imperceptible to players. Movement appears smooth due to interpolation and the 2px depth threshold.
+
+## Deployment & Infrastructure Fixes (Feb 2026)
+
+### CORS Configuration
+
+CORS is handled at **one layer only** to avoid duplicate headers:
+
+- **Colyseus matchmaker routes** (`/matchmake/*`): Server handles via `matchMaker.controller.getCorsHeaders`
+- **YouTube API service** (`yt.mutante.club`): Go service handles via `corsMiddleware`
+- **Caddy**: Only does `reverse_proxy`, no CORS headers (to avoid duplicates)
+
+**Gotcha**: If both Caddy and the backend add CORS headers, you get:
+
+```
+Access-Control-Allow-Origin header contains multiple values
+```
+
+### YouTube API Proxy Chain
+
+Video streaming goes through multiple layers:
+
+1. **Client** calls `api.mutante.club/youtube/proxy/{videoId}`
+2. **Colyseus server** proxies to `youtube-api:8081/proxy/{videoId}`
+3. **Go service** fetches from YouTube via ISP proxy (for IP consistency)
+
+**Missing route gotcha**: The `/youtube/proxy/:videoId` Express route was imported but never registered. Symptom: "Provisional headers shown" in Network tab, request fails silently.
+
+### Prefetch System
+
+- **Prefetch** pre-warms video cache: `POST /prefetch/{videoId}`
+- **Resolve** gets YouTube URL: `GET /resolve/{videoId}`
+- **Proxy** streams cached bytes: `GET /proxy/{videoId}`
+
+The prefetch must use the same `httpClient` (with proxy configured) as the resolve, otherwise YouTube rejects the request due to IP mismatch.
+
+### Docker + Native Modules
+
+**uWebSockets.js** requires glibc 2.38+:
+
+- Alpine Linux won't work (uses musl)
+- Use `node:22-slim` or `ubuntu:24.04` as base image
+
+### Immer + Redux + ESM Gotcha
+
+**Problem**: Using `Map` or `Set` in Redux initial state requires `enableMapSet()` before any store code loads.
+
+**Why it's tricky**: ESM hoists all `import` statements to run before any other code, regardless of source order. So this doesn't work:
+
+```typescript
+import { enableMapSet } from 'immer'
+enableMapSet() // Runs AFTER all imports are evaluated!
+import userReducer from './UserStore' // This runs FIRST
+```
+
+**Solutions** (in order of preference):
+
+1. **Don't use Map/Set** - use plain `Record<string, T>` objects instead (Immer handles natively)
+2. **Side-effect import** - create `immerSetup.ts` that just calls `enableMapSet()`, import it first everywhere
+3. **Call in app entry** - import the setup file at the very top of `index.tsx`
+
+**We chose option 1**: Converted `playerNameMap: new Map()` to `playerNameMap: {} as Record<string, string>` in `UserStore.ts`. This avoids the Immer MapSet requirement entirely.
+
+### Server Bundling with tsup
+
+Server is bundled with tsup for deployment:
+
+```typescript
+// tsup.config.ts
+export default defineConfig({
+  entry: ['src/index.ts'],
+  format: ['esm'],
+  external: [
+    '@colyseus/schema', // Must be external - decorators need runtime
+    '@colyseus/command',
+    // ... other colyseus packages
+    'axios', // Has dynamic require that breaks bundling
+  ],
+  noExternal: ['@club-mutant/types'], // Bundle shared types
+})
+```
+
+**Critical**: `@colyseus/schema` must be external so decorator metadata is preserved at runtime.
