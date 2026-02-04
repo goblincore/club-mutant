@@ -1,12 +1,18 @@
 [build]
-  command = "corepack enable && pnpm install --frozen-lockfile && pnpm --filter client build"
+  command = "corepack enable && pnpm install --frozen-lockfile && pnpm --filter club-mutant build"
   publish = "client/dist"
 
 [build.environment]
   VITE_WS_ENDPOINT = "wss://api.mutante.club"
   VITE_HTTP_ENDPOINT = "https://api.mutante.club"
 
-# Rule for router history mode
+# Serve static assets directly (don't redirect)
+[[redirects]]
+  from = "/assets/*"
+  to = "/assets/:splat"
+  status = 200
+
+# Rule for router history mode (SPA fallback)
 [[redirects]]
   from = "/*"
   to = "/index.html"
