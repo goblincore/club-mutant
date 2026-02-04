@@ -17,7 +17,7 @@ export const userSlice = createSlice({
     sessionId: '',
     videoConnected: false,
     loggedIn: false,
-    playerNameMap: new Map<string, string>(),
+    playerNameMap: {} as Record<string, string>,
   },
   reducers: {
     toggleBackgroundMode: (state) => {
@@ -38,10 +38,10 @@ export const userSlice = createSlice({
       state.loggedIn = action.payload
     },
     setPlayerNameMap: (state, action: PayloadAction<{ id: string; name: string }>) => {
-      state.playerNameMap.set(sanitizeId(action.payload.id), action.payload.name)
+      state.playerNameMap[sanitizeId(action.payload.id)] = action.payload.name
     },
     removePlayerNameMap: (state, action: PayloadAction<string>) => {
-      state.playerNameMap.delete(sanitizeId(action.payload))
+      delete state.playerNameMap[sanitizeId(action.payload)]
     },
   },
 })
