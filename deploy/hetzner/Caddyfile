@@ -5,6 +5,19 @@
 api.mutante.club {
   encode gzip
 
+  @cors_preflight method OPTIONS
+  handle @cors_preflight {
+    header Access-Control-Allow-Origin "https://mutante.club"
+    header Access-Control-Allow-Methods "GET, POST, OPTIONS"
+    header Access-Control-Allow-Headers "Content-Type"
+    header Access-Control-Max-Age "86400"
+    respond "" 204
+  }
+
+  header Access-Control-Allow-Origin "https://mutante.club"
+  header Access-Control-Allow-Methods "GET, POST, OPTIONS"
+  header Access-Control-Allow-Headers "Content-Type"
+
   reverse_proxy server:2567
 }
 
