@@ -10,21 +10,6 @@ api.mutante.club {
 
 yt.mutante.club {
   encode gzip
-
-  @cors_preflight method OPTIONS
-  handle @cors_preflight {
-    header Access-Control-Allow-Origin "https://mutante.club"
-    header Access-Control-Allow-Methods "GET, POST, OPTIONS"
-    header Access-Control-Allow-Headers "Content-Type"
-    header Access-Control-Allow-Credentials "true"
-    header Access-Control-Max-Age "86400"
-    respond "" 204
-  }
-
-  header Access-Control-Allow-Origin "https://mutante.club"
-  header Access-Control-Allow-Methods "GET, POST, OPTIONS"
-  header Access-Control-Allow-Headers "Content-Type"
-  header Access-Control-Allow-Credentials "true"
-
+  # CORS handled by Go service corsMiddleware
   reverse_proxy youtube-api:8081
 }
