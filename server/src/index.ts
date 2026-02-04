@@ -1,8 +1,17 @@
 import express from 'express'
 import cors from 'cors'
-import { defineServer, defineRoom, LobbyRoom } from 'colyseus'
+import { defineServer, defineRoom, LobbyRoom, matchMaker } from 'colyseus'
 import { listen } from '@colyseus/tools'
 import { uWebSocketsTransport } from '@colyseus/uwebsockets-transport'
+
+// Set CORS headers for Colyseus matchmaker routes
+matchMaker.controller.getCorsHeaders = function () {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  }
+}
 
 process.on('unhandledRejection', (reason, promise) => {
   if (reason === undefined) {
