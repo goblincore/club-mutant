@@ -14,10 +14,10 @@ import MyPlayer from '../characters/MyPlayer'
 import OtherPlayer from '../characters/OtherPlayer'
 import PlayerSelector from '../characters/PlayerSelector'
 
-import type { IPlayer, IMusicStream } from '../../../types/IOfficeState'
-import { decodeAnimKey, decodeTextureName } from '../../../types/AnimationCodec'
-import { PlayerBehavior } from '../../../types/Players'
-import { ItemType } from '../../../types/Items'
+import type { IPlayer, IMusicStream } from '../types/IOfficeState'
+import { decodeAnimKey, decodeTextureName } from '../types/AnimationCodec'
+import { PlayerBehavior } from '../types/Players'
+import { ItemType } from '../types/Items'
 
 import Network from '../services/Network'
 import { timeSync } from '../services/TimeSync'
@@ -29,7 +29,7 @@ import { setLoggedIn } from '../stores/UserStore'
 
 import { findPathAStar } from '../utils/pathfinding'
 
-import { RoomType } from '../../../types/Rooms'
+import { RoomType } from '../types/Rooms'
 
 import { phaserEvents, Event } from '../events/EventCenter'
 

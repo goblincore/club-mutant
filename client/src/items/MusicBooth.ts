@@ -1,4 +1,4 @@
-import { ItemType } from '../../../types/Items'
+import { ItemType } from '../types/Items'
 import store from '../stores'
 import Item from './Item'
 import Network from '../services/Network'

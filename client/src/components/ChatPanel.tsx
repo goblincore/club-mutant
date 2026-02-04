@@ -16,7 +16,7 @@ import Game from '../scenes/Game'
 import { getColorByString } from '../util'
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { MessageType, setFocused, setShowChat } from '../stores/ChatStore'
-import { IChatMessage } from '../../../types/IOfficeState'
+import { IChatMessage } from '../types/IOfficeState'
 
 const Backdrop = styled.div<{ $expanded: boolean }>`
   position: fixed;

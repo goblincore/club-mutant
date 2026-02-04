@@ -1,5 +1,5 @@
 import { Schema, ArraySchema, MapSchema, type } from '@colyseus/schema'
-import { TEXTURE_IDS, packDirectionalAnimId } from '../../../types/AnimationCodec'
+import { TEXTURE_IDS, packDirectionalAnimId } from '../../types/AnimationCodec'
 
 export class PlaylistItem extends Schema {
   @type('string') id = ''
@@ -32,8 +32,7 @@ export class Player extends Schema {
   @type('boolean') videoConnected = false
   @type(PlaylistItem) currentPlaylistItem = new PlaylistItem()
   @type(PlaylistItem) nextPlaylistItem = new PlaylistItem()
-  @type([PlaylistItem])
-  nextTwoPlaylist = new ArraySchema<PlaylistItem>()
+  @type([PlaylistItem]) nextTwoPlaylist = new ArraySchema<PlaylistItem>()
 }
 
 export class ChatMessage extends Schema {
@@ -69,26 +68,13 @@ export class MusicBooth extends Schema {
 }
 
 export class OfficeState extends Schema {
-  @type({ map: Player })
-  players = new MapSchema<Player>()
-
-  @type([MusicBooth])
-  musicBooths = new ArraySchema<MusicBooth>()
-
-  @type(['number'])
-  musicBoothQueue = new ArraySchema<number>()
-
-  @type([ChatMessage])
-  chatMessages = new ArraySchema<ChatMessage>()
-
-  @type(MusicStream)
-  musicStream = new MusicStream()
-
-  @type(MusicStream)
-  nextStream = new MusicStream()
-
-  @type([RoomPlaylistItem])
-  roomPlaylist = new ArraySchema<RoomPlaylistItem>()
+  @type({ map: Player }) players = new MapSchema<Player>()
+  @type([MusicBooth]) musicBooths = new ArraySchema<MusicBooth>()
+  @type(['number']) musicBoothQueue = new ArraySchema<number>()
+  @type([ChatMessage]) chatMessages = new ArraySchema<ChatMessage>()
+  @type(MusicStream) musicStream = new MusicStream()
+  @type(MusicStream) nextStream = new MusicStream()
+  @type([RoomPlaylistItem]) roomPlaylist = new ArraySchema<RoomPlaylistItem>()
 }
 
 // const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'

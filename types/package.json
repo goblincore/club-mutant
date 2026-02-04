@@ -9,6 +9,6 @@
   "keywords": [],
   "license": "MIT",
   "dependencies": {
-    "@colyseus/schema": "^1.0.28"
+    "@colyseus/schema": "^4.0.4"
   }
 }

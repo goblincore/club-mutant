@@ -12,30 +12,102 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
 ## Repo layout
 
 - `client/`
+  - Has its own `package.json` and `node_modules`
   - Phaser game code: `client/src/scenes`, `client/src/characters`, `client/src/items`
   - React UI: `client/src/components`
   - Redux stores: `client/src/stores`
   - Client networking: `client/src/services/Network.ts`
   - Assets: `client/public/assets`
+  - Types (copied from root): `client/src/types/`
 - `server/`
-  - Colyseus rooms: `server/rooms/*`
-  - Main room: `server/rooms/ClubMutant.ts`
-  - Schema state: `server/rooms/schema/OfficeState.ts`
-  - Commands: `server/rooms/commands/*`
+  - **Has its own `package.json` with `"type": "module"`** (required for Colyseus 0.17 decorator support)
+  - Server code lives in `server/src/`
+  - Entry point: `server/src/index.ts`
+  - Colyseus rooms: `server/src/rooms/*`
+  - Main room: `server/src/rooms/ClubMutant.ts`
+  - Schema state: `server/src/rooms/schema/OfficeState.ts`
+  - Commands: `server/src/rooms/commands/*`
+  - Types (copied from root): `server/src/types/`
 - `types/`
-  - Shared message enums + schema interfaces consumed by both client/server
-  - Shared DTOs (plain JSON payload contracts): `types/Dtos.ts`
+  - Canonical shared types (source of truth)
+  - Copied to `client/src/types/` and `server/src/types/` for proper module resolution
 
 ## How to run
 
-- Server: `npm run start`
-  - Runs `server/index.ts` via `ts-node-dev` (see root `package.json`).
-- Client: run from `client/` (there is a separate `client/package.json`).
+- **Server**: `cd server && npm run start`
+  - Runs `server/src/index.ts` via `tsx watch`
+  - Uses `@colyseus/tools` `listen()` pattern
+- **Client**: `cd client && npm run dev`
+  - Runs Vite dev server
 
-### Tooling note (TypeScript)
+## Colyseus 0.17 Migration (Feb 2026)
 
-- Some transitive deps (notably `ioredis@5` via Colyseus redis packages) ship TypeScript declaration syntax that is not parseable by older `typescript` versions.
-- If `tsc` outputs huge numbers of parse errors originating from `node_modules/ioredis/*`, upgrade the root toolchain (`typescript`, `ts-node`, `ts-node-dev`).
+### What changed
+
+Migrated from Colyseus 0.16.x to 0.17.x. Key package upgrades:
+
+- `colyseus` → `^0.17.8`
+- `@colyseus/schema` → `^4.0.4`
+- `@colyseus/sdk` (client, replaces `colyseus.js`) → `^0.17.22`
+- `@colyseus/tools` → `^0.17.0`
+- `@colyseus/monitor` → `^0.17.7`
+
+### The core problem
+
+`tsx` (the TypeScript executor) wasn't respecting `experimentalDecorators` when running from a project without `"type": "module"` in package.json. This caused `@colyseus/schema` v4's `@type` decorators to compile as TC39 standard decorators instead of legacy TypeScript decorators, resulting in:
+
+```
+TypeError: Cannot read properties of undefined (reading 'constructor')
+```
+
+### The solution: restructure to match official tutorial
+
+Restructured the server to match the [colyseus/tutorial-phaser](https://github.com/colyseus/tutorial-phaser) pattern:
+
+1. **Separate `server/package.json` with `"type": "module"`**
+   - This tells Node.js to treat the server as an ESM module
+   - `tsx` handles ESM + legacy decorators correctly in this configuration
+
+2. **Server tsconfig with critical decorator settings**:
+
+   ```json
+   {
+     "compilerOptions": {
+       "experimentalDecorators": true,
+       "useDefineForClassFields": false,
+       "target": "ESNext",
+       "module": "ESNext"
+     }
+   }
+   ```
+
+   - `experimentalDecorators: true` enables legacy TypeScript decorators
+   - `useDefineForClassFields: false` is **critical** — without it, class field initialization breaks decorator metadata
+
+3. **Self-contained server directory**
+   - Own `package.json`, `node_modules`, and `tsconfig.json`
+   - Types copied to `server/src/types/` to avoid cross-package ESM import issues
+
+4. **Use `@colyseus/tools` `listen()` pattern**
+   - Instead of manual `new Server()` + `server.listen()`
+   - Handles CORS, matchmaker routes, and Express integration automatically
+
+### Server API changes (0.16 → 0.17)
+
+- **Room definition**: Use `defineServer()` + `defineRoom()` instead of `gameServer.define()`
+- **Room.onLeave signature**: `(client, consented: boolean)` → `(client, code: number)`
+  - Check `code === CloseCode.CONSENTED` for intentional leaves
+- **Client SDK**: Import from `@colyseus/sdk` instead of `colyseus.js`
+
+### Type sharing strategy
+
+Since ESM imports across package boundaries caused issues, types are now copied:
+
+- **Source of truth**: `types/` directory at project root
+- **Server copy**: `server/src/types/`
+- **Client copy**: `client/src/types/`
+
+When updating types, update the root `types/` then copy to both locations.
 
 ## Core runtime model
 
@@ -45,7 +117,7 @@ This repo uses a **hybrid type model** to keep Colyseus runtime state (Schema) s
 
 ### 1) Server runtime state (Colyseus Schema classes)
 
-- File: `server/rooms/schema/OfficeState.ts`
+- File: `server/src/rooms/schema/OfficeState.ts`
 - These are the authoritative state containers.
 - **Do not** make Schema classes `implement` shared `I*` interfaces (TypeScript structural mismatches with Colyseus internal Schema fields).
 

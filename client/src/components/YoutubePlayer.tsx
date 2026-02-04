@@ -10,7 +10,7 @@ import { useAppSelector, useAppDispatch } from '../hooks'
 import { phaserEvents, Event } from '../events/EventCenter'
 import { shiftMyPlaylist } from '../stores/MyPlaylistStore'
 import { setVideoBackgroundEnabled } from '../stores/MusicStreamStore'
-import { RoomType } from '../../../types/Rooms'
+import { RoomType } from '../types/Rooms'
 
 import { Backdrop, MiniBar, Marquee, MarqueeInner, Wrapper, RoomInfo } from './YoutubePlayer.styles'
 import { PlayerControls } from './PlayerControls'

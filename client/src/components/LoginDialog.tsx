@@ -23,7 +23,7 @@ import { getAvatarString, getColorByString } from '../util'
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
 
-import { RoomType } from '../../../types/Rooms'
+import { RoomType } from '../types/Rooms'
 
 SwiperCore.use([Navigation])
 

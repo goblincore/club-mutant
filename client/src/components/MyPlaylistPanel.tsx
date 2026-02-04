@@ -24,7 +24,7 @@ import {
 } from '../stores/MyPlaylistStore'
 import axios from 'axios'
 import { v4 as uuidv4 } from 'uuid'
-import type { PlaylistItem } from '../../../types/IOfficeState'
+import type { PlaylistItem } from '../types/IOfficeState'
 
 const PANEL_MIN_WIDTH_PX = 400
 const PANEL_MAX_WIDTH_PX = 700

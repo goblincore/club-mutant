@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import PlayerSelector from './PlayerSelector'
-import { PlayerBehavior } from '../../../types/Players'
+import { PlayerBehavior } from '../types/Players'
 import Player from './Player'
 import Network from '../services/Network'
 import MusicBooth from '../items/MusicBooth'
@@ -9,8 +9,8 @@ import { phaserEvents, Event } from '../events/EventCenter'
 import store from '../stores'
 import { pushPlayerJoinedMessage } from '../stores/ChatStore'
 import { disconnectFromMusicBooth } from '../stores/MusicBoothStore'
-import { ItemType } from '../../../types/Items'
-import { RoomType } from '../../../types/Rooms'
+import { ItemType } from '../types/Items'
+import { RoomType } from '../types/Rooms'
 
 export default class MyPlayer extends Player {
   private playerContainerBody: Phaser.Physics.Arcade.Body

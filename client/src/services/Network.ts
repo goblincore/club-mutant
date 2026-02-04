@@ -1,4 +1,4 @@
-import { Client, Room, getStateCallbacks } from 'colyseus.js'
+import { Client, Room, getStateCallbacks } from '@colyseus/sdk'
 import type { CollectionCallback, CallbackProxy } from '@colyseus/schema'
 
 import {
@@ -10,14 +10,14 @@ import {
   PlaylistItem,
   IMusicStream,
   IRoomPlaylistItem,
-} from '../../../types/IOfficeState'
-import { Message } from '../../../types/Messages'
-import type { PlaylistItemDto } from '../../../types/Dtos'
-import { IRoomData, RoomType } from '../../../types/Rooms'
-import { ItemType } from '../../../types/Items'
+} from '../types/IOfficeState'
+import { Message } from '../types/Messages'
+import type { PlaylistItemDto } from '../types/Dtos'
+import { IRoomData, RoomType } from '../types/Rooms'
+import { ItemType } from '../types/Items'
 import { phaserEvents, Event } from '../events/EventCenter'
 import { timeSync, type TimeSyncRequestPayload, type TimeSyncResponsePayload } from './TimeSync'
-import { decodeAnimKey, encodeAnimKey } from '../../../types/AnimationCodec'
+import { decodeAnimKey, encodeAnimKey } from '../types/AnimationCodec'
 import store from '../stores'
 import { setSessionId, setPlayerNameMap, removePlayerNameMap } from '../stores/UserStore'
 import { connectToMusicBooth, disconnectFromMusicBooth } from '../stores/MusicBoothStore'
