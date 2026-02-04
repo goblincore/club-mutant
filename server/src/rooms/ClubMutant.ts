@@ -548,7 +548,8 @@ export class ClubMutant extends Room {
     const player = existingPlayer ?? new Player()
 
     if (!existingPlayer && this.isPublic) {
-      player.name = `mutant-${client.sessionId}`
+      const playerId = options?.playerId || client.sessionId.slice(0, 8)
+      player.name = `mutant-${playerId}`
       player.textureId = TEXTURE_IDS.mutant
       player.animId = packDirectionalAnimId('idle', 'down')
     }

@@ -1,6 +1,17 @@
 import { Client, Room, getStateCallbacks } from '@colyseus/sdk'
 import type { CollectionCallback, CallbackProxy } from '@colyseus/schema'
 
+const PLAYER_ID_KEY = 'club-mutant:player-id'
+
+function getOrCreatePlayerId(): string {
+  let id = localStorage.getItem(PLAYER_ID_KEY)
+  if (!id) {
+    id = crypto.randomUUID().slice(0, 8)
+    localStorage.setItem(PLAYER_ID_KEY, id)
+  }
+  return id
+}
+
 import {
   IOfficeState,
   IPlayer,
@@ -107,14 +118,16 @@ export default class Network {
 
   // method to join the public lobby
   async joinOrCreatePublic() {
-    this.room = await this.client.joinOrCreate(RoomType.PUBLIC)
+    const playerId = getOrCreatePlayerId()
+    this.room = await this.client.joinOrCreate(RoomType.PUBLIC, { playerId })
     store.dispatch(setJoinedRoomType(RoomType.PUBLIC))
     this.initialize()
   }
 
   // method to join a custom room
   async joinCustomById(roomId: string, password: string | null) {
-    this.room = await this.client.joinById(roomId, { password })
+    const playerId = getOrCreatePlayerId()
+    this.room = await this.client.joinById(roomId, { password, playerId })
     store.dispatch(setJoinedRoomType(RoomType.CUSTOM))
     this.initialize()
   }
@@ -122,11 +135,13 @@ export default class Network {
   // method to create a custom room
   async createCustom(roomData: IRoomData) {
     const { name, description, password, autoDispose } = roomData
+    const playerId = getOrCreatePlayerId()
     this.room = await this.client.create(RoomType.CUSTOM, {
       name,
       description,
       password,
       autoDispose,
+      playerId,
     })
     store.dispatch(setJoinedRoomType(RoomType.CUSTOM))
     this.initialize()
