@@ -1,5 +1,4 @@
 import express from 'express'
-import cors from 'cors'
 import { defineServer, defineRoom, LobbyRoom, matchMaker } from 'colyseus'
 import { listen } from '@colyseus/tools'
 import { uWebSocketsTransport } from '@colyseus/uwebsockets-transport'
@@ -47,13 +46,7 @@ const server = defineServer({
   },
 
   express: (app) => {
-    app.use(
-      cors({
-        origin: ['https://mutante.club', 'http://localhost:5173', 'http://localhost:3000'],
-        methods: ['GET', 'POST', 'OPTIONS'],
-        allowedHeaders: ['Content-Type'],
-      })
-    )
+    // CORS handled by Caddy reverse proxy - don't add duplicate headers
     app.use(express.json())
 
     app.get('/health', (_req, res) => {
