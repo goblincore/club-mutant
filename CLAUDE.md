@@ -99,15 +99,21 @@ Restructured the server to match the [colyseus/tutorial-phaser](https://github.c
   - Check `code === CloseCode.CONSENTED` for intentional leaves
 - **Client SDK**: Import from `@colyseus/sdk` instead of `colyseus.js`
 
-### Type sharing strategy
+### Type sharing via pnpm workspaces
 
-Since ESM imports across package boundaries caused issues, types are now copied:
+Types are shared via pnpm workspaces - no more copying:
 
-- **Source of truth**: `types/` directory at project root
-- **Server copy**: `server/src/types/`
-- **Client copy**: `client/src/types/`
+- **Package**: `@club-mutant/types` (in `types/` directory)
+- **Import**: `import { Message } from '@club-mutant/types/Messages'`
+- **Workspace config**: `pnpm-workspace.yaml` defines `client`, `server`, `types`
 
-When updating types, update the root `types/` then copy to both locations.
+To add/modify types, edit files in `types/` directly. All packages share the same source.
+
+### Deployment
+
+- **Dockerfile.server**: Uses pnpm workspaces for production build
+- **Hetzner**: `deploy/hetzner/docker-compose.yml` orchestrates server + youtube-api + caddy
+- **Deploy command**: `./deploy/hetzner/deploy.sh` (run on VPS after git pull)
 
 ## Core runtime model
 

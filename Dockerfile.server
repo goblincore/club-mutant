@@ -1,21 +1,34 @@
 # Build stage
 FROM node:20-alpine AS builder
 
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 WORKDIR /app
 
-# Copy everything needed for build
-COPY package*.json ./
+# Copy workspace config and lockfile
+COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+
+# Copy package.json files for all workspace packages
+COPY package.json ./
+COPY types/package.json ./types/
+COPY server/package.json ./server/
+
+# Install all workspace dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source files
 COPY types/ ./types/
 COPY server/ ./server/
 
-# Install dependencies (root + types)
-RUN npm ci && cd types && npm ci
-
-# Build TypeScript
-RUN cd server && npx tsc --project tsconfig.server.json
+# Build TypeScript (server)
+RUN cd server && pnpm run build
 
 # Runtime stage
 FROM node:20-alpine
+
+# Install pnpm for production install
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
@@ -23,17 +36,23 @@ WORKDIR /app
 RUN apk add --no-cache python3 py3-pip ffmpeg && \
     pip3 install --break-system-packages yt-dlp bgutil-ytdlp-pot-provider
 
-# Copy package files and install production deps only
-COPY package*.json ./
-RUN npm ci --omit=dev
+# Copy workspace config
+COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json ./
+COPY types/package.json ./types/
+COPY server/package.json ./server/
 
-# Copy built files (tsc outputs to lib/server/ due to include pattern)
-COPY --from=builder /app/server/lib/server ./server/lib
-# Types need to be at server/types/ because compiled code uses '../types/' relative path
-COPY --from=builder /app/server/lib/types ./server/types
+# Install production deps only
+RUN pnpm install --frozen-lockfile --prod
 
-# Copy runtime JS files that aren't compiled
-COPY server/*.js ./server/
+# Copy types (needed at runtime for workspace resolution)
+COPY types/ ./types/
+
+# Copy built server files
+COPY --from=builder /app/server/lib ./server/lib
+
+# Copy runtime JS files that aren't compiled (Youtube.js, Queue.js)
+COPY server/src/Youtube.js server/src/Queue.js ./server/lib/
 
 ENV NODE_ENV=production
 ENV PORT=2567
