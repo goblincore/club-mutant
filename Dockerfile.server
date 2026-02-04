@@ -1,5 +1,5 @@
-# Build stage
-FROM node:20-alpine AS builder
+# Build stage - use slim (glibc) instead of alpine (musl) for uWebSockets.js
+FROM node:20-slim AS builder
 
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -24,8 +24,8 @@ COPY server/ ./server/
 # Build TypeScript (server)
 RUN cd server && pnpm run build
 
-# Runtime stage
-FROM node:20-alpine
+# Runtime stage - use slim (glibc) for uWebSockets.js compatibility
+FROM node:20-slim
 
 # Install pnpm for production install
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -33,8 +33,9 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
 # Install yt-dlp with PO token plugin for YouTube bot bypass
-RUN apk add --no-cache python3 py3-pip ffmpeg && \
-    pip3 install --break-system-packages yt-dlp bgutil-ytdlp-pot-provider
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip ffmpeg && \
+    pip3 install --break-system-packages yt-dlp bgutil-ytdlp-pot-provider && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy workspace config
 COPY pnpm-workspace.yaml pnpm-lock.yaml ./
