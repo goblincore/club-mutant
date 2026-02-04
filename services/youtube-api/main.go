@@ -989,8 +989,21 @@ func (s *Server) handlePrefetch(w http.ResponseWriter, r *http.Request) {
 		resolved := result.(*ResolveResponse)
 		s.resolveCache.Set(cacheKey, *resolved, 5*time.Minute)
 
-		// Fetch the video bytes
-		resp, err := http.Get(resolved.URL)
+		// Fetch the video bytes - use httpClient which has proxy configured
+		req, err := http.NewRequest("GET", resolved.URL, nil)
+		if err != nil {
+			log.Printf("[prefetch] Request creation failed for %s: %v", videoID, err)
+			return
+		}
+
+		// Set headers to mimic browser (same as proxy handler)
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		req.Header.Set("Accept", "*/*")
+		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+		req.Header.Set("Origin", "https://www.youtube.com")
+		req.Header.Set("Referer", "https://www.youtube.com/")
+
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			log.Printf("[prefetch] Fetch failed for %s: %v", videoID, err)
 			return
