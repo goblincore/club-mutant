@@ -1592,6 +1592,37 @@ CORS is handled at **one layer only** to avoid duplicate headers:
 Access-Control-Allow-Origin header contains multiple values
 ```
 
+**uWebSockets + CORS gotcha**: The `getCorsHeaders` callback receives `requestHeaders` as a plain object (not a full request). Access headers directly:
+
+```typescript
+matchMaker.controller.getCorsHeaders = function (requestHeaders) {
+  const headers = requestHeaders as unknown as Record<string, string>
+  const origin = headers?.origin
+  // ...
+}
+```
+
+**CRITICAL: Cannot use `*` with credentials**: When `Access-Control-Allow-Credentials: true`, you CANNOT use `Access-Control-Allow-Origin: *`. Browsers will reject this. You MUST echo back the specific origin:
+
+```typescript
+const ALLOWED_ORIGINS = ['https://mutante.club', 'http://localhost:5173', 'http://localhost:3000']
+
+matchMaker.controller.getCorsHeaders = function (requestHeaders) {
+  const headers = requestHeaders as unknown as Record<string, string>
+  const origin = headers?.origin
+
+  // Echo specific origin (NOT '*') when credentials are enabled
+  const allowedOrigin =
+    origin && ALLOWED_ORIGINS.includes(origin) ? origin : 'http://localhost:5173'
+
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin, // NOT '*'
+    'Access-Control-Allow-Credentials': 'true',
+    // ...
+  }
+}
+```
+
 ### YouTube API Proxy Chain
 
 Video streaming goes through multiple layers:
