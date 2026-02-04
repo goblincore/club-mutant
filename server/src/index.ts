@@ -65,6 +65,20 @@ const server = defineServer({
       }
     })
 
+    app.get('/youtube/proxy/:videoId', async (req, res) => {
+      const videoId = req.params.videoId
+      const rangeHeader = req.headers.range
+
+      try {
+        await proxyYouTubeVideo(videoId, rangeHeader, res)
+      } catch (e) {
+        console.error('[youtube] Proxy failed for', videoId, e)
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Failed to proxy video' })
+        }
+      }
+    })
+
     app.get('/youtube/:search', async (req, res) => {
       const search = req.params.search
       console.log('[youtube] search:', search)
