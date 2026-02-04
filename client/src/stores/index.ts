@@ -1,7 +1,5 @@
+import './immerSetup' // Must be first - enables Map/Set support before any reducers load
 import { configureStore } from '@reduxjs/toolkit'
-import { enableMapSet } from 'immer'
-
-enableMapSet()
 
 import userReducer from './UserStore'
 import chatReducer from './ChatStore'
