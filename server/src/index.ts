@@ -22,6 +22,14 @@ const server = defineServer({
     maxPayloadLength: 1024 * 1024, // 1MB max message size
   }),
 
+  options: {
+    cors: {
+      origin: ['https://mutante.club', 'http://localhost:5173', 'http://localhost:3000'],
+      methods: ['GET', 'POST', 'OPTIONS'],
+      allowedHeaders: ['Content-Type'],
+    },
+  },
+
   rooms: {
     [RoomType.LOBBY]: defineRoom(LobbyRoom),
     [RoomType.PUBLIC]: defineRoom(ClubMutant, {
