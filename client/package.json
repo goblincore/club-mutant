@@ -41,7 +41,7 @@
     "dist": "npm run build && electron-builder",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:win": "npm run build && electron-builder --win",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "if [ -z \"$NETLIFY\" ]; then electron-builder install-app-deps; fi"
   },
   "build": {
     "appId": "com.clubmutant.app",
