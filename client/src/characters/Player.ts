@@ -25,6 +25,13 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     timer?: Phaser.Time.TimerEvent
   }> = []
   private lastDialogBubbleAt = 0
+  private bubblePool: Array<{
+    container: Phaser.GameObjects.Container
+    graphics: Phaser.GameObjects.Graphics
+    text: Phaser.GameObjects.Text
+    inUse: boolean
+  }> = []
+  private readonly POOL_SIZE = 10
 
   constructor(
     scene: Phaser.Scene,
@@ -69,6 +76,56 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     const offsetX = -collisionWidth * 0.5
     const offsetY = this.height * 0.5 - collisionHeight
     playContainerBody.setSize(collisionWidth, collisionHeight).setOffset(offsetX, offsetY)
+
+    this.initBubblePool()
+  }
+
+  private initBubblePool() {
+    for (let i = 0; i < this.POOL_SIZE; i++) {
+      const container = this.scene.add.container(0, 0)
+      container.setAlpha(0)
+      container.setVisible(false)
+
+      const graphics = this.scene.add.graphics()
+      const text = this.scene.add
+        .text(0, 0, '', { wordWrap: { width: 165, useAdvancedWrap: true } })
+        .setFontFamily('Arial')
+        .setFontSize(12)
+        .setColor('#000000')
+        .setOrigin(0.5)
+
+      container.add(graphics)
+      container.add(text)
+
+      this.bubblePool.push({
+        container,
+        graphics,
+        text,
+        inUse: false,
+      })
+    }
+  }
+
+  private acquireBubble() {
+    const available = this.bubblePool.find((b) => !b.inUse)
+    if (available) {
+      available.inUse = true
+      available.container.y = 0
+      return available
+    }
+    return null
+  }
+
+  private releaseBubble(container: Phaser.GameObjects.Container) {
+    const pooled = this.bubblePool.find((b) => b.container === container)
+    if (pooled) {
+      pooled.inUse = false
+      pooled.container.setAlpha(0)
+      pooled.container.setVisible(false)
+      pooled.container.removeFromDisplayList()
+      pooled.graphics.clear()
+      pooled.text.setText('')
+    }
   }
 
   updatePhysicsBodyForAnim(animKey?: string) {
@@ -118,15 +175,17 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     const dialogBubbleText = content.length <= 70 ? content : content.substring(0, 70).concat('...')
 
-    const bubble = this.scene.add.container(0, 0)
-    bubble.setAlpha(0)
+    // Acquire bubble from pool
+    const pooledBubble = this.acquireBubble()
+    if (!pooledBubble) {
+      console.warn('Bubble pool exhausted')
+      return
+    }
 
-    const innerText = this.scene.add
-      .text(0, 0, dialogBubbleText, { wordWrap: { width: 165, useAdvancedWrap: true } })
-      .setFontFamily('Arial')
-      .setFontSize(12)
-      .setColor('#000000')
-      .setOrigin(0.5)
+    const { container: bubble, graphics, text: innerText } = pooledBubble
+
+    // Update text content
+    innerText.setText(dialogBubbleText)
 
     const innerTextHeight = innerText.height
     const innerTextWidth = innerText.width
@@ -137,15 +196,16 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     const dialogBoxX = innerText.x - innerTextWidth / 2 - 5
     const dialogBoxY = innerText.y - innerTextHeight / 2 - 2
 
-    bubble.add(
-      this.scene.add
-        .graphics()
-        .fillStyle(0xffffff, 1)
-        .fillRoundedRect(dialogBoxX, dialogBoxY, dialogBoxWidth, dialogBoxHeight, 3)
-        .lineStyle(1, 0x000000, 1)
-        .strokeRoundedRect(dialogBoxX, dialogBoxY, dialogBoxWidth, dialogBoxHeight, 3)
-    )
-    bubble.add(innerText)
+    // Update graphics
+    graphics.clear()
+    graphics
+      .fillStyle(0xffffff, 1)
+      .fillRoundedRect(dialogBoxX, dialogBoxY, dialogBoxWidth, dialogBoxHeight, 3)
+      .lineStyle(1, 0x000000, 1)
+      .strokeRoundedRect(dialogBoxX, dialogBoxY, dialogBoxWidth, dialogBoxHeight, 3)
+
+    bubble.setAlpha(0)
+    bubble.setVisible(true)
 
     this.playerDialogBubble.add(bubble)
 
@@ -192,7 +252,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
             removed.timer?.remove(false)
           }
 
-          bubble.destroy(true)
+          this.releaseBubble(bubble)
 
           let relayoutOffset = 0
           for (let i = 0; i < this.dialogBubbles.length; i += 1) {
@@ -219,11 +279,12 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   private clearDialogBubble() {
     for (const bubble of this.dialogBubbles) {
       bubble.timer?.remove(false)
+      this.releaseBubble(bubble.container)
     }
 
     this.dialogBubbles = []
 
-    this.playerDialogBubble.removeAll(true)
+    this.playerDialogBubble.removeAll(false)
     this.playerDialogBubble.setScale(1)
   }
 }

@@ -1,5 +1,3 @@
-import '../types/electron'
-
 export const isElectron = () => {
   return typeof window !== 'undefined' && 
          window.electronAPI?.isElectron === true
@@ -7,7 +5,7 @@ export const isElectron = () => {
 
 export const nativeFileSystem = {
   async exportPlaylist(playlistData: object, filename: string) {
-    if (isElectron()) {
+    if (isElectron() && window.electronAPI) {
       return window.electronAPI.saveFileDialog({
         content: JSON.stringify(playlistData, null, 2),
         defaultPath: filename,
@@ -26,7 +24,7 @@ export const nativeFileSystem = {
   },
 
   async importPlaylist(): Promise<object | null> {
-    if (isElectron()) {
+    if (isElectron() && window.electronAPI) {
       const result = await window.electronAPI.openFileDialog()
       if (!result.canceled && result.filePaths?.[0]) {
         const response = await fetch(result.filePaths[0])

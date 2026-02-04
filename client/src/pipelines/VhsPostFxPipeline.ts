@@ -402,10 +402,10 @@ void main()
 `
 
 export class VhsPostFxPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPipeline {
-  private shaderAB?: Phaser.Renderer.WebGL.WebGLShader
-  private shaderC?: Phaser.Renderer.WebGL.WebGLShader
-  private shaderD?: Phaser.Renderer.WebGL.WebGLShader
-  private shaderImage?: Phaser.Renderer.WebGL.WebGLShader
+  private shaderAB: Phaser.Renderer.WebGL.WebGLShader | null = null
+  private shaderC: Phaser.Renderer.WebGL.WebGLShader | null = null
+  private shaderD: Phaser.Renderer.WebGL.WebGLShader | null = null
+  private shaderImage: Phaser.Renderer.WebGL.WebGLShader | null = null
 
   private bypass = 0
 
