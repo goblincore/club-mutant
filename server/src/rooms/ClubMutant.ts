@@ -1,19 +1,19 @@
 import bcrypt from 'bcrypt'
-import { Room, Client, ServerError } from 'colyseus'
+import { Room, Client, ServerError, CloseCode } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
 import { v4 as uuidv4 } from 'uuid'
 
 import { Player, OfficeState, MusicBooth, RoomPlaylistItem, DJUserInfo } from './schema/OfficeState'
-import { IRoomData } from '../../types/Rooms'
-import { Message } from '../../types/Messages'
-import type { PlaylistItemDto } from '../../types/Dtos'
+import { IRoomData } from '@club-mutant/types/Rooms'
+import { Message } from '@club-mutant/types/Messages'
+import type { PlaylistItemDto } from '@club-mutant/types/Dtos'
 import { prefetchVideo } from '../youtubeService'
 import {
   TEXTURE_IDS,
   packDirectionalAnimId,
   sanitizeAnimId,
   sanitizeTextureId,
-} from '../../types/AnimationCodec'
+} from '@club-mutant/types/AnimationCodec'
 
 import PlayerUpdateActionCommand from './commands/PlayerUpdateActionCommand'
 import PlayerUpdateNameCommand from './commands/PlayerUpdateNameCommand'
@@ -33,7 +33,9 @@ import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 import PunchPlayerCommand from './commands/PunchPlayerCommand'
 import Queue from '../Queue'
 
-export class ClubMutant extends Room<OfficeState> {
+export class ClubMutant extends Room {
+  state = new OfficeState()
+
   private dispatcher = new Dispatcher(this)
   private name = ''
   private description = ''
@@ -150,8 +152,6 @@ export class ClubMutant extends Room<OfficeState> {
       hasPassword = true
     }
     this.setMetadata({ name, description, hasPassword })
-
-    this.setState(new OfficeState())
 
     this.startMusicStreamTickIfNeeded()
 
@@ -581,7 +581,9 @@ export class ClubMutant extends Room<OfficeState> {
     console.log('////onJoin, musicStream.status', musicStream.status)
   }
 
-  async onLeave(client: Client, consented: boolean) {
+  async onLeave(client: Client, code: number) {
+    const consented = code === CloseCode.CONSENTED
+
     if (!consented) {
       try {
         await this.allowReconnection(client, 60)

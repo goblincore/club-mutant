@@ -2,7 +2,7 @@ import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 import type { ClubMutant } from '../ClubMutant'
 import { PlaylistItem } from '../schema/OfficeState'
-import type { PlaylistItemDto } from '../../../types/Dtos'
+import type { PlaylistItemDto } from '@club-mutant/types/Dtos'
 
 type Payload = {
   client?: Client

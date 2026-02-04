@@ -1,5 +1,5 @@
 [build]
-  command = "cd types && npm i && cd ../client && npm i && npm run build"
+  command = "corepack enable && pnpm install --frozen-lockfile && pnpm --filter client build"
   publish = "client/dist"
 
 [build.environment]

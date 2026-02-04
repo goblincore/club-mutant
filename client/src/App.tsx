@@ -17,7 +17,7 @@ import ElectronFeatures from './components/ElectronFeatures'
 
 import { timeSync } from './services/TimeSync'
 
-import { RoomType } from '../../types/Rooms'
+import { RoomType } from '@club-mutant/types/Rooms'
 
 const Backdrop = styled.div`
   position: fixed;

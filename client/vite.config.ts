@@ -13,12 +13,12 @@ export default defineConfig({
   server: {
     fs: {
       allow: [path.resolve(__dirname, '..')],
+      strict: false,
     },
   },
 
   resolve: {
     alias: {
-      types: path.resolve(__dirname, '../types'),
       '@colyseus/httpie': '@colyseus/httpie/xhr',
     },
   },

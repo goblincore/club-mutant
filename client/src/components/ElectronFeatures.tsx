@@ -24,16 +24,16 @@ const StatusText = styled.span`
 `
 
 export default function ElectronFeatures() {
-  const [electronDetected, setElectronDetected] = useState(false)
+  const [electronDetected, setElectronDetected] = useState(isElectron())
   const [appVersion, setAppVersion] = useState('')
   const [lastAction, setLastAction] = useState('')
 
   useEffect(() => {
     const detected = isElectron()
     setElectronDetected(detected)
-    
+
     if (detected && window.electronAPI) {
-      window.electronAPI.getAppVersion().then(version => {
+      window.electronAPI.getAppVersion().then((version) => {
         setAppVersion(version)
       })
     }
@@ -46,9 +46,9 @@ export default function ElectronFeatures() {
       tracks: [
         { id: '1', title: 'Test Track 1', url: 'https://youtube.com/test1' },
         { id: '2', title: 'Test Track 2', url: 'https://youtube.com/test2' },
-      ]
+      ],
     }
-    
+
     const result = await nativeFileSystem.exportPlaylist(testPlaylist, 'my-playlist.json')
     if (!result.canceled) {
       setLastAction(`Exported to: ${result.filePath || 'downloads'}`)
@@ -58,38 +58,43 @@ export default function ElectronFeatures() {
   const handleImport = async () => {
     const playlist = await nativeFileSystem.importPlaylist()
     if (playlist) {
-      setLastAction(`Imported: ${(playlist as any).name || 'Unknown playlist'}`)
+      const playlistName =
+        typeof playlist === 'object' && playlist !== null && 'name' in playlist
+          ? String((playlist as { name?: unknown }).name || 'Unknown playlist')
+          : 'Unknown playlist'
+
+      setLastAction(`Imported: ${playlistName}`)
       console.log('Imported playlist:', playlist)
     }
   }
 
+  if (!electronDetected) {
+    return null
+  }
+
   return (
     <Container>
-      <StatusText>
-        {electronDetected ? `Electron v${appVersion}` : 'Web Mode'}
-      </StatusText>
-      
-      <Button 
-        variant="outlined" 
+      <StatusText>{`Electron v${appVersion}`}</StatusText>
+
+      <Button
+        variant="outlined"
         size="small"
         onClick={handleExport}
         sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
       >
         Export Playlist
       </Button>
-      
-      <Button 
-        variant="outlined" 
+
+      <Button
+        variant="outlined"
         size="small"
         onClick={handleImport}
         sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
       >
         Import Playlist
       </Button>
-      
-      {lastAction && (
-        <StatusText>{lastAction}</StatusText>
-      )}
+
+      {lastAction && <StatusText>{lastAction}</StatusText>}
     </Container>
   )
 }

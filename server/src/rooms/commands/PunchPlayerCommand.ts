@@ -2,8 +2,8 @@ import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 
 import type { ClubMutant } from '../ClubMutant'
-import { Message } from '../../../types/Messages'
-import { TEXTURE_IDS, encodeAnimKey } from '../../../types/AnimationCodec'
+import { Message } from '@club-mutant/types/Messages'
+import { TEXTURE_IDS, encodeAnimKey } from '@club-mutant/types/AnimationCodec'
 
 type Payload = {
   client: Client

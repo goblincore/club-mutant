@@ -2,7 +2,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
-import { PlaylistItem } from '../../../types/IOfficeState'
+import { PlaylistItem } from '@club-mutant/types/IOfficeState'
 
 const MY_PLAYLIST_STORAGE_KEY = 'club-mutant:my-playlist:v1'
 
