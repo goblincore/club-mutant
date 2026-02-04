@@ -1,8 +1,8 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 
-import type { ClubMutant } from '../ClubMutant'
-import { ChatMessage } from '../schema/OfficeState'
+import type { ClubMutant } from '../ClubMutant.js'
+import { ChatMessage } from '../schema/OfficeState.js'
 
 type Payload = {
   client: Client

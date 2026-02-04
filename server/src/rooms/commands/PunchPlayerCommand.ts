@@ -1,7 +1,7 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 
-import type { ClubMutant } from '../ClubMutant'
+import type { ClubMutant } from '../ClubMutant.js'
 import { Message } from '@club-mutant/types/Messages'
 import { TEXTURE_IDS, encodeAnimKey } from '@club-mutant/types/AnimationCodec'
 

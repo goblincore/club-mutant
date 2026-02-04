@@ -1,7 +1,7 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 
-import type { ClubMutant } from '../ClubMutant'
+import type { ClubMutant } from '../ClubMutant.js'
 
 type Payload = {
   client: Client

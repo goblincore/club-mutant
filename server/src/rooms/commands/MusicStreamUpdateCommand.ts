@@ -1,8 +1,8 @@
 import { Command } from '@colyseus/command'
 
 import { Client } from 'colyseus'
-import { PlaylistItem, DJUserInfo } from '../schema/OfficeState'
-import type { ClubMutant } from '../ClubMutant'
+import { PlaylistItem, DJUserInfo } from '../schema/OfficeState.js'
+import type { ClubMutant } from '../ClubMutant.js'
 import { Message } from '@club-mutant/types/Messages'
 import type { PlaylistItemDto } from '@club-mutant/types/Dtos'
 

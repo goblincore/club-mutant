@@ -21,11 +21,11 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason)
 })
 
-import * as youtube from './Youtube'
-import { searchYouTube, resolveYouTubeVideo, proxyYouTubeVideo } from './youtubeService'
+import * as youtube from './Youtube.js'
+import { searchYouTube, resolveYouTubeVideo, proxyYouTubeVideo } from './youtubeService.js'
 import { RoomType } from '@club-mutant/types/Rooms'
 
-import { ClubMutant } from './rooms/ClubMutant'
+import { ClubMutant } from './rooms/ClubMutant.js'
 
 const server = defineServer({
   transport: new uWebSocketsTransport({
