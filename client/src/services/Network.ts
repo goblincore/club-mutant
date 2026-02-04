@@ -208,6 +208,8 @@ export default class Network {
 
     // new instance added to the players MapSchema
     playersCallbacks.onAdd((player: IPlayer, key: string) => {
+      console.log(`[PlayerSync] onAdd called for ${key}, mySessionId=${this.mySessionId}`)
+
       if (key === this.mySessionId) {
         callbacks(player.nextTwoPlaylist).onRemove((_item, _index) => {
           console.log('////*player next two playlist onchange item', player.nextTwoPlaylist)
@@ -226,12 +228,15 @@ export default class Network {
       }
 
       const playerCallbacks = callbacks(player)
+      console.log(`[PlayerSync] Setting up listeners for ${key}`)
 
       playerCallbacks.listen('x', (value) => {
+        console.log(`[PlayerSync] x changed for ${key}: ${value}`)
         phaserEvents.emit(Event.PLAYER_UPDATED, 'x', value, key)
       })
 
       playerCallbacks.listen('y', (value) => {
+        console.log(`[PlayerSync] y changed for ${key}: ${value}`)
         phaserEvents.emit(Event.PLAYER_UPDATED, 'y', value, key)
       })
 
