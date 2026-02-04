@@ -48,11 +48,8 @@ RUN pnpm install --frozen-lockfile --prod
 # Copy types (needed at runtime for workspace resolution)
 COPY types/ ./types/
 
-# Copy built server files
+# Copy built server files (tsup bundles everything including JS files)
 COPY --from=builder /app/server/lib ./server/lib
-
-# Copy runtime JS files that aren't compiled (Youtube.js, Queue.js)
-COPY server/src/Youtube.js server/src/Queue.js ./server/lib/
 
 ENV NODE_ENV=production
 ENV PORT=2567

@@ -3,17 +3,11 @@ import { Room, Client, ServerError, CloseCode } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
 import { v4 as uuidv4 } from 'uuid'
 
-import {
-  Player,
-  OfficeState,
-  MusicBooth,
-  RoomPlaylistItem,
-  DJUserInfo,
-} from './schema/OfficeState.js'
+import { Player, OfficeState, MusicBooth, RoomPlaylistItem, DJUserInfo } from './schema/OfficeState'
 import { IRoomData } from '@club-mutant/types/Rooms'
 import { Message } from '@club-mutant/types/Messages'
 import type { PlaylistItemDto } from '@club-mutant/types/Dtos'
-import { prefetchVideo } from '../youtubeService.js'
+import { prefetchVideo } from '../youtubeService'
 import {
   TEXTURE_IDS,
   packDirectionalAnimId,
@@ -21,23 +15,23 @@ import {
   sanitizeTextureId,
 } from '@club-mutant/types/AnimationCodec'
 
-import PlayerUpdateActionCommand from './commands/PlayerUpdateActionCommand.js'
-import PlayerUpdateNameCommand from './commands/PlayerUpdateNameCommand.js'
+import PlayerUpdateActionCommand from './commands/PlayerUpdateActionCommand'
+import PlayerUpdateNameCommand from './commands/PlayerUpdateNameCommand'
 import {
   PlayerSetCurrentPlaylistItemCommand,
   PlayerSetNextPlaylistItemCommand,
-} from './commands/PlayerUpdatePlaylistCommand.js'
+} from './commands/PlayerUpdatePlaylistCommand'
 
 import {
   MusicBoothConnectUserCommand,
   MusicBoothDisconnectUserCommand,
-} from './commands/MusicBoothUpdateCommand.js'
+} from './commands/MusicBoothUpdateCommand'
 
-import { MusicStreamNextCommand } from './commands/MusicStreamUpdateCommand.js'
+import { MusicStreamNextCommand } from './commands/MusicStreamUpdateCommand'
 
-import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand.js'
-import PunchPlayerCommand from './commands/PunchPlayerCommand.js'
-import Queue from '../Queue.js'
+import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
+import PunchPlayerCommand from './commands/PunchPlayerCommand'
+import Queue from '../Queue'
 
 export class ClubMutant extends Room {
   state = new OfficeState()
