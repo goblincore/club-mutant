@@ -1,5 +1,5 @@
 # Build stage - use slim (glibc) instead of alpine (musl) for uWebSockets.js
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -25,7 +25,7 @@ COPY server/ ./server/
 RUN cd server && pnpm run build
 
 # Runtime stage - use slim (glibc) for uWebSockets.js compatibility
-FROM node:20-slim
+FROM node:22-slim
 
 # Install pnpm for production install
 RUN corepack enable && corepack prepare pnpm@latest --activate
