@@ -1,8 +1,12 @@
-# Build stage - use slim (glibc) instead of alpine (musl) for uWebSockets.js
-FROM node:22-slim AS builder
+# Build stage - use Ubuntu 24.04 for glibc 2.39 (uWebSockets.js needs 2.38+)
+FROM ubuntu:24.04 AS builder
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Install Node.js 22 and pnpm
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y nodejs && \
+    corepack enable && corepack prepare pnpm@latest --activate && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -24,18 +28,19 @@ COPY server/ ./server/
 # Build TypeScript (server)
 RUN cd server && pnpm run build
 
-# Runtime stage - use slim (glibc) for uWebSockets.js compatibility
-FROM node:22-slim
+# Runtime stage - use Ubuntu 24.04 for glibc 2.39 (uWebSockets.js needs 2.38+)
+FROM ubuntu:24.04
 
-# Install pnpm for production install
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-WORKDIR /app
-
-# Install yt-dlp with PO token plugin for YouTube bot bypass
-RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip ffmpeg && \
+# Install Node.js 22, pnpm, and runtime deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates python3 python3-pip ffmpeg && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y nodejs && \
+    corepack enable && corepack prepare pnpm@latest --activate && \
     pip3 install --break-system-packages yt-dlp bgutil-ytdlp-pot-provider && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
 
 # Copy workspace config
 COPY pnpm-workspace.yaml pnpm-lock.yaml ./
