@@ -1,3 +1,4 @@
+import './stores/immerSetup' // Must be absolute first - enables Map/Set before any store imports
 import 'regenerator-runtime/runtime'
 import React from 'react'
 import { createRoot } from 'react-dom/client'
