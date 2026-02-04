@@ -1,6 +1,8 @@
 import { configureStore } from '@reduxjs/toolkit'
 import { enableMapSet } from 'immer'
 
+enableMapSet()
+
 import userReducer from './UserStore'
 import chatReducer from './ChatStore'
 import roomReducer from './RoomStore'
@@ -9,8 +11,6 @@ import roomPlaylistReducer from './RoomPlaylistStore'
 import musicBoothReducer from './MusicBoothStore'
 import musicStreamReducer from './MusicStreamStore'
 import audioReducer from './AudioStore'
-
-enableMapSet()
 
 // redux combine all local stores into one big ass store we can access easily
 const store = configureStore({
