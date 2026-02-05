@@ -145,6 +145,97 @@ Add to `.env`:
 USE_RUSTY_YTDL=true
 ```
 
+## Current Status (Feb 2026)
+
+### Working
+
+- ✅ rusty-ytdl-hybrid binary compiles and runs
+- ✅ Integrated with Go youtube-api service
+- ✅ Fallback to yt-dlp when rusty-ytdl fails
+- ✅ ytdlp-ejs wired up for n-parameter transformation
+- ✅ Local fork of rusty_ytdl with configurable `client_type`
+
+### Issue: ANDROID client 403s on Hetzner
+
+rusty_ytdl hardcodes the **ANDROID** innertube client, but URLs resolved with ANDROID get 403 errors when streamed through the proxy. yt-dlp uses **WEB** client by default and works fine.
+
+**Root cause**: Different YouTube clients return different URL formats. ANDROID URLs appear to have different access restrictions.
+
+### Solution: Fork with WEB client support
+
+Created `services/rusty_ytdl_fork/` - a local fork that adds `client_type` to `RequestOptions`:
+
+```rust
+// In RequestOptions (structs.rs)
+pub client_type: Option<String>,  // "web", "android_sdkless", "ios", "tv_embedded"
+
+// Usage in resolver.rs
+options.request_options.client_type = Some("web".to_string());
+```
+
+**Files modified in fork:**
+
+- `services/rusty_ytdl_fork/src/structs.rs` - Added `client_type` field
+- `services/rusty_ytdl_fork/src/info.rs` - Use configurable client instead of hardcoded `android_sdkless`
+
+### Deploy Commands
+
+```bash
+# On Hetzner VPS
+cd ~/apps/club-mutant && git pull
+cd deploy/hetzner && docker compose build --no-cache youtube-api
+docker compose up -d --force-recreate youtube-api
+
+# Check logs
+docker compose logs -f youtube-api
+```
+
+### Key Log Messages
+
+**Success indicators:**
+
+- `[rusty-ytdl] Completed <videoId> in X.XXs` - Rust resolver ran
+- `[prefetch] Successfully prefetched <videoId>` - URL works
+- Look for `c=WEB` in URLs (WEB client) vs `c=ANDROID` (old)
+
+**Failure indicators:**
+
+- `[prefetch] Bad status for <videoId>: 403` - URL access denied
+- `[rusty-ytdl] n-param transform failed` - ytdlp-ejs couldn't decrypt (may still work)
+- Fallback: `[yt-dlp] Completed <videoId>` means it fell back to Python
+
+### Environment Variables
+
+| Variable         | Default | Description                                 |
+| ---------------- | ------- | ------------------------------------------- |
+| `USE_RUSTY_YTDL` | `true`  | Enable Rust resolver (disable with `false`) |
+| `PROXY_URL`      | -       | ISP proxy URL for resolution                |
+
+### File Structure
+
+```
+services/
+├── youtube-api/           # Go service
+│   ├── main.go           # resolveWithRustyYtdl() + resolveWithYtDlp()
+│   └── Dockerfile        # Multi-stage: Rust + Go build
+├── rusty-ytdl-hybrid/     # Rust CLI binary
+│   ├── Cargo.toml        # Uses path = "./rusty_ytdl_fork"
+│   └── src/
+│       ├── main.rs       # CLI args
+│       └── resolver.rs   # Core resolve logic + ytdlp-ejs integration
+└── rusty_ytdl_fork/       # Local fork of rusty_ytdl
+    └── src/
+        ├── structs.rs    # Added client_type to RequestOptions
+        └── info.rs       # Configurable client selection
+```
+
+### Next Steps
+
+1. **Test WEB client on Hetzner** - Pull latest, rebuild, check if 403s are gone
+2. **If WEB works** - Done! Monitor for regressions
+3. **If WEB still 403s** - May need signature/n-param handling improvements
+4. **Future** - Consider upstreaming `client_type` to rusty_ytdl
+
 ## Risks
 
 | Risk                                 | Mitigation                                 |
@@ -153,6 +244,7 @@ USE_RUSTY_YTDL=true
 | Proxy support differs                | Verify ISP proxy works with rusty_ytdl     |
 | Age-restricted/live videos fail      | Test edge cases; fall back to yt-dlp       |
 | ytdlp-ejs integration issues         | It's a Rust lib, should be straightforward |
+| ANDROID client 403s                  | Use WEB client via fork (implemented)      |
 
 ## References
 
