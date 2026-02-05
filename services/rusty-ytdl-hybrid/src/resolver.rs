@@ -3,6 +3,7 @@ use regex::Regex;
 use rusty_ytdl::{reqwest, Video, VideoOptions, VideoQuality, VideoSearchOptions};
 use serde::Serialize;
 use std::sync::OnceLock;
+use ytdlp_ejs::{process_input, JsChallengeInput, JsChallengeOutput, JsChallengeRequest, JsChallengeResponse, JsChallengeType, RuntimeType};
 
 #[derive(Serialize)]
 pub struct ResolveResponse {
@@ -111,8 +112,22 @@ pub async fn resolve_video(
         })
         .ok_or_else(|| anyhow!("No suitable format found"))?;
 
-    // Get the URL - this is where signature decryption happens
-    let resolved_url = best_format.url.clone();
+    // Get the URL - rusty_ytdl handles signature but NOT n-parameter
+    let mut resolved_url = best_format.url.clone();
+
+    // Transform n-parameter using ytdlp-ejs if present
+    if let Some(n_value) = extract_n_param(&resolved_url) {
+        match transform_n_param(video_id, &n_value, proxy).await {
+            Ok(transformed) => {
+                resolved_url = replace_n_param(&resolved_url, &transformed);
+                eprintln!("[rusty-ytdl] Transformed n-param for {}", video_id);
+            }
+            Err(e) => {
+                eprintln!("[rusty-ytdl] n-param transform failed for {}: {}", video_id, e);
+                // Continue with original URL - may get 403
+            }
+        }
+    }
 
     // Parse expiry from URL
     let expires_at = parse_expires_from_url(&resolved_url);
@@ -156,6 +171,136 @@ fn chrono_timestamp() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_millis() as i64
+}
+
+/// Extract the 'n' parameter value from a YouTube video URL
+fn extract_n_param(url: &str) -> Option<String> {
+    static N_REGEX: OnceLock<Regex> = OnceLock::new();
+    let re = N_REGEX.get_or_init(|| {
+        Regex::new(r"[?&]n=([^&]+)").unwrap()
+    });
+
+    re.captures(url)
+        .and_then(|caps| caps.get(1))
+        .map(|m| m.as_str().to_string())
+}
+
+/// Replace the 'n' parameter in a URL with a new value
+fn replace_n_param(url: &str, new_value: &str) -> String {
+    static N_REGEX: OnceLock<Regex> = OnceLock::new();
+    let re = N_REGEX.get_or_init(|| {
+        Regex::new(r"([?&]n=)[^&]+").unwrap()
+    });
+
+    re.replace(url, format!("${{1}}{}", new_value)).to_string()
+}
+
+/// Transform the n-parameter using ytdlp-ejs
+async fn transform_n_param(video_id: &str, n_value: &str, proxy: Option<&str>) -> Result<String> {
+    // Fetch player.js URL from YouTube watch page
+    let player_url = fetch_player_url(video_id, proxy).await?;
+    
+    // Download player.js content
+    let player_code = fetch_player_code(&player_url, proxy).await?;
+    
+    // Use ytdlp-ejs to transform the n-parameter
+    let input = JsChallengeInput::Player {
+        player: player_code,
+        requests: vec![
+            JsChallengeRequest {
+                challenge_type: JsChallengeType::N,
+                challenges: vec![n_value.to_string()],
+            },
+        ],
+        output_preprocessed: false,
+    };
+
+    let output = process_input(input, RuntimeType::QuickJS);
+    
+    // Extract the transformed n-value from the response
+    match output {
+        JsChallengeOutput::Result { responses, .. } => {
+            for response in responses {
+                if let JsChallengeResponse::Result { data } = response {
+                    if let Some(transformed) = data.get(n_value) {
+                        return Ok(transformed.to_string());
+                    }
+                }
+            }
+            Err(anyhow!("n-parameter not found in response"))
+        }
+        JsChallengeOutput::Error { error } => {
+            Err(anyhow!("ytdlp-ejs error: {}", error))
+        }
+    }
+}
+
+/// Fetch the player.js URL from YouTube watch page
+async fn fetch_player_url(video_id: &str, proxy: Option<&str>) -> Result<String> {
+    let watch_url = format!("https://www.youtube.com/watch?v={}", video_id);
+    
+    let client = if let Some(proxy_url) = proxy {
+        reqwest::Client::builder()
+            .proxy(reqwest::Proxy::all(proxy_url)?)
+            .build()?
+    } else {
+        reqwest::Client::new()
+    };
+
+    let html = client
+        .get(&watch_url)
+        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        .send()
+        .await?
+        .text()
+        .await?;
+
+    // Extract player URL from HTML - look for /s/player/...base.js
+    static PLAYER_REGEX: OnceLock<Regex> = OnceLock::new();
+    let re = PLAYER_REGEX.get_or_init(|| {
+        Regex::new(r#"(/s/player/[^"]+/player_ias\.vflset/[^"]+/base\.js)"#).unwrap()
+    });
+
+    if let Some(caps) = re.captures(&html) {
+        if let Some(m) = caps.get(1) {
+            return Ok(format!("https://www.youtube.com{}", m.as_str()));
+        }
+    }
+
+    // Try alternative pattern
+    static PLAYER_REGEX_ALT: OnceLock<Regex> = OnceLock::new();
+    let re_alt = PLAYER_REGEX_ALT.get_or_init(|| {
+        Regex::new(r#"(/s/player/[^"]+base\.js)"#).unwrap()
+    });
+
+    if let Some(caps) = re_alt.captures(&html) {
+        if let Some(m) = caps.get(1) {
+            return Ok(format!("https://www.youtube.com{}", m.as_str()));
+        }
+    }
+
+    Err(anyhow!("Could not find player.js URL in watch page"))
+}
+
+/// Fetch the player.js code
+async fn fetch_player_code(player_url: &str, proxy: Option<&str>) -> Result<String> {
+    let client = if let Some(proxy_url) = proxy {
+        reqwest::Client::builder()
+            .proxy(reqwest::Proxy::all(proxy_url)?)
+            .build()?
+    } else {
+        reqwest::Client::new()
+    };
+
+    let code = client
+        .get(player_url)
+        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        .send()
+        .await?
+        .text()
+        .await?;
+
+    Ok(code)
 }
 
 #[cfg(test)]
