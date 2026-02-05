@@ -16,8 +16,30 @@ const ALLOWED_ORIGINS = [
 // Note: getCorsHeaders receives requestHeaders object, not full request
 // IMPORTANT: Cannot use '*' with credentials:true - must echo specific origin
 matchMaker.controller.getCorsHeaders = function (requestHeaders) {
-  const headers = requestHeaders as unknown as Record<string, string>
-  const origin = headers?.origin
+  const getOrigin = (headers: unknown): string | undefined => {
+    if (!headers) return undefined
+
+    const maybeHeaders = headers as {
+      get?: (key: string) => string | null
+    }
+
+    if (typeof maybeHeaders.get === 'function') {
+      return maybeHeaders.get('origin') ?? maybeHeaders.get('Origin') ?? undefined
+    }
+
+    const record = headers as Record<string, unknown>
+    const originValue = record?.origin ?? record?.Origin
+    if (typeof originValue === 'string') return originValue
+    if (Array.isArray(originValue) && typeof originValue[0] === 'string') return originValue[0]
+
+    return undefined
+  }
+
+  const origin = getOrigin(requestHeaders)
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[CORS] matchmaker origin:', origin)
+  }
 
   // Echo back the origin if in allowlist, otherwise use production URL
   // (Cannot use '*' when credentials are enabled)
