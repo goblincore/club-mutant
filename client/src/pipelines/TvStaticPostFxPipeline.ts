@@ -4,7 +4,7 @@ export const TV_STATIC_POSTFX_PIPELINE_KEY = 'TvStaticPostFx'
 
 const FRAG_SHADER = `
 #ifdef GL_ES
-precision mediump float;
+precision highp float;
 #endif
 
 varying vec2 outTexCoord;
@@ -14,30 +14,33 @@ uniform vec2 uResolution;
 uniform float uTime;
 uniform float uIntensity;
 
-float hash21(vec2 p)
-{
-  p = fract(p * vec2(123.34, 345.45));
-  p += dot(p, p + 34.345);
-  return fract(p.x * p.y);
+// High quality hash for TV static - produces uniform random distribution
+float hash(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
 }
 
-void main()
-{
+void main() {
   vec2 fragCoord = outTexCoord * uResolution;
+  
+  // Use frame number for temporal variation - 60fps static
   float frame = floor(uTime * 60.0);
-
-  vec2 p = fragCoord + vec2(frame * 37.0, frame * 91.0);
-  float n = hash21(p);
-
-  float scan = sin((fragCoord.y + uTime * 120.0) * 0.25) * 0.08;
-  float flicker = (hash21(vec2(frame, 19.0)) - 0.5) * 0.06;
-
-  float v = clamp(n + scan + flicker, 0.0, 1.0);
-
+  
+  // Create unique seed per pixel per frame
+  vec2 seed = fragCoord + vec2(frame * 12.9898, frame * 78.233);
+  
+  // Pure random noise per pixel
+  float noise = hash(seed);
+  
+  // Optional: slight brightness variation across frames (flicker)
+  float flicker = hash(vec2(frame, 0.0)) * 0.1 - 0.05;
+  noise = clamp(noise + flicker, 0.0, 1.0);
+  
   vec4 base = texture2D(uMainSampler, outTexCoord);
-
-  vec3 color = mix(base.rgb, vec3(v), clamp(uIntensity, 0.0, 1.0));
-
+  
+  vec3 color = mix(base.rgb, vec3(noise), clamp(uIntensity, 0.0, 1.0));
+  
   gl_FragColor = vec4(color, base.a);
 }
 `
