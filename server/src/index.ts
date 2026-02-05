@@ -1,5 +1,4 @@
 import express from 'express'
-import cors from 'cors'
 import { defineServer, defineRoom, LobbyRoom, matchMaker } from 'colyseus'
 import { listen } from '@colyseus/tools'
 import { uWebSocketsTransport } from '@colyseus/uwebsockets-transport'
@@ -12,22 +11,6 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:5173',
   'http://127.0.0.1:3000',
 ]
-
-// CORS options for Express middleware
-const corsOptions: cors.CorsOptions = {
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-      callback(null, true)
-    } else {
-      console.log('[CORS] Blocked origin:', origin)
-      callback(null, false)
-    }
-  },
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type'],
-  credentials: true,
-}
 
 // Set CORS headers for Colyseus matchmaker routes
 // Note: getCorsHeaders receives requestHeaders object, not full request
@@ -82,8 +65,7 @@ const server = defineServer({
   },
 
   express: (app) => {
-    // CORS middleware - must be first for preflight handling
-    app.use(cors(corsOptions))
+    // CORS is handled by matchMaker.controller.getCorsHeaders - don't add duplicate middleware
     app.use(express.json())
 
     app.get('/health', (_req, res) => {
