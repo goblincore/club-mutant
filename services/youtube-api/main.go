@@ -611,10 +611,10 @@ func (s *Server) resolveWithRustyYtdl(videoID string, videoOnly bool) (*ResolveR
 	}, nil
 }
 
-// resolveVideo tries rusty-ytdl first (default), falls back to yt-dlp
+// resolveVideo tries rusty-ytdl if enabled, otherwise uses yt-dlp
 func (s *Server) resolveVideo(videoID string, videoOnly bool) (*ResolveResponse, error) {
-	// Default to rusty-ytdl since it's faster and falls back to yt-dlp anyway
-	useRusty := os.Getenv("USE_RUSTY_YTDL") != "false"
+	// Default to yt-dlp - rusty-ytdl's n-param transform is broken for current YouTube players
+	useRusty := os.Getenv("USE_RUSTY_YTDL") == "true"
 
 	if useRusty {
 		resp, err := s.resolveWithRustyYtdl(videoID, videoOnly)
@@ -1371,10 +1371,10 @@ func main() {
 
 	log.Printf("YouTube API service starting on port %s", port)
 	log.Printf("Cache TTL: %d seconds", cacheTTLSeconds)
-	if os.Getenv("USE_RUSTY_YTDL") == "false" {
-		log.Printf("[resolver] Using yt-dlp only (USE_RUSTY_YTDL=false)")
-	} else {
+	if os.Getenv("USE_RUSTY_YTDL") == "true" {
 		log.Printf("[resolver] Using rusty-ytdl with yt-dlp fallback")
+	} else {
+		log.Printf("[resolver] Using yt-dlp only (default)")
 	}
 
 	// Pre-warm PO token cache in background

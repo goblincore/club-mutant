@@ -139,7 +139,9 @@ USE_RUSTY_YTDL=true go run .
 
 ### Deploy to Hetzner
 
-Add to `.env`:
+The service defaults to yt-dlp only. No `.env` changes needed.
+
+To experiment with rusty-ytdl (broken, not recommended):
 
 ```
 USE_RUSTY_YTDL=true
@@ -147,36 +149,46 @@ USE_RUSTY_YTDL=true
 
 ## Current Status (Feb 2026)
 
-### Working
+### ⚠️ DISABLED BY DEFAULT
+
+rusty-ytdl is **disabled by default** because n-parameter transformation is broken for current YouTube players. The service defaults to yt-dlp only.
+
+To enable (experimental): `USE_RUSTY_YTDL=true`
+
+### What Works
 
 - ✅ rusty-ytdl-hybrid binary compiles and runs
 - ✅ Integrated with Go youtube-api service
 - ✅ Fallback to yt-dlp when rusty-ytdl fails
-- ✅ ytdlp-ejs wired up for n-parameter transformation
-- ✅ Local fork of rusty_ytdl with configurable `client_type`
+- ✅ Local fork of rusty_ytdl with configurable `client_type` (WEB)
+- ✅ WEB client returns URLs locally
 
-### Issue: ANDROID client 403s on Hetzner
+### What's Broken
 
-rusty_ytdl hardcodes the **ANDROID** innertube client, but URLs resolved with ANDROID get 403 errors when streamed through the proxy. yt-dlp uses **WEB** client by default and works fine.
+- ❌ **n-parameter transformation fails** - Both rusty_ytdl's internal `ncode` and ytdlp-ejs fail to extract/transform n-params from current YouTube player.js
+- ❌ **URLs get 403s** - Without proper n-param transform, YouTube throttles/blocks requests
+- ❌ **ytdlp-ejs outdated** - Its AST patterns don't match current player.js structure (player `4e51e895` fails, older `3d3ba064` works)
 
-**Root cause**: Different YouTube clients return different URL formats. ANDROID URLs appear to have different access restrictions.
+### Root Cause
 
-### Solution: Fork with WEB client support
+YouTube's player.js structure changed. Both:
 
-Created `services/rusty_ytdl_fork/` - a local fork that adds `client_type` to `RequestOptions`:
+1. **rusty_ytdl's `extract_ncode`** - Uses regex patterns that don't match current player
+2. **ytdlp-ejs's `sig::extract`/`n::extract`** - Uses SWC AST matching that doesn't find functions
 
-```rust
-// In RequestOptions (structs.rs)
-pub client_type: Option<String>,  // "web", "android_sdkless", "ios", "tv_embedded"
+The n-parameter in URLs remains scrambled (e.g., `n=2EYSg6cdZ643DVKGD`) instead of being transformed to a shorter value.
 
-// Usage in resolver.rs
-options.request_options.client_type = Some("web".to_string());
-```
+### Previous Attempts
 
-**Files modified in fork:**
+1. **ANDROID → WEB client** - Fixed client type but n-param still broken
+2. **ytdlp-ejs integration** - Library works with old players, fails with current
+3. **Standalone ytdlp-ejs test** - Confirmed issue is with current player.js parsing
 
-- `services/rusty_ytdl_fork/src/structs.rs` - Added `client_type` field
-- `services/rusty_ytdl_fork/src/info.rs` - Use configurable client instead of hardcoded `android_sdkless`
+### To Fix (Future Work)
+
+1. Update ytdlp-ejs patterns to match current YouTube player.js structure
+2. Or update rusty_ytdl's `extract_ncode` regex patterns
+3. Both require tracking YouTube's player.js changes over time
 
 ### Deploy Commands
 
@@ -208,7 +220,7 @@ docker compose logs -f youtube-api
 
 | Variable         | Default | Description                                 |
 | ---------------- | ------- | ------------------------------------------- |
-| `USE_RUSTY_YTDL` | `true`  | Enable Rust resolver (disable with `false`) |
+| `USE_RUSTY_YTDL` | `false` | Enable Rust resolver (experimental, broken) |
 | `PROXY_URL`      | -       | ISP proxy URL for resolution                |
 
 ### File Structure
@@ -231,10 +243,10 @@ services/
 
 ### Next Steps
 
-1. **Test WEB client on Hetzner** - Pull latest, rebuild, check if 403s are gone
-2. **If WEB works** - Done! Monitor for regressions
-3. **If WEB still 403s** - May need signature/n-param handling improvements
-4. **Future** - Consider upstreaming `client_type` to rusty_ytdl
+1. **Use yt-dlp** - Current default, works reliably
+2. **Monitor ytdlp-ejs** - Watch for updates that fix current player support
+3. **Future** - If ytdlp-ejs or rusty_ytdl update n-param extraction, re-enable
+4. **Consider** - Upstreaming `client_type` to rusty_ytdl if it becomes useful
 
 ## Risks
 
