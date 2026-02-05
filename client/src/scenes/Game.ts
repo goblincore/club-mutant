@@ -62,6 +62,11 @@ export default class Game extends Phaser.Scene {
   private key5!: Phaser.Input.Keyboard.Key
   private keyV!: Phaser.Input.Keyboard.Key
   private keyB!: Phaser.Input.Keyboard.Key
+
+  private debugStaticOverlayEnabled = false
+
+  private readonly backgroundStaticNormalDepth = -19
+  private readonly backgroundStaticDebugDepth = 200_000
   private map!: Phaser.Tilemaps.Tilemap
   private groundLayer!: Phaser.Tilemaps.TilemapLayer
   private pathObstacles: Array<{ getBounds: () => Phaser.Geom.Rectangle }> = []
@@ -180,6 +185,78 @@ export default class Game extends Phaser.Scene {
 
     this.backgroundStatic.setVisible(true)
     this.backgroundStatic.setAlpha(mode === 'loading' ? 1 : 0.45)
+  }
+
+  private syncBackgroundStaticToCurrentState() {
+    if (this.debugStaticOverlayEnabled) return
+
+    if (!this.backgroundVideo) {
+      this.setBackgroundStaticMode('off')
+      return
+    }
+
+    if (!this.activeBackgroundVideoId) {
+      this.setBackgroundStaticMode('idle')
+      return
+    }
+
+    if (!this.activeBackgroundVideoIsWebgl) {
+      this.setBackgroundStaticMode('off')
+      return
+    }
+
+    const videoWithFrameReady = this.backgroundVideo as Phaser.GameObjects.Video & {
+      frameReady?: boolean
+    }
+
+    if (videoWithFrameReady.frameReady === true && this.backgroundVideo.alpha >= 0.99) {
+      this.setBackgroundStaticMode('off')
+      return
+    }
+
+    this.setBackgroundStaticMode('loading')
+  }
+
+  private toggleDebugStaticOverlay() {
+    if (this.game.renderer.type !== Phaser.WEBGL) {
+      console.log('[TV Static] Debug toggle ignored: renderer is not WEBGL')
+      return
+    }
+
+    if (!this.backgroundStatic) return
+
+    this.debugStaticOverlayEnabled = !this.debugStaticOverlayEnabled
+
+    if (this.debugStaticOverlayEnabled) {
+      this.backgroundStaticTween?.stop()
+      this.backgroundStaticTween = undefined
+
+      this.backgroundStatic.setDepth(this.backgroundStaticDebugDepth)
+      this.backgroundStatic.setVisible(true)
+      this.backgroundStatic.setAlpha(0.65)
+      this.backgroundStatic.setBlendMode(Phaser.BlendModes.SCREEN)
+
+      this.backgroundStatic.setPostPipeline(TV_STATIC_POSTFX_PIPELINE_KEY)
+
+      const pipeline = this.backgroundStatic.getPostPipeline(
+        TV_STATIC_POSTFX_PIPELINE_KEY
+      ) as unknown as TvStaticPostFxPipeline | TvStaticPostFxPipeline[] | undefined
+      const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
+
+      if (instance && instance instanceof TvStaticPostFxPipeline) {
+        instance.setIntensity(1)
+      } else {
+        console.warn('[TV Static] Missing post pipeline instance on debug toggle', pipeline)
+      }
+
+      console.log('[TV Static] Debug overlay: ON')
+      return
+    }
+
+    this.backgroundStatic.setDepth(this.backgroundStaticNormalDepth)
+    this.backgroundStatic.setBlendMode(Phaser.BlendModes.NORMAL)
+    this.syncBackgroundStaticToCurrentState()
+    console.log('[TV Static] Debug overlay: OFF')
   }
 
   private fadeOutBackgroundStatic(durationMs = 650) {
@@ -969,6 +1046,10 @@ export default class Game extends Phaser.Scene {
       if (this.game.renderer.type !== Phaser.WEBGL) return
       this.toggleWaxyPostFx()
     })
+
+    keyboard.on('keydown-M', () => {
+      this.toggleDebugStaticOverlay()
+    })
   }
 
   disableKeys() {
@@ -1212,7 +1293,7 @@ export default class Game extends Phaser.Scene {
       .rectangle(0, 0, this.scale.gameSize.width, this.scale.gameSize.height, 0x000000)
       .setOrigin(0, 0)
       .setScrollFactor(0)
-      .setDepth(-19)
+      .setDepth(this.backgroundStaticNormalDepth)
       .setAlpha(0)
       .setVisible(false)
 

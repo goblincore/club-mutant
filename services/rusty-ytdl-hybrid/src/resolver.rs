@@ -78,6 +78,16 @@ pub async fn resolve_video(
     // Find the best matching format
     let formats = &info.formats;
     
+    // Debug: log format count and first format URL
+    eprintln!("[rusty-ytdl] {} has {} formats", video_id, formats.len());
+    if let Some(first) = formats.first() {
+        eprintln!("[rusty-ytdl] First format URL length: {}, has_video: {}, has_audio: {}", 
+            first.url.len(), first.has_video, first.has_audio);
+        if first.url.len() < 100 {
+            eprintln!("[rusty-ytdl] First format URL: {}", first.url);
+        }
+    }
+    
     if formats.is_empty() {
         return Err(anyhow!("No formats available for video {}", video_id));
     }

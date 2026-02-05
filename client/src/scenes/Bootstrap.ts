@@ -7,6 +7,10 @@ import { setRoomJoined } from '../stores/RoomStore'
 import { VHS_POSTFX_PIPELINE_KEY, VhsPostFxPipeline } from '../pipelines/VhsPostFxPipeline'
 import { CRT_POSTFX_PIPELINE_KEY, CrtPostFxPipeline } from '../pipelines/CrtPostFxPipeline'
 import { WAXY_POSTFX_PIPELINE_KEY, WaxyPostFxPipeline } from '../pipelines/WaxyPostFxPipeline'
+import {
+  TV_STATIC_POSTFX_PIPELINE_KEY,
+  TvStaticPostFxPipeline,
+} from '../pipelines/TvStaticPostFxPipeline'
 
 export default class Bootstrap extends Phaser.Scene {
   network!: Network
@@ -116,6 +120,7 @@ export default class Bootstrap extends Phaser.Scene {
       renderer.pipelines.addPostPipeline(VHS_POSTFX_PIPELINE_KEY, VhsPostFxPipeline)
       renderer.pipelines.addPostPipeline(CRT_POSTFX_PIPELINE_KEY, CrtPostFxPipeline)
       renderer.pipelines.addPostPipeline(WAXY_POSTFX_PIPELINE_KEY, WaxyPostFxPipeline)
+      renderer.pipelines.addPostPipeline(TV_STATIC_POSTFX_PIPELINE_KEY, TvStaticPostFxPipeline)
     }
 
     this.launchBackground(store.getState().user.backgroundMode)
