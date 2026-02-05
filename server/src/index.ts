@@ -19,10 +19,9 @@ matchMaker.controller.getCorsHeaders = function (requestHeaders) {
   const headers = requestHeaders as unknown as Record<string, string>
   const origin = headers?.origin
 
-  // Echo back the origin if in allowlist, otherwise use first allowed origin
+  // Echo back the origin if in allowlist, otherwise use production URL
   // (Cannot use '*' when credentials are enabled)
-  const allowedOrigin =
-    origin && ALLOWED_ORIGINS.includes(origin) ? origin : 'http://localhost:5173'
+  const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : 'https://mutante.club'
 
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
