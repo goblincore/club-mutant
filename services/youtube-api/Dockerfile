@@ -7,11 +7,12 @@ RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig git
 WORKDIR /rust-app
 
 # Copy Rust project and local fork (build context is services/)
-COPY rusty_ytdl_fork ./rusty_ytdl_fork
-COPY rusty-ytdl-hybrid/Cargo.toml rusty-ytdl-hybrid/Cargo.lock* ./
-COPY rusty-ytdl-hybrid/src ./src
+# Preserve directory structure so ../rusty_ytdl_fork path works
+COPY rusty_ytdl_fork /rust-app/rusty_ytdl_fork
+COPY rusty-ytdl-hybrid /rust-app/rusty-ytdl-hybrid
 
 # Build the Rust binary
+WORKDIR /rust-app/rusty-ytdl-hybrid
 RUN cargo build --release 2>/dev/null || cargo build --release
 
 # Go build stage
@@ -41,7 +42,7 @@ RUN apk add --no-cache ca-certificates python3 py3-pip ffmpeg nodejs && \
 COPY --from=go-builder /app/youtube-api /youtube-api
 
 # Copy Rust binary (optional - for USE_RUSTY_YTDL=true)
-COPY --from=rust-builder /rust-app/target/release/rusty-ytdl-hybrid /usr/local/bin/rusty-ytdl-hybrid
+COPY --from=rust-builder /rust-app/rusty-ytdl-hybrid/target/release/rusty-ytdl-hybrid /usr/local/bin/rusty-ytdl-hybrid
 
 ENV PORT=8081
 # Set USE_RUSTY_YTDL=true to use the faster Rust-based resolver
