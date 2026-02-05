@@ -49,6 +49,9 @@ pub async fn resolve_video(
         ..Default::default()
     };
 
+    // Use WEB client to match yt-dlp's default behavior
+    options.request_options.client_type = Some("web".to_string());
+
     // Add proxy if configured (using rusty_ytdl's reqwest re-export)
     if let Some(proxy_url) = proxy {
         if let Ok(proxy) = reqwest::Proxy::all(proxy_url) {

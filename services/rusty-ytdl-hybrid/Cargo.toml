@@ -5,8 +5,8 @@ edition = "2021"
 description = "Hybrid YouTube resolver combining rusty_ytdl + ytdlp-ejs"
 
 [dependencies]
-# YouTube API client
-rusty_ytdl = { git = "https://github.com/Mithronn/rusty_ytdl", features = ["default"] }
+# YouTube API client (local fork with configurable client_type)
+rusty_ytdl = { path = "../rusty_ytdl_fork", features = ["default"] }
 
 # Signature solver (yt-dlp's EJS port)
 ytdlp-ejs = { git = "https://github.com/ahaoboy/ytdlp-ejs", features = ["qjs"] }

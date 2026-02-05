@@ -6,7 +6,8 @@ RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig git
 
 WORKDIR /rust-app
 
-# Copy Rust project (build context is services/)
+# Copy Rust project and local fork (build context is services/)
+COPY rusty_ytdl_fork ./rusty_ytdl_fork
 COPY rusty-ytdl-hybrid/Cargo.toml rusty-ytdl-hybrid/Cargo.lock* ./
 COPY rusty-ytdl-hybrid/src ./src
 
