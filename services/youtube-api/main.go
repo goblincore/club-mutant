@@ -610,9 +610,10 @@ func (s *Server) resolveWithRustyYtdl(videoID string, videoOnly bool) (*ResolveR
 	}, nil
 }
 
-// resolveVideo tries rusty-ytdl first (if enabled), falls back to yt-dlp
+// resolveVideo tries rusty-ytdl first (default), falls back to yt-dlp
 func (s *Server) resolveVideo(videoID string, videoOnly bool) (*ResolveResponse, error) {
-	useRusty := os.Getenv("USE_RUSTY_YTDL") == "true"
+	// Default to rusty-ytdl since it's faster and falls back to yt-dlp anyway
+	useRusty := os.Getenv("USE_RUSTY_YTDL") != "false"
 
 	if useRusty {
 		resp, err := s.resolveWithRustyYtdl(videoID, videoOnly)
@@ -1103,7 +1104,7 @@ func (s *Server) handlePrefetch(w http.ResponseWriter, r *http.Request) {
 
 		// Resolve the video URL
 		result, err, _ := resolveGroup.Do(cacheKey, func() (interface{}, error) {
-			return s.resolveWithYtDlp(videoID, true)
+			return s.resolveVideo(videoID, true)
 		})
 
 		if err != nil {
@@ -1369,6 +1370,11 @@ func main() {
 
 	log.Printf("YouTube API service starting on port %s", port)
 	log.Printf("Cache TTL: %d seconds", cacheTTLSeconds)
+	if os.Getenv("USE_RUSTY_YTDL") == "false" {
+		log.Printf("[resolver] Using yt-dlp only (USE_RUSTY_YTDL=false)")
+	} else {
+		log.Printf("[resolver] Using rusty-ytdl with yt-dlp fallback")
+	}
 
 	// Pre-warm PO token cache in background
 	go prewarmPOToken()
