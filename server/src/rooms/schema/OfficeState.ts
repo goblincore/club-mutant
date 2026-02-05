@@ -20,6 +20,24 @@ export class RoomPlaylistItem extends Schema {
   @type('string') addedBySessionId = ''
 }
 
+// NEW: Per-player room queue playlist item for DJ rotation
+export class RoomQueuePlaylistItem extends Schema {
+  @type('string') id = ''
+  @type('string') title = ''
+  @type('string') link = ''
+  @type('number') duration = 0
+  @type('number') addedAtMs = 0
+  @type('boolean') played = false // Track if this item has been played
+}
+
+// NEW: DJ Queue Entry for tracking rotation
+export class DJQueueEntry extends Schema {
+  @type('string') sessionId = ''
+  @type('string') name = ''
+  @type('number') joinedAtMs = 0
+  @type('number') queuePosition = 0 // Visual position (0 = current DJ)
+}
+
 export class Player extends Schema {
   @type('string') id: string | null = null
   @type('string') djId: string | null = null
@@ -33,6 +51,7 @@ export class Player extends Schema {
   @type(PlaylistItem) currentPlaylistItem = new PlaylistItem()
   @type(PlaylistItem) nextPlaylistItem = new PlaylistItem()
   @type([PlaylistItem]) nextTwoPlaylist = new ArraySchema<PlaylistItem>()
+  @type([RoomQueuePlaylistItem]) roomQueuePlaylist = new ArraySchema<RoomQueuePlaylistItem>()
 }
 
 export class ChatMessage extends Schema {
@@ -75,6 +94,9 @@ export class OfficeState extends Schema {
   @type(MusicStream) musicStream = new MusicStream()
   @type(MusicStream) nextStream = new MusicStream()
   @type([RoomPlaylistItem]) roomPlaylist = new ArraySchema<RoomPlaylistItem>()
+  // NEW: DJ Queue rotation system
+  @type([DJQueueEntry]) djQueue = new ArraySchema<DJQueueEntry>()
+  @type('string') currentDjSessionId: string | null = null
 }
 
 // const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'

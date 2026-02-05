@@ -4,6 +4,8 @@ import Item from './Item'
 import Network from '../services/Network'
 import { openMyPlaylistPanel, closeMyPlaylistPanel, setFocused } from '../stores/MyPlaylistStore'
 import { disconnectFromMusicBooth } from '../stores/MusicBoothStore'
+import { setIsInQueue } from '../stores/DJQueueStore'
+import { setRoomQueuePlaylistVisible } from '../stores/RoomQueuePlaylistStore'
 
 export default class MusicBooth extends Item {
   id?: number
@@ -54,6 +56,15 @@ export default class MusicBooth extends Item {
     store.dispatch(setFocused(true))
     console.log('////MusicBooth, openDialog, network.connectToMusicBooth, this.id', this.id)
     network.connectToMusicBooth(this.id)
+    
+    // Auto-join DJ queue when opening the booth
+    const state = store.getState()
+    if (!state.djQueue.isInQueue) {
+      console.log('////MusicBooth, auto-joining DJ queue')
+      network.joinDJQueue()
+      store.dispatch(setIsInQueue(true))
+      store.dispatch(setRoomQueuePlaylistVisible(true))
+    }
   }
 
   closeDialog(network: Network) {
@@ -63,5 +74,14 @@ export default class MusicBooth extends Item {
     store.dispatch(disconnectFromMusicBooth())
     this.currentUser = null
     network.disconnectFromMusicBooth(this.id)
+
+    // Also leave DJ queue if currently in it
+    const state = store.getState()
+    if (state.djQueue.isInQueue) {
+      console.log('////MusicBooth, leaving DJ queue on close')
+      network.leaveDJQueue()
+      store.dispatch(setIsInQueue(false))
+      store.dispatch(setRoomQueuePlaylistVisible(false))
+    }
   }
 }

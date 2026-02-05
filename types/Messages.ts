@@ -32,4 +32,20 @@ export enum Message {
   ROOM_PLAYLIST_PREV,
 
   SET_VIDEO_BACKGROUND,
+
+  // DJ Queue Management
+  DJ_QUEUE_JOIN,           // Join the DJ queue
+  DJ_QUEUE_LEAVE,          // Leave the DJ queue
+  DJ_QUEUE_UPDATED,        // Broadcast: queue changed
+
+  // Room Queue Playlist (per-player)
+  ROOM_QUEUE_PLAYLIST_ADD,
+  ROOM_QUEUE_PLAYLIST_REMOVE,
+  ROOM_QUEUE_PLAYLIST_REORDER,
+  ROOM_QUEUE_PLAYLIST_UPDATED,
+
+  // DJ Control
+  DJ_SKIP_TURN,            // Skip entire turn
+  DJ_TURN_COMPLETE,        // Current DJ track finished
+  DJ_PLAY_STARTED,         // Broadcast: new DJ started playing
 }

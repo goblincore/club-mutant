@@ -12,11 +12,15 @@ import { shiftMyPlaylist } from '../stores/MyPlaylistStore'
 import { setVideoBackgroundEnabled } from '../stores/MusicStreamStore'
 import { RoomType } from '@club-mutant/types/Rooms'
 
-import { Backdrop, MiniBar, Marquee, MarqueeInner, Wrapper, RoomInfo } from './YoutubePlayer.styles'
+import { Backdrop, MiniBar, Marquee, MarqueeInner, Wrapper, RoomInfo, JoinQueueContainer, JoinQueueSubtitle, JoinQueueButton, JoinQueueMiniBar } from './YoutubePlayer.styles'
 import { PlayerControls } from './PlayerControls'
 import { RoomPlaylistView } from './RoomPlaylistView'
 import { VideoPlayer } from './VideoPlayer'
 import { usePlayerSync } from './usePlayerSync'
+import DJQueuePanel from './DJQueuePanel'
+import AddIcon from '@mui/icons-material/Add'
+import { setIsInQueue } from '../stores/DJQueueStore'
+import { setRoomQueuePlaylistVisible } from '../stores/RoomQueuePlaylistStore'
 
 export default function YoutubePlayer() {
   const dispatch = useAppDispatch()
@@ -49,6 +53,11 @@ export default function YoutubePlayer() {
   const isPublicRoom = roomType === RoomType.PUBLIC
   const isDj = connectedBoothIndex !== null
   const isNonDjPublic = isPublicRoom && !isDj && !isAmbient
+
+  // DJ Queue state
+  const isInDJQueue = useAppSelector((state) => state.djQueue.isInQueue)
+  const isCurrentDJ = useAppSelector((state) => state.djQueue.currentDjSessionId === mySessionId)
+  const djQueueEntries = useAppSelector((state) => state.djQueue.entries)
 
   // Player sync logic (custom hook)
   const {
@@ -140,6 +149,12 @@ export default function YoutubePlayer() {
     phaserEvents.emit(Event.VIDEO_BACKGROUND_ENABLED_CHANGED, newValue)
   }, [dispatch, videoBackgroundEnabled])
 
+  const handleJoinDJQueue = useCallback(() => {
+    game.network.joinDJQueue()
+    dispatch(setIsInQueue(true))
+    dispatch(setRoomQueuePlaylistVisible(true))
+  }, [game.network, dispatch])
+
   const handleOnEnded = useCallback(() => {
     if (isAmbient) {
       setIsPlaying(true)
@@ -151,6 +166,14 @@ export default function YoutubePlayer() {
       setIsBuffering(true)
     }
 
+    // New DJ Queue system
+    if (isInDJQueue && isCurrentDJ) {
+      setIsPlaying(true)
+      game.network.djTurnComplete()
+      return
+    }
+
+    // Legacy system (fallback)
     if (isRoomPlaylist) {
       if (currentDj?.sessionId === game.myPlayer.playerId) {
         setIsPlaying(true)
@@ -178,6 +201,8 @@ export default function YoutubePlayer() {
     dispatch,
     playerRef,
     setIsPlaying,
+    isInDJQueue,
+    isCurrentDJ,
   ])
 
   // Render: Ambient mode (hidden player)
@@ -215,10 +240,190 @@ export default function YoutubePlayer() {
   }
 
   // Render: Not connected and no stream
-  if (!link && connectedBoothIndex === null) {
+  if (!link && connectedBoothIndex === null && !isInDJQueue) {
     return (
       <Backdrop>
         <Wrapper />
+      </Backdrop>
+    )
+  }
+
+  // Render: DJ Queue UI when in queue
+  if (isInDJQueue) {
+    // Get next DJ info for minimized view
+    const nextDJ = djQueueEntries.find((e, i) => i === 1) || null
+
+    if (minimized) {
+      return (
+        <Backdrop>
+          <MiniBar>
+            <IconButton aria-label="expand dj bar" size="small" onClick={() => setMinimized(false)}>
+              <OpenInFullIcon fontSize="inherit" />
+            </IconButton>
+
+            <Marquee>
+              <MarqueeInner>
+                {link !== null
+                  ? `Now Playing: ${title || 'Unknown'}${nextDJ ? ` | Up Next: ${nextDJ.name}` : ''}`
+                  : isCurrentDJ
+                    ? 'Add tracks to start playing!'
+                    : `Waiting for ${djQueueEntries[0]?.name || 'DJ'}...`}
+              </MarqueeInner>
+            </Marquee>
+          </MiniBar>
+
+          {/* Video player (hidden but playing audio) */}
+          <div style={{ position: 'fixed', left: -10000, opacity: 0, pointerEvents: 'none' }}>
+            <VideoPlayer
+              url={url}
+              isPlaying={isPlaying}
+              isMuted={globallyMuted}
+              isHidden={false}
+              videoBackgroundEnabled={videoBackgroundEnabled}
+              canToggleBackground={canToggleVideoBackground}
+              playerRef={playerRef}
+              onReady={handleReady}
+              onEnded={handleOnEnded}
+              onBufferEnd={handleOnBufferEnd}
+              onToggleBackground={handleToggleBackground}
+            />
+          </div>
+        </Backdrop>
+      )
+    }
+
+    return (
+      <Backdrop>
+        <Wrapper>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <IconButton
+              aria-label="minimize dj player"
+              className="close"
+              onClick={() => setMinimized(true)}
+              size="small"
+            >
+              <MinimizeIcon />
+            </IconButton>
+          </div>
+
+          {/* DJ Queue Panel */}
+          <DJQueuePanel />
+
+          {/* Video player (hidden but playing audio) */}
+          <div style={{ position: 'fixed', left: -10000, opacity: 0, pointerEvents: 'none' }}>
+            <VideoPlayer
+              url={url}
+              isPlaying={isPlaying}
+              isMuted={globallyMuted}
+              isHidden={false}
+              videoBackgroundEnabled={videoBackgroundEnabled}
+              canToggleBackground={canToggleVideoBackground}
+              playerRef={playerRef}
+              onReady={handleReady}
+              onEnded={handleOnEnded}
+              onBufferEnd={handleOnBufferEnd}
+              onToggleBackground={handleToggleBackground}
+            />
+          </div>
+        </Wrapper>
+      </Backdrop>
+    )
+  }
+
+  // Render: Join DJ Queue option when booth occupied by someone else
+  // Note: connectedBoothIndex is YOUR connection status, so if you're connected,
+  // you should have auto-joined the queue. This shows when someone else is DJing
+  // and you're not in the queue yet.
+  if (connectedBoothIndex === null && !isInDJQueue && link !== null) {
+    // Get next DJ info
+    const nextDJ = djQueueEntries.find((e, i) => i === 1) || null
+    
+    // Calculate elapsed time
+    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startTime) / 1000))
+    const progress = `${Math.floor(elapsedSeconds / 60)}:${(elapsedSeconds % 60).toString().padStart(2, '0')}`
+
+    if (minimized) {
+      return (
+        <Backdrop>
+          <JoinQueueMiniBar>
+            <IconButton aria-label="expand dj bar" size="small" onClick={() => setMinimized(false)}>
+              <OpenInFullIcon fontSize="inherit" />
+            </IconButton>
+            <div className="track-info">
+              <div className="track-title">{title || 'Unknown'}</div>
+              <div className="track-meta">
+                {progress} • Up next: {nextDJ?.name || 'No one yet'}
+              </div>
+            </div>
+            <button className="join-btn" onClick={handleJoinDJQueue} title="Join queue">
+              <AddIcon fontSize="small" />
+            </button>
+          </JoinQueueMiniBar>
+
+          {/* Video player (hidden but playing audio) */}
+          <div style={{ position: 'fixed', left: -10000, opacity: 0, pointerEvents: 'none' }}>
+            <VideoPlayer
+              url={url}
+              isPlaying={isPlaying}
+              isMuted={globallyMuted}
+              isHidden={false}
+              videoBackgroundEnabled={videoBackgroundEnabled}
+              canToggleBackground={canToggleVideoBackground}
+              playerRef={playerRef}
+              onReady={handleReady}
+              onEnded={handleOnEnded}
+              onBufferEnd={handleOnBufferEnd}
+              onToggleBackground={handleToggleBackground}
+            />
+          </div>
+        </Backdrop>
+      )
+    }
+
+    return (
+      <Backdrop>
+        <Wrapper>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <IconButton
+              aria-label="minimize dj player"
+              className="close"
+              onClick={() => setMinimized(true)}
+              size="small"
+            >
+              <MinimizeIcon />
+            </IconButton>
+          </div>
+
+          {/* Join Queue Button */}
+          <JoinQueueContainer>
+            <JoinQueueSubtitle>
+              Join the queue to play your tracks after the current mutant
+            </JoinQueueSubtitle>
+            <JoinQueueButton onClick={handleJoinDJQueue}>
+              <AddIcon fontSize="small" />
+              Join Queue
+            </JoinQueueButton>
+          </JoinQueueContainer>
+
+          {/* Video player (hidden but playing audio) */}
+          <div style={{ position: 'fixed', left: -10000, opacity: 0, pointerEvents: 'none' }}>
+            <VideoPlayer
+              url={url}
+              isPlaying={isPlaying}
+              isMuted={globallyMuted}
+              isHidden={false}
+              videoBackgroundEnabled={videoBackgroundEnabled}
+              canToggleBackground={canToggleVideoBackground}
+              playerRef={playerRef}
+              onReady={handleReady}
+              onEnded={handleOnEnded}
+              onBufferEnd={handleOnBufferEnd}
+              onToggleBackground={handleToggleBackground}
+            />
+          </div>
+        </Wrapper>
       </Backdrop>
     )
   }

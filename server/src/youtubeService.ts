@@ -230,18 +230,33 @@ export async function proxyYouTubeVideo(
 
   const reader = upstream.body.getReader()
 
+  let aborted = false
+
+  const onClose = () => {
+    aborted = true
+    reader.cancel().catch(() => {
+      // Ignore cancel errors - reader may already be closed
+    })
+  }
+
+  res.on('close', onClose)
+
   const stream = async (): Promise<void> => {
     while (true) {
+      if (aborted) break
+
       const { done, value } = await reader.read()
 
       if (done) {
-        res.end()
-        return
+        if (!aborted) res.end()
+        break
       }
+
+      if (aborted) break
 
       const canContinue = res.write(value)
 
-      if (!canContinue) {
+      if (!canContinue && !aborted) {
         await new Promise<void>((resolve) => res.once('drain', resolve))
       }
     }
@@ -250,8 +265,14 @@ export async function proxyYouTubeVideo(
   try {
     await stream()
   } catch (e) {
-    reader.cancel()
+    if (!aborted) {
+      reader.cancel().catch(() => {
+        // Ignore cancel errors
+      })
+    }
     throw e
+  } finally {
+    res.off('close', onClose)
   }
 }
 

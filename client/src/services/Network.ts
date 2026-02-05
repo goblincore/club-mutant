@@ -23,7 +23,7 @@ import {
   IRoomPlaylistItem,
 } from '@club-mutant/types/IOfficeState'
 import { Message } from '@club-mutant/types/Messages'
-import type { PlaylistItemDto } from '@club-mutant/types/Dtos'
+import type { PlaylistItemDto, DJQueueEntryDto, RoomQueuePlaylistItemDto } from '@club-mutant/types/Dtos'
 import { IRoomData, RoomType } from '@club-mutant/types/Rooms'
 import { ItemType } from '@club-mutant/types/Items'
 import { phaserEvents, Event } from '../events/EventCenter'
@@ -58,6 +58,13 @@ import {
   setRoomPlaylist,
   type RoomPlaylistItem as RoomPlaylistItemState,
 } from '../stores/RoomPlaylistStore'
+import {
+  setDJQueue,
+  updateMyQueueStatus,
+} from '../stores/DJQueueStore'
+import {
+  setRoomQueuePlaylist,
+} from '../stores/RoomQueuePlaylistStore'
 
 // This class centralizes the handling of network events from the server
 // mostly the socket events
@@ -409,6 +416,26 @@ export default class Network {
       }
     )
 
+    // DJ Queue updates
+    this.room.onMessage(
+      Message.DJ_QUEUE_UPDATED,
+      (payload: { djQueue: DJQueueEntryDto[]; currentDjSessionId: string | null }) => {
+        store.dispatch(setDJQueue({
+          entries: payload.djQueue,
+          currentDjSessionId: payload.currentDjSessionId
+        }))
+        store.dispatch(updateMyQueueStatus({ sessionId: this.mySessionId }))
+      }
+    )
+
+    // Room Queue Playlist updates
+    this.room.onMessage(
+      Message.ROOM_QUEUE_PLAYLIST_UPDATED,
+      (payload: { items: RoomQueuePlaylistItemDto[] }) => {
+        store.dispatch(setRoomQueuePlaylist(payload.items))
+      }
+    )
+
     // videoBackgroundEnabled is now local-only, default true
     store.dispatch(setMusicStream(null))
 
@@ -725,5 +752,42 @@ export default class Network {
     }
 
     this.room?.send(Message.SET_USER_NEXT_PLAYLIST_ITEM, { item: itemDto })
+  }
+
+  // DJ Queue Management
+  joinDJQueue() {
+    console.log('[Network] Joining DJ queue')
+    this.room?.send(Message.DJ_QUEUE_JOIN, {})
+  }
+
+  leaveDJQueue() {
+    console.log('[Network] Leaving DJ queue')
+    this.room?.send(Message.DJ_QUEUE_LEAVE, {})
+  }
+
+  skipDJTurn() {
+    console.log('[Network] Skipping DJ turn')
+    this.room?.send(Message.DJ_SKIP_TURN, {})
+  }
+
+  djTurnComplete() {
+    console.log('[Network] DJ turn complete')
+    this.room?.send(Message.DJ_TURN_COMPLETE, {})
+  }
+
+  // Room Queue Playlist Management
+  addToRoomQueuePlaylist(item: { title: string; link: string; duration: number }) {
+    console.log('[Network] Adding to room queue playlist:', item.title)
+    this.room?.send(Message.ROOM_QUEUE_PLAYLIST_ADD, item)
+  }
+
+  removeFromRoomQueuePlaylist(itemId: string) {
+    console.log('[Network] Removing from room queue playlist:', itemId)
+    this.room?.send(Message.ROOM_QUEUE_PLAYLIST_REMOVE, { itemId })
+  }
+
+  reorderRoomQueuePlaylist(fromIndex: number, toIndex: number) {
+    console.log('[Network] Reordering room queue playlist:', fromIndex, '->', toIndex)
+    this.room?.send(Message.ROOM_QUEUE_PLAYLIST_REORDER, { fromIndex, toIndex })
   }
 }

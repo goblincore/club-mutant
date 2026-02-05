@@ -44,8 +44,10 @@ const Wrapper = styled.div`
 
 export default function DjStatusPill() {
   const connectedBoothIndex = useAppSelector((state) => state.musicBooth.musicBoothIndex)
+  const isInDJQueue = useAppSelector((state) => state.djQueue.isInQueue)
 
-  if (connectedBoothIndex === null) return null
+  // Hide when using the new DJ queue system (it's shown in the queue panel instead)
+  if (connectedBoothIndex === null || isInDJQueue) return null
 
   const handleLeave = () => {
     const game = phaserGame.scene.keys.game as Game

@@ -29,6 +29,19 @@ import {
 
 import { MusicStreamNextCommand } from './commands/MusicStreamUpdateCommand'
 
+import {
+  DJQueueJoinCommand,
+  DJQueueLeaveCommand,
+  DJSkipTurnCommand,
+  DJTurnCompleteCommand,
+} from './commands/DJQueueCommand'
+
+import {
+  RoomQueuePlaylistAddCommand,
+  RoomQueuePlaylistRemoveCommand,
+  RoomQueuePlaylistReorderCommand,
+} from './commands/RoomQueuePlaylistCommand'
+
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 import PunchPlayerCommand from './commands/PunchPlayerCommand'
 import Queue from '../Queue'
@@ -524,6 +537,46 @@ export class ClubMutant extends Room {
         item: message.item,
       })
     })
+
+    // DJ Queue Management
+    this.onMessage(Message.DJ_QUEUE_JOIN, (client) => {
+      this.dispatcher.dispatch(new DJQueueJoinCommand(), { client })
+    })
+
+    this.onMessage(Message.DJ_QUEUE_LEAVE, (client) => {
+      this.dispatcher.dispatch(new DJQueueLeaveCommand(), { client })
+    })
+
+    this.onMessage(Message.DJ_SKIP_TURN, (client) => {
+      this.dispatcher.dispatch(new DJSkipTurnCommand(), { client })
+    })
+
+    this.onMessage(Message.DJ_TURN_COMPLETE, (client) => {
+      this.dispatcher.dispatch(new DJTurnCompleteCommand(), { client })
+    })
+
+    // Room Queue Playlist Management
+    this.onMessage(
+      Message.ROOM_QUEUE_PLAYLIST_ADD,
+      (client, message: { title: string; link: string; duration: number }) => {
+        this.dispatcher.dispatch(new RoomQueuePlaylistAddCommand(), { client, item: message })
+      }
+    )
+
+    this.onMessage(Message.ROOM_QUEUE_PLAYLIST_REMOVE, (client, message: { itemId: string }) => {
+      this.dispatcher.dispatch(new RoomQueuePlaylistRemoveCommand(), { client, itemId: message.itemId })
+    })
+
+    this.onMessage(
+      Message.ROOM_QUEUE_PLAYLIST_REORDER,
+      (client, message: { fromIndex: number; toIndex: number }) => {
+        this.dispatcher.dispatch(new RoomQueuePlaylistReorderCommand(), {
+          client,
+          fromIndex: message.fromIndex,
+          toIndex: message.toIndex,
+        })
+      }
+    )
   }
 
   async onAuth(client: Client, options: { password: string | null }) {
@@ -626,6 +679,12 @@ export class ClubMutant extends Room {
         }
       }
     })
+
+    // Remove from DJ queue if present
+    const inDJQueue = this.state.djQueue.some((e) => e.sessionId === client.sessionId)
+    if (inDJQueue) {
+      this.dispatcher.dispatch(new DJQueueLeaveCommand(), { client })
+    }
   }
 
   onDispose() {

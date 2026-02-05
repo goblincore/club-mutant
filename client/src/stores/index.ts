@@ -9,6 +9,8 @@ import roomPlaylistReducer from './RoomPlaylistStore'
 import musicBoothReducer from './MusicBoothStore'
 import musicStreamReducer from './MusicStreamStore'
 import audioReducer from './AudioStore'
+import djQueueReducer from './DJQueueStore'
+import roomQueuePlaylistReducer from './RoomQueuePlaylistStore'
 
 // redux combine all local stores into one big ass store we can access easily
 const store = configureStore({
@@ -21,6 +23,8 @@ const store = configureStore({
     audio: audioReducer,
     chat: chatReducer,
     room: roomReducer,
+    djQueue: djQueueReducer,
+    roomQueuePlaylist: roomQueuePlaylistReducer,
   },
   // Temporary disable serialize check for redux as we store MediaStream in ComputerStore.
   // https://stackoverflow.com/a/63244831

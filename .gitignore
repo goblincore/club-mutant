@@ -14,3 +14,6 @@ __pycache__
 !/conversion/base/ripped_sprites_individual_export/
 !/conversion/base/ripped_sprites_individual_export/**
 
+# IDE/editor specific
+.opencode/
+

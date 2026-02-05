@@ -1083,6 +1083,7 @@ const UserPlaylist = ({ onEditTrack }: { onEditTrack: (trackId: string) => void 
   const activePlaylistId = useAppSelector((state) => state.myPlaylist.activePlaylistId)
   const activePlaylist = playlists.find((p) => p.id === activePlaylistId) ?? null
   const connectedBoothIndex = useAppSelector((state) => state.musicBooth.musicBoothIndex)
+  const isInDJQueue = useAppSelector((state) => state.djQueue.isInQueue)
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null)
 
   const game = phaserGame.scene.keys.game as Game
@@ -1098,6 +1099,15 @@ const UserPlaylist = ({ onEditTrack }: { onEditTrack: (trackId: string) => void 
   const handleAddToRoom = (item: PlaylistItem) => {
     if (!item.link) return
     game.network.addRoomPlaylistItem({
+      title: item.title,
+      link: item.link,
+      duration: item.duration,
+    })
+  }
+
+  const handleAddToDJQueue = (item: PlaylistItem) => {
+    if (!item.link) return
+    game.network.addToRoomQueuePlaylist({
       title: item.title,
       link: item.link,
       duration: item.duration,
@@ -1158,12 +1168,17 @@ const UserPlaylist = ({ onEditTrack }: { onEditTrack: (trackId: string) => void 
           >
             <DeleteOutlineIcon fontSize="small" />
           </IconButton>
-          {connectedBoothIndex !== null ? (
+          {connectedBoothIndex !== null || isInDJQueue ? (
             <IconButton
               size="small"
               onClick={() => {
-                handleAddToRoom(item)
+                if (isInDJQueue) {
+                  handleAddToDJQueue(item)
+                } else {
+                  handleAddToRoom(item)
+                }
               }}
+              title={isInDJQueue ? "Add to DJ Queue" : "Add to Room Playlist"}
             >
               <AddIcon fontSize="small" />
             </IconButton>
