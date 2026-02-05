@@ -1,20 +1,3 @@
-# Rust build stage for rusty-ytdl-hybrid
-# Note: ytdlp-ejs requires edition2024, which needs Rust nightly
-FROM rustlang/rust:nightly-alpine AS rust-builder
-
-RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig git
-
-WORKDIR /rust-app
-
-# Copy Rust project and local fork (build context is services/)
-# Preserve directory structure so ../rusty_ytdl_fork path works
-COPY rusty_ytdl_fork /rust-app/rusty_ytdl_fork
-COPY rusty-ytdl-hybrid /rust-app/rusty-ytdl-hybrid
-
-# Build the Rust binary
-WORKDIR /rust-app/rusty-ytdl-hybrid
-RUN cargo build --release 2>/dev/null || cargo build --release
-
 # Go build stage
 FROM golang:1.24-alpine AS go-builder
 
@@ -41,12 +24,11 @@ RUN apk add --no-cache ca-certificates python3 py3-pip ffmpeg nodejs && \
 # Copy Go binary
 COPY --from=go-builder /app/youtube-api /youtube-api
 
-# Copy Rust binary (optional - for USE_RUSTY_YTDL=true)
-COPY --from=rust-builder /rust-app/rusty-ytdl-hybrid/target/release/rusty-ytdl-hybrid /usr/local/bin/rusty-ytdl-hybrid
+# Note: Rust rusty-ytdl-hybrid build removed - n-param transform broken for current YouTube players
+# To re-enable, restore rust-builder stage and COPY command below:
+# COPY --from=rust-builder /rust-app/rusty-ytdl-hybrid/target/release/rusty-ytdl-hybrid /usr/local/bin/rusty-ytdl-hybrid
 
 ENV PORT=8081
-# Set USE_RUSTY_YTDL=true to use the faster Rust-based resolver
-ENV USE_RUSTY_YTDL=false
 
 EXPOSE 8081
 
