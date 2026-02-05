@@ -1,8 +1,8 @@
 # Rust build stage for rusty-ytdl-hybrid
-# Note: ytdlp-ejs requires edition2024, which needs Rust 1.82+
-FROM rust:1.84-alpine AS rust-builder
+# Note: ytdlp-ejs requires edition2024, which needs Rust nightly
+FROM rustlang/rust:nightly-alpine AS rust-builder
 
-RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig
+RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig git
 
 WORKDIR /rust-app
 
