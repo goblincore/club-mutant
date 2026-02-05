@@ -583,6 +583,7 @@ func (s *Server) resolveWithRustyYtdl(videoID string, videoOnly bool) (*ResolveR
 	}
 
 	log.Printf("[rusty-ytdl] Completed %s in %v", videoID, elapsed)
+	log.Printf("[rusty-ytdl] Raw output for %s: %s", videoID, stdout.String())
 
 	var resp RustyYtdlResponse
 	if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
