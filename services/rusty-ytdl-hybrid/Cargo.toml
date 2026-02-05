@@ -1,0 +1,36 @@
+[package]
+name = "rusty-ytdl-hybrid"
+version = "0.1.0"
+edition = "2021"
+description = "Hybrid YouTube resolver combining rusty_ytdl + ytdlp-ejs"
+
+[dependencies]
+# YouTube API client
+rusty_ytdl = { git = "https://github.com/Mithronn/rusty_ytdl", features = ["default"] }
+
+# Signature solver (yt-dlp's EJS port)
+ytdlp-ejs = { git = "https://github.com/ahaoboy/ytdlp-ejs", features = ["qjs"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive"] }
+
+# JSON serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Note: We use rusty_ytdl's reqwest re-export to avoid version conflicts
+
+# Error handling
+anyhow = "1"
+
+# Regex for URL parsing
+regex = "1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

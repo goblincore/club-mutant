@@ -101,12 +101,13 @@ func (c *Cache) cleanupLoop() {
 }
 
 type ResolveResponse struct {
-	VideoID     string `json:"videoId"`
-	URL         string `json:"url"`
-	ExpiresAtMs *int64 `json:"expiresAtMs"`
-	ResolvedAt  int64  `json:"resolvedAtMs"`
-	VideoOnly   bool   `json:"videoOnly"`
-	Quality     string `json:"quality"`
+	VideoID          string `json:"videoId"`
+	URL              string `json:"url"`
+	ExpiresAtMs      *int64 `json:"expiresAtMs"`
+	ResolvedAt       int64  `json:"resolvedAtMs"`
+	VideoOnly        bool   `json:"videoOnly"`
+	Quality          string `json:"quality"`
+	ResolvedViaProxy bool   `json:"resolvedViaProxy"` // Track if proxy was used for resolution
 }
 
 type ResolveCache struct {
@@ -191,11 +192,11 @@ type Server struct {
 
 // POTokenCache caches PO tokens to avoid regenerating on every yt-dlp call
 type POTokenCache struct {
-	mu         sync.RWMutex
-	token      string
-	expiresAt  time.Time
-	fetching   bool
-	fetchCond  *sync.Cond
+	mu        sync.RWMutex
+	token     string
+	expiresAt time.Time
+	fetching  bool
+	fetchCond *sync.Cond
 }
 
 func NewPOTokenCache() *POTokenCache {
@@ -274,11 +275,11 @@ func init() {
 
 // VideoCache stores video bytes in memory with LRU eviction
 type VideoCache struct {
-	mu        sync.RWMutex
-	entries   map[string]*VideoCacheEntry
-	maxSize   int64
-	curSize   int64
-	lruOrder  []string
+	mu       sync.RWMutex
+	entries  map[string]*VideoCacheEntry
+	maxSize  int64
+	curSize  int64
+	lruOrder []string
 }
 
 type VideoCacheEntry struct {
@@ -475,7 +476,7 @@ func warmupYtDlp() {
 	go func() {
 		// Small delay to not block server startup
 		time.Sleep(2 * time.Second)
-		
+
 		start := time.Now()
 		// Run yt-dlp --version to warm up Python + module imports
 		cmd := exec.Command("yt-dlp", "--version")
@@ -484,19 +485,19 @@ func warmupYtDlp() {
 			log.Printf("[warmup] yt-dlp warmup failed: %v", err)
 			return
 		}
-		
+
 		// Also warm up with a quick info fetch to cache yt-dlp's internal state
 		// Use a dummy video that won't trigger rate limits
-		warmupCmd := exec.Command("yt-dlp", 
-			"--dump-single-json", 
+		warmupCmd := exec.Command("yt-dlp",
+			"--dump-single-json",
 			"--skip-download",
 			"--playlist-items", "0",
 			"--quiet",
 			"--no-warnings",
 			"https://www.youtube.com/watch?v=dQw4w9WgXcQ")
 		warmupCmd.Run() // Ignore errors, this is just for warming caches
-		
-		log.Printf("[warmup] yt-dlp primed in %v (version: %s)", 
+
+		log.Printf("[warmup] yt-dlp primed in %v (version: %s)",
 			time.Since(start), strings.TrimSpace(string(output)))
 	}()
 }
@@ -535,6 +536,95 @@ func isBotDetectionError(stderr string) bool {
 	return false
 }
 
+// RustyYtdlResponse matches the JSON output from rusty-ytdl-hybrid binary
+type RustyYtdlResponse struct {
+	URL        string  `json:"url"`
+	ExpiresAt  int64   `json:"expires_at"`
+	Quality    string  `json:"quality"`
+	VideoOnly  bool    `json:"video_only"`
+	ResolvedAt int64   `json:"resolved_at"`
+	Error      *string `json:"error,omitempty"`
+}
+
+// resolveWithRustyYtdl calls the Rust-based hybrid resolver (faster than yt-dlp)
+func (s *Server) resolveWithRustyYtdl(videoID string, videoOnly bool) (*ResolveResponse, error) {
+	// Use 144 to match yt-dlp's "160/133/134" format preference (144p first)
+	args := []string{"--resolve", videoID, "--quality", "144"}
+	if videoOnly {
+		args = append(args, "--video-only")
+	}
+
+	// Add proxy if configured
+	proxyURL := os.Getenv("PROXY_URL")
+	if proxyURL != "" {
+		args = append(args, "--proxy", proxyURL)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	log.Printf("[rusty-ytdl] Running: rusty-ytdl-hybrid %v", args)
+	cmd := exec.CommandContext(ctx, "rusty-ytdl-hybrid", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	startTime := time.Now()
+	err := cmd.Run()
+	elapsed := time.Since(startTime)
+
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			log.Printf("[rusty-ytdl] TIMEOUT after %v for %s", elapsed, videoID)
+		} else {
+			log.Printf("[rusty-ytdl] Failed for %s after %v: %v, stderr: %s", videoID, elapsed, err, stderr.String())
+		}
+		return nil, err
+	}
+
+	log.Printf("[rusty-ytdl] Completed %s in %v", videoID, elapsed)
+
+	var resp RustyYtdlResponse
+	if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
+		log.Printf("[rusty-ytdl] Failed to parse JSON for %s: %v, stdout: %s", videoID, err, stdout.String())
+		return nil, fmt.Errorf("failed to parse rusty-ytdl output: %v", err)
+	}
+
+	if resp.Error != nil {
+		return nil, fmt.Errorf("rusty-ytdl error: %s", *resp.Error)
+	}
+
+	if resp.URL == "" {
+		return nil, fmt.Errorf("rusty-ytdl returned empty URL")
+	}
+
+	expiresAtMs := resp.ExpiresAt
+	return &ResolveResponse{
+		VideoID:          videoID,
+		URL:              resp.URL,
+		ExpiresAtMs:      &expiresAtMs,
+		ResolvedAt:       resp.ResolvedAt,
+		VideoOnly:        resp.VideoOnly,
+		Quality:          resp.Quality,
+		ResolvedViaProxy: proxyURL != "",
+	}, nil
+}
+
+// resolveVideo tries rusty-ytdl first (if enabled), falls back to yt-dlp
+func (s *Server) resolveVideo(videoID string, videoOnly bool) (*ResolveResponse, error) {
+	useRusty := os.Getenv("USE_RUSTY_YTDL") == "true"
+
+	if useRusty {
+		resp, err := s.resolveWithRustyYtdl(videoID, videoOnly)
+		if err == nil {
+			return resp, nil
+		}
+		log.Printf("[resolve] rusty-ytdl failed for %s, falling back to yt-dlp: %v", videoID, err)
+	}
+
+	return s.resolveWithYtDlp(videoID, videoOnly)
+}
+
 // resolveWithYtDlp calls yt-dlp - tries ISP proxy first (faster), falls back to PO token
 func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveResponse, error) {
 	proxyURL := os.Getenv("PROXY_URL")
@@ -544,20 +634,29 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 	if proxyURL != "" {
 		resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, false)
 		if err == nil {
+			resp.ResolvedViaProxy = true
 			return resp, nil
 		}
 		log.Printf("[resolve] Proxy failed for %s, falling back to PO token: %v", videoID, err)
 	}
 
-	// If PO provider is configured (or using default production URL), use PO token
-	if potProviderURL != "" || proxyURL != "" {
-		return s.resolveWithYtDlpInternal(videoID, videoOnly, true)
+	// If PO provider is configured, use PO token
+	if potProviderURL != "" {
+		resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, true)
+		if err == nil {
+			resp.ResolvedViaProxy = false
+		}
+		return resp, err
 	}
 
 	// Local dev: neither proxy nor PO provider configured - try basic yt-dlp
 	// This may fail for some videos due to bot detection, but works for many
 	log.Printf("[resolve] No proxy or PO provider configured, trying basic yt-dlp for %s", videoID)
-	return s.resolveWithYtDlpInternal(videoID, videoOnly, false)
+	resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, false)
+	if err == nil {
+		resp.ResolvedViaProxy = false
+	}
+	return resp, err
 }
 
 // resolveWithYtDlpInternal is the actual yt-dlp call with optional PO token support
@@ -717,8 +816,8 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 
 	// Use singleflight to coalesce duplicate requests for the same video
 	result, err, shared := resolveGroup.Do(cacheKey, func() (interface{}, error) {
-		log.Printf("[resolve] Resolving %s via yt-dlp (videoOnly=%v)", videoID, videoOnly)
-		return s.resolveWithYtDlp(videoID, videoOnly)
+		log.Printf("[resolve] Resolving %s (videoOnly=%v)", videoID, videoOnly)
+		return s.resolveVideo(videoID, videoOnly)
 	})
 
 	if shared {
@@ -777,8 +876,8 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	if !found {
 		// Use singleflight to coalesce duplicate requests
 		result, err, _ := resolveGroup.Do(cacheKey, func() (interface{}, error) {
-			log.Printf("[proxy] Resolving %s via yt-dlp (videoOnly=%v)", videoID, videoOnly)
-			return s.resolveWithYtDlp(videoID, videoOnly)
+			log.Printf("[proxy] Resolving %s (videoOnly=%v)", videoID, videoOnly)
+			return s.resolveVideo(videoID, videoOnly)
 		})
 
 		if err != nil {
@@ -813,9 +912,22 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Use shared client with connection pooling for better performance
+	// If URL was resolved via proxy, use proxy for streaming too
+	// If URL was resolved via PO token (no proxy), don't use proxy for streaming
 	upstreamStart := time.Now()
-	log.Printf("[proxy] Streaming %s via httpClient (proxy configured: %v)", videoID, os.Getenv("PROXY_URL") != "")
-	resp, err := httpClient.Do(req)
+	useProxyForStream := resolved.ResolvedViaProxy && os.Getenv("PROXY_URL") != ""
+	log.Printf("[proxy] Streaming %s (resolvedViaProxy=%v, usingProxy=%v)", videoID, resolved.ResolvedViaProxy, useProxyForStream)
+
+	var resp *http.Response
+	if useProxyForStream {
+		resp, err = httpClient.Do(req)
+	} else {
+		// Use a client without proxy
+		directClient := &http.Client{
+			Timeout: 5 * time.Minute,
+		}
+		resp, err = directClient.Do(req)
+	}
 	if err != nil {
 		log.Printf("[proxy] Upstream request failed for %s: %v", videoID, err)
 		http.Error(w, "Upstream request failed", http.StatusBadGateway)
@@ -828,6 +940,18 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	// If YouTube returns 403, the URL may be IP-locked to a different IP
 	// Re-resolve to get a fresh URL
 	if resp.StatusCode == http.StatusForbidden {
+		// Log the actual IP being used when 403 occurs
+		go func() {
+			ipTestReq, _ := http.NewRequest("GET", "https://httpbin.org/ip", nil)
+			ipResp, err := httpClient.Do(ipTestReq)
+			if err != nil {
+				log.Printf("[proxy] Failed to check current proxy IP: %v", err)
+				return
+			}
+			defer ipResp.Body.Close()
+			body, _ := io.ReadAll(ipResp.Body)
+			log.Printf("[proxy] Current proxy IP on 403: %s", string(body))
+		}()
 		log.Printf("[proxy] Got 403 for %s, re-resolving with fresh cache", videoID)
 
 		// Re-resolve with fresh cache key to bypass any cached result
@@ -1248,7 +1372,7 @@ func main() {
 
 	// Pre-warm PO token cache in background
 	go prewarmPOToken()
-	
+
 	// Warm up yt-dlp Python cache to reduce cold-start latency
 	warmupYtDlp()
 
@@ -1291,9 +1415,9 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 func corsMiddleware(next http.Handler) http.Handler {
 	allowedOrigins := map[string]bool{
-		"https://mutante.club":    true,
-		"http://localhost:5173":   true,
-		"http://localhost:3000":   true,
+		"https://mutante.club":  true,
+		"http://localhost:5173": true,
+		"http://localhost:3000": true,
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
