@@ -98,6 +98,7 @@ export function usePlayerSync({
   useEffect(() => {
     if (!link) return
     if (!isPlaying) return
+    if (isAmbient) return
 
     const intervalId = window.setInterval(() => {
       const expectedSeconds = computeExpectedSeconds()
@@ -138,7 +139,7 @@ export function usePlayerSync({
     return () => {
       window.clearInterval(intervalId)
     }
-  }, [computeExpectedSeconds, isPlaying, link, resyncPlayer, streamId])
+  }, [computeExpectedSeconds, isAmbient, isPlaying, link, resyncPlayer, streamId])
 
   // Ambient mode handling
   useEffect(() => {

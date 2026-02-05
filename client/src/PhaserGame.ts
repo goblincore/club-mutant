@@ -13,8 +13,8 @@ const config: Phaser.Types.Core.GameConfig = {
   pixelArt: false,
   scale: {
     mode: Phaser.Scale.EXPAND,
-    width: 800,
-    height: 600,
+    width: 960,
+    height: 640,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   physics: {
