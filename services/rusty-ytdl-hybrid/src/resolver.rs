@@ -92,10 +92,14 @@ pub async fn resolve_video(
         return Err(anyhow!("No formats available for video {}", video_id));
     }
 
-    // Filter formats based on video_only preference
+    // Filter formats based on video_only preference, but ONLY if they have URLs
     let filtered: Vec<_> = formats
         .iter()
         .filter(|f| {
+            // Must have a non-empty URL
+            if f.url.is_empty() {
+                return false;
+            }
             if video_only {
                 f.has_video && !f.has_audio
             } else {
@@ -104,15 +108,24 @@ pub async fn resolve_video(
         })
         .collect();
 
-    // If no combined formats, fall back to video-only
+    eprintln!("[rusty-ytdl] After filter (video_only={}): {} candidates", video_only, filtered.len());
+
+    // If no combined formats, fall back to any format with video and URL
     let candidates = if filtered.is_empty() {
-        formats.iter().filter(|f| f.has_video).collect::<Vec<_>>()
+        eprintln!("[rusty-ytdl] No filtered formats, falling back to any video format with URL");
+        formats.iter().filter(|f| f.has_video && !f.url.is_empty()).collect::<Vec<_>>()
     } else {
         filtered
     };
 
     if candidates.is_empty() {
-        return Err(anyhow!("No video formats found for {}", video_id));
+        // Debug: show what formats we have
+        eprintln!("[rusty-ytdl] No candidates with URLs. Format summary:");
+        for (i, f) in formats.iter().take(5).enumerate() {
+            eprintln!("[rusty-ytdl]   {}: url_len={}, has_video={}, has_audio={}, height={:?}", 
+                i, f.url.len(), f.has_video, f.has_audio, f.height);
+        }
+        return Err(anyhow!("No video formats with URLs found for {}", video_id));
     }
 
     // Find format closest to target quality
@@ -124,6 +137,8 @@ pub async fn resolve_video(
             (height - target_height).abs()
         })
         .ok_or_else(|| anyhow!("No suitable format found"))?;
+
+    eprintln!("[rusty-ytdl] Selected format: height={:?}, url_len={}", best_format.height, best_format.url.len());
 
     // Get the URL - rusty_ytdl handles signature but NOT n-parameter
     let mut resolved_url = best_format.url.clone();
