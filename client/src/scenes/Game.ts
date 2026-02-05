@@ -36,6 +36,10 @@ import { phaserEvents, Event } from '../events/EventCenter'
 import { VHS_POSTFX_PIPELINE_KEY, VhsPostFxPipeline } from '../pipelines/VhsPostFxPipeline'
 import { CRT_POSTFX_PIPELINE_KEY, CrtPostFxPipeline } from '../pipelines/CrtPostFxPipeline'
 import { WAXY_POSTFX_PIPELINE_KEY, WaxyPostFxPipeline } from '../pipelines/WaxyPostFxPipeline'
+import {
+  TV_STATIC_POSTFX_PIPELINE_KEY,
+  TvStaticPostFxPipeline,
+} from '../pipelines/TvStaticPostFxPipeline'
 
 type BackgroundVideoRenderer = 'webgl' | 'iframe'
 
@@ -85,6 +89,8 @@ export default class Game extends Phaser.Scene {
   private myYoutubePlayer?: MyYoutubePlayer
 
   private backgroundVideo?: Phaser.GameObjects.Video
+  private backgroundStatic?: Phaser.GameObjects.Rectangle
+  private backgroundStaticTween?: Phaser.Tweens.Tween
   private backgroundVideoRefreshTimer?: Phaser.Time.TimerEvent
   private activeBackgroundVideoId: string | null = null
   private activeBackgroundVideoIsWebgl = false
@@ -106,6 +112,10 @@ export default class Game extends Phaser.Scene {
 
   private resizeBackgroundSurfaces(width: number, height: number) {
     this.myYoutubePlayer?.resize(width, height)
+
+    if (this.backgroundStatic) {
+      this.backgroundStatic.setSize(width, height)
+    }
 
     // Use setScale instead of setDisplaySize for Video objects.
     // setDisplaySize requires video.frame to be loaded (metadata ready),
@@ -143,6 +153,93 @@ export default class Game extends Phaser.Scene {
 
     this.myYoutubePlayer?.pause()
     this.myYoutubePlayer?.setAlpha(0)
+
+    this.setBackgroundStaticMode('idle')
+  }
+
+  private setBackgroundStaticMode(mode: 'off' | 'idle' | 'loading') {
+    if (!this.backgroundStatic) return
+
+    this.backgroundStaticTween?.stop()
+    this.backgroundStaticTween = undefined
+
+    const pipeline = this.backgroundStatic.getPostPipeline(
+      TV_STATIC_POSTFX_PIPELINE_KEY
+    ) as unknown as TvStaticPostFxPipeline | TvStaticPostFxPipeline[] | undefined
+    const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
+
+    if (instance && instance instanceof TvStaticPostFxPipeline) {
+      instance.setIntensity(mode === 'off' ? 0 : 1)
+    }
+
+    if (mode === 'off') {
+      this.backgroundStatic.setAlpha(0)
+      this.backgroundStatic.setVisible(false)
+      return
+    }
+
+    this.backgroundStatic.setVisible(true)
+    this.backgroundStatic.setAlpha(mode === 'loading' ? 1 : 0.45)
+  }
+
+  private fadeOutBackgroundStatic(durationMs = 650) {
+    if (!this.backgroundStatic) return
+
+    this.backgroundStaticTween?.stop()
+
+    this.backgroundStaticTween = this.tweens.add({
+      targets: this.backgroundStatic,
+      alpha: 0,
+      duration: durationMs,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        this.backgroundStatic?.setVisible(false)
+      },
+    })
+  }
+
+  private fadeInWebglBackgroundVideo(durationMs = 650) {
+    if (!this.backgroundVideo) return
+
+    this.tweens.add({
+      targets: this.backgroundVideo,
+      alpha: 1,
+      duration: durationMs,
+      ease: 'Sine.easeOut',
+    })
+
+    this.fadeOutBackgroundStatic(durationMs)
+  }
+
+  private waitForWebglVideoFrameReady(videoId: string, timeoutMs = 3000): Promise<boolean> {
+    return new Promise((resolve) => {
+      const start = performance.now()
+
+      const tick = () => {
+        if (this.activeBackgroundVideoId !== videoId) {
+          resolve(false)
+          return
+        }
+
+        const videoWithFrameReady = this.backgroundVideo as Phaser.GameObjects.Video & {
+          frameReady?: boolean
+        }
+
+        if (videoWithFrameReady?.frameReady === true) {
+          resolve(true)
+          return
+        }
+
+        if (performance.now() - start >= timeoutMs) {
+          resolve(false)
+          return
+        }
+
+        this.time.delayedCall(100, tick)
+      }
+
+      tick()
+    })
   }
 
   private applyIframeBackgroundStyles() {
@@ -319,6 +416,7 @@ export default class Game extends Phaser.Scene {
           resolved = await inFlight
         } else {
           this.setBackgroundModeLabel('BG: WEBGL (resolving)')
+          this.setBackgroundStaticMode('loading')
           const resolvePromise = this.resolveYoutubeDirectUrl(videoId)
           this.inFlightResolves.set(videoId, resolvePromise)
 
@@ -339,6 +437,8 @@ export default class Game extends Phaser.Scene {
       this.activeBackgroundVideoIsWebgl = true
 
       this.setBackgroundModeLabel('BG: WEBGL (loading)')
+
+      this.setBackgroundStaticMode('loading')
 
       this.backgroundVideo.removeAllListeners()
       this.backgroundVideo
@@ -379,7 +479,15 @@ export default class Game extends Phaser.Scene {
 
         this.backgroundVideo?.setCurrentTime(freshOffset)
         this.backgroundVideo?.play(true)
-        this.backgroundVideo?.setAlpha(1)
+
+        void this.waitForWebglVideoFrameReady(videoId, 3000).then((ready) => {
+          if (this.activeBackgroundVideoId !== videoId) return
+
+          if (ready) {
+            this.fadeInWebglBackgroundVideo(650)
+          }
+        })
+
         this.setBackgroundModeLabel('BG: WEBGL')
       })
 
@@ -1099,6 +1207,20 @@ export default class Game extends Phaser.Scene {
     const initScaleX = this.scale.gameSize.width / 1920
     const initScaleY = this.scale.gameSize.height / 1080
     this.backgroundVideo.setScale(initScaleX, initScaleY)
+
+    this.backgroundStatic = this.add
+      .rectangle(0, 0, this.scale.gameSize.width, this.scale.gameSize.height, 0x000000)
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(-19)
+      .setAlpha(0)
+      .setVisible(false)
+
+    if (this.game.renderer.type === Phaser.WEBGL) {
+      this.backgroundStatic.setPostPipeline(TV_STATIC_POSTFX_PIPELINE_KEY)
+    }
+
+    this.setBackgroundStaticMode('idle')
 
     // Youtube background player (Phaser-native)
     this.myYoutubePlayer = new MyYoutubePlayer({
