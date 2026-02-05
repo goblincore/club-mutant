@@ -1,5 +1,6 @@
 # Rust build stage for rusty-ytdl-hybrid
-FROM rust:1.75-alpine AS rust-builder
+# Note: ytdlp-ejs requires edition2024, which needs Rust 1.82+
+FROM rust:1.84-alpine AS rust-builder
 
 RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig
 
