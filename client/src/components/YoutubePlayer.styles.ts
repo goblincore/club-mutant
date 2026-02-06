@@ -13,7 +13,7 @@ export const Backdrop = styled.div`
 `
 
 export const MiniBar = styled.div`
-  height: 36px;
+  min-height: 36px;
   width: 360px;
   display: flex;
   align-items: center;
@@ -34,7 +34,10 @@ export const Marquee = styled.div`
   overflow: hidden;
   white-space: nowrap;
   position: relative;
-  height: 18px;
+  min-height: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 `
 
 export const MarqueeInner = styled.div`
@@ -44,6 +47,7 @@ export const MarqueeInner = styled.div`
   color: rgba(255, 255, 255, 0.9);
   font-size: 12px;
   text-shadow: 0.3px 0.3px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
 
   @keyframes dj-marquee {
     0% {
@@ -53,6 +57,15 @@ export const MarqueeInner = styled.div`
       transform: translateX(-100%);
     }
   }
+`
+
+export const MarqueeMetadata = styled.div`
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `
 
 export const Wrapper = styled.div`

@@ -12,7 +12,7 @@ import { shiftMyPlaylist } from '../stores/MyPlaylistStore'
 import { setVideoBackgroundEnabled } from '../stores/MusicStreamStore'
 import { RoomType } from '@club-mutant/types/Rooms'
 
-import { Backdrop, MiniBar, Marquee, MarqueeInner, Wrapper, RoomInfo, JoinQueueContainer, JoinQueueSubtitle, JoinQueueButton, JoinQueueMiniBar } from './YoutubePlayer.styles'
+import { Backdrop, MiniBar, Marquee, MarqueeInner, MarqueeMetadata, Wrapper, RoomInfo, JoinQueueContainer, JoinQueueSubtitle, JoinQueueButton, JoinQueueMiniBar } from './YoutubePlayer.styles'
 import { PlayerControls } from './PlayerControls'
 import { RoomPlaylistView } from './RoomPlaylistView'
 import { VideoPlayer } from './VideoPlayer'
@@ -21,6 +21,13 @@ import DJQueuePanel from './DJQueuePanel'
 import AddIcon from '@mui/icons-material/Add'
 import { setIsInQueue } from '../stores/DJQueueStore'
 import { setRoomQueuePlaylistVisible } from '../stores/RoomQueuePlaylistStore'
+
+// Helper function to format time as MM:SS
+function formatTime(seconds: number): string {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
 
 export default function YoutubePlayer() {
   const dispatch = useAppDispatch()
@@ -49,6 +56,8 @@ export default function YoutubePlayer() {
   // Local state
   const [minimized, setMinimized] = useState(false)
   const [ambientMuted, setAmbientMuted] = useState(true)
+  const [elapsedTime, setElapsedTime] = useState(0)
+  const [totalDuration, setTotalDuration] = useState(0)
 
   const isPublicRoom = roomType === RoomType.PUBLIC
   const isDj = connectedBoothIndex !== null
@@ -92,6 +101,29 @@ export default function YoutubePlayer() {
       setIsPlaying(false)
     }
   }, [link, roomPlaylist.length, isAmbient, setIsPlaying])
+
+  // Update elapsed time and total duration for minimized player
+  useEffect(() => {
+    if (!link) {
+      setElapsedTime(0)
+      setTotalDuration(0)
+      return
+    }
+
+    // Update elapsed time every second
+    const intervalId = setInterval(() => {
+      const elapsed = Math.max(0, Math.floor((Date.now() - startTime) / 1000))
+      setElapsedTime(elapsed)
+
+      // Get total duration from player
+      const duration = playerRef.current?.getDuration?.()
+      if (duration && typeof duration === 'number' && duration > 0) {
+        setTotalDuration(Math.floor(duration))
+      }
+    }, 1000)
+
+    return () => clearInterval(intervalId)
+  }, [link, startTime, playerRef])
 
   // Derived values
   const canControlRoomPlaylist = Boolean(connectedBoothIndex !== null && roomPlaylist.length > 0)
@@ -253,6 +285,20 @@ export default function YoutubePlayer() {
     // Get next DJ info for minimized view
     const nextDJ = djQueueEntries.find((e, i) => i === 1) || null
 
+    // Format time display
+    const timeDisplay = link && totalDuration > 0
+      ? `${formatTime(elapsedTime)} / ${formatTime(totalDuration)}`
+      : ''
+
+    // Format "up next" message
+    const upNextMessage = djQueueEntries.length > 1
+      ? isCurrentDJ
+        ? `Up next: ${nextDJ?.name || 'Unknown'}`
+        : `Your turn in ${djQueueEntries.findIndex(e => e.sessionId === mySessionId)} track(s)`
+      : isCurrentDJ
+        ? 'You\'re the only DJ'
+        : ''
+
     if (minimized) {
       return (
         <Backdrop>
@@ -262,13 +308,20 @@ export default function YoutubePlayer() {
             </IconButton>
 
             <Marquee>
-              <MarqueeInner>
-                {link !== null
-                  ? `Now Playing: ${title || 'Unknown'}${nextDJ ? ` | Up Next: ${nextDJ.name}` : ''}`
-                  : isCurrentDJ
-                    ? 'Add tracks to start playing!'
-                    : `Waiting for ${djQueueEntries[0]?.name || 'DJ'}...`}
-              </MarqueeInner>
+              <div style={{ overflow: 'hidden', position: 'relative', height: '18px' }}>
+                <MarqueeInner>
+                  {link !== null
+                    ? `${title || 'Unknown'}`
+                    : isCurrentDJ
+                      ? 'Add tracks to start playing!'
+                      : `Waiting for ${djQueueEntries[0]?.name || 'DJ'}...`}
+                </MarqueeInner>
+              </div>
+              {link && (
+                <MarqueeMetadata>
+                  {timeDisplay} {upNextMessage && `• ${upNextMessage}`}
+                </MarqueeMetadata>
+              )}
             </Marquee>
           </MiniBar>
 
@@ -338,10 +391,11 @@ export default function YoutubePlayer() {
   if (connectedBoothIndex === null && !isInDJQueue && link !== null) {
     // Get next DJ info
     const nextDJ = djQueueEntries.find((e, i) => i === 1) || null
-    
-    // Calculate elapsed time
-    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startTime) / 1000))
-    const progress = `${Math.floor(elapsedSeconds / 60)}:${(elapsedSeconds % 60).toString().padStart(2, '0')}`
+
+    // Format time display
+    const timeDisplay = totalDuration > 0
+      ? `${formatTime(elapsedTime)} / ${formatTime(totalDuration)}`
+      : formatTime(elapsedTime)
 
     if (minimized) {
       return (
@@ -353,7 +407,7 @@ export default function YoutubePlayer() {
             <div className="track-info">
               <div className="track-title">{title || 'Unknown'}</div>
               <div className="track-meta">
-                {progress} • Up next: {nextDJ?.name || 'No one yet'}
+                {timeDisplay} • Up next: {nextDJ?.name || 'No one yet'}
               </div>
             </div>
             <button className="join-btn" onClick={handleJoinDJQueue} title="Join queue">
@@ -450,7 +504,14 @@ export default function YoutubePlayer() {
           )}
 
           <Marquee>
-            <MarqueeInner>{displayTitle}</MarqueeInner>
+            <div style={{ overflow: 'hidden', position: 'relative', height: '18px' }}>
+              <MarqueeInner>{displayTitle}</MarqueeInner>
+            </div>
+            {link && totalDuration > 0 && (
+              <MarqueeMetadata>
+                {formatTime(elapsedTime)} / {formatTime(totalDuration)}
+              </MarqueeMetadata>
+            )}
           </Marquee>
         </MiniBar>
       )}

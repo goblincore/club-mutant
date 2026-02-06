@@ -75,13 +75,14 @@ export default class MusicBooth extends Item {
     this.currentUser = null
     network.disconnectFromMusicBooth(this.id)
 
-    // Also leave DJ queue if currently in it
-    const state = store.getState()
-    if (state.djQueue.isInQueue) {
-      console.log('////MusicBooth, leaving DJ queue on close')
-      network.leaveDJQueue()
-      store.dispatch(setIsInQueue(false))
-      store.dispatch(setRoomQueuePlaylistVisible(false))
-    }
+    // NOTE: We no longer auto-leave the DJ queue when exiting the booth.
+    // The queue is now independent of booth occupancy.
+    // Users must explicitly click "Leave Queue" button in DJQueuePanel.
+    // This allows:
+    // 1. Queue to persist when booth occupant leaves
+    // 2. Other DJs in queue to continue playing
+    // 3. Anyone to sit at booth for visuals without affecting queue
+    //
+    // The booth is now just a visual indicator, not the queue controller.
   }
 }

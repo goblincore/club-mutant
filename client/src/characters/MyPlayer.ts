@@ -203,6 +203,56 @@ export default class MyPlayer extends Player {
     this.pendingAutoEnterTarget = target
   }
 
+  /**
+   * Public method to exit the booth programmatically (e.g., from Leave Queue button)
+   * Returns true if successfully initiated exit, false if not at booth
+   */
+  exitBoothIfConnected(network: Network): boolean {
+    if (!this.musicBoothOnSit) {
+      console.log('[MyPlayer] exitBoothIfConnected: not at booth')
+      return false
+    }
+
+    console.log('[MyPlayer] exitBoothIfConnected: exiting booth')
+    const body = this.body as Phaser.Physics.Arcade.Body
+
+    this.musicBoothOnSit.currentUser = null
+    store.dispatch(disconnectFromMusicBooth())
+
+    this.musicBoothOnSit.clearDialogBox()
+    this.djTransitionTarget = null
+
+    const reverseKey = 'mutant_transform_reverse'
+    this.play(reverseKey, true)
+    this.updatePhysicsBodyForAnim(reverseKey)
+    network.updatePlayerAction(this.x, this.y, reverseKey)
+
+    body.setImmovable(true)
+    this.playerBehavior = PlayerBehavior.TRANSFORMING
+
+    this.once(`animationcomplete-${reverseKey}`, () => {
+      if (this.playerBehavior !== PlayerBehavior.TRANSFORMING) return
+
+      const idleAnimKey = `${this.playerTexture}_idle_down`
+      this.play(idleAnimKey, true)
+      this.updatePhysicsBodyForAnim(idleAnimKey)
+      network.updatePlayerAction(this.x, this.y, idleAnimKey)
+
+      body.setImmovable(false)
+      if (this.djBoothDepth !== null) {
+        this.setDepth(this.djBoothDepth)
+        this.djBoothDepth = null
+      } else {
+        this.setDepth(this.y)
+      }
+
+      this.musicBoothOnSit = undefined
+      this.playerBehavior = PlayerBehavior.IDLE
+    })
+
+    return true
+  }
+
   private cancelPendingAutoEnterMusicBooth() {
     this.pendingAutoEnterMusicBooth = null
     this.pendingAutoEnterTarget = null

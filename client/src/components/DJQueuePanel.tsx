@@ -168,6 +168,7 @@ export default function DJQueuePanel() {
   const roomQueueItems = useAppSelector((state) => state.roomQueuePlaylist.items)
 
   const isCurrentDJ = currentDjSessionId === mySessionId
+  const connectedBoothIndex = useAppSelector((state) => state.musicBooth.musicBoothIndex)
   const [draggedItem, setDraggedItem] = useState<number | null>(null)
 
   if (!isInQueue) return null
@@ -176,9 +177,18 @@ export default function DJQueuePanel() {
     game.network.leaveDJQueue()
     dispatch(leaveDJQueue())
     dispatch(setRoomQueuePlaylistVisible(false))
-    // Also disconnect from booth - leaving queue = leaving DJ position
-    game.network.disconnectFromMusicBooth(0)
-    dispatch(disconnectFromMusicBooth())
+
+    // Exit booth if connected (this restores animation and movement)
+    if (connectedBoothIndex !== null) {
+      const exitedBooth = game.myPlayer.exitBoothIfConnected(game.network)
+      if (exitedBooth) {
+        console.log('[DJQueuePanel] Successfully exited booth')
+      } else {
+        // Fallback: if exitBoothIfConnected failed, still disconnect
+        game.network.disconnectFromMusicBooth(connectedBoothIndex)
+        dispatch(disconnectFromMusicBooth())
+      }
+    }
   }
 
   const handleSkipTurn = () => {
@@ -290,11 +300,10 @@ export default function DJQueuePanel() {
 
       {/* Control Buttons */}
       <ButtonGroup>
-        {isCurrentDJ && (
+        {isCurrentDJ && djQueueEntries.length > 1 && (
           <StyledButton
             variant="contained"
             onClick={handleSkipTurn}
-            disabled={djQueueEntries.length <= 1}
             startIcon={<SkipNextIcon />}
           >
             Skip My Turn
