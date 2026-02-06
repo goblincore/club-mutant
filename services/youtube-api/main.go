@@ -466,8 +466,9 @@ const cookiesFilePath = "/tmp/youtube_cookies.txt"
 // Semaphore to limit concurrent yt-dlp processes (prevents OOM)
 var ytdlpSemaphore = make(chan struct{}, 2)
 
-// Singleflight to coalesce duplicate requests for the same video
+// Singleflight to coalesce duplicate requests
 var resolveGroup singleflight.Group
+var searchGroup singleflight.Group
 
 // warmupYtDlp runs a lightweight yt-dlp command on startup to warm up
 // the Python interpreter and yt_dlp module in the filesystem cache.
@@ -1169,15 +1170,33 @@ func (s *Server) handlePrefetch(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "prefetching"})
 }
 
+// normalizeQuery normalizes search queries for better cache hits
+func normalizeQuery(q string) string {
+	q = strings.TrimSpace(q)
+	q = strings.ToLower(q)
+	// Collapse multiple spaces into single space
+	q = regexp.MustCompile(`\s+`).ReplaceAllString(q, " ")
+	return q
+}
+
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	query := r.URL.Query().Get("q")
-	if query == "" {
+	rawQuery := r.URL.Query().Get("q")
+	if rawQuery == "" {
 		http.Error(w, "Missing query parameter 'q'", http.StatusBadRequest)
+		return
+	}
+
+	// Normalize query for better cache hits
+	query := normalizeQuery(rawQuery)
+	if query == "" {
+		http.Error(w, "Empty query after normalization", http.StatusBadRequest)
 		return
 	}
 
@@ -1191,54 +1210,75 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	cacheKey := query + ":" + strconv.Itoa(limit)
 
+	// Check cache first
 	if cached, found := s.searchCache.Get(cacheKey); found {
 		cached.Cached = true
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(cached)
+		log.Printf("[search] CACHE HIT query='%s' duration=%v", rawQuery, time.Since(start))
 		return
 	}
 
-	search := ytsearch.VideoSearch(query)
-	results, err := search.Next()
+	// Use singleflight to coalesce duplicate requests
+	result, err, shared := searchGroup.Do(cacheKey, func() (interface{}, error) {
+		log.Printf("[search] CACHE MISS query='%s' (fetching from YouTube)", rawQuery)
+		searchStart := time.Now()
+
+		search := ytsearch.VideoSearch(query)
+		results, err := search.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		items := make([]VideoResult, 0, limit)
+		for i, video := range results.Videos {
+			if i >= limit {
+				break
+			}
+
+			thumbnail := ""
+			if len(video.Thumbnails) > 0 {
+				thumbnail = video.Thumbnails[0].URL
+			}
+
+			items = append(items, VideoResult{
+				ID:           video.ID,
+				Type:         "video",
+				Title:        video.Title,
+				ChannelTitle: video.Channel.Title,
+				Duration:     formatDuration(video.Duration),
+				IsLive:       video.Duration == 0,
+				Thumbnail:    thumbnail,
+			})
+		}
+
+		response := SearchResponse{
+			Items:   items,
+			Query:   rawQuery, // Return original query to user
+			Cached:  false,
+			CacheAt: time.Now().Unix(),
+		}
+
+		log.Printf("[search] YouTube fetch completed query='%s' results=%d duration=%v", rawQuery, len(items), time.Since(searchStart))
+		return response, nil
+	})
+
+	if shared {
+		log.Printf("[search] COALESCED query='%s' (another request was already fetching)", rawQuery)
+	}
+
 	if err != nil {
-		log.Printf("Search error for query '%s': %v", query, err)
+		log.Printf("[search] FAILED query='%s' duration=%v error=%v", rawQuery, time.Since(start), err)
 		http.Error(w, "Search failed", http.StatusInternalServerError)
 		return
 	}
 
-	items := make([]VideoResult, 0, limit)
-	for i, video := range results.Videos {
-		if i >= limit {
-			break
-		}
-
-		thumbnail := ""
-		if len(video.Thumbnails) > 0 {
-			thumbnail = video.Thumbnails[0].URL
-		}
-
-		items = append(items, VideoResult{
-			ID:           video.ID,
-			Type:         "video",
-			Title:        video.Title,
-			ChannelTitle: video.Channel.Title,
-			Duration:     formatDuration(video.Duration),
-			IsLive:       video.Duration == 0,
-			Thumbnail:    thumbnail,
-		})
-	}
-
-	response := SearchResponse{
-		Items:   items,
-		Query:   query,
-		Cached:  false,
-		CacheAt: time.Now().Unix(),
-	}
-
+	response := result.(SearchResponse)
 	s.searchCache.Set(cacheKey, response)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+	log.Printf("[search] COMPLETE query='%s' cached=%v shared=%v duration=%v", rawQuery, false, shared, time.Since(start))
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -1338,7 +1378,8 @@ func main() {
 	// Initialize cookies file from env var if set
 	initCookiesFile()
 
-	cacheTTLSeconds := 3600
+	// Default to 24 hours - search results don't change frequently
+	cacheTTLSeconds := 86400 // 24 hours
 	if ttlStr := os.Getenv("YOUTUBE_API_CACHE_TTL"); ttlStr != "" {
 		if parsed, err := strconv.Atoi(ttlStr); err == nil && parsed > 0 {
 			cacheTTLSeconds = parsed
@@ -1414,9 +1455,9 @@ func padZero(n int) string {
 
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
+		// Handler functions now do their own detailed logging
+		// This middleware just ensures non-search endpoints are logged
 		next.ServeHTTP(w, r)
-		log.Printf("%s %s %v", r.Method, r.URL.Path, time.Since(start))
 	})
 }
 

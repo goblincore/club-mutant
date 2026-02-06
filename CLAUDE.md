@@ -315,17 +315,81 @@ Public lobby differs from custom/private rooms:
     - dispatches `setLoggedIn(true)` so Chat/Playlist UI renders
 - `client/src/components/LoginDialog.tsx` returns empty for public rooms (no UI).
 
-## Music + room playlist (current implementation)
+## DJ Queue Rotation System (Feb 2026)
+
+A round-robin DJ queue system where multiple users can join the DJ booth and take turns playing one track each.
+
+### Core Concept
+
+- **Single DJ**: First person to enter the booth becomes the DJ automatically
+- **Multiple DJs**: Additional users can join the queue; each gets one turn to play
+- **Round Robin**: Each DJ plays exactly ONE track from their queue, then rotation moves to the next DJ
+- **Track History**: Played tracks are marked and moved to bottom of queue (lower opacity), not deleted
+
+### How It Works
+
+1. **Entering the Booth**: User presses `R` near booth → Auto-joins DJ queue as current DJ (if first) or queued DJ
+2. **Adding Tracks**: Click `+` on tracks in your playlist to add to your "Room Queue Playlist"
+3. **Track Order**: New tracks insert after currently playing track; unplayed tracks play in order
+4. **Playing**: When it's your turn, your top unplayed track automatically plays
+5. **Rotation**: After your track finishes (or you skip), next DJ in queue gets their turn
+6. **Leaving**: Click "Leave Queue" to exit - if you were playing, rotation continues to next DJ
+
+### Data Model
+
+- `OfficeState.djQueue`: Array of `DJQueueEntry` (sessionId, name, position)
+- `OfficeState.currentDjSessionId`: Who's currently playing
+- `Player.roomQueuePlaylist`: Each player's personal queue (array of `RoomQueuePlaylistItem`)
+- `RoomQueuePlaylistItem.played`: Boolean flag for track history
+
+### Key Files
+
+- **Server**: `server/src/rooms/commands/DJQueueCommand.ts` - Join/leave/skip logic
+- **Server**: `server/src/rooms/commands/RoomQueuePlaylistCommand.ts` - Track management
+- **Client UI**: `client/src/components/DJQueuePanel.tsx` - Queue panel UI
+- **Client UI**: `client/src/components/YoutubePlayer.tsx` - Integrated player view
+
+### UI States
+
+- **In Queue**: Shows queue position, current DJ, your playlist with drag-to-reorder
+- **Currently Playing**: Track locked (can't drag/remove), shows "Currently playing" label
+- **Played Tracks**: Greyed out at 40% opacity, shows "Played" label, at bottom of list
+- **Minimized**: Shows track title + elapsed time + "Up next: [DJ name]"
+- **Booth Occupied (not in queue)**: Shows "Join the queue to play your tracks after the current mutant" + join button
+
+### Server Commands
+
+- `DJ_QUEUE_JOIN`: Add user to queue, auto-start if first and has tracks
+- `DJ_QUEUE_LEAVE`: Remove from queue; if was playing, advance rotation
+- `DJ_SKIP_TURN`: Current DJ skips their turn, marks track as played, rotates
+- `DJ_TURN_COMPLETE`: Track finished naturally, removes played track, rotates
+- `ROOM_QUEUE_PLAYLIST_ADD`: Add track to user's queue (inserts after current playing)
+- `ROOM_QUEUE_PLAYLIST_REMOVE`: Remove track (can't remove currently playing)
+- `ROOM_QUEUE_PLAYLIST_REORDER`: Reorder unplayed tracks only
+
+### Styling
+
+Dark transparent theme matching existing UI:
+- Background: `rgba(0, 0, 0, 0.35)` with `backdrop-filter: blur(8px)`
+- Borders: `1px solid rgba(255, 255, 255, 0.25)`
+- Font: `'Courier New', Courier, monospace`
+- Buttons: Lowercase text, transparent background with white borders
+
+---
+
+## Music + room playlist (legacy - being replaced by DJ Queue)
 
 ### The concept
 
-There are two parallel playback modes:
+~~There are two parallel playback modes:~~ (DJ Queue system replaces this)
 
-1. **Per-DJ / per-player short queue** (legacy)
-   - Uses `MusicStreamNextCommand` and the player’s `nextTwoPlaylist`.
-2. **Room playlist playback** (shared)
-   - Uses `state.roomPlaylist` as a persistent list.
-   - Uses `musicStream.isRoomPlaylist` + `musicStream.roomPlaylistIndex` to indicate the active item.
+1. **Per-DJ / per-player short queue** (legacy - replaced by DJ Queue)
+   - ~~Uses `MusicStreamNextCommand` and the player's `nextTwoPlaylist`.~~
+2. **Room playlist playback** (shared - deprecated)
+   - ~~Uses `state.roomPlaylist` as a persistent list.~~
+   - ~~Uses `musicStream.isRoomPlaylist` + `musicStream.roomPlaylistIndex` to indicate the active item.~~
+
+> **Note**: The DJ Queue Rotation System (Feb 2026) replaces the legacy room playlist. Each user now has their own `roomQueuePlaylist` and the system rotates through DJs in a round-robin fashion.
 
 ### My playlists (client-side, local)
 
@@ -941,6 +1005,9 @@ YouTube ID into a direct playable video URL:
 - **Music server logic**: `server/rooms/ClubMutant.ts`
 - **Server state schema**: `server/rooms/schema/OfficeState.ts`
 - **Client UI playback**: `client/src/components/YoutubePlayer.tsx`
+- **DJ Queue UI**: `client/src/components/DJQueuePanel.tsx`
+- **DJ Queue logic**: `server/src/rooms/commands/DJQueueCommand.ts`
+- **Room Queue Playlist**: `server/src/rooms/commands/RoomQueuePlaylistCommand.ts`
 - **Shared message enum**: `types/Messages.ts`
 
 ## Conventions / tips
@@ -1052,13 +1119,12 @@ Open guide-mode is still under active development; if blocks are mis-cropped, ex
 ## Current tasks
 
 - Fix dev duplication: prevent multiple Phaser/Network instances (multiple connects / duplicated chat) under Vite HMR/refresh
-- Implement shared Room Playlist (server-authoritative, remove-own-only)
-- Stabilize legacy music booth/music stream code to prevent server errors during transition
+- ~~Implement DJ Queue Rotation System~~ ✅ COMPLETED (Feb 2026)
+- ~~Stabilize legacy music booth/music stream code~~ ✅ COMPLETED - DJ Queue replaces legacy system
 - Replace random-spawned pathfinding obstacles with Tiled-placed items (chairs/vending) + proper item classes/object layers
 - Cache walkability grid (and expanded clearance grid) instead of rebuilding each click; recompute only when map/obstacles change
 - Add path debug rendering (waypoints/polyline and optionally blocked tiles overlay) for easier tuning
 - Get client TypeScript build (tsc) passing under Vite (fix nullable Phaser tilemap layer types, etc.)
-- Investigate 'playlist videos not playing' (defer until new playback pipeline lands)
 
 ## Recent noteworthy commits (Jan 2026)
 

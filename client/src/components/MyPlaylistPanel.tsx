@@ -426,7 +426,10 @@ const MusicSearch = () => {
   const [editingTrackId, setEditingTrackId] = useState<string | null>(null)
   const [editVisualUrl, setEditVisualUrl] = useState('')
   const [editTrackMessage, setEditTrackMessage] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const searchRequestIdRef = useRef(0)
   const dispatch = useAppDispatch()
   const panelOpen = useAppSelector((state) => state.myPlaylist.myPlaylistPanelOpen)
   const focused = useAppSelector((state) => state.myPlaylist.focused)
@@ -460,24 +463,65 @@ const MusicSearch = () => {
     setEditTrackMessage(meta?.trackMessage ?? '')
   }, [editingTrackId, trackMetaById])
 
+  // Debounced search with request cancellation and race condition prevention
   useEffect(() => {
     if (tab !== 'search') {
       setData([])
+      setIsSearching(false)
       return
     }
 
     const query = inputValue.trim()
     if (query === '') {
       setData([])
+      setIsSearching(false)
       return
     }
 
-    const apiBase = import.meta.env.VITE_HTTP_ENDPOINT ?? 'http://localhost:2567'
-    axios.get(`${apiBase}/youtube/${encodeURIComponent(query)}`).then((response) => {
-      setData((response?.data?.items as YoutubeSearchResult[]) ?? [])
-    })
+    // Cancel any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    // Show loading state immediately
+    setIsSearching(true)
+
+    // Debounce: wait 400ms after user stops typing
+    const debounceTimer = setTimeout(async () => {
+      // Create new abort controller for this request
+      const abortController = new AbortController()
+      abortControllerRef.current = abortController
+
+      // Track request ID to ignore stale responses
+      const requestId = ++searchRequestIdRef.current
+
+      try {
+        const apiBase = import.meta.env.VITE_HTTP_ENDPOINT ?? 'http://localhost:2567'
+        const response = await axios.get(`${apiBase}/youtube/${encodeURIComponent(query)}`, {
+          signal: abortController.signal,
+        })
+
+        // Only update results if this is still the latest request
+        if (requestId === searchRequestIdRef.current) {
+          setData((response?.data?.items as YoutubeSearchResult[]) ?? [])
+          setIsSearching(false)
+        }
+      } catch (error) {
+        // Ignore aborted requests
+        if (!axios.isCancel(error)) {
+          console.error('Search error:', error)
+          if (requestId === searchRequestIdRef.current) {
+            setIsSearching(false)
+          }
+        }
+      }
+    }, 400) // 400ms debounce
+
+    return () => {
+      clearTimeout(debounceTimer)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inputValue])
+  }, [inputValue, tab])
 
   useEffect(() => {
     if (focused) {
@@ -970,7 +1014,13 @@ const MusicSearch = () => {
               onBlur={() => dispatch(setFocused(false))}
             />
           </InputWrapper>
-          <Tab>{resultsList}</Tab>
+          {isSearching ? (
+            <EmptyState>Searching...</EmptyState>
+          ) : inputValue.trim() !== '' && data.length === 0 ? (
+            <EmptyState>No results found</EmptyState>
+          ) : (
+            <Tab>{resultsList}</Tab>
+          )}
         </>
       ) : tab === 'link' ? (
         <>
