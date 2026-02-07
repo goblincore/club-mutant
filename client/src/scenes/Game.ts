@@ -90,7 +90,7 @@ export default class Game extends Phaser.Scene {
   private otherPlayerMap = new Map<string, OtherPlayer>()
   private pendingPunchTargetId: string | null = null
   private playerCollider!: Phaser.Physics.Arcade.Collider
-  private musicBoothMap = new Map<number, MusicBooth>()
+  public musicBoothMap = new Map<number, MusicBooth>()
   private myYoutubePlayer?: MyYoutubePlayer
 
   private backgroundVideo?: Phaser.GameObjects.Video
