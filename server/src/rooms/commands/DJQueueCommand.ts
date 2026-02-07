@@ -158,29 +158,67 @@ function removeDJFromQueue(room: ClubMutant, sessionId: string) {
   const wasCurrentDJ = room.state.currentDjSessionId === sessionId
   const wasPlaying = room.state.musicStream.status === 'playing'
 
-  // Remove from queue
-  room.state.djQueue.splice(index, 1)
-  console.log('[DJQueue] Removed from queue:', sessionId, wasCurrentDJ ? '(was current DJ)' : '')
+  console.log('[DJQueue] Removing from queue:', sessionId, wasCurrentDJ ? '(was current DJ)' : '')
 
-  // Reassign queue positions
-  room.state.djQueue.forEach((entry, i) => {
-    entry.queuePosition = i
-  })
+  if (wasCurrentDJ && wasPlaying) {
+    // Current DJ left during their track - stop playback and advance to next
+    console.log('[DJQueue] Current DJ left during track, stopping and advancing')
 
-  if (wasCurrentDJ) {
-    // Current DJ left while playing - mark track as played and advance
-    if (wasPlaying) {
-      const player = room.state.players.get(sessionId)
-      if (player && player.roomQueuePlaylist.length > 0) {
-        markTrackAsPlayed(player)
+    // Stop current track
+    const musicStream = room.state.musicStream
+    musicStream.status = 'waiting'
+    musicStream.currentLink = null
+    musicStream.currentTitle = null
+    room.broadcast(Message.STOP_MUSIC_STREAM, {})
+
+    // Remove from queue
+    room.state.djQueue.splice(index, 1)
+
+    // Reassign queue positions
+    room.state.djQueue.forEach((entry, i) => {
+      entry.queuePosition = i
+    })
+
+    // Find next DJ with tracks and start playing
+    const { entry: nextEntry, player: nextPlayer } = findNextDJWithTracks(room)
+
+    if (nextEntry && nextPlayer) {
+      // Move next DJ to front if not already there
+      const nextIndex = room.state.djQueue.findIndex(e => e.sessionId === nextEntry.sessionId)
+      if (nextIndex > 0) {
+        room.state.djQueue.splice(nextIndex, 1)
+        room.state.djQueue.unshift(nextEntry)
+        // Re-update positions
+        room.state.djQueue.forEach((entry, i) => {
+          entry.queuePosition = i
+        })
       }
+
+      room.state.currentDjSessionId = nextEntry.sessionId
+      console.log('[DJQueue] Next DJ:', room.state.currentDjSessionId)
+      playTrackForCurrentDJ(room)
+    } else {
+      // No more DJs with tracks
+      room.state.currentDjSessionId = null
+      console.log('[DJQueue] No more DJs with tracks')
     }
-    
-    // Advance to next DJ
-    advanceRotation(room)
+  } else {
+    // Non-current DJ leaving, or current DJ leaving when not playing
+    room.state.djQueue.splice(index, 1)
+
+    // Reassign queue positions
+    room.state.djQueue.forEach((entry, i) => {
+      entry.queuePosition = i
+    })
+
+    if (wasCurrentDJ) {
+      // Was current but not playing - just find next DJ
+      const { entry: nextEntry } = findNextDJWithTracks(room)
+      room.state.currentDjSessionId = nextEntry ? nextEntry.sessionId : null
+    }
   }
 
-  room.broadcast(Message.DJ_QUEUE_UPDATED, { 
+  room.broadcast(Message.DJ_QUEUE_UPDATED, {
     djQueue: room.state.djQueue.toArray(),
     currentDjSessionId: room.state.currentDjSessionId,
   })

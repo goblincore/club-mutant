@@ -46,6 +46,7 @@ export class Player extends Schema {
   @type('float32') y = 500
   @type('uint8') textureId: number = TEXTURE_IDS.mutant
   @type('uint8') animId: number = packDirectionalAnimId('idle', 'down')
+  @type('uint8') scale = 100 // Scale where 100 = 1.0x, 50 = 0.5x, etc.
   @type('boolean') readyToConnect = false
   @type('boolean') videoConnected = false
   @type(PlaylistItem) currentPlaylistItem = new PlaylistItem()
@@ -83,7 +84,7 @@ export class MusicStream extends Schema {
 }
 
 export class MusicBooth extends Schema {
-  @type('string') connectedUser: string | null = null
+  @type(['string']) connectedUsers = new ArraySchema<string>('', '', '', '')
 }
 
 export class OfficeState extends Schema {

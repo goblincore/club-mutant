@@ -90,8 +90,8 @@ export class ClubMutant extends Room {
   private startAmbientIfNeeded() {
     if (!this.isPublic) return
 
-    const djSessionId = this.state.musicBooths[0]?.connectedUser
-    if (djSessionId) return
+    const hasDj = this.state.musicBooths[0]?.connectedUsers.some((id) => id !== '') ?? false
+    if (hasDj) return
 
     if (this.state.players.size === 0) return
 
@@ -175,7 +175,7 @@ export class ClubMutant extends Room {
     const startRoomPlaylistAtIndex = (requestedIndex: number) => {
       const musicStream = this.state.musicStream
 
-      const djSessionId = this.state.musicBooths[0]?.connectedUser
+      const djSessionId = this.state.musicBooths[0]?.connectedUsers.find((id) => id !== '')
       if (!djSessionId) return
 
       const djPlayer = this.state.players.get(djSessionId)
@@ -288,7 +288,8 @@ export class ClubMutant extends Room {
     )
 
     this.onMessage(Message.SET_VIDEO_BACKGROUND, (client, message: { enabled: boolean }) => {
-      if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
+      const isDj = this.state.musicBooths[0]?.connectedUsers.includes(client.sessionId)
+      if (!isDj) return
 
       this.state.musicStream.videoBackgroundEnabled = Boolean(message.enabled)
     })
@@ -308,7 +309,8 @@ export class ClubMutant extends Room {
     })
 
     this.onMessage(Message.ROOM_PLAYLIST_SKIP, (client) => {
-      if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
+      const isDj = this.state.musicBooths[0]?.connectedUsers.includes(client.sessionId)
+      if (!isDj) return
 
       const musicStream = this.state.musicStream
       const nextIndex = musicStream.isRoomPlaylist ? musicStream.roomPlaylistIndex + 1 : 0
@@ -326,7 +328,8 @@ export class ClubMutant extends Room {
     })
 
     this.onMessage(Message.ROOM_PLAYLIST_PREV, (client) => {
-      if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
+      const isDj = this.state.musicBooths[0]?.connectedUsers.includes(client.sessionId)
+      if (!isDj) return
 
       if (this.state.roomPlaylist.length === 0) return
 
@@ -337,7 +340,8 @@ export class ClubMutant extends Room {
     })
 
     this.onMessage(Message.ROOM_PLAYLIST_PLAY, (client) => {
-      if (this.state.musicBooths[0]?.connectedUser !== client.sessionId) return
+      const isDj = this.state.musicBooths[0]?.connectedUsers.includes(client.sessionId)
+      if (!isDj) return
 
       const musicStream = this.state.musicStream
       const index = musicStream.isRoomPlaylist ? musicStream.roomPlaylistIndex : 0
@@ -368,17 +372,18 @@ export class ClubMutant extends Room {
           musicBoothIndex,
         })
 
-        if (
-          this.isPublic &&
-          this.state.musicBooths[musicBoothIndex]?.connectedUser === client.sessionId
-        ) {
+        const isDj = this.state.musicBooths[musicBoothIndex]?.connectedUsers.includes(
+          client.sessionId
+        )
+
+        if (this.isPublic && isDj) {
           this.stopAmbientIfNeeded()
         }
 
         if (
           (this.state.musicStream.status === 'waiting' ||
             this.state.musicStream.status === 'seeking') &&
-          this.state.musicBooths[musicBoothIndex]?.connectedUser === client.sessionId
+          isDj
         ) {
           if (this.state.roomPlaylist.length > 0) {
             const musicStream = this.state.musicStream
@@ -391,7 +396,7 @@ export class ClubMutant extends Room {
       }
     )
 
-    // when a player disconnects from a music booth, remove the user to the musicBooth connectedUser array
+    // when a player disconnects from a music booth, remove the user from the musicBooth connectedUsers array
     this.onMessage(
       Message.DISCONNECT_FROM_MUSIC_BOOTH,
       (client, message: { musicBoothIndex: number }) => {
@@ -402,7 +407,9 @@ export class ClubMutant extends Room {
 
         if (musicBoothIndex < 0 || musicBoothIndex >= this.state.musicBooths.length) return
 
-        const wasDj = this.state.musicBooths[musicBoothIndex]?.connectedUser === client.sessionId
+        const wasDj = this.state.musicBooths[musicBoothIndex]?.connectedUsers.includes(
+          client.sessionId
+        )
         this.dispatcher.dispatch(new MusicBoothDisconnectUserCommand(), {
           client,
           musicBoothIndex,
@@ -412,7 +419,9 @@ export class ClubMutant extends Room {
           this.clearRoomPlaylistAfterDjLeft()
         }
 
-        if (this.isPublic && !this.state.musicBooths[musicBoothIndex]?.connectedUser) {
+        const boothIsEmpty =
+          this.state.musicBooths[musicBoothIndex]?.connectedUsers.every((id) => id === '') ?? true
+        if (this.isPublic && boothIsEmpty) {
           this.startAmbientIfNeeded()
           return
         }
@@ -480,6 +489,18 @@ export class ClubMutant extends Room {
         })
       }
     )
+
+    this.onMessage(Message.UPDATE_PLAYER_SCALE, (client, message: { scale?: unknown }) => {
+      const player = this.state.players.get(client.sessionId)
+      if (!player) return
+
+      const scale =
+        typeof message.scale === 'number' && Number.isFinite(message.scale)
+          ? Math.max(1, Math.min(255, Math.round(message.scale)))
+          : 100
+
+      player.scale = scale
+    })
 
     this.onMessage(Message.PUNCH_PLAYER, (client, message: { targetId?: unknown }) => {
       const targetId = typeof message.targetId === 'string' ? message.targetId : ''
@@ -564,7 +585,10 @@ export class ClubMutant extends Room {
     )
 
     this.onMessage(Message.ROOM_QUEUE_PLAYLIST_REMOVE, (client, message: { itemId: string }) => {
-      this.dispatcher.dispatch(new RoomQueuePlaylistRemoveCommand(), { client, itemId: message.itemId })
+      this.dispatcher.dispatch(new RoomQueuePlaylistRemoveCommand(), {
+        client,
+        itemId: message.itemId,
+      })
     })
 
     this.onMessage(
@@ -638,14 +662,15 @@ export class ClubMutant extends Room {
   async onLeave(client: Client, code: number) {
     const consented = code === CloseCode.CONSENTED
 
-    if (!consented) {
-      try {
-        await this.allowReconnection(client, 60)
-        return
-      } catch (_e) {
-        // fallthrough: timed out, proceed to cleanup
-      }
-    }
+    // Reconnection disabled for easier debugging — re-enable later if needed
+    // if (!consented) {
+    //   try {
+    //     await this.allowReconnection(client, 60)
+    //     return
+    //   } catch (_e) {
+    //     // fallthrough: timed out, proceed to cleanup
+    //   }
+    // }
 
     this.lastPlayerActionAtMsBySessionId.delete(client.sessionId)
 
@@ -654,7 +679,7 @@ export class ClubMutant extends Room {
     }
 
     this.state.musicBooths.forEach((musicBooth, index) => {
-      if (musicBooth.connectedUser === client.sessionId) {
+      if (musicBooth.connectedUsers.includes(client.sessionId)) {
         this.dispatcher.dispatch(new MusicBoothDisconnectUserCommand(), {
           client,
           musicBoothIndex: index,

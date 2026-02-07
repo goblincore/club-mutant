@@ -22,7 +22,7 @@ export class MusicStreamNextCommand extends Command<ClubMutant, Payload | undefi
     console.log('////MusicStreamNextCommand, musicStream.currentBooth', musicStream.currentBooth)
 
     const musicBoothIndex = 0
-    const djSessionId = musicBooths[musicBoothIndex]?.connectedUser
+    const djSessionId = musicBooths[musicBoothIndex]?.connectedUsers.find((id) => id !== '')
 
     if (!djSessionId) {
       musicStream.status = 'waiting'

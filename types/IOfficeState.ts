@@ -6,6 +6,7 @@ export interface IPlayer extends Schema {
   y: number
   textureId: number
   animId: number
+  scale: number
   readyToConnect: boolean
   videoConnected: boolean
   currentPlaylistItem: IPlaylistItem
@@ -19,7 +20,7 @@ export interface IDJUserInfo extends Schema {
 }
 
 export interface IMusicBooth extends Schema {
-  connectedUser: string | null
+  connectedUsers: ArraySchema<string>
 }
 
 export interface IChatMessage extends Schema {

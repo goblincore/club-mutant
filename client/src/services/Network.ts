@@ -23,7 +23,11 @@ import {
   IRoomPlaylistItem,
 } from '@club-mutant/types/IOfficeState'
 import { Message } from '@club-mutant/types/Messages'
-import type { PlaylistItemDto, DJQueueEntryDto, RoomQueuePlaylistItemDto } from '@club-mutant/types/Dtos'
+import type {
+  PlaylistItemDto,
+  DJQueueEntryDto,
+  RoomQueuePlaylistItemDto,
+} from '@club-mutant/types/Dtos'
 import { IRoomData, RoomType } from '@club-mutant/types/Rooms'
 import { ItemType } from '@club-mutant/types/Items'
 import { phaserEvents, Event } from '../events/EventCenter'
@@ -58,13 +62,8 @@ import {
   setRoomPlaylist,
   type RoomPlaylistItem as RoomPlaylistItemState,
 } from '../stores/RoomPlaylistStore'
-import {
-  setDJQueue,
-  updateMyQueueStatus,
-} from '../stores/DJQueueStore'
-import {
-  setRoomQueuePlaylist,
-} from '../stores/RoomQueuePlaylistStore'
+import { setDJQueue, updateMyQueueStatus } from '../stores/DJQueueStore'
+import { setRoomQueuePlaylist } from '../stores/RoomQueuePlaylistStore'
 
 // This class centralizes the handling of network events from the server
 // mostly the socket events
@@ -269,6 +268,11 @@ export default class Network {
         emitAnimFromIds()
       })
 
+      playerCallbacks.listen('scale', (value) => {
+        const scaleFloat = value / 100 // Convert 100 -> 1.0, 50 -> 0.5, etc.
+        phaserEvents.emit(Event.PLAYER_UPDATED, 'scale', scaleFloat, key)
+      })
+
       playerCallbacks.listen('readyToConnect', (value) => {
         phaserEvents.emit(Event.PLAYER_UPDATED, 'readyToConnect', value, key)
       })
@@ -298,35 +302,50 @@ export default class Network {
 
     // new instance added to the music booth MapSchema
     musicBoothsCallbacks.onAdd((musicBooth: IMusicBooth, index: number) => {
-      const boothCallbacks = callbacks(musicBooth)
+      // Listen for changes to the connectedUsers array
+      const usersCallbacks = callbacks(musicBooth.connectedUsers)
 
-      boothCallbacks.listen(
-        'connectedUser',
-        (value, previousValue) => {
-          if (value === null || value === '') {
-            if (previousValue === undefined) return
+      const lastUsers = Array.from(musicBooth.connectedUsers)
 
-            const removedUserId = typeof previousValue === 'string' ? previousValue : ''
-            phaserEvents.emit(Event.ITEM_USER_REMOVED, removedUserId, index, ItemType.MUSIC_BOOTH)
+      usersCallbacks.onAdd((userId: string, seatIndex: number) => {
+        lastUsers[seatIndex] = userId
+        if (typeof userId !== 'string' || userId === '') return
+        console.log('USER JOINED MUSICBOOTH userId', userId)
+        phaserEvents.emit(Event.ITEM_USER_ADDED, userId, index, ItemType.MUSIC_BOOTH, seatIndex)
 
-            const connectedIndex = store.getState().musicBooth.musicBoothIndex
-            if (connectedIndex === index) {
-              store.dispatch(disconnectFromMusicBooth())
-            }
-            return
+        if (userId === this.mySessionId) {
+          store.dispatch(connectToMusicBooth(index))
+        }
+      })
+
+      usersCallbacks.onChange((userId: string, seatIndex: number) => {
+        const prevUserId = lastUsers[seatIndex]
+        if (prevUserId === userId) return
+
+        if (typeof prevUserId === 'string' && prevUserId !== '') {
+          phaserEvents.emit(
+            Event.ITEM_USER_REMOVED,
+            prevUserId,
+            index,
+            ItemType.MUSIC_BOOTH,
+            seatIndex
+          )
+
+          const connectedIndex = store.getState().musicBooth.musicBoothIndex
+          if (connectedIndex === index && prevUserId === this.mySessionId) {
+            store.dispatch(disconnectFromMusicBooth())
           }
+        }
 
-          if (typeof value !== 'string' || value === '') return
+        lastUsers[seatIndex] = userId
 
-          console.log('USER JOINED MUSICBOOTH value', value)
-          phaserEvents.emit(Event.ITEM_USER_ADDED, value, index, ItemType.MUSIC_BOOTH)
+        if (typeof userId !== 'string' || userId === '') return
 
-          if (value === this.mySessionId) {
-            store.dispatch(connectToMusicBooth(index))
-          }
-        },
-        true
-      )
+        phaserEvents.emit(Event.ITEM_USER_ADDED, userId, index, ItemType.MUSIC_BOOTH, seatIndex)
+        if (userId === this.mySessionId) {
+          store.dispatch(connectToMusicBooth(index))
+        }
+      })
     }, true)
 
     // new instance added to the chatMessages ArraySchema
@@ -420,10 +439,12 @@ export default class Network {
     this.room.onMessage(
       Message.DJ_QUEUE_UPDATED,
       (payload: { djQueue: DJQueueEntryDto[]; currentDjSessionId: string | null }) => {
-        store.dispatch(setDJQueue({
-          entries: payload.djQueue,
-          currentDjSessionId: payload.currentDjSessionId
-        }))
+        store.dispatch(
+          setDJQueue({
+            entries: payload.djQueue,
+            currentDjSessionId: payload.currentDjSessionId,
+          })
+        )
         store.dispatch(updateMyQueueStatus({ sessionId: this.mySessionId }))
       }
     )
@@ -510,7 +531,7 @@ export default class Network {
 
   // method to register event listener and call back function when a item user added
   onItemUserAdded(
-    callback: (playerId: string, itemId: number, itemType: ItemType) => void,
+    callback: (playerId: string, itemId: number, itemType: ItemType, seatIndex?: number) => void,
     context?: any
   ) {
     phaserEvents.on(Event.ITEM_USER_ADDED, callback, context)
@@ -528,20 +549,25 @@ export default class Network {
     if (!musicBooths || typeof musicBooths.forEach !== 'function') return
 
     musicBooths.forEach((booth, index) => {
-      const connectedUser = (booth as unknown as { connectedUser?: unknown }).connectedUser
-      if (typeof connectedUser !== 'string' || connectedUser === '') return
+      const connectedUsers = (booth as IMusicBooth).connectedUsers
+      if (!connectedUsers || connectedUsers.length === 0) return
 
-      if (context) {
-        callback.call(context, connectedUser, index, ItemType.MUSIC_BOOTH)
-      } else {
-        callback(connectedUser, index, ItemType.MUSIC_BOOTH)
-      }
+      // Emit event for each connected user
+      connectedUsers.forEach((userId: string, seatIndex: number) => {
+        if (typeof userId !== 'string' || userId === '') return
+
+        if (context) {
+          callback.call(context, userId, index, ItemType.MUSIC_BOOTH, seatIndex)
+        } else {
+          callback(userId, index, ItemType.MUSIC_BOOTH, seatIndex)
+        }
+      })
     })
   }
 
   // method to register event listener and call back function when a item user removed
   onItemUserRemoved(
-    callback: (playerId: string, itemId: number, itemType: ItemType) => void,
+    callback: (playerId: string, itemId: number, itemType: ItemType, seatIndex?: number) => void,
     context?: any
   ) {
     phaserEvents.on(Event.ITEM_USER_REMOVED, callback, context)
@@ -622,6 +648,12 @@ export default class Network {
   updatePlayerName(currentName: string) {
     console.log('////Network, initialize, updatePlayerName, currentName', currentName)
     this.room?.send(Message.UPDATE_PLAYER_NAME, { name: currentName })
+  }
+
+  // method to send player scale to Colyseus server
+  updatePlayerScale(scale: number) {
+    const scaleInt = Math.round(scale * 100) // Convert 1.0 -> 100, 0.5 -> 50, etc.
+    this.room?.send(Message.UPDATE_PLAYER_SCALE, { scale: scaleInt })
   }
 
   // method to send ready-to-connect signal to Colyseus server

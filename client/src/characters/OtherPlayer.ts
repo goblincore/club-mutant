@@ -11,6 +11,7 @@ export default class OtherPlayer extends Player {
   private connected = false
   private playContainerBody: Phaser.Physics.Arcade.Body
   private myPlayer?: MyPlayer
+  private boothDepthOverride: number | null = null
 
   constructor(
     scene: Phaser.Scene,
@@ -65,6 +66,22 @@ export default class OtherPlayer extends Player {
           }
 
           if (this.scene.anims.exists(requestedKey)) {
+            // Booth animations need immediate position snap (no interpolation)
+            // to ensure player appears at exact booth position
+            const isBoothAnim =
+              requestedKey === 'mutant_djwip' ||
+              requestedKey === 'mutant_boombox' ||
+              requestedKey === 'mutant_transform' ||
+              requestedKey === 'mutant_transform_reverse'
+
+            if (isBoothAnim) {
+              // Snap to target position immediately
+              this.x = this.targetPosition[0]
+              this.y = this.targetPosition[1]
+              this.playerContainer.x = this.targetPosition[0]
+              this.playerContainer.y = this.targetPosition[1]
+            }
+
             // Action animations should interrupt current state and return to idle when complete
             const isActionAnim =
               requestedKey.includes('_hit1_') ||
@@ -118,6 +135,12 @@ export default class OtherPlayer extends Player {
       case 'videoConnected':
         if (typeof value === 'boolean') {
           this.videoConnected = value
+        }
+        break
+
+      case 'scale':
+        if (typeof value === 'number') {
+          this.setScale(value)
         }
         break
     }
@@ -248,7 +271,21 @@ export default class OtherPlayer extends Player {
     }
   }
 
+  setBoothDepthOverride(depth: number) {
+    this.boothDepthOverride = depth
+  }
+
+  clearBoothDepthOverride() {
+    this.boothDepthOverride = null
+  }
+
   private updateDepth(currentAnimKey: string | undefined) {
+    // If at a booth with an explicit depth override, use it
+    if (this.boothDepthOverride !== null) {
+      this.setDepth(this.boothDepthOverride)
+      return
+    }
+
     let targetDepth = this.y
 
     if (

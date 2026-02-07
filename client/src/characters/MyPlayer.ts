@@ -26,6 +26,8 @@ export default class MyPlayer extends Player {
   private djBoothDepth: number | null = null
 
   private djTransitionTarget: { x: number; y: number } | null = null
+  private pendingBoothScale: number | null = null
+  private pendingBoothAnimKey: string | null = null
   private playingDebugAnim = false
   private debugAnimKey: string | null = null
 
@@ -203,6 +205,63 @@ export default class MyPlayer extends Player {
     this.pendingAutoEnterTarget = target
   }
 
+  applyMusicBoothSeat(musicBooth: MusicBooth, seatIndex: number, network: Network) {
+    if (typeof seatIndex !== 'number' || !Number.isFinite(seatIndex)) return
+
+    const standPos = musicBooth.getStandPosition(seatIndex)
+    const seatConfig = musicBooth.getSeatConfig(seatIndex)
+
+    // Snap to booth position immediately
+    const body = this.body as Phaser.Physics.Arcade.Body | null
+
+    this.x = standPos.x
+    this.y = standPos.y
+    body?.reset(standPos.x, standPos.y)
+
+    this.playerContainer.x = standPos.x
+    this.playerContainer.y = standPos.y
+
+    // Apply per-seat scale, flip, and depth
+    this.setScale(seatConfig.scale)
+    this.setFlipX(seatConfig.flip)
+    network.updatePlayerScale(seatConfig.scale)
+
+    this.setDepth(musicBooth.depth + seatConfig.depthOffset)
+
+    this.djTransitionTarget = null
+    this.pendingBoothScale = null
+
+    // If enterMusicBooth stored a booth anim, play the transform sequence at the booth position
+    const boothAnimKey = this.pendingBoothAnimKey
+
+    if (boothAnimKey && this.playerBehavior === PlayerBehavior.TRANSFORMING) {
+      this.pendingBoothAnimKey = null
+
+      const transformKey = 'mutant_transform'
+      this.play(transformKey, true)
+      this.updatePhysicsBodyForAnim(transformKey)
+      network.updatePlayerAction(standPos.x, standPos.y, transformKey)
+
+      this.once(`animationcomplete-${transformKey}`, () => {
+        if (this.playerBehavior !== PlayerBehavior.TRANSFORMING) return
+
+        this.play(boothAnimKey, true)
+        this.updatePhysicsBodyForAnim(boothAnimKey)
+        network.updatePlayerAction(this.x, this.y, boothAnimKey)
+        this.playerBehavior = PlayerBehavior.SITTING
+      })
+    } else {
+      // Late-join reconciliation or non-transform path — just broadcast current state
+      const currentAnimKey = this.anims.currentAnim?.key
+      const animKey =
+        typeof currentAnimKey === 'string' && currentAnimKey !== ''
+          ? currentAnimKey
+          : `${this.playerTexture}_idle_down`
+
+      network.updatePlayerAction(standPos.x, standPos.y, animKey)
+    }
+  }
+
   /**
    * Public method to exit the booth programmatically (e.g., from Leave Queue button)
    * Returns true if successfully initiated exit, false if not at booth
@@ -216,11 +275,21 @@ export default class MyPlayer extends Player {
     console.log('[MyPlayer] exitBoothIfConnected: exiting booth')
     const body = this.body as Phaser.Physics.Arcade.Body
 
-    this.musicBoothOnSit.currentUser = null
+    // Notify server to free the booth
+    const boothId = this.musicBoothOnSit.id
+    if (boothId !== undefined) {
+      network.disconnectFromMusicBooth(boothId)
+    }
+
+    // Remove this user from the booth's current users
+    this.musicBoothOnSit.removeCurrentUser(this.playerId)
     store.dispatch(disconnectFromMusicBooth())
 
     this.musicBoothOnSit.clearDialogBox()
     this.djTransitionTarget = null
+    this.pendingBoothScale = null
+    this.pendingBoothAnimKey = null
+    this.setFlipX(false)
 
     const reverseKey = 'mutant_transform_reverse'
     this.play(reverseKey, true)
@@ -245,6 +314,10 @@ export default class MyPlayer extends Player {
       } else {
         this.setDepth(this.y)
       }
+
+      // Reset scale to normal
+      this.setScale(1.0)
+      network.updatePlayerScale(1.0)
 
       this.musicBoothOnSit = undefined
       this.playerBehavior = PlayerBehavior.IDLE
@@ -425,7 +498,7 @@ export default class MyPlayer extends Player {
           this.pendingLeaveMusicBooth = false
         }
         if (this.pendingAutoEnterMusicBooth && this.pendingAutoEnterTarget) {
-          if (this.pendingAutoEnterMusicBooth.currentUser !== null) {
+          if (this.pendingAutoEnterMusicBooth.isFull()) {
             this.cancelPendingAutoEnterMusicBooth()
           } else {
             const dx = this.pendingAutoEnterTarget.x - this.x
@@ -445,14 +518,15 @@ export default class MyPlayer extends Player {
           }
         }
 
-        if (Phaser.Input.Keyboard.JustDown(keyR)) {
-          switch (item?.itemType) {
-            case ItemType.MUSIC_BOOTH:
-              this.enterMusicBooth(item as MusicBooth, network, body)
-              break
-          }
-          return
-        }
+        // NOTE: Press R booth entry is now deprecated - use click-to-join instead
+        // if (Phaser.Input.Keyboard.JustDown(keyR)) {
+        //   switch (item?.itemType) {
+        //     case ItemType.MUSIC_BOOTH:
+        //       this.enterMusicBooth(item as MusicBooth, network, body)
+        //       break
+        //   }
+        //   return
+        // }
         const speed = 200
 
         const leftDown = Boolean(cursors.left?.isDown || wasd.left.isDown)
@@ -528,7 +602,7 @@ export default class MyPlayer extends Player {
               if (
                 this.pendingAutoEnterMusicBooth &&
                 this.pendingAutoEnterTarget &&
-                this.pendingAutoEnterMusicBooth.currentUser === null
+                !this.pendingAutoEnterMusicBooth.isFull()
               ) {
                 const pdx = this.pendingAutoEnterTarget.x - this.x
                 const pdy = this.pendingAutoEnterTarget.y - this.y
@@ -670,13 +744,21 @@ export default class MyPlayer extends Player {
 
           if (!this.musicBoothOnSit) return
 
-          this.musicBoothOnSit.currentUser = null
+          this.musicBoothOnSit.removeCurrentUser(this.playerId)
           store.dispatch(disconnectFromMusicBooth())
 
-          this.musicBoothOnSit.closeDialog(network)
+          const boothId = this.musicBoothOnSit.id
+          if (boothId !== undefined) {
+            network.disconnectFromMusicBooth(boothId)
+          }
+
+          this.musicBoothOnSit.closeDialog(network, this.playerId)
           this.musicBoothOnSit.clearDialogBox()
           // this.musicBoothOnSit.setDialogBox('Press R to be the DJ')
           this.djTransitionTarget = null
+          this.pendingBoothScale = null
+          this.pendingBoothAnimKey = null
+          this.setFlipX(false)
 
           const reverseKey = 'mutant_transform_reverse'
           this.play(reverseKey, true)
@@ -702,6 +784,10 @@ export default class MyPlayer extends Player {
               this.setDepth(this.y)
             }
 
+            // Reset scale to normal
+            this.setScale(1.0)
+            network.updatePlayerScale(1.0)
+
             this.musicBoothOnSit = undefined
             this.playerBehavior = PlayerBehavior.IDLE
           })
@@ -721,13 +807,21 @@ export default class MyPlayer extends Player {
         if (Phaser.Input.Keyboard.JustDown(keyR) || this.pendingLeaveMusicBooth) {
           this.pendingLeaveMusicBooth = false
           if (this.musicBoothOnSit) {
-            this.musicBoothOnSit.currentUser = null
+            this.musicBoothOnSit.removeCurrentUser(this.playerId)
+
+            const boothId = this.musicBoothOnSit.id
+            if (boothId !== undefined) {
+              network.disconnectFromMusicBooth(boothId)
+            }
           }
           store.dispatch(disconnectFromMusicBooth())
-          this.musicBoothOnSit?.closeDialog(network)
+          this.musicBoothOnSit?.closeDialog(network, this.playerId)
           this.musicBoothOnSit?.clearDialogBox()
           // this.musicBoothOnSit?.setDialogBox('Press R to be the DJ')
           this.djTransitionTarget = null
+          this.pendingBoothScale = null
+          this.pendingBoothAnimKey = null
+          this.setFlipX(false)
 
           const idleAnimKey = `${this.playerTexture}_idle_down`
           this.play(idleAnimKey, true)
@@ -742,6 +836,10 @@ export default class MyPlayer extends Player {
           } else {
             this.setDepth(this.y)
           }
+
+          // Reset scale to normal
+          this.setScale(1.0)
+          network.updatePlayerScale(1.0)
 
           this.musicBoothOnSit = undefined
           this.playerBehavior = PlayerBehavior.IDLE
@@ -771,7 +869,11 @@ export default class MyPlayer extends Player {
     body: Phaser.Physics.Arcade.Body,
     standTarget?: { x: number; y: number }
   ) {
-    if (musicBoothItem.currentUser !== null) return
+    // Check if booth is full
+    if (musicBoothItem.isFull()) {
+      console.log('[MyPlayer] enterMusicBooth: booth is full')
+      return
+    }
 
     this.cancelPendingAutoEnterMusicBooth()
 
@@ -782,16 +884,6 @@ export default class MyPlayer extends Player {
 
     this.playerContainerBody.setVelocity(0, 0)
 
-    const standX = standTarget?.x ?? musicBoothItem.x - 20
-    const standY = standTarget?.y ?? musicBoothItem.y + musicBoothItem.height * 0.25 - 70
-
-    this.x = standX
-    this.y = standY
-    body.reset(standX, standY)
-    this.playerContainer.x = standX
-    this.playerContainer.y = standY
-    this.djTransitionTarget = { x: standX, y: standY }
-
     musicBoothItem.openDialog(network)
     musicBoothItem.clearDialogBox()
     // musicBoothItem.setDialogBox('Press R to leave the DJ booth')
@@ -801,34 +893,14 @@ export default class MyPlayer extends Player {
       const roomType = store.getState().room.roomType
       const boothAnimKey = roomType === RoomType.PUBLIC ? 'mutant_djwip' : 'mutant_boombox'
 
+      // Face down while waiting for the server to assign a seat
       const faceDownKey = `${this.playerTexture}_idle_down`
       this.play(faceDownKey, true)
 
-      const transformKey = 'mutant_transform'
-      this.play(transformKey, true)
-      this.updatePhysicsBodyForAnim(transformKey)
-      network.updatePlayerAction(this.x, this.y, transformKey)
-
+      // Store the booth anim — applyMusicBoothSeat will snap to the booth
+      // position first, then play the transform → booth anim sequence there.
+      this.pendingBoothAnimKey = boothAnimKey
       this.playerBehavior = PlayerBehavior.TRANSFORMING
-
-      this.once(`animationcomplete-${transformKey}`, () => {
-        if (this.playerBehavior !== PlayerBehavior.TRANSFORMING) return
-
-        const target = this.djTransitionTarget
-        if (target) {
-          this.x = target.x
-          this.y = target.y
-          body.reset(target.x, target.y)
-          this.playerContainer.x = target.x
-          this.playerContainer.y = target.y
-        }
-
-        this.play(boothAnimKey, true)
-        this.updatePhysicsBodyForAnim(boothAnimKey)
-        network.updatePlayerAction(this.x, this.y, boothAnimKey)
-        this.playerBehavior = PlayerBehavior.SITTING
-        this.djTransitionTarget = null
-      })
     }
     body.setImmovable(true)
     this.setDepth(musicBoothItem.depth - 1)

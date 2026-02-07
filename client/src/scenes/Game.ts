@@ -1472,6 +1472,9 @@ export default class Game extends Phaser.Scene {
     const initialAnimKey = decodeAnimKey(newPlayer.textureId, newPlayer.animId)
     otherPlayer.updateOtherPlayer('anim', initialAnimKey)
 
+    const scaleFloat = (typeof newPlayer.scale === 'number' ? newPlayer.scale : 100) / 100
+    otherPlayer.updateOtherPlayer('scale', scaleFloat)
+
     this.otherPlayers.add(otherPlayer)
     this.otherPlayerMap.set(id, otherPlayer)
   }
@@ -1514,36 +1517,70 @@ export default class Game extends Phaser.Scene {
 
   private handlePlayersOverlap(myPlayer, otherPlayer) {}
 
-  private handleItemUserAdded(playerId: string, itemId: number, itemType: ItemType) {
-    console.log('////NETWORK handleItemUserAdded', playerId, itemId, itemType)
+  private handleItemUserAdded(
+    playerId: string,
+    itemId: number,
+    itemType: ItemType,
+    seatIndex?: number
+  ) {
+    console.log('////NETWORK handleItemUserAdded', playerId, itemId, itemType, seatIndex)
     if (itemType === ItemType.MUSIC_BOOTH) {
       const musicBooth = this.musicBoothMap.get(itemId)
       const currentPlayer =
-        this.otherPlayerMap.get(playerId) || this.myPlayer.playerId === playerId
-          ? this.myPlayer
-          : null
+        this.otherPlayerMap.get(playerId) ??
+        (this.myPlayer.playerId === playerId ? this.myPlayer : null)
       console.log('currentDJPlayerinfo', currentPlayer)
-      musicBooth?.addCurrentUser(playerId)
+      musicBooth?.addCurrentUser(playerId, seatIndex)
+
+      if (musicBooth && typeof seatIndex === 'number' && Number.isFinite(seatIndex)) {
+        const seatConfig = musicBooth.getSeatConfig(seatIndex)
+
+        if (this.network && playerId === this.myPlayer.playerId) {
+          this.myPlayer.applyMusicBoothSeat(musicBooth, seatIndex, this.network)
+        } else {
+          // Apply flip and depth override to OtherPlayer
+          const otherPlayer = this.otherPlayerMap.get(playerId)
+          if (otherPlayer) {
+            otherPlayer.setFlipX(seatConfig.flip)
+            otherPlayer.setBoothDepthOverride(musicBooth.depth + seatConfig.depthOffset)
+          }
+        }
+      }
       console.log('////MusicBooth', musicBooth)
     }
   }
 
-  private handleItemUserRemoved(playerId: string, itemId: number, itemType: ItemType) {
+  private handleItemUserRemoved(
+    playerId: string,
+    itemId: number,
+    itemType: ItemType,
+    seatIndex?: number
+  ) {
     if (itemType === ItemType.MUSIC_BOOTH) {
       const musicBooth = this.musicBoothMap.get(itemId)
-      musicBooth?.removeCurrentUser(playerId)
+      musicBooth?.removeCurrentUser(playerId, seatIndex)
+
+      // Reset flip and depth override for OtherPlayers leaving the booth
+      if (playerId !== this.myPlayer.playerId) {
+        const otherPlayer = this.otherPlayerMap.get(playerId)
+        if (otherPlayer) {
+          otherPlayer.setFlipX(false)
+          otherPlayer.clearBoothDepthOverride()
+        }
+      }
     }
   }
 
   private handleChatMessageAdded(playerId: string, content: string) {
     console.log('////handleChatMessageAdded')
     const currentDjSessionId = store.getState().musicStream.currentDj.sessionId
-    const boothDjSessionId = this.musicBoothMap.get(0)?.currentUser ?? null
-    const resolvedDjSessionId = currentDjSessionId ?? boothDjSessionId
+    const booth = this.musicBoothMap.get(0)
+    const isPlayerAtBooth = booth?.hasUser(playerId) ?? false
     const connectedBoothIndex = store.getState().musicBooth.musicBoothIndex
     const isDj =
-      (resolvedDjSessionId !== null && playerId === resolvedDjSessionId) ||
-      (connectedBoothIndex !== null && playerId === this.network.mySessionId)
+      (currentDjSessionId !== null && playerId === currentDjSessionId) ||
+      (connectedBoothIndex !== null && playerId === this.network.mySessionId) ||
+      isPlayerAtBooth
     const bubbleScale = isDj ? 1.5 : 1
 
     if (this.myPlayer.playerId === playerId) {
@@ -1795,11 +1832,10 @@ export default class Game extends Phaser.Scene {
 
           const clickedBooth = clickedItem instanceof MusicBooth ? clickedItem : null
           const isHighlightedBooth =
-            clickedBooth &&
-            clickedBooth === this.highlightedInteractable &&
-            clickedBooth.currentUser === null
+            clickedBooth && clickedBooth === this.highlightedInteractable && !clickedBooth.isFull()
 
           if (isHighlightedBooth) {
+            // Auto-enter booth - walk to it and enter automatically
             const boothBounds = clickedBooth.getBounds()
             const approachX = boothBounds.centerX
             const approachY = boothBounds.bottom + 8
