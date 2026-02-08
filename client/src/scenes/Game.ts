@@ -159,7 +159,7 @@ export default class Game extends Phaser.Scene {
     this.myYoutubePlayer?.pause()
     this.myYoutubePlayer?.setAlpha(0)
 
-    this.setBackgroundStaticMode('idle')
+    this.fadeInBackgroundStatic(650)
   }
 
   private setBackgroundStaticMode(mode: 'off' | 'idle' | 'loading') {
@@ -272,6 +272,31 @@ export default class Game extends Phaser.Scene {
       onComplete: () => {
         this.backgroundStatic?.setVisible(false)
       },
+    })
+  }
+
+  private fadeInBackgroundStatic(durationMs = 650) {
+    if (!this.backgroundStatic) return
+    if (this.debugStaticOverlayEnabled) return
+
+    this.backgroundStaticTween?.stop()
+
+    this.backgroundStatic.setVisible(true)
+
+    const pipeline = this.backgroundStatic.getPostPipeline(
+      TV_STATIC_POSTFX_PIPELINE_KEY
+    ) as unknown as TvStaticPostFxPipeline | TvStaticPostFxPipeline[] | undefined
+    const instance = Array.isArray(pipeline) ? pipeline[pipeline.length - 1] : pipeline
+
+    if (instance && instance instanceof TvStaticPostFxPipeline) {
+      instance.setIntensity(1)
+    }
+
+    this.backgroundStaticTween = this.tweens.add({
+      targets: this.backgroundStatic,
+      alpha: 0.45,
+      duration: durationMs,
+      ease: 'Sine.easeIn',
     })
   }
 
@@ -640,6 +665,8 @@ export default class Game extends Phaser.Scene {
     this.myYoutubePlayer.load(videoId, true)
     this.myYoutubePlayer.setMute(true)
     this.myYoutubePlayer.play()
+
+    this.fadeOutBackgroundStatic(650)
 
     console.log(`[YoutubeBG] Iframe player loaded for ${videoId} at offset ${offsetSeconds}s`)
 

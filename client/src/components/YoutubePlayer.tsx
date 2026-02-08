@@ -12,13 +12,27 @@ import { shiftMyPlaylist } from '../stores/MyPlaylistStore'
 import { setVideoBackgroundEnabled } from '../stores/MusicStreamStore'
 import { RoomType } from '@club-mutant/types/Rooms'
 
-import { Backdrop, MiniBar, Marquee, MarqueeInner, MarqueeMetadata, Wrapper, RoomInfo, JoinQueueContainer, JoinQueueSubtitle, JoinQueueButton, JoinQueueMiniBar } from './YoutubePlayer.styles'
+import {
+  Backdrop,
+  MiniBar,
+  Marquee,
+  MarqueeInner,
+  MarqueeMetadata,
+  Wrapper,
+  RoomInfo,
+  JoinQueueContainer,
+  JoinQueueSubtitle,
+  JoinQueueButton,
+  JoinQueueMiniBar,
+} from './YoutubePlayer.styles'
 import { PlayerControls } from './PlayerControls'
 import { RoomPlaylistView } from './RoomPlaylistView'
 import { VideoPlayer } from './VideoPlayer'
 import { usePlayerSync } from './usePlayerSync'
 import DJQueuePanel from './DJQueuePanel'
 import AddIcon from '@mui/icons-material/Add'
+import VideocamIcon from '@mui/icons-material/Videocam'
+import VideocamOffIcon from '@mui/icons-material/VideocamOff'
 import { setIsInQueue } from '../stores/DJQueueStore'
 import { setRoomQueuePlaylistVisible } from '../stores/RoomQueuePlaylistStore'
 
@@ -27,6 +41,13 @@ function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60)
   const secs = seconds % 60
   return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
+// Helper to get ordinal string: 1 -> "1st", 2 -> "2nd", etc.
+function ordinal(n: number): string {
+  const suffixes = ['th', 'st', 'nd', 'rd']
+  const v = n % 100
+  return n + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0])
 }
 
 export default function YoutubePlayer() {
@@ -97,10 +118,17 @@ export default function YoutubePlayer() {
 
   // Reset isPlaying when stream stops (show play button, not pause)
   useEffect(() => {
-    if (!link && roomPlaylist.length > 0 && !isAmbient) {
+    if (!link && !isAmbient) {
       setIsPlaying(false)
     }
-  }, [link, roomPlaylist.length, isAmbient, setIsPlaying])
+  }, [link, isAmbient, setIsPlaying])
+
+  // Auto-play when a new stream starts (e.g. DJ switch autoplay)
+  useEffect(() => {
+    if (link && !isAmbient) {
+      setIsPlaying(true)
+    }
+  }, [link, streamId, isAmbient, setIsPlaying])
 
   // Update elapsed time and total duration for minimized player
   useEffect(() => {
@@ -186,6 +214,38 @@ export default function YoutubePlayer() {
     dispatch(setIsInQueue(true))
     dispatch(setRoomQueuePlaylistVisible(true))
   }, [game.network, dispatch])
+
+  // DJ Queue-specific handlers
+  const roomQueueItems = useAppSelector((state) => state.roomQueuePlaylist.items)
+  const myQueuePosition = useAppSelector((state) => state.djQueue.myQueuePosition)
+  const hasDJTracks = roomQueueItems.length > 0
+
+  const handleDJPlayPause = useCallback(() => {
+    if (isPlaying) {
+      setIsPlaying(false)
+      return
+    }
+
+    setIsPlaying(true)
+
+    if (!isStreaming && isCurrentDJ && hasDJTracks) {
+      game.network.djPlay()
+      return
+    }
+
+    resyncPlayer()
+  }, [isPlaying, isStreaming, isCurrentDJ, hasDJTracks, game.network, resyncPlayer, setIsPlaying])
+
+  const handleDJNext = useCallback(() => {
+    if (!isCurrentDJ) return
+    setIsPlaying(true)
+    game.network.djTurnComplete()
+  }, [isCurrentDJ, game.network, setIsPlaying])
+
+  const handleDJPrev = useCallback(() => {
+    if (!isCurrentDJ) return
+    playerRef.current?.seekTo(0, 'seconds')
+  }, [isCurrentDJ, playerRef])
 
   const handleOnEnded = useCallback(() => {
     if (isAmbient) {
@@ -286,18 +346,28 @@ export default function YoutubePlayer() {
     const nextDJ = djQueueEntries.find((e, i) => i === 1) || null
 
     // Format time display
-    const timeDisplay = link && totalDuration > 0
-      ? `${formatTime(elapsedTime)} / ${formatTime(totalDuration)}`
-      : ''
+    const timeDisplay =
+      link && totalDuration > 0 ? `${formatTime(elapsedTime)} / ${formatTime(totalDuration)}` : ''
 
     // Format "up next" message
-    const upNextMessage = djQueueEntries.length > 1
-      ? isCurrentDJ
-        ? `Up next: ${nextDJ?.name || 'Unknown'}`
-        : `Your turn in ${djQueueEntries.findIndex(e => e.sessionId === mySessionId)} track(s)`
-      : isCurrentDJ
-        ? 'You\'re the only DJ'
-        : ''
+    const upNextMessage =
+      djQueueEntries.length > 1
+        ? isCurrentDJ
+          ? `Up next: ${nextDJ?.name || 'Unknown'}`
+          : `Your turn in ${djQueueEntries.findIndex((e) => e.sessionId === mySessionId)} track(s)`
+        : isCurrentDJ
+          ? "You're the only DJ"
+          : ''
+
+    // Compute the queue position message for the minimized bar
+    const myIndex = djQueueEntries.findIndex((e) => e.sessionId === mySessionId)
+    const queuePositionText = isCurrentDJ
+      ? link !== null
+        ? `${title || 'Unknown'}`
+        : 'You are first in the queue. Add some tracks to start playing!'
+      : myIndex >= 0
+        ? `You are ${ordinal(myIndex + 1)} in the queue`
+        : 'Waiting for your turn...'
 
     if (minimized) {
       return (
@@ -307,15 +377,20 @@ export default function YoutubePlayer() {
               <OpenInFullIcon fontSize="inherit" />
             </IconButton>
 
+            {isCurrentDJ && (
+              <PlayerControls
+                isPlaying={isPlaying}
+                isStreaming={isStreaming}
+                canControl={isCurrentDJ && hasDJTracks}
+                onPlayPause={handleDJPlayPause}
+                onPrev={handleDJPrev}
+                onNext={handleDJNext}
+              />
+            )}
+
             <Marquee>
               <div style={{ overflow: 'hidden', position: 'relative', height: '18px' }}>
-                <MarqueeInner>
-                  {link !== null
-                    ? `${title || 'Unknown'}`
-                    : isCurrentDJ
-                      ? 'Add tracks to start playing!'
-                      : `Waiting for ${djQueueEntries[0]?.name || 'DJ'}...`}
-                </MarqueeInner>
+                <MarqueeInner>{queuePositionText}</MarqueeInner>
               </div>
               {link && (
                 <MarqueeMetadata>
@@ -360,6 +435,37 @@ export default function YoutubePlayer() {
             </IconButton>
           </div>
 
+          {/* DJ Playback Controls + BG Video Toggle */}
+          {isCurrentDJ && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <PlayerControls
+                isPlaying={isPlaying}
+                isStreaming={isStreaming}
+                canControl={isCurrentDJ && hasDJTracks}
+                onPlayPause={handleDJPlayPause}
+                onPrev={handleDJPrev}
+                onNext={handleDJNext}
+              />
+
+              <IconButton
+                aria-label={
+                  videoBackgroundEnabled ? 'disable background video' : 'enable background video'
+                }
+                size="small"
+                onClick={handleToggleBackground}
+                title={videoBackgroundEnabled ? 'Background video ON' : 'Background video OFF'}
+                style={{ opacity: isStreaming ? 1 : 0.4 }}
+                disabled={!isStreaming}
+              >
+                {videoBackgroundEnabled ? (
+                  <VideocamIcon fontSize="small" />
+                ) : (
+                  <VideocamOffIcon fontSize="small" />
+                )}
+              </IconButton>
+            </div>
+          )}
+
           {/* DJ Queue Panel */}
           <DJQueuePanel />
 
@@ -393,9 +499,10 @@ export default function YoutubePlayer() {
     const nextDJ = djQueueEntries.find((e, i) => i === 1) || null
 
     // Format time display
-    const timeDisplay = totalDuration > 0
-      ? `${formatTime(elapsedTime)} / ${formatTime(totalDuration)}`
-      : formatTime(elapsedTime)
+    const timeDisplay =
+      totalDuration > 0
+        ? `${formatTime(elapsedTime)} / ${formatTime(totalDuration)}`
+        : formatTime(elapsedTime)
 
     if (minimized) {
       return (

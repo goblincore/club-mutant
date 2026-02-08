@@ -32,6 +32,7 @@ import { MusicStreamNextCommand } from './commands/MusicStreamUpdateCommand'
 import {
   DJQueueJoinCommand,
   DJQueueLeaveCommand,
+  DJPlayCommand,
   DJSkipTurnCommand,
   DJTurnCompleteCommand,
 } from './commands/DJQueueCommand'
@@ -415,6 +416,10 @@ export class ClubMutant extends Room {
           musicBoothIndex,
         })
 
+        // Skip legacy booth music handling when DJ queue is active —
+        // DJQueueLeaveCommand handles all music state for the DJ queue flow.
+        if (this.state.djQueue.length > 0 || this.state.currentDjSessionId !== null) return
+
         if (wasDj && musicBoothIndex === 0) {
           this.clearRoomPlaylistAfterDjLeft()
         }
@@ -568,6 +573,10 @@ export class ClubMutant extends Room {
       this.dispatcher.dispatch(new DJQueueLeaveCommand(), { client })
     })
 
+    this.onMessage(Message.DJ_PLAY, (client) => {
+      this.dispatcher.dispatch(new DJPlayCommand(), { client })
+    })
+
     this.onMessage(Message.DJ_SKIP_TURN, (client) => {
       this.dispatcher.dispatch(new DJSkipTurnCommand(), { client })
     })
@@ -684,6 +693,10 @@ export class ClubMutant extends Room {
           client,
           musicBoothIndex: index,
         })
+
+        // Skip legacy booth music handling when DJ queue is active —
+        // DJQueueLeaveCommand handles all music state for the DJ queue flow.
+        if (this.state.djQueue.length > 0 || this.state.currentDjSessionId !== null) return
 
         if (index === 0) {
           this.clearRoomPlaylistAfterDjLeft()

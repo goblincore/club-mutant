@@ -106,15 +106,7 @@ export class RoomQueuePlaylistAddCommand extends Command<ClubMutant, AddPayload>
     // Pre-fetch video to cache it before playback
     prefetchVideo(item.link)
 
-    // If this is the current DJ and they just added their first track, start playing
-    if (
-      this.state.currentDjSessionId === client.sessionId &&
-      player.roomQueuePlaylist.length === 1 &&
-      this.state.musicStream.status !== 'playing'
-    ) {
-      console.log('[RoomQueuePlaylist] Auto-starting first track for current DJ')
-      playTrackForCurrentDJ(this.room)
-    }
+    // Playback is now explicit — current DJ must press play (DJ_PLAY message)
 
     // Notify client of update
     client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
@@ -183,7 +175,14 @@ export class RoomQueuePlaylistReorderCommand extends Command<ClubMutant, Reorder
       for (const itm of items) {
         player.roomQueuePlaylist.push(itm)
       }
-      console.log('[RoomQueuePlaylist] Reordered: moved from', fromIndex, 'to', toIndex, 'for:', client.sessionId)
+      console.log(
+        '[RoomQueuePlaylist] Reordered: moved from',
+        fromIndex,
+        'to',
+        toIndex,
+        'for:',
+        client.sessionId
+      )
     }
 
     // Notify client of update

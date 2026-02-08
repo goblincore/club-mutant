@@ -54,8 +54,8 @@ const QueueList = styled.div`
 const QueueItem = styled.div<{ $isCurrent?: boolean }>`
   padding: 8px 12px;
   border-radius: 8px;
-  background: ${props => props.$isCurrent ? 'rgba(255, 255, 255, 0.1)' : 'transparent'};
-  border: ${props => props.$isCurrent ? '1px solid rgba(255, 255, 255, 0.25)' : 'none'};
+  background: ${(props) => (props.$isCurrent ? 'rgba(255, 255, 255, 0.1)' : 'transparent')};
+  border: ${(props) => (props.$isCurrent ? '1px solid rgba(255, 255, 255, 0.25)' : 'none')};
   margin-bottom: 4px;
   font-size: 14px;
   display: flex;
@@ -74,26 +74,37 @@ const PlaylistItem = styled.div<{ $isPlaying?: boolean; $isPlayed?: boolean }>`
   align-items: center;
   padding: 8px;
   border-radius: 8px;
-  background: ${props => props.$isPlaying ? 'rgba(255, 255, 255, 0.1)' : props.$isPlayed ? 'rgba(255, 255, 255, 0.02)' : 'transparent'};
-  border: ${props => props.$isPlaying ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid transparent'};
+  background: ${(props) =>
+    props.$isPlaying
+      ? 'rgba(255, 255, 255, 0.1)'
+      : props.$isPlayed
+        ? 'rgba(255, 255, 255, 0.02)'
+        : 'transparent'};
+  border: ${(props) =>
+    props.$isPlaying ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid transparent'};
   margin-bottom: 4px;
-  cursor: ${props => props.$isPlaying || props.$isPlayed ? 'default' : 'move'};
-  opacity: ${props => props.$isPlaying ? 0.7 : props.$isPlayed ? 0.4 : 1};
-  
+  cursor: ${(props) => (props.$isPlaying || props.$isPlayed ? 'default' : 'move')};
+  opacity: ${(props) => (props.$isPlaying ? 0.7 : props.$isPlayed ? 0.4 : 1)};
+
   &:hover {
-    background: ${props => props.$isPlaying ? 'rgba(255, 255, 255, 0.1)' : props.$isPlayed ? 'rgba(255, 255, 255, 0.03)' : 'rgba(255, 255, 255, 0.05)'};
+    background: ${(props) =>
+      props.$isPlaying
+        ? 'rgba(255, 255, 255, 0.1)'
+        : props.$isPlayed
+          ? 'rgba(255, 255, 255, 0.03)'
+          : 'rgba(255, 255, 255, 0.05)'};
   }
 `
 
 const TrackInfo = styled.div`
   flex: 1;
   margin-left: 8px;
-  
+
   .title {
     font-size: 14px;
     color: rgba(255, 255, 255, 0.9);
   }
-  
+
   .duration {
     font-size: 12px;
     color: rgba(255, 255, 255, 0.5);
@@ -114,11 +125,11 @@ const StyledButton = styled(Button)`
     background: rgba(0, 0, 0, 0.35) !important;
     border: 1px solid rgba(255, 255, 255, 0.25) !important;
     color: rgba(255, 255, 255, 0.9) !important;
-    
+
     &:hover {
       background: rgba(255, 255, 255, 0.1) !important;
     }
-    
+
     &.leave-queue {
       color: rgba(255, 100, 100, 0.9) !important;
       border-color: rgba(255, 100, 100, 0.5) !important;
@@ -129,11 +140,11 @@ const StyledButton = styled(Button)`
 const IconButtonStyled = styled(IconButton)`
   && {
     color: rgba(255, 255, 255, 0.7);
-    
+
     &:hover {
       color: rgba(255, 255, 255, 0.9);
     }
-    
+
     &:disabled {
       color: rgba(255, 255, 255, 0.3);
     }
@@ -150,7 +161,7 @@ const EmptyState = styled.div`
 const DragHandle = styled.div`
   cursor: grab;
   color: rgba(255, 255, 255, 0.5);
-  
+
   &:active {
     cursor: grabbing;
   }
@@ -169,6 +180,7 @@ export default function DJQueuePanel() {
 
   const isCurrentDJ = currentDjSessionId === mySessionId
   const connectedBoothIndex = useAppSelector((state) => state.musicBooth.musicBoothIndex)
+  const isActivelyStreaming = useAppSelector((state) => state.musicStream.link !== null)
   const [draggedItem, setDraggedItem] = useState<number | null>(null)
 
   if (!isInQueue) return null
@@ -234,18 +246,23 @@ export default function DJQueuePanel() {
 
       {/* Queue Position */}
       {!isCurrentDJ && myQueuePosition !== null && (
-        <QueuePosition>
-          Position in queue: #{myQueuePosition + 1}
-        </QueuePosition>
+        <QueuePosition>Position in queue: #{myQueuePosition + 1}</QueuePosition>
       )}
 
       {/* Queue List */}
       <QueueList>
         {djQueueEntries.map((entry, index) => (
           <QueueItem key={entry.sessionId} $isCurrent={entry.sessionId === currentDjSessionId}>
-            <span>{index === 0 ? '🎧 ' : ''}{entry.name}</span>
+            <span>
+              {index === 0 ? '🎧 ' : ''}
+              {entry.name}
+            </span>
             <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)' }}>
-              {entry.sessionId === currentDjSessionId ? 'Currently playing' : `Position ${index + 1}`}
+              {entry.sessionId === currentDjSessionId
+                ? isActivelyStreaming
+                  ? 'Now playing'
+                  : 'Up next'
+                : `Position ${index + 1}`}
             </span>
           </QueueItem>
         ))}
@@ -279,9 +296,17 @@ export default function DJQueuePanel() {
                     <DragHandleIcon fontSize="small" style={{ opacity: isDraggable ? 1 : 0.2 }} />
                   </DragHandle>
                   <TrackInfo>
-                    <div className="title">{index + 1}. {item.title}</div>
+                    <div className="title">
+                      {index + 1}. {item.title}
+                    </div>
                     <div className="duration">
-                      {isCurrentlyPlaying ? 'Currently playing' : isPlayed ? 'Played' : `${Math.floor(item.duration / 60)}:${(item.duration % 60).toString().padStart(2, '0')}`}
+                      {isCurrentlyPlaying
+                        ? isActivelyStreaming
+                          ? 'Now playing'
+                          : 'Up next'
+                        : isPlayed
+                          ? 'Played'
+                          : `${Math.floor(item.duration / 60)}:${(item.duration % 60).toString().padStart(2, '0')}`}
                     </div>
                   </TrackInfo>
                   <IconButtonStyled
@@ -301,19 +326,11 @@ export default function DJQueuePanel() {
       {/* Control Buttons */}
       <ButtonGroup>
         {isCurrentDJ && djQueueEntries.length > 1 && (
-          <StyledButton
-            variant="contained"
-            onClick={handleSkipTurn}
-            startIcon={<SkipNextIcon />}
-          >
+          <StyledButton variant="contained" onClick={handleSkipTurn} startIcon={<SkipNextIcon />}>
             Skip My Turn
           </StyledButton>
         )}
-        <StyledButton
-          variant="outlined"
-          onClick={handleLeaveQueue}
-          className="leave-queue"
-        >
+        <StyledButton variant="outlined" onClick={handleLeaveQueue} className="leave-queue">
           Leave Queue
         </StyledButton>
       </ButtonGroup>

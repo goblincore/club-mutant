@@ -802,6 +802,11 @@ export default class Network {
     this.room?.send(Message.DJ_SKIP_TURN, {})
   }
 
+  djPlay() {
+    console.log('[Network] DJ play (explicit start)')
+    this.room?.send(Message.DJ_PLAY, {})
+  }
+
   djTurnComplete() {
     console.log('[Network] DJ turn complete')
     this.room?.send(Message.DJ_TURN_COMPLETE, {})
