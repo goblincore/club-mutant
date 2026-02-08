@@ -331,9 +331,32 @@ A round-robin DJ queue system where multiple users can join the DJ booth and tak
 1. **Entering the Booth**: User presses `R` near booth → Auto-joins DJ queue as current DJ (if first) or queued DJ
 2. **Adding Tracks**: Click `+` on tracks in your playlist to add to your "Room Queue Playlist"
 3. **Track Order**: New tracks insert after currently playing track; unplayed tracks play in order
-4. **Playing**: When it's your turn, your top unplayed track automatically plays
+4. **Playing**: First DJ must explicitly press play; all subsequent transitions autoplay
 5. **Rotation**: After your track finishes (or you skip), next DJ in queue gets their turn
 6. **Leaving**: Click "Leave Queue" to exit - if you were playing, rotation continues to next DJ
+
+### Playback Control Model
+
+- **Explicit first play**: The very first DJ in an empty/silent queue must press play to start. This is the ONLY case requiring explicit play.
+- **Autoplay everywhere else**: All other transitions autoplay the next DJ's top track:
+  - Track finishes → next DJ autoplays (`advanceRotation` → `playTrackForCurrentDJ`)
+  - DJ skips turn → next DJ autoplays (`DJSkipTurnCommand` → `advanceRotation`)
+  - DJ leaves queue → next DJ autoplays (`removeDJFromQueue` → `playTrackForCurrentDJ`)
+- **Client auto-sync**: `usePlayerSync` effect sets `isPlaying = true` whenever `link` or `streamId` changes, ensuring the `<VideoPlayer>` starts playback when the server starts a new stream.
+- **No auto-play on track add**: Adding a track to the queue does NOT start playback (`RoomQueuePlaylistAddCommand` removed auto-play logic).
+
+### Playback Controls UI
+
+- **`PlayerControls.tsx`**: Play/pause, previous, and next track buttons.
+- **Visibility**: Controls are only visible to the **current DJ** (`isCurrentDJ`). Non-current DJs see no playback controls in either minimized or expanded views.
+- **Background video toggle**: Camera icon button next to playback controls. Toggles `videoBackgroundEnabled` (local-only Redux state). Only visible to current DJ, disabled when nothing is streaming.
+- **Status text**: Track status shows "Now playing" when actively streaming, "Paused" when it's the current track but paused, "Played" for history.
+
+### TV Static + Background Video Interaction
+
+- **Fade out static**: When a background video starts playing (WebGL or iframe fallback), the TV static noise overlay (`TvStaticPostFxPipeline`) fades out over 650ms via `fadeOutBackgroundStatic()`.
+- **Fade in static**: When the background video is disabled/stopped, the static fades back in over 650ms via `fadeInBackgroundStatic()` (tweens alpha from 0 → 0.45, restores pipeline intensity).
+- **Both paths covered**: WebGL path already called `fadeOutBackgroundStatic` via `fadeInWebglBackgroundVideo`. Iframe path (`playIframeBackgroundVideo`) now also calls `fadeOutBackgroundStatic`. `stopBackgroundVideo` uses `fadeInBackgroundStatic` instead of the instant `setBackgroundStaticMode('idle')`.
 
 ### Data Model
 
@@ -344,32 +367,53 @@ A round-robin DJ queue system where multiple users can join the DJ booth and tak
 
 ### Key Files
 
-- **Server**: `server/src/rooms/commands/DJQueueCommand.ts` - Join/leave/skip logic
+- **Server**: `server/src/rooms/commands/DJQueueCommand.ts` - Join/leave/skip/rotation logic
 - **Server**: `server/src/rooms/commands/RoomQueuePlaylistCommand.ts` - Track management
 - **Client UI**: `client/src/components/DJQueuePanel.tsx` - Queue panel UI
 - **Client UI**: `client/src/components/YoutubePlayer.tsx` - Integrated player view
+- **Client UI**: `client/src/components/PlayerControls.tsx` - Play/pause/skip buttons
+- **Client hook**: `client/src/components/usePlayerSync.ts` - Player sync + auto-play effect
+- **Client scene**: `client/src/scenes/Game.ts` - Background video + TV static fade management
 
 ### UI States
 
-- **In Queue**: Shows queue position, current DJ, your playlist with drag-to-reorder
-- **Currently Playing**: Track locked (can't drag/remove), shows "Currently playing" label
+- **In Queue (current DJ)**: Shows playback controls, BG video toggle, your playlist with drag-to-reorder
+- **In Queue (waiting)**: Shows queue position ("You are Nth in the queue"), no playback controls
+- **Currently Playing**: Track locked (can't drag/remove), shows "Now playing" or "Paused"
 - **Played Tracks**: Greyed out at 40% opacity, shows "Played" label, at bottom of list
-- **Minimized**: Shows track title + elapsed time + "Up next: [DJ name]"
+- **Minimized (current DJ)**: Shows playback controls + track title + elapsed time + "Up next: [DJ name]"
+- **Minimized (waiting)**: Shows queue position text, no playback controls
 - **Booth Occupied (not in queue)**: Shows "Join the queue to play your tracks after the current mutant" + join button
 
 ### Server Commands
 
-- `DJ_QUEUE_JOIN`: Add user to queue, auto-start if first and has tracks
-- `DJ_QUEUE_LEAVE`: Remove from queue; if was playing, advance rotation
-- `DJ_SKIP_TURN`: Current DJ skips their turn, marks track as played, rotates
-- `DJ_TURN_COMPLETE`: Track finished naturally, removes played track, rotates
+- `DJ_QUEUE_JOIN`: Add user to queue; if first, set as current DJ (playback requires explicit `DJ_PLAY`)
+- `DJ_QUEUE_LEAVE`: Remove from queue; if was current DJ, autoplay next DJ's track
+- `DJ_SKIP_TURN`: Current DJ skips their turn, marks track as played, sends playlist update, rotates
+- `DJ_TURN_COMPLETE`: Track finished naturally, marks track as played, sends playlist update, rotates
+- `DJ_PLAY`: Explicit play command (only needed for first play in empty room)
 - `ROOM_QUEUE_PLAYLIST_ADD`: Add track to user's queue (inserts after current playing)
 - `ROOM_QUEUE_PLAYLIST_REMOVE`: Remove track (can't remove currently playing)
 - `ROOM_QUEUE_PLAYLIST_REORDER`: Reorder unplayed tracks only
 
+### Booth Disconnect Isolation (critical gotcha)
+
+When a player disconnects from the music booth (either via `onLeave` or `DISCONNECT_FROM_MUSIC_BOOTH` message), legacy booth music handling code (`clearRoomPlaylistAfterDjLeft`, `startAmbientIfNeeded`, `MusicStreamNextCommand`) must be **skipped** when the DJ queue is active. Otherwise it disrupts the DJ queue's music state management.
+
+**Guard used in both `onLeave` and `DISCONNECT_FROM_MUSIC_BOOTH` handlers**:
+
+```typescript
+if (this.state.djQueue.length > 0 || this.state.currentDjSessionId !== null) return
+```
+
+This checks if the DJ queue system is active (not just if the specific player is in the queue), which avoids a race condition where `DJ_QUEUE_LEAVE` removes the player before `DISCONNECT_FROM_MUSIC_BOOTH` runs.
+
+**Why not check the specific player**: The client sends `DJ_QUEUE_LEAVE` first, then `DISCONNECT_FROM_MUSIC_BOOTH`. By the time the booth disconnect runs, the player is already removed from the queue, so a per-player check (`isInDJQueue`) fails and legacy code runs, disrupting the stream that `removeDJFromQueue` just started.
+
 ### Styling
 
 Dark transparent theme matching existing UI:
+
 - Background: `rgba(0, 0, 0, 0.35)` with `backdrop-filter: blur(8px)`
 - Borders: `1px solid rgba(255, 255, 255, 0.25)`
 - Font: `'Courier New', Courier, monospace`
