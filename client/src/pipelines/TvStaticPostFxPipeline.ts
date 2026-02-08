@@ -24,16 +24,23 @@ float hash(vec2 p) {
 void main() {
   vec2 fragCoord = outTexCoord * uResolution;
   
-  // Use frame number for temporal variation - 60fps static
-  float frame = floor(uTime * 60.0);
+  // Mod frame counter to stay small — prevents float32 precision loss
+  // 3727 frames ≈ 62s at 60fps, long enough that repeats are imperceptible
+  float frame = mod(floor(uTime * 60.0), 3727.0);
   
-  // Create unique seed per pixel per frame
-  vec2 seed = fragCoord + vec2(frame * 12.9898, frame * 78.233);
+  // Hash frame separately so the per-frame offset is always in [0,1]
+  vec2 frameJitter = vec2(
+    hash(vec2(frame, 0.5)),
+    hash(vec2(0.5, frame))
+  );
+  
+  // Offset pixel coords by jittered value — all values stay precision-safe
+  vec2 seed = fragCoord + frameJitter * 1000.0;
   
   // Pure random noise per pixel
   float noise = hash(seed);
   
-  // Optional: slight brightness variation across frames (flicker)
+  // Slight brightness variation across frames (flicker)
   float flicker = hash(vec2(frame, 0.0)) * 0.1 - 0.05;
   noise = clamp(noise + flicker, 0.0, 1.0);
   
