@@ -209,15 +209,16 @@ export default function RoomSelectionDialog() {
               <Content>
                 <img src="assets/mutantpeeflower.gif" alt="mutant" />
                 <TerminalButton variant="outlined" disableRipple onClick={handleConnect}>
-                  Connect to public lobby
+                  Connect to the public lobby
                 </TerminalButton>
-                <TerminalButton
+                {/* Custom rooms hidden for now */}
+                {/* <TerminalButton
                   variant="outlined"
                   disableRipple
                   onClick={() => (lobbyJoined ? setShowCustomRoom(true) : setShowSnackbar(true))}
                 >
                   Create/find custom rooms
-                </TerminalButton>
+                </TerminalButton> */}
               </Content>
             </>
           )}
