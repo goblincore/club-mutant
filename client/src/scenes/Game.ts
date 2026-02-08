@@ -117,6 +117,7 @@ export default class Game extends Phaser.Scene {
 
   private resizeBackgroundSurfaces(width: number, height: number) {
     this.myYoutubePlayer?.resize(width, height)
+    this.applyIframeBackgroundStyles()
 
     if (this.backgroundStatic) {
       this.backgroundStatic.setSize(width, height)
@@ -147,10 +148,17 @@ export default class Game extends Phaser.Scene {
 
     this.setBackgroundModeLabel('BG: OFF')
 
-    document.getElementById('phaser-container')?.classList.remove('bg-iframe-overlay')
+    const container = document.getElementById('phaser-container')
+    container?.classList.remove('bg-iframe-overlay')
+    container?.querySelector('.bg-color-overlay')?.remove()
 
     this.backgroundVideoRefreshTimer?.remove(false)
     this.backgroundVideoRefreshTimer = undefined
+
+    // Kill any active fade-in tweens before changing alpha/visibility
+    if (this.backgroundVideo) {
+      this.tweens.killTweensOf(this.backgroundVideo)
+    }
 
     this.backgroundVideo?.pause()
     this.backgroundVideo?.setAlpha(0)
@@ -352,8 +360,9 @@ export default class Game extends Phaser.Scene {
     }
 
     const container = document.getElementById('phaser-container')
-    // Use runtime state to detect fallback mode (not the hardcoded constant)
-    const isIframeFallback = !this.activeBackgroundVideoIsWebgl
+    // Only consider it iframe fallback when there's actually an active video using the iframe path.
+    // Without an active video, keep everything hidden to avoid the color overlay flashing on load.
+    const isIframeFallback = !!this.activeBackgroundVideoId && !this.activeBackgroundVideoIsWebgl
 
     if (isIframeFallback) {
       container?.classList.add('bg-iframe-overlay')
@@ -399,7 +408,33 @@ export default class Game extends Phaser.Scene {
       iframe.style.setProperty('mix-blend-mode', iframeBlendMode, 'important')
       iframe.style.setProperty('width', '100%', 'important')
       iframe.style.setProperty('height', '100%', 'important')
+    }
 
+    // Color overlay below the iframe layer (visible in fallback mode)
+    const existingColorOverlay = container?.querySelector('.bg-color-overlay') as HTMLElement | null
+    if (isIframeFallback && container) {
+      if (!existingColorOverlay) {
+        const colorOverlay = document.createElement('div')
+        colorOverlay.className = 'bg-color-overlay'
+        colorOverlay.style.cssText = `
+          width: 100% !important;
+          height: 100% !important;
+          position: fixed !important;
+          top: 0px !important;
+          left: 0px !important;
+          opacity: 0.4 !important;
+          mix-blend-mode: overlay !important;
+          background: rgba(76, 116, 72, 0.9) !important;
+          z-index: 999 !important;
+          pointer-events: none !important;
+        `
+        container.appendChild(colorOverlay)
+      }
+    } else if (existingColorOverlay) {
+      existingColorOverlay.remove()
+    }
+
+    if (iframe) {
       // Add transparent overlay div to prevent YouTube context menu
       const existingOverlay = node.querySelector('.yt-blocker-overlay') as HTMLElement | null
       if (!existingOverlay && isIframeFallback) {
@@ -567,6 +602,12 @@ export default class Game extends Phaser.Scene {
       this.backgroundVideo.setMute(true)
 
       this.backgroundVideo.once('metadata', () => {
+        // Guard: if background was disabled while video was loading, don't start it
+        if (this.activeBackgroundVideoId !== videoId) {
+          console.log('[YoutubeBG] Metadata loaded but video was cancelled, skipping')
+          return
+        }
+
         console.log(
           `[YoutubeBG] Metadata loaded in ${(performance.now() - loadStartTime).toFixed(0)}ms`
         )

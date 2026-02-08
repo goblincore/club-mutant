@@ -62,7 +62,7 @@ export class ClubMutant extends Room {
 
   private musicStreamTickIntervalId: NodeJS.Timeout | null = null
 
-  private ambientPublicVideoId = '5-gDL5G-VQQ'
+  private ambientPublicVideoId = 'J0wg1YLhXi8' //'5-gDL5G-VQQ'
 
   private clearRoomPlaylistAfterDjLeft() {
     const list = this.state.roomPlaylist

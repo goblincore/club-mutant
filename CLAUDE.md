@@ -1456,7 +1456,7 @@ When using iframe fallback, the YouTube player needs to render above the Phaser 
 // client/src/index.scss
 #phaser-container.bg-iframe-overlay {
   canvas {
-    mix-blend-mode: difference;
+    mix-blend-mode: exclusion;
   }
   > div {
     z-index: 2; // Above canvas (z-index: 1)
@@ -1469,7 +1469,7 @@ When using iframe fallback, the YouTube player needs to render above the Phaser 
 | Browser | Renderer                    | Background Style                          |
 | ------- | --------------------------- | ----------------------------------------- |
 | Chrome  | WebGL `Video`               | Behind canvas (Phaser display list + CSS) |
-| Safari  | iframe (rex YouTube player) | Above canvas + difference blend           |
+| Safari  | iframe (rex YouTube player) | Above canvas + exclusion blend            |
 
 #### WebGL background video sizing
 
