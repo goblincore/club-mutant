@@ -26,6 +26,7 @@ import store from '../stores'
 import { setShowChat } from '../stores/ChatStore'
 import { setMusicStream } from '../stores/MusicStreamStore'
 import { setLoggedIn } from '../stores/UserStore'
+import { DEBUG_MODE } from '../config'
 
 import { findPathAStar } from '../utils/pathfinding'
 
@@ -1093,31 +1094,33 @@ export default class Game extends Phaser.Scene {
       store.dispatch(setShowChat(false))
     })
 
-    keyboard.on('keydown-V', (event: KeyboardEvent) => {
-      if (this.game.renderer.type !== Phaser.WEBGL) return
+    if (DEBUG_MODE) {
+      keyboard.on('keydown-V', (event: KeyboardEvent) => {
+        if (this.game.renderer.type !== Phaser.WEBGL) return
 
-      if (event.shiftKey) {
-        this.toggleVhsHalfRes()
-      } else if (event.ctrlKey || event.metaKey) {
-        this.cycleVhsSkipFrames()
-      } else {
-        this.toggleVhsPostFx()
-      }
-    })
+        if (event.shiftKey) {
+          this.toggleVhsHalfRes()
+        } else if (event.ctrlKey || event.metaKey) {
+          this.cycleVhsSkipFrames()
+        } else {
+          this.toggleVhsPostFx()
+        }
+      })
 
-    keyboard.on('keydown-B', () => {
-      if (this.game.renderer.type !== Phaser.WEBGL) return
-      this.toggleCrtPostFx()
-    })
+      keyboard.on('keydown-B', () => {
+        if (this.game.renderer.type !== Phaser.WEBGL) return
+        this.toggleCrtPostFx()
+      })
 
-    keyboard.on('keydown-N', () => {
-      if (this.game.renderer.type !== Phaser.WEBGL) return
-      this.toggleWaxyPostFx()
-    })
+      keyboard.on('keydown-N', () => {
+        if (this.game.renderer.type !== Phaser.WEBGL) return
+        this.toggleWaxyPostFx()
+      })
 
-    keyboard.on('keydown-M', () => {
-      this.toggleDebugStaticOverlay()
-    })
+      keyboard.on('keydown-M', () => {
+        this.toggleDebugStaticOverlay()
+      })
+    }
   }
 
   disableKeys() {
@@ -1754,7 +1757,7 @@ export default class Game extends Phaser.Scene {
 
   update(t: number, dt: number) {
     if (this.myPlayer && this.network) {
-      if (this.key5 && Phaser.Input.Keyboard.JustDown(this.key5)) {
+      if (DEBUG_MODE && this.key5 && Phaser.Input.Keyboard.JustDown(this.key5)) {
         this.playNextRippedAnim()
       }
 
@@ -2087,13 +2090,15 @@ export default class Game extends Phaser.Scene {
         this.keyR,
         this.network,
         dt,
-        this.keyT,
-        {
-          key1: this.key1,
-          key2: this.key2,
-          key3: this.key3,
-          key4: this.key4,
-        }
+        DEBUG_MODE ? this.keyT : undefined,
+        DEBUG_MODE
+          ? {
+              key1: this.key1,
+              key2: this.key2,
+              key3: this.key3,
+              key4: this.key4,
+            }
+          : undefined
       )
     }
   }

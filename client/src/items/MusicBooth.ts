@@ -147,8 +147,6 @@ export default class MusicBooth extends Item {
   openDialog(network: Network) {
     console.log('////MusicBooth, openDialog, id', this.id)
     if (this.id === undefined) return
-    store.dispatch(openMyPlaylistPanel())
-    store.dispatch(setFocused(true))
     console.log('////MusicBooth, openDialog, network.connectToMusicBooth, this.id', this.id)
     network.connectToMusicBooth(this.id)
 

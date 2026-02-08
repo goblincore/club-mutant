@@ -116,6 +116,13 @@ export default function YoutubePlayer() {
     }
   }, [isNonDjPublic])
 
+  // Expand when joining the DJ queue so the user sees the full queue panel
+  useEffect(() => {
+    if (isInDJQueue) {
+      setMinimized(false)
+    }
+  }, [isInDJQueue])
+
   // Reset isPlaying when stream stops (show play button, not pause)
   useEffect(() => {
     if (!link && !isAmbient) {

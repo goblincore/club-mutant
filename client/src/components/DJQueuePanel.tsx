@@ -5,6 +5,9 @@ import IconButton from '@mui/material/IconButton'
 import DeleteIcon from '@mui/icons-material/Delete'
 import SkipNextIcon from '@mui/icons-material/SkipNext'
 import DragHandleIcon from '@mui/icons-material/DragHandle'
+import AddIcon from '@mui/icons-material/Add'
+import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 
 import { useAppSelector, useAppDispatch } from '../hooks'
 import Game from '../scenes/Game'
@@ -16,6 +19,7 @@ import {
 } from '../stores/RoomQueuePlaylistStore'
 import { leaveDJQueue, skipDJTurn } from '../stores/DJQueueStore'
 import { disconnectFromMusicBooth } from '../stores/MusicBoothStore'
+import { openMyPlaylistPanel, setFocused } from '../stores/MyPlaylistStore'
 
 const Container = styled.div`
   background: transparent;
@@ -32,48 +36,28 @@ const Title = styled.h3`
   color: rgba(255, 255, 255, 0.9);
 `
 
-const CurrentDJBanner = styled.div`
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin-bottom: 12px;
-  font-size: 14px;
-`
-
 const QueuePosition = styled.div`
   font-size: 14px;
   color: rgba(255, 255, 255, 0.7);
   margin-bottom: 12px;
 `
 
-const QueueList = styled.div`
-  margin-bottom: 16px;
-`
-
-const QueueItem = styled.div<{ $isCurrent?: boolean }>`
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: ${(props) => (props.$isCurrent ? 'rgba(255, 255, 255, 0.1)' : 'transparent')};
-  border: ${(props) => (props.$isCurrent ? '1px solid rgba(255, 255, 255, 0.25)' : 'none')};
-  margin-bottom: 4px;
-  font-size: 14px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-`
-
 const PlaylistSection = styled.div`
-  margin-top: 16px;
-  padding-top: 16px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.25);
+`
+
+const PlaylistScrollArea = styled.div`
+  max-height: 200px;
+  overflow-y: auto;
 `
 
 const PlaylistItem = styled.div<{ $isPlaying?: boolean; $isPlayed?: boolean }>`
   display: flex;
   align-items: center;
-  padding: 8px;
-  border-radius: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
   background: ${(props) =>
     props.$isPlaying
       ? 'rgba(255, 255, 255, 0.1)'
@@ -82,7 +66,7 @@ const PlaylistItem = styled.div<{ $isPlaying?: boolean; $isPlayed?: boolean }>`
         : 'transparent'};
   border: ${(props) =>
     props.$isPlaying ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid transparent'};
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   cursor: ${(props) => (props.$isPlaying || props.$isPlayed ? 'default' : 'move')};
   opacity: ${(props) => (props.$isPlaying ? 0.7 : props.$isPlayed ? 0.4 : 1)};
 
@@ -98,15 +82,19 @@ const PlaylistItem = styled.div<{ $isPlaying?: boolean; $isPlayed?: boolean }>`
 
 const TrackInfo = styled.div`
   flex: 1;
-  margin-left: 8px;
+  margin-left: 6px;
+  overflow: hidden;
 
   .title {
-    font-size: 14px;
+    font-size: 13px;
     color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .duration {
-    font-size: 12px;
+    font-size: 11px;
     color: rgba(255, 255, 255, 0.5);
   }
 `
@@ -166,6 +154,249 @@ const DragHandle = styled.div`
     cursor: grabbing;
   }
 `
+
+const PickerSection = styled.div`
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+`
+
+const PickerTitle = styled.div`
+  font-size: 13px;
+  font-weight: normal;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 6px;
+`
+
+const PickerListItem = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .playlist-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .playlist-count {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-right: 4px;
+    flex-shrink: 0;
+  }
+`
+
+const PickerTrackList = styled.div`
+  max-height: 200px;
+  overflow-y: auto;
+`
+
+const PickerTrackItem = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .track-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 8px;
+  }
+
+  .track-duration {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-right: 4px;
+    flex-shrink: 0;
+  }
+`
+
+const PickerBackButton = styled.button`
+  appearance: none;
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-family: 'Courier New', Courier, monospace;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  margin-bottom: 6px;
+
+  &:hover {
+    color: rgba(255, 255, 255, 0.9);
+  }
+`
+
+const OpenFullPanelLink = styled.button`
+  appearance: none;
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-family: 'Courier New', Courier, monospace;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 4px 0;
+
+  &:hover {
+    color: rgba(255, 255, 255, 0.9);
+  }
+`
+
+const PickerEmptyState = styled.div`
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 8px;
+  text-align: center;
+`
+
+function InlinePlaylistPicker() {
+  const dispatch = useAppDispatch()
+  const game = phaserGame.scene.keys.game as Game
+
+  const playlists = useAppSelector((state) => state.myPlaylist.playlists)
+  const [drilledPlaylistId, setDrilledPlaylistId] = useState<string | null>(null)
+
+  const drilledPlaylist = playlists.find((p) => p.id === drilledPlaylistId) ?? null
+  const tracks = drilledPlaylist?.items ?? []
+
+  const formatDuration = (seconds: number) => {
+    if (!Number.isFinite(seconds) || seconds <= 0) return ''
+    const m = Math.floor(seconds / 60)
+    const s = Math.floor(seconds % 60)
+    return `${m}:${String(s).padStart(2, '0')}`
+  }
+
+  const handleAddTrack = (link: string, title: string, duration: number) => {
+    game.network.addToRoomQueuePlaylist({ title, link, duration })
+  }
+
+  const handleAddAllTracks = (playlist: {
+    items: Array<{ link: string | null; title: string; duration: number }>
+  }) => {
+    for (const item of playlist.items) {
+      if (item.link) {
+        game.network.addToRoomQueuePlaylist({
+          title: item.title,
+          link: item.link,
+          duration: item.duration,
+        })
+      }
+    }
+  }
+
+  const handleOpenFullPanel = () => {
+    dispatch(openMyPlaylistPanel())
+    dispatch(setFocused(true))
+  }
+
+  // Drilled into a specific playlist — show its tracks
+  if (drilledPlaylist) {
+    return (
+      <PickerSection>
+        <PickerBackButton onClick={() => setDrilledPlaylistId(null)}>
+          <ArrowBackIcon style={{ fontSize: 14 }} />
+          Back to playlists
+        </PickerBackButton>
+
+        <PickerTitle>
+          {drilledPlaylist.name} ({tracks.length} tracks)
+        </PickerTitle>
+
+        <PickerTrackList>
+          {tracks.length === 0 ? (
+            <PickerEmptyState>This playlist is empty.</PickerEmptyState>
+          ) : (
+            tracks.map((item) => (
+              <PickerTrackItem key={item.id}>
+                <span className="track-title">{item.title}</span>
+                <span className="track-duration">{formatDuration(item.duration)}</span>
+                <IconButtonStyled
+                  size="small"
+                  disabled={!item.link}
+                  onClick={() => {
+                    if (item.link) handleAddTrack(item.link, item.title, item.duration)
+                  }}
+                >
+                  <AddIcon fontSize="small" />
+                </IconButtonStyled>
+              </PickerTrackItem>
+            ))
+          )}
+        </PickerTrackList>
+
+        <OpenFullPanelLink onClick={handleOpenFullPanel}>
+          <OpenInNewIcon style={{ fontSize: 14 }} />
+          Search or paste link in My Playlists
+        </OpenFullPanelLink>
+      </PickerSection>
+    )
+  }
+
+  // Default: show playlist list
+  return (
+    <PickerSection>
+      <PickerTitle>Add from my playlists</PickerTitle>
+
+      {playlists.length === 0 ? (
+        <PickerEmptyState>
+          No playlists yet.
+          <br />
+          Open My Playlists to create one.
+        </PickerEmptyState>
+      ) : (
+        playlists.map((p) => (
+          <PickerListItem key={p.id}>
+            <span className="playlist-name" onClick={() => setDrilledPlaylistId(p.id)}>
+              {p.name}
+            </span>
+
+            <span className="playlist-count">{p.items.length} tracks</span>
+
+            <IconButtonStyled
+              size="small"
+              disabled={p.items.length === 0}
+              onClick={() => handleAddAllTracks(p)}
+              title="Add all tracks to queue"
+            >
+              <AddIcon fontSize="small" />
+            </IconButtonStyled>
+          </PickerListItem>
+        ))
+      )}
+
+      <OpenFullPanelLink onClick={handleOpenFullPanel}>
+        <OpenInNewIcon style={{ fontSize: 14 }} />
+        Search or paste link in My Playlists
+      </OpenFullPanelLink>
+    </PickerSection>
+  )
+}
 
 export default function DJQueuePanel() {
   const dispatch = useAppDispatch()
@@ -249,25 +480,6 @@ export default function DJQueuePanel() {
         <QueuePosition>Position in queue: #{myQueuePosition + 1}</QueuePosition>
       )}
 
-      {/* Queue List */}
-      <QueueList>
-        {djQueueEntries.map((entry, index) => (
-          <QueueItem key={entry.sessionId} $isCurrent={entry.sessionId === currentDjSessionId}>
-            <span>
-              {index === 0 ? '🎧 ' : ''}
-              {entry.name}
-            </span>
-            <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)' }}>
-              {entry.sessionId === currentDjSessionId
-                ? isActivelyStreaming
-                  ? 'Now playing'
-                  : 'Up next'
-                : `Position ${index + 1}`}
-            </span>
-          </QueueItem>
-        ))}
-      </QueueList>
-
       {/* My Room Queue Playlist */}
       <PlaylistSection>
         <Title style={{ fontSize: '14px' }}>
@@ -275,9 +487,9 @@ export default function DJQueuePanel() {
         </Title>
 
         {roomQueueItems.length === 0 ? (
-          <EmptyState>Add tracks from your playlist below!</EmptyState>
+          <EmptyState>Add tracks below or from your playlists</EmptyState>
         ) : (
-          <div>
+          <PlaylistScrollArea>
             {roomQueueItems.map((item, index) => {
               const isCurrentlyPlaying = index === 0 && isCurrentDJ
               const isPlayed = (item as any).played === true
@@ -319,9 +531,12 @@ export default function DJQueuePanel() {
                 </PlaylistItem>
               )
             })}
-          </div>
+          </PlaylistScrollArea>
         )}
       </PlaylistSection>
+
+      {/* Inline Playlist Picker */}
+      <InlinePlaylistPicker />
 
       {/* Control Buttons */}
       <ButtonGroup>
