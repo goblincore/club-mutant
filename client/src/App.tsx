@@ -153,7 +153,7 @@ function App() {
   if (loggedIn) {
     ui = (
       <>
-        <MutantRippedAnimDebug />
+        {/* <MutantRippedAnimDebug /> */}
         <ElectronFeatures />
         <DjStatusPill />
         <ChatPanel />

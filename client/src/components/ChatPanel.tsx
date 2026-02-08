@@ -18,14 +18,14 @@ import { useAppDispatch, useAppSelector } from '../hooks'
 import { MessageType, setFocused, setShowChat } from '../stores/ChatStore'
 import { IChatMessage } from '@club-mutant/types/IOfficeState'
 
+const CHAT_PANEL_WIDTH = 360
+
 const Backdrop = styled.div<{ $expanded: boolean }>`
   position: fixed;
   bottom: 0;
-  left: 0;
-  height: ${(p) => (p.$expanded ? '400px' : '64px')};
-  width: 500px;
-  max-height: 50%;
-  max-width: 50%;
+  right: 0;
+  height: ${(p) => (p.$expanded ? '100vh' : '64px')};
+  width: ${(p) => (p.$expanded ? `${CHAT_PANEL_WIDTH}px` : '360px')};
   pointer-events: auto;
 `
 
@@ -155,7 +155,7 @@ const InputTextField = styled(InputBase)`
 const EmojiPickerWrapper = styled.div`
   position: absolute;
   bottom: 54px;
-  right: 16px;
+  left: 16px;
 `
 
 const dateFormatter = new Intl.DateTimeFormat('en', {

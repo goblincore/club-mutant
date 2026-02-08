@@ -11,14 +11,14 @@ export enum MessageType {
 
 interface ChatState {
   chatMessages: Array<{ messageType: MessageType; chatMessage: IChatMessage }>
-  focused: boolean,
-  showChat: boolean,
+  focused: boolean
+  showChat: boolean
 }
 
 const initialState: ChatState = {
   chatMessages: new Array<{ messageType: MessageType; chatMessage: IChatMessage }>(),
   focused: false,
-  showChat: true,
+  showChat: false,
 }
 
 export const chatSlice = createSlice({
@@ -54,7 +54,7 @@ export const chatSlice = createSlice({
     setFocused: (state, action: PayloadAction<boolean>) => {
       const game = phaserGame.scene.keys.game as Game
       action.payload ? game.disableKeys() : game.enableKeys()
-      console.log("////ChatStore, setFocused, action.payload", action.payload)
+      console.log('////ChatStore, setFocused, action.payload', action.payload)
       state.focused = action.payload
     },
     setShowChat: (state, action: PayloadAction<boolean>) => {

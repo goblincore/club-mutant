@@ -30,12 +30,14 @@ const PANEL_MIN_WIDTH_PX = 400
 const PANEL_MAX_WIDTH_PX = 700
 const PANEL_WIDTH_STORAGE_KEY = 'club-mutant:my-playlist:panel-width:v1'
 
+const DJ_BAR_HEIGHT_PX = 70
+
 const Backdrop = styled.div<{ $widthPx: number; $open: boolean }>`
   position: fixed;
-  top: 0;
-  right: 0;
+  top: ${(p) => (p.$open ? `${DJ_BAR_HEIGHT_PX}px` : '60px')};
+  left: 0;
   width: ${(p) => (p.$open ? `${p.$widthPx}px` : '96px')};
-  height: ${(p) => (p.$open ? '100vh' : '96px')};
+  height: ${(p) => (p.$open ? `calc(100vh - ${DJ_BAR_HEIGHT_PX}px)` : '96px')};
   background: transparent;
   overflow: hidden;
   padding: 16px 16px 16px 16px;
@@ -45,7 +47,7 @@ const Backdrop = styled.div<{ $widthPx: number; $open: boolean }>`
 const ResizeHandle = styled.div`
   position: absolute;
   top: 0;
-  left: 0;
+  right: 0;
   height: 100%;
   width: 10px;
   cursor: ew-resize;
@@ -193,7 +195,7 @@ export default function PlaylistDialog() {
     if (!isResizing) return
 
     const handleMove = (event: MouseEvent) => {
-      const delta = resizeStartXRef.current - event.clientX
+      const delta = event.clientX - resizeStartXRef.current
       const next = resizeStartWidthRef.current + delta
       setPanelWidthPx(Math.min(PANEL_MAX_WIDTH_PX, Math.max(PANEL_MIN_WIDTH_PX, next)))
     }
@@ -263,7 +265,7 @@ export default function PlaylistDialog() {
           </Wrapper>
         </>
       ) : (
-        <div style={{ textAlign: 'right' }}>
+        <div style={{ textAlign: 'left' }}>
           <FabWrapper>
             <Fab
               color="secondary"
@@ -1228,7 +1230,7 @@ const UserPlaylist = ({ onEditTrack }: { onEditTrack: (trackId: string) => void 
                   handleAddToRoom(item)
                 }
               }}
-              title={isInDJQueue ? "Add to DJ Queue" : "Add to Room Playlist"}
+              title={isInDJQueue ? 'Add to DJ Queue' : 'Add to Room Playlist'}
             >
               <AddIcon fontSize="small" />
             </IconButton>

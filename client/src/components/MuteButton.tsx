@@ -9,7 +9,7 @@ import { toggleMuted } from '../stores/AudioStore'
 
 const Wrapper = styled.div`
   position: fixed;
-  right: 12px;
+  left: 12px;
   bottom: 12px;
   z-index: 20;
   pointer-events: auto;
