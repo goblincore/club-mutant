@@ -347,10 +347,12 @@ A round-robin DJ queue system where multiple users can join the DJ booth and tak
 
 ### Playback Controls UI
 
-- **`PlayerControls.tsx`**: Play/pause, previous, and next track buttons.
-- **Visibility**: Controls are only visible to the **current DJ** (`isCurrentDJ`). Non-current DJs see no playback controls in either minimized or expanded views.
-- **Background video toggle**: Camera icon button next to playback controls. Toggles `videoBackgroundEnabled` (local-only Redux state). Only visible to current DJ, disabled when nothing is streaming.
-- **Status text**: Track status shows "Now playing" when actively streaming, "Paused" when it's the current track but paused, "Played" for history.
+- **`PlayerControls.tsx`**: Play/stop and next track buttons (no previous button, no pause — just play or stop).
+- **Play**: Starts playback. For the first DJ in an empty room, this sends `DJ_PLAY` to the server.
+- **Stop**: Stops playback and broadcasts `DJ_STOP` to all clients (everyone's stream stops).
+- **Visibility**: Controls are only visible to the **current DJ** (`isCurrentDJ`). Non-current DJs see no playback controls.
+- **Background video toggle**: Camera icon button in the mini bar, next to playback controls. Toggles `videoBackgroundEnabled` (local-only Redux state). Only visible to current DJ, disabled when nothing is streaming.
+- **Status text**: Track status shows "Now playing" when actively streaming, "Up next" when queued but not yet playing, "Played" for history.
 
 ### TV Static + Background Video Interaction
 
@@ -367,23 +369,22 @@ A round-robin DJ queue system where multiple users can join the DJ booth and tak
 
 ### Key Files
 
-- **Server**: `server/src/rooms/commands/DJQueueCommand.ts` - Join/leave/skip/rotation logic
+- **Server**: `server/src/rooms/commands/DJQueueCommand.ts` - Join/leave/skip/play/stop/rotation logic
 - **Server**: `server/src/rooms/commands/RoomQueuePlaylistCommand.ts` - Track management
-- **Client UI**: `client/src/components/DJQueuePanel.tsx` - Queue panel UI
-- **Client UI**: `client/src/components/YoutubePlayer.tsx` - Integrated player view
-- **Client UI**: `client/src/components/PlayerControls.tsx` - Play/pause/skip buttons
+- **Client UI**: `client/src/components/MyPlaylistPanel.tsx` - Unified playlist + DJ queue panel (tabbed)
+- **Client UI**: `client/src/components/YoutubePlayer.tsx` - Mini player bar (no expanded view)
+- **Client UI**: `client/src/components/PlayerControls.tsx` - Play/stop + next buttons
 - **Client hook**: `client/src/components/usePlayerSync.ts` - Player sync + auto-play effect
 - **Client scene**: `client/src/scenes/Game.ts` - Background video + TV static fade management
 
 ### UI States
 
-- **In Queue (current DJ)**: Shows playback controls, BG video toggle, your playlist with drag-to-reorder
-- **In Queue (waiting)**: Shows queue position ("You are Nth in the queue"), no playback controls
-- **Currently Playing**: Track locked (can't drag/remove), shows "Now playing" or "Paused"
+- **In Queue (current DJ)**: Mini bar with play/stop + next + BG video toggle + track marquee
+- **In Queue (waiting)**: Mini bar with queue position text ("You are Nth in the queue"), no playback controls
+- **Currently Playing**: Track #1 locked (can't drag/remove) ONLY when actively streaming. When not yet playing, track #1 is fully interactive.
 - **Played Tracks**: Greyed out at 40% opacity, shows "Played" label, at bottom of list
-- **Minimized (current DJ)**: Shows playback controls + track title + elapsed time + "Up next: [DJ name]"
-- **Minimized (waiting)**: Shows queue position text, no playback controls
-- **Booth Occupied (not in queue)**: Shows "Join the queue to play your tracks after the current mutant" + join button
+- **Booth Occupied (not in queue)**: Mini bar with track info + join button
+- **No expanded player view**: The player only has a mini bar — no expandable panel (removed Feb 2026)
 
 ### Unified MyPlaylistPanel with DJ Queue (Feb 2026)
 
@@ -392,27 +393,38 @@ The DJ queue playlist and the user's personal playlists are now combined into a 
 #### How it works
 
 - **Outside DJ queue**: `MyPlaylistPanel` looks exactly as before — shows user playlists, search, link paste, track management
-- **Inside DJ queue**: `MyPlaylistPanel` shows a **DJ Queue section** at the top of the home screen, above the playlist list:
-  - "DJ Queue" header
-  - Queue position (if not current DJ)
-  - "My Queue Playlist (N tracks)" with scrollable track list
-  - Drag-to-reorder, delete, playing/played status per track
-  - "Skip My Turn" button (if current DJ with others in queue)
-  - "Leave Queue" button
-- Below the DJ Queue section, the normal playlist list appears — clicking a playlist navigates to the detail view where each track has a "+" button to add to the queue
+- **Inside DJ queue**: `MyPlaylistPanel` uses a **tabbed interface** on the home screen:
+  - **"DJ Queue" tab** (default): Full-height queue playlist view with:
+    - "DJ Queue" header + queue position (if not current DJ)
+    - "My Queue Playlist (N tracks)" with full-height scrollable track list
+    - Drag-to-reorder, delete, playing/played status per track
+    - "Skip My Turn" button (if current DJ with others in queue)
+    - "Leave Queue" button (also closes MyPlaylistPanel)
+  - **"My Playlists" tab**: User's playlist list with:
+    - Each playlist shows a "+" button to add ALL tracks from that playlist to the queue
+    - Clicking a playlist navigates to the detail view for individual track management
+
+#### CD button positioning
+
+- The spinning CD button ("My Playlist") position is dynamic:
+  - When a mini player bar is visible (in DJ queue or non-ambient stream playing): `top: 70px`
+  - When no mini player is visible: `top: 0px` (flush upper-left corner)
+- Uses `hasMiniPlayer` selector: `state.djQueue.isInQueue || (state.musicStream.link !== null && !state.musicStream.isAmbient)`
+- The same `panelTop` value is used for both the closed CD button and the open panel
 
 #### Booth entry behavior
 
 - Sitting at the DJ booth auto-opens `MyPlaylistPanel` (via `openMyPlaylistPanel()` + `setFocused(true)` in `MusicBooth.openDialog()`)
 - Joining the DJ queue via the "Join Queue" button in `YoutubePlayer.tsx` also opens `MyPlaylistPanel`
 - The `DJQueueSection` component inside `MyPlaylistPanel` renders conditionally when `isInQueue` is true
-- `YoutubePlayer.tsx` still handles the playback controls bar (play/pause/prev/next, minimize, BG video toggle) but no longer renders queue playlist management
+- `YoutubePlayer.tsx` handles the mini player bar (play/stop/next, BG video toggle) but no longer renders queue playlist management
 
 #### Key component: `DJQueueSection` (in `MyPlaylistPanel.tsx`)
 
 - Reads from `state.roomQueuePlaylist.items` for the queue playlist
 - Reads from `state.djQueue` for queue position, current DJ, entries
-- Handles leave queue (including booth exit), skip turn, track removal, drag-to-reorder
+- Handles leave queue (including booth exit + closing MyPlaylistPanel), skip turn, track removal, drag-to-reorder
+- Track #1 is only disabled/locked when `isActivelyStreaming` (not just because user is current DJ)
 - Returns `null` when not in queue (invisible)
 
 ### Server Commands
@@ -422,6 +434,7 @@ The DJ queue playlist and the user's personal playlists are now combined into a 
 - `DJ_SKIP_TURN`: Current DJ skips their turn, marks track as played, sends playlist update, rotates
 - `DJ_TURN_COMPLETE`: Track finished naturally, marks track as played, sends playlist update, rotates
 - `DJ_PLAY`: Explicit play command (only needed for first play in empty room)
+- `DJ_STOP`: Current DJ stops playback, broadcasts `STOP_MUSIC_STREAM` to all clients
 - `ROOM_QUEUE_PLAYLIST_ADD`: Add track to user's queue (inserts after current playing)
 - `ROOM_QUEUE_PLAYLIST_REMOVE`: Remove track (can't remove currently playing)
 - `ROOM_QUEUE_PLAYLIST_REORDER`: Reorder unplayed tracks only
@@ -504,9 +517,10 @@ Dark transparent theme matching existing UI:
     - If `isRoomPlaylist` and you are the current DJ, it calls `skipRoomPlaylist()`.
 
 - Minimized DJ bar:
-  - `YoutubePlayer.tsx` can be minimized into a small top-left bar.
-  - Shows a marquee track title + minimal prev/play-pause/next controls.
-  - The underlying `ReactPlayer` stays mounted while minimized (audio continues).
+  - `YoutubePlayer.tsx` renders a mini bar in the top-left corner (no expanded view).
+  - DJ queue mode: Shows play/stop + next + BG video toggle + marquee track/queue status.
+  - Join queue mode: Shows track info + join button.
+  - The underlying `ReactPlayer` stays mounted (hidden off-screen, audio continues).
 
 - Stream metadata flow:
   - Server broadcasts `Message.START_MUSIC_STREAM` with `musicStream`.
@@ -1228,6 +1242,12 @@ A single `DEBUG_MODE` flag in `client/src/config.ts` controls all debug keyboard
 - ~~Implement DJ Queue Rotation System~~ ✅ COMPLETED (Feb 2026)
 - ~~Stabilize legacy music booth/music stream code~~ ✅ COMPLETED - DJ Queue replaces legacy system
 - ~~DJ Queue inline playlist picker~~ ✅ COMPLETED → merged into unified MyPlaylistPanel (Feb 2026)
+- ~~Remove expanded player view, simplify to mini bar only~~ ✅ COMPLETED (Feb 2026)
+- ~~Play/Stop controls (replace play/pause, remove prev button, add DJ_STOP broadcast)~~ ✅ COMPLETED (Feb 2026)
+- ~~Tabbed DJ Queue/My Playlists interface in MyPlaylistPanel~~ ✅ COMPLETED (Feb 2026)
+- ~~Add-all-tracks button per playlist when in DJ queue~~ ✅ COMPLETED (Feb 2026)
+- ~~Fix track #1 disabling (only when actually streaming)~~ ✅ COMPLETED (Feb 2026)
+- ~~Dynamic CD button positioning (top-left when no mini player)~~ ✅ COMPLETED (Feb 2026)
 - Replace random-spawned pathfinding obstacles with Tiled-placed items (chairs/vending) + proper item classes/object layers
 - Cache walkability grid (and expanded clearance grid) instead of rebuilding each click; recompute only when map/obstacles change
 - Add path debug rendering (waypoints/polyline and optionally blocked tiles overlay) for easier tuning

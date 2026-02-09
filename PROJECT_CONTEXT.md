@@ -348,7 +348,7 @@ YouTube ID into a direct playable video URL:
 ### Entering/leaving
 
 - Item: `client/src/items/MusicBooth.ts`
-  - `openDialog()` auto-joins DJ queue and opens the expanded DJ Queue panel (no longer opens `MyPlaylistPanel`).
+  - `openDialog()` auto-joins DJ queue and opens the unified `MyPlaylistPanel` (which shows the tabbed DJ Queue view).
   - `closeDialog()` closes UI and sends `DISCONNECT_FROM_MUSIC_BOOTH`.
 
 - **Gotcha (server-side booth occupancy)**:
@@ -359,7 +359,7 @@ YouTube ID into a direct playable video URL:
 - Player interaction:
   - `client/src/characters/MyPlayer.ts`
   - Press `R` near booth:
-    - Connects + opens expanded DJ Queue panel (with inline playlist picker for adding tracks).
+    - Connects + opens unified `MyPlaylistPanel` (DJ Queue tab + My Playlists tab).
     - Switches player behavior to sitting.
 
 ### DJ “boombox” animation
