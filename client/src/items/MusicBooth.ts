@@ -147,6 +147,8 @@ export default class MusicBooth extends Item {
   openDialog(network: Network) {
     console.log('////MusicBooth, openDialog, id', this.id)
     if (this.id === undefined) return
+    store.dispatch(openMyPlaylistPanel())
+    store.dispatch(setFocused(true))
     console.log('////MusicBooth, openDialog, network.connectToMusicBooth, this.id', this.id)
     network.connectToMusicBooth(this.id)
 
@@ -176,7 +178,7 @@ export default class MusicBooth extends Item {
 
     // NOTE: We no longer auto-leave the DJ queue when exiting the booth.
     // The queue is now independent of booth occupancy.
-    // Users must explicitly click "Leave Queue" button in DJQueuePanel.
+    // Users must explicitly click "Leave Queue" button in MyPlaylistPanel's DJ Queue section.
     // This allows:
     // 1. Queue to persist when booth occupant leaves
     // 2. Other DJs in queue to continue playing

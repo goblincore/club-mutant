@@ -348,7 +348,7 @@ YouTube ID into a direct playable video URL:
 ### Entering/leaving
 
 - Item: `client/src/items/MusicBooth.ts`
-  - `openDialog()` opens the playlist UI and sends `CONNECT_TO_MUSIC_BOOTH`.
+  - `openDialog()` auto-joins DJ queue and opens the expanded DJ Queue panel (no longer opens `MyPlaylistPanel`).
   - `closeDialog()` closes UI and sends `DISCONNECT_FROM_MUSIC_BOOTH`.
 
 - **Gotcha (server-side booth occupancy)**:
@@ -359,7 +359,7 @@ YouTube ID into a direct playable video URL:
 - Player interaction:
   - `client/src/characters/MyPlayer.ts`
   - Press `R` near booth:
-    - Connects + opens playlist panel.
+    - Connects + opens expanded DJ Queue panel (with inline playlist picker for adding tracks).
     - Switches player behavior to sitting.
 
 ### DJ “boombox” animation
@@ -393,6 +393,8 @@ YouTube ID into a direct playable video URL:
 - **Music server logic**: `server/rooms/ClubMutant.ts`
 - **Server state schema**: `server/rooms/schema/OfficeState.ts`
 - **Client UI playback**: `client/src/components/YoutubePlayer.tsx`
+- **My Playlists + DJ Queue UI**: `client/src/components/MyPlaylistPanel.tsx` (unified panel with DJ Queue section)
+- **Debug mode config**: `client/src/config.ts` (`DEBUG_MODE` flag for debug keyboard shortcuts)
 - **Shared message enum**: `types/Messages.ts`
 - **Music sync/resync (implemented)**: `docs/music-sync-resync-plan.md`
 

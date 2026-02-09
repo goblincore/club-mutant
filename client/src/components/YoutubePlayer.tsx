@@ -20,21 +20,18 @@ import {
   MarqueeMetadata,
   Wrapper,
   RoomInfo,
-  JoinQueueContainer,
-  JoinQueueSubtitle,
-  JoinQueueButton,
   JoinQueueMiniBar,
 } from './YoutubePlayer.styles'
 import { PlayerControls } from './PlayerControls'
 import { RoomPlaylistView } from './RoomPlaylistView'
 import { VideoPlayer } from './VideoPlayer'
 import { usePlayerSync } from './usePlayerSync'
-import DJQueuePanel from './DJQueuePanel'
 import AddIcon from '@mui/icons-material/Add'
 import VideocamIcon from '@mui/icons-material/Videocam'
 import VideocamOffIcon from '@mui/icons-material/VideocamOff'
 import { setIsInQueue } from '../stores/DJQueueStore'
 import { setRoomQueuePlaylistVisible } from '../stores/RoomQueuePlaylistStore'
+import { openMyPlaylistPanel, setFocused } from '../stores/MyPlaylistStore'
 
 // Helper function to format time as MM:SS
 function formatTime(seconds: number): string {
@@ -116,13 +113,6 @@ export default function YoutubePlayer() {
     }
   }, [isNonDjPublic])
 
-  // Expand when joining the DJ queue so the user sees the full queue panel
-  useEffect(() => {
-    if (isInDJQueue) {
-      setMinimized(false)
-    }
-  }, [isInDJQueue])
-
   // Reset isPlaying when stream stops (show play button, not pause)
   useEffect(() => {
     if (!link && !isAmbient) {
@@ -177,12 +167,7 @@ export default function YoutubePlayer() {
           : 'Room Playlist Empty'
 
   // Handlers
-  const handlePlayPause = useCallback(() => {
-    if (isPlaying) {
-      setIsPlaying(false)
-      return
-    }
-
+  const handlePlay = useCallback(() => {
     setIsPlaying(true)
 
     if (!isStreaming) {
@@ -191,12 +176,12 @@ export default function YoutubePlayer() {
     }
 
     resyncPlayer()
-  }, [isPlaying, isStreaming, game.network, resyncPlayer])
+  }, [isStreaming, game.network, resyncPlayer])
 
-  const handlePrev = useCallback(() => {
-    setIsPlaying(true)
-    game.network.prevRoomPlaylist()
-  }, [game.network])
+  const handleStop = useCallback(() => {
+    setIsPlaying(false)
+    // For room playlist mode, just stop locally (no broadcast stop)
+  }, [])
 
   const handleNext = useCallback(() => {
     setIsPlaying(true)
@@ -220,6 +205,8 @@ export default function YoutubePlayer() {
     game.network.joinDJQueue()
     dispatch(setIsInQueue(true))
     dispatch(setRoomQueuePlaylistVisible(true))
+    dispatch(openMyPlaylistPanel())
+    dispatch(setFocused(true))
   }, [game.network, dispatch])
 
   // DJ Queue-specific handlers
@@ -227,12 +214,7 @@ export default function YoutubePlayer() {
   const myQueuePosition = useAppSelector((state) => state.djQueue.myQueuePosition)
   const hasDJTracks = roomQueueItems.length > 0
 
-  const handleDJPlayPause = useCallback(() => {
-    if (isPlaying) {
-      setIsPlaying(false)
-      return
-    }
-
+  const handleDJPlay = useCallback(() => {
     setIsPlaying(true)
 
     if (!isStreaming && isCurrentDJ && hasDJTracks) {
@@ -241,18 +223,18 @@ export default function YoutubePlayer() {
     }
 
     resyncPlayer()
-  }, [isPlaying, isStreaming, isCurrentDJ, hasDJTracks, game.network, resyncPlayer, setIsPlaying])
+  }, [isStreaming, isCurrentDJ, hasDJTracks, game.network, resyncPlayer, setIsPlaying])
+
+  const handleDJStop = useCallback(() => {
+    setIsPlaying(false)
+    game.network.djStop()
+  }, [game.network, setIsPlaying])
 
   const handleDJNext = useCallback(() => {
     if (!isCurrentDJ) return
     setIsPlaying(true)
     game.network.djTurnComplete()
   }, [isCurrentDJ, game.network, setIsPlaying])
-
-  const handleDJPrev = useCallback(() => {
-    if (!isCurrentDJ) return
-    playerRef.current?.seekTo(0, 'seconds')
-  }, [isCurrentDJ, playerRef])
 
   const handleOnEnded = useCallback(() => {
     if (isAmbient) {
@@ -376,123 +358,66 @@ export default function YoutubePlayer() {
         ? `You are ${ordinal(myIndex + 1)} in the queue`
         : 'Waiting for your turn...'
 
-    if (minimized) {
-      return (
-        <Backdrop>
-          <MiniBar>
-            <IconButton aria-label="expand dj bar" size="small" onClick={() => setMinimized(false)}>
-              <OpenInFullIcon fontSize="inherit" />
-            </IconButton>
-
-            {isCurrentDJ && (
-              <PlayerControls
-                isPlaying={isPlaying}
-                isStreaming={isStreaming}
-                canControl={isCurrentDJ && hasDJTracks}
-                onPlayPause={handleDJPlayPause}
-                onPrev={handleDJPrev}
-                onNext={handleDJNext}
-              />
-            )}
-
-            <Marquee>
-              <div style={{ overflow: 'hidden', position: 'relative', height: '18px' }}>
-                <MarqueeInner>{queuePositionText}</MarqueeInner>
-              </div>
-              {link && (
-                <MarqueeMetadata>
-                  {timeDisplay} {upNextMessage && `• ${upNextMessage}`}
-                </MarqueeMetadata>
-              )}
-            </Marquee>
-          </MiniBar>
-
-          {/* Video player (hidden but playing audio) */}
-          <div style={{ position: 'fixed', left: -10000, opacity: 0, pointerEvents: 'none' }}>
-            <VideoPlayer
-              url={url}
-              isPlaying={isPlaying}
-              isMuted={globallyMuted}
-              isHidden={false}
-              videoBackgroundEnabled={videoBackgroundEnabled}
-              canToggleBackground={canToggleVideoBackground}
-              playerRef={playerRef}
-              onReady={handleReady}
-              onEnded={handleOnEnded}
-              onBufferEnd={handleOnBufferEnd}
-              onToggleBackground={handleToggleBackground}
-            />
-          </div>
-        </Backdrop>
-      )
-    }
-
     return (
       <Backdrop>
-        <Wrapper>
-          {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <IconButton
-              aria-label="minimize dj player"
-              className="close"
-              onClick={() => setMinimized(true)}
-              size="small"
-            >
-              <MinimizeIcon />
-            </IconButton>
-          </div>
-
-          {/* DJ Playback Controls + BG Video Toggle */}
+        <MiniBar>
           {isCurrentDJ && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <PlayerControls
-                isPlaying={isPlaying}
-                isStreaming={isStreaming}
-                canControl={isCurrentDJ && hasDJTracks}
-                onPlayPause={handleDJPlayPause}
-                onPrev={handleDJPrev}
-                onNext={handleDJNext}
-              />
-
-              <IconButton
-                aria-label={
-                  videoBackgroundEnabled ? 'disable background video' : 'enable background video'
-                }
-                size="small"
-                onClick={handleToggleBackground}
-                title={videoBackgroundEnabled ? 'Background video ON' : 'Background video OFF'}
-                style={{ opacity: isStreaming ? 1 : 0.4 }}
-                disabled={!isStreaming}
-              >
-                {videoBackgroundEnabled ? (
-                  <VideocamIcon fontSize="small" />
-                ) : (
-                  <VideocamOffIcon fontSize="small" />
-                )}
-              </IconButton>
-            </div>
+            <PlayerControls
+              isStreaming={isStreaming}
+              canControl={isCurrentDJ && hasDJTracks}
+              onPlay={handleDJPlay}
+              onStop={handleDJStop}
+              onNext={handleDJNext}
+            />
           )}
 
-          {/* DJ Queue Panel */}
-          <DJQueuePanel />
+          <Marquee>
+            <div style={{ overflow: 'hidden', position: 'relative', height: '18px' }}>
+              <MarqueeInner>{queuePositionText}</MarqueeInner>
+            </div>
+            {link && (
+              <MarqueeMetadata>
+                {timeDisplay} {upNextMessage && `• ${upNextMessage}`}
+              </MarqueeMetadata>
+            )}
+          </Marquee>
 
-          {/* Video player (hidden but playing audio) */}
-          <div style={{ position: 'fixed', left: -10000, opacity: 0, pointerEvents: 'none' }}>
-            <VideoPlayer
-              url={url}
-              isPlaying={isPlaying}
-              isMuted={globallyMuted}
-              isHidden={false}
-              videoBackgroundEnabled={videoBackgroundEnabled}
-              canToggleBackground={canToggleVideoBackground}
-              playerRef={playerRef}
-              onReady={handleReady}
-              onEnded={handleOnEnded}
-              onBufferEnd={handleOnBufferEnd}
-              onToggleBackground={handleToggleBackground}
-            />
-          </div>
-        </Wrapper>
+          {isCurrentDJ && (
+            <IconButton
+              aria-label={
+                videoBackgroundEnabled ? 'disable background video' : 'enable background video'
+              }
+              size="small"
+              onClick={handleToggleBackground}
+              title={videoBackgroundEnabled ? 'Background video ON' : 'Background video OFF'}
+              style={{ opacity: isStreaming ? 1 : 0.4 }}
+              disabled={!isStreaming}
+            >
+              {videoBackgroundEnabled ? (
+                <VideocamIcon fontSize="small" />
+              ) : (
+                <VideocamOffIcon fontSize="small" />
+              )}
+            </IconButton>
+          )}
+        </MiniBar>
+
+        {/* Video player (hidden but playing audio) */}
+        <div style={{ position: 'fixed', left: -10000, opacity: 0, pointerEvents: 'none' }}>
+          <VideoPlayer
+            url={url}
+            isPlaying={isPlaying}
+            isMuted={globallyMuted}
+            isHidden={false}
+            videoBackgroundEnabled={videoBackgroundEnabled}
+            canToggleBackground={canToggleVideoBackground}
+            playerRef={playerRef}
+            onReady={handleReady}
+            onEnded={handleOnEnded}
+            onBufferEnd={handleOnBufferEnd}
+            onToggleBackground={handleToggleBackground}
+          />
+        </div>
       </Backdrop>
     )
   }
@@ -511,87 +436,36 @@ export default function YoutubePlayer() {
         ? `${formatTime(elapsedTime)} / ${formatTime(totalDuration)}`
         : formatTime(elapsedTime)
 
-    if (minimized) {
-      return (
-        <Backdrop>
-          <JoinQueueMiniBar>
-            <IconButton aria-label="expand dj bar" size="small" onClick={() => setMinimized(false)}>
-              <OpenInFullIcon fontSize="inherit" />
-            </IconButton>
-            <div className="track-info">
-              <div className="track-title">{title || 'Unknown'}</div>
-              <div className="track-meta">
-                {timeDisplay} • Up next: {nextDJ?.name || 'No one yet'}
-              </div>
-            </div>
-            <button className="join-btn" onClick={handleJoinDJQueue} title="Join queue">
-              <AddIcon fontSize="small" />
-            </button>
-          </JoinQueueMiniBar>
-
-          {/* Video player (hidden but playing audio) */}
-          <div style={{ position: 'fixed', left: -10000, opacity: 0, pointerEvents: 'none' }}>
-            <VideoPlayer
-              url={url}
-              isPlaying={isPlaying}
-              isMuted={globallyMuted}
-              isHidden={false}
-              videoBackgroundEnabled={videoBackgroundEnabled}
-              canToggleBackground={canToggleVideoBackground}
-              playerRef={playerRef}
-              onReady={handleReady}
-              onEnded={handleOnEnded}
-              onBufferEnd={handleOnBufferEnd}
-              onToggleBackground={handleToggleBackground}
-            />
-          </div>
-        </Backdrop>
-      )
-    }
-
     return (
       <Backdrop>
-        <Wrapper>
-          {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <IconButton
-              aria-label="minimize dj player"
-              className="close"
-              onClick={() => setMinimized(true)}
-              size="small"
-            >
-              <MinimizeIcon />
-            </IconButton>
+        <JoinQueueMiniBar>
+          <div className="track-info">
+            <div className="track-title">{title || 'Unknown'}</div>
+            <div className="track-meta">
+              {timeDisplay} • Up next: {nextDJ?.name || 'No one yet'}
+            </div>
           </div>
+          <button className="join-btn" onClick={handleJoinDJQueue} title="Join queue">
+            <AddIcon fontSize="small" />
+          </button>
+        </JoinQueueMiniBar>
 
-          {/* Join Queue Button */}
-          <JoinQueueContainer>
-            <JoinQueueSubtitle>
-              Join the queue to play your tracks after the current mutant
-            </JoinQueueSubtitle>
-            <JoinQueueButton onClick={handleJoinDJQueue}>
-              <AddIcon fontSize="small" />
-              Join Queue
-            </JoinQueueButton>
-          </JoinQueueContainer>
-
-          {/* Video player (hidden but playing audio) */}
-          <div style={{ position: 'fixed', left: -10000, opacity: 0, pointerEvents: 'none' }}>
-            <VideoPlayer
-              url={url}
-              isPlaying={isPlaying}
-              isMuted={globallyMuted}
-              isHidden={false}
-              videoBackgroundEnabled={videoBackgroundEnabled}
-              canToggleBackground={canToggleVideoBackground}
-              playerRef={playerRef}
-              onReady={handleReady}
-              onEnded={handleOnEnded}
-              onBufferEnd={handleOnBufferEnd}
-              onToggleBackground={handleToggleBackground}
-            />
-          </div>
-        </Wrapper>
+        {/* Video player (hidden but playing audio) */}
+        <div style={{ position: 'fixed', left: -10000, opacity: 0, pointerEvents: 'none' }}>
+          <VideoPlayer
+            url={url}
+            isPlaying={isPlaying}
+            isMuted={globallyMuted}
+            isHidden={false}
+            videoBackgroundEnabled={videoBackgroundEnabled}
+            canToggleBackground={canToggleVideoBackground}
+            playerRef={playerRef}
+            onReady={handleReady}
+            onEnded={handleOnEnded}
+            onBufferEnd={handleOnBufferEnd}
+            onToggleBackground={handleToggleBackground}
+          />
+        </div>
       </Backdrop>
     )
   }
@@ -608,11 +482,10 @@ export default function YoutubePlayer() {
 
           {!isNonDjPublic && (
             <PlayerControls
-              isPlaying={isPlaying}
               isStreaming={isStreaming}
               canControl={canControlRoomPlaylist}
-              onPlayPause={handlePlayPause}
-              onPrev={handlePrev}
+              onPlay={handlePlay}
+              onStop={handleStop}
               onNext={handleNext}
             />
           )}
@@ -690,11 +563,10 @@ export default function YoutubePlayer() {
         {/* Controls */}
         {!isNonDjPublic && (
           <PlayerControls
-            isPlaying={isPlaying}
             isStreaming={isStreaming}
             canControl={canControlRoomPlaylist}
-            onPlayPause={handlePlayPause}
-            onPrev={handlePrev}
+            onPlay={handlePlay}
+            onStop={handleStop}
             onNext={handleNext}
           />
         )}

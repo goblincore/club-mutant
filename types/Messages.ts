@@ -47,6 +47,7 @@ export enum Message {
 
   // DJ Control
   DJ_PLAY, // Current DJ explicitly starts playback
+  DJ_STOP, // Current DJ stops playback (broadcasts to everyone)
   DJ_SKIP_TURN, // Skip entire turn
   DJ_TURN_COMPLETE, // Current DJ track finished
   DJ_PLAY_STARTED, // Broadcast: new DJ started playing

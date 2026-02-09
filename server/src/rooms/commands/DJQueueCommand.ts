@@ -311,6 +311,33 @@ export class DJPlayCommand extends Command<ClubMutant, Payload> {
   }
 }
 
+export class DJStopCommand extends Command<ClubMutant, Payload> {
+  execute(data: Payload) {
+    const { client } = data
+
+    // Only current DJ can stop playback
+    if (this.state.currentDjSessionId !== client.sessionId) {
+      console.log('[DJQueue] Stop rejected - not current DJ:', client.sessionId)
+      return
+    }
+
+    // Only stop if actually playing
+    if (this.state.musicStream.status !== 'playing' || !this.state.musicStream.currentLink) {
+      console.log('[DJQueue] Stop rejected - not currently playing')
+      return
+    }
+
+    console.log('[DJQueue] DJ stopped playback:', client.sessionId)
+
+    const musicStream = this.state.musicStream
+    musicStream.status = 'waiting'
+    musicStream.currentLink = null
+    musicStream.currentTitle = null
+
+    this.room.broadcast(Message.STOP_MUSIC_STREAM, {})
+  }
+}
+
 export class DJTurnCompleteCommand extends Command<ClubMutant, Payload> {
   execute(data: Payload) {
     const { client } = data

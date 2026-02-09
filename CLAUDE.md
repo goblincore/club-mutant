@@ -385,6 +385,36 @@ A round-robin DJ queue system where multiple users can join the DJ booth and tak
 - **Minimized (waiting)**: Shows queue position text, no playback controls
 - **Booth Occupied (not in queue)**: Shows "Join the queue to play your tracks after the current mutant" + join button
 
+### Unified MyPlaylistPanel with DJ Queue (Feb 2026)
+
+The DJ queue playlist and the user's personal playlists are now combined into a single unified component: `MyPlaylistPanel`. The old standalone `DJQueuePanel.tsx` has been deleted.
+
+#### How it works
+
+- **Outside DJ queue**: `MyPlaylistPanel` looks exactly as before — shows user playlists, search, link paste, track management
+- **Inside DJ queue**: `MyPlaylistPanel` shows a **DJ Queue section** at the top of the home screen, above the playlist list:
+  - "DJ Queue" header
+  - Queue position (if not current DJ)
+  - "My Queue Playlist (N tracks)" with scrollable track list
+  - Drag-to-reorder, delete, playing/played status per track
+  - "Skip My Turn" button (if current DJ with others in queue)
+  - "Leave Queue" button
+- Below the DJ Queue section, the normal playlist list appears — clicking a playlist navigates to the detail view where each track has a "+" button to add to the queue
+
+#### Booth entry behavior
+
+- Sitting at the DJ booth auto-opens `MyPlaylistPanel` (via `openMyPlaylistPanel()` + `setFocused(true)` in `MusicBooth.openDialog()`)
+- Joining the DJ queue via the "Join Queue" button in `YoutubePlayer.tsx` also opens `MyPlaylistPanel`
+- The `DJQueueSection` component inside `MyPlaylistPanel` renders conditionally when `isInQueue` is true
+- `YoutubePlayer.tsx` still handles the playback controls bar (play/pause/prev/next, minimize, BG video toggle) but no longer renders queue playlist management
+
+#### Key component: `DJQueueSection` (in `MyPlaylistPanel.tsx`)
+
+- Reads from `state.roomQueuePlaylist.items` for the queue playlist
+- Reads from `state.djQueue` for queue position, current DJ, entries
+- Handles leave queue (including booth exit), skip turn, track removal, drag-to-reorder
+- Returns `null` when not in queue (invisible)
+
 ### Server Commands
 
 - `DJ_QUEUE_JOIN`: Add user to queue; if first, set as current DJ (playback requires explicit `DJ_PLAY`)
@@ -1049,8 +1079,9 @@ YouTube ID into a direct playable video URL:
 - **Music server logic**: `server/rooms/ClubMutant.ts`
 - **Server state schema**: `server/rooms/schema/OfficeState.ts`
 - **Client UI playback**: `client/src/components/YoutubePlayer.tsx`
-- **DJ Queue UI**: `client/src/components/DJQueuePanel.tsx`
+- **My Playlists + DJ Queue UI**: `client/src/components/MyPlaylistPanel.tsx` (unified panel with DJ Queue section)
 - **DJ Queue logic**: `server/src/rooms/commands/DJQueueCommand.ts`
+- **Debug mode config**: `client/src/config.ts`
 - **Room Queue Playlist**: `server/src/rooms/commands/RoomQueuePlaylistCommand.ts`
 - **Shared message enum**: `types/Messages.ts`
 
@@ -1160,11 +1191,43 @@ Phaser integration:
 
 Open guide-mode is still under active development; if blocks are mis-cropped, expect further tuning.
 
+## DEBUG_MODE (Feb 2026)
+
+A single `DEBUG_MODE` flag in `client/src/config.ts` controls all debug keyboard shortcuts:
+
+- **Currently set to**: `false` (all debug keys disabled)
+- **To enable**: Change to `true` in `client/src/config.ts`
+
+### Gated shortcuts
+
+| Key          | Action                         | Location                                         |
+| ------------ | ------------------------------ | ------------------------------------------------ |
+| `V`          | Toggle VHS post-FX             | `Game.ts` `registerKeys()`                       |
+| `Shift+V`    | Toggle VHS half-res            | `Game.ts` `registerKeys()`                       |
+| `Ctrl/Cmd+V` | Cycle VHS frame skip           | `Game.ts` `registerKeys()`                       |
+| `B`          | Toggle CRT post-FX             | `Game.ts` `registerKeys()`                       |
+| `N`          | Toggle Waxy post-FX            | `Game.ts` `registerKeys()`                       |
+| `M`          | Toggle TV static debug overlay | `Game.ts` `registerKeys()`                       |
+| `T`          | Toggle boombox animation       | `MyPlayer.ts` `update()` (passed from `Game.ts`) |
+| `1`          | Play burn animation            | `MyPlayer.ts` `update()` (passed from `Game.ts`) |
+| `2`          | Play flamethrower animation    | `MyPlayer.ts` `update()` (passed from `Game.ts`) |
+| `3`          | Play punch animation           | `MyPlayer.ts` `update()` (passed from `Game.ts`) |
+| `4`          | Play hit animation             | `MyPlayer.ts` `update()` (passed from `Game.ts`) |
+| `5`          | Cycle ripped animations        | `Game.ts` `update()`                             |
+
+### How it works
+
+- `Game.ts` imports `DEBUG_MODE` from `client/src/config.ts`
+- In `registerKeys()`: V/B/N/M handlers wrapped in `if (DEBUG_MODE)`
+- In `update()`: key5 gated with `if (DEBUG_MODE)`, keyT and debugKeys (1-4) only passed to `myPlayer.update()` when `DEBUG_MODE` is true
+- `MyPlayer.ts` already handles `keyT` and `debugKeys` as optional parameters — when `undefined` is passed, the handlers are skipped
+
 ## Current tasks
 
 - Fix dev duplication: prevent multiple Phaser/Network instances (multiple connects / duplicated chat) under Vite HMR/refresh
 - ~~Implement DJ Queue Rotation System~~ ✅ COMPLETED (Feb 2026)
 - ~~Stabilize legacy music booth/music stream code~~ ✅ COMPLETED - DJ Queue replaces legacy system
+- ~~DJ Queue inline playlist picker~~ ✅ COMPLETED → merged into unified MyPlaylistPanel (Feb 2026)
 - Replace random-spawned pathfinding obstacles with Tiled-placed items (chairs/vending) + proper item classes/object layers
 - Cache walkability grid (and expanded clearance grid) instead of rebuilding each click; recompute only when map/obstacles change
 - Add path debug rendering (waypoints/polyline and optionally blocked tiles overlay) for easier tuning

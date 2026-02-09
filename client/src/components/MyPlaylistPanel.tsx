@@ -7,6 +7,8 @@ import AddIcon from '@mui/icons-material/Add'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import EditIcon from '@mui/icons-material/Edit'
+import DragHandleIcon from '@mui/icons-material/DragHandle'
+import SkipNextIcon from '@mui/icons-material/SkipNext'
 import Fab from '@mui/material/Fab'
 import Game from '../scenes/Game'
 import phaserGame from '../PhaserGame'
@@ -22,6 +24,13 @@ import {
   reorderPlaylistItems,
   updateTrackMeta,
 } from '../stores/MyPlaylistStore'
+import {
+  setRoomQueuePlaylistVisible,
+  removeRoomQueuePlaylistItem,
+  reorderRoomQueuePlaylistItems,
+} from '../stores/RoomQueuePlaylistStore'
+import { leaveDJQueue, skipDJTurn } from '../stores/DJQueueStore'
+import { disconnectFromMusicBooth } from '../stores/MusicBoothStore'
 import axios from 'axios'
 import { v4 as uuidv4 } from 'uuid'
 import type { PlaylistItem } from '@club-mutant/types/IOfficeState'
@@ -32,12 +41,12 @@ const PANEL_WIDTH_STORAGE_KEY = 'club-mutant:my-playlist:panel-width:v1'
 
 const DJ_BAR_HEIGHT_PX = 70
 
-const Backdrop = styled.div<{ $widthPx: number; $open: boolean }>`
+const Backdrop = styled.div<{ $widthPx: number; $open: boolean; $openTop: string }>`
   position: fixed;
-  top: ${(p) => (p.$open ? `${DJ_BAR_HEIGHT_PX}px` : '60px')};
+  top: ${(p) => p.$openTop};
   left: 0;
   width: ${(p) => (p.$open ? `${p.$widthPx}px` : '96px')};
-  height: ${(p) => (p.$open ? `calc(100vh - ${DJ_BAR_HEIGHT_PX}px)` : '96px')};
+  height: ${(p) => (p.$open ? `calc(100vh - ${p.$openTop})` : '96px')};
   background: transparent;
   overflow: hidden;
   padding: 16px 16px 16px 16px;
@@ -105,12 +114,16 @@ export default function PlaylistDialog() {
   const game = phaserGame.scene.keys.game as Game
   const showPlaylistDialog = useAppSelector((state) => state.myPlaylist.myPlaylistPanelOpen)
   const dispatch = useAppDispatch()
-  // const game = phaserGame.scene.keys.game as Game
   const playlists = useAppSelector((state) => state.myPlaylist.playlists)
   const activePlaylistId = useAppSelector((state) => state.myPlaylist.activePlaylistId)
   const trackMetaById = useAppSelector((state) => state.myPlaylist.trackMetaById)
   const playQueue = useAppSelector((state) => state.myPlaylist.playQueue)
   const currentMusicStream = useAppSelector((state) => state.musicStream)
+  const hasMiniPlayer = useAppSelector(
+    (state) =>
+      state.djQueue.isInQueue || (state.musicStream.link !== null && !state.musicStream.isAmbient)
+  )
+  const panelTop = hasMiniPlayer ? `${DJ_BAR_HEIGHT_PX}px` : '0px'
 
   const previousKeyboardEnabledRef = useRef<boolean | null>(null)
   const previousMouseEnabledRef = useRef<boolean | null>(null)
@@ -227,7 +240,7 @@ export default function PlaylistDialog() {
   }
 
   return (
-    <Backdrop $widthPx={panelWidthPx} $open={showPlaylistDialog}>
+    <Backdrop $widthPx={panelWidthPx} $open={showPlaylistDialog} $openTop={panelTop}>
       {showPlaylistDialog ? (
         <>
           <ResizeHandle
@@ -409,6 +422,259 @@ const HeaderSpacer = styled.div`
   width: 68px;
 `
 
+const DJQueueWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+`
+
+const DJQueueHeader = styled.div`
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 6px;
+`
+
+const DJQueueSubtitle = styled.div`
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 6px;
+`
+
+const DJQueuePosition = styled.div`
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 6px;
+`
+
+const DJQueueEmptyState = styled.div`
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 8px 0;
+`
+
+const DJQueueScrollArea = styled.div`
+  flex: 1;
+  overflow-y: auto;
+`
+
+const DJQueueTrackItem = styled.div<{ $isPlaying?: boolean; $isPlayed?: boolean }>`
+  display: flex;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: ${(props) =>
+    props.$isPlaying
+      ? 'rgba(255, 255, 255, 0.1)'
+      : props.$isPlayed
+        ? 'rgba(255, 255, 255, 0.02)'
+        : 'transparent'};
+  border: ${(props) =>
+    props.$isPlaying ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid transparent'};
+  margin-bottom: 2px;
+  cursor: ${(props) => (props.$isPlaying || props.$isPlayed ? 'default' : 'move')};
+  opacity: ${(props) => (props.$isPlaying ? 0.7 : props.$isPlayed ? 0.4 : 1)};
+
+  &:hover {
+    background: ${(props) =>
+      props.$isPlaying
+        ? 'rgba(255, 255, 255, 0.1)'
+        : props.$isPlayed
+          ? 'rgba(255, 255, 255, 0.03)'
+          : 'rgba(255, 255, 255, 0.05)'};
+  }
+`
+
+const DJQueueTrackInfo = styled.div`
+  flex: 1;
+  margin-left: 6px;
+  overflow: hidden;
+
+  .title {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .duration {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+  }
+`
+
+const DJQueueDragHandle = styled.div`
+  cursor: grab;
+  color: rgba(255, 255, 255, 0.5);
+
+  &:active {
+    cursor: grabbing;
+  }
+`
+
+const DJQueueButtons = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  justify-content: flex-end;
+`
+
+const DJQueueLeaveButton = styled(PrimaryButton)`
+  color: rgba(255, 100, 100, 0.9);
+  border-color: rgba(255, 100, 100, 0.5);
+`
+
+function DJQueueSection() {
+  const dispatch = useAppDispatch()
+  const game = phaserGame.scene.keys.game as Game
+
+  const djQueueEntries = useAppSelector((state) => state.djQueue.entries)
+  const currentDjSessionId = useAppSelector((state) => state.djQueue.currentDjSessionId)
+  const isInQueue = useAppSelector((state) => state.djQueue.isInQueue)
+  const myQueuePosition = useAppSelector((state) => state.djQueue.myQueuePosition)
+  const mySessionId = useAppSelector((state) => state.user.sessionId)
+  const roomQueueItems = useAppSelector((state) => state.roomQueuePlaylist.items)
+  const isCurrentDJ = currentDjSessionId === mySessionId
+  const connectedBoothIndex = useAppSelector((state) => state.musicBooth.musicBoothIndex)
+  const isActivelyStreaming = useAppSelector((state) => state.musicStream.link !== null)
+
+  const [draggedItem, setDraggedItem] = useState<number | null>(null)
+
+  if (!isInQueue) return null
+
+  const handleLeaveQueue = () => {
+    game.network.leaveDJQueue()
+    dispatch(leaveDJQueue())
+    dispatch(setRoomQueuePlaylistVisible(false))
+    dispatch(closeMyPlaylistPanel())
+    dispatch(setFocused(false))
+
+    if (connectedBoothIndex !== null) {
+      const exitedBooth = game.myPlayer.exitBoothIfConnected(game.network)
+
+      if (exitedBooth) {
+        console.log('[DJQueueSection] Successfully exited booth')
+      } else {
+        game.network.disconnectFromMusicBooth(connectedBoothIndex)
+        dispatch(disconnectFromMusicBooth())
+      }
+    }
+  }
+
+  const handleSkipTurn = () => {
+    if (isCurrentDJ) {
+      game.network.skipDJTurn()
+      dispatch(skipDJTurn())
+    }
+  }
+
+  const handleRemoveTrack = (itemId: string) => {
+    game.network.removeFromRoomQueuePlaylist(itemId)
+    dispatch(removeRoomQueuePlaylistItem(itemId))
+  }
+
+  const handleDragStart = (index: number) => {
+    if (index === 0 && isCurrentDJ && isActivelyStreaming) return
+    const item = roomQueueItems[index]
+    if ((item as any).played) return
+    setDraggedItem(index)
+  }
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    if (draggedItem === null || draggedItem === index) return
+    if (index === 0 && isCurrentDJ && isActivelyStreaming) return
+    const targetItem = roomQueueItems[index]
+    if ((targetItem as any).played) return
+
+    dispatch(reorderRoomQueuePlaylistItems({ fromIndex: draggedItem, toIndex: index }))
+    game.network.reorderRoomQueuePlaylist(draggedItem, index)
+    setDraggedItem(index)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedItem(null)
+  }
+
+  return (
+    <DJQueueWrapper>
+      <DJQueueHeader>DJ Queue</DJQueueHeader>
+
+      {!isCurrentDJ && myQueuePosition !== null && (
+        <DJQueuePosition>Position in queue: #{myQueuePosition + 1}</DJQueuePosition>
+      )}
+
+      <DJQueueSubtitle>My Queue Playlist ({roomQueueItems.length} tracks)</DJQueueSubtitle>
+
+      {roomQueueItems.length === 0 ? (
+        <DJQueueEmptyState>Add tracks below or from your playlists</DJQueueEmptyState>
+      ) : (
+        <DJQueueScrollArea>
+          {roomQueueItems.map((item, index) => {
+            const isCurrentlyPlaying = index === 0 && isCurrentDJ && isActivelyStreaming
+            const isPlayed = (item as any).played === true
+            const isDraggable = !isCurrentlyPlaying && !isPlayed
+
+            return (
+              <DJQueueTrackItem
+                key={item.id}
+                draggable={isDraggable}
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragEnd={handleDragEnd}
+                $isPlaying={isCurrentlyPlaying}
+                $isPlayed={isPlayed}
+              >
+                <DJQueueDragHandle style={{ cursor: isDraggable ? 'grab' : 'default' }}>
+                  <DragHandleIcon fontSize="small" style={{ opacity: isDraggable ? 1 : 0.2 }} />
+                </DJQueueDragHandle>
+
+                <DJQueueTrackInfo>
+                  <div className="title">
+                    {index + 1}. {item.title}
+                  </div>
+                  <div className="duration">
+                    {isCurrentlyPlaying
+                      ? isActivelyStreaming
+                        ? 'Now playing'
+                        : 'Up next'
+                      : isPlayed
+                        ? 'Played'
+                        : `${Math.floor(item.duration / 60)}:${(item.duration % 60).toString().padStart(2, '0')}`}
+                  </div>
+                </DJQueueTrackInfo>
+
+                <IconButton
+                  size="small"
+                  onClick={() => handleRemoveTrack(item.id)}
+                  disabled={isCurrentlyPlaying}
+                  style={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                >
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
+              </DJQueueTrackItem>
+            )
+          })}
+        </DJQueueScrollArea>
+      )}
+
+      <DJQueueButtons>
+        {isCurrentDJ && djQueueEntries.length > 1 && (
+          <PrimaryButton type="button" onClick={handleSkipTurn}>
+            <SkipNextIcon fontSize="small" />
+            Skip My Turn
+          </PrimaryButton>
+        )}
+
+        <DJQueueLeaveButton type="button" onClick={handleLeaveQueue}>
+          Leave Queue
+        </DJQueueLeaveButton>
+      </DJQueueButtons>
+    </DJQueueWrapper>
+  )
+}
+
 type YoutubeSearchResult = {
   id: string
   length?: { simpleText?: string } | null
@@ -420,6 +686,7 @@ const MusicSearch = () => {
   const [data, setData] = useState<YoutubeSearchResult[]>([])
   const [screen, setScreen] = useState<'home' | 'detail'>('home')
   const [tab, setTab] = useState<'playlist' | 'search' | 'link'>('playlist')
+  const [djQueueTab, setDjQueueTab] = useState<'queue' | 'playlists'>('queue')
   const [creating, setCreating] = useState(false)
   const [newPlaylistName, setNewPlaylistName] = useState('')
   const [inputValue, setInputValue] = useState('')
@@ -438,7 +705,19 @@ const MusicSearch = () => {
   const playlists = useAppSelector((state) => state.myPlaylist.playlists)
   const activePlaylistId = useAppSelector((state) => state.myPlaylist.activePlaylistId)
   const trackMetaById = useAppSelector((state) => state.myPlaylist.trackMetaById)
+  const isInDJQueue = useAppSelector((state) => state.djQueue.isInQueue)
   const game = phaserGame.scene.keys.game as Game
+
+  const handleAddAllToQueue = (playlist: (typeof playlists)[number]) => {
+    for (const item of playlist.items) {
+      if (!item.link) continue
+      game.network.addToRoomQueuePlaylist({
+        title: item.title,
+        link: item.link,
+        duration: item.duration,
+      })
+    }
+  }
 
   const activePlaylist = playlists.find((p) => p.id === activePlaylistId) ?? null
 
@@ -447,6 +726,7 @@ const MusicSearch = () => {
 
     setScreen('home')
     setTab('playlist')
+    setDjQueueTab('queue')
     setCreating(false)
     setNewPlaylistName('')
     setInputValue('')
@@ -688,98 +968,131 @@ const MusicSearch = () => {
         })
       : null
 
-  if (screen === 'home') {
-    return (
-      <section>
-        {playlists.length === 0 ? (
-          <EmptyState>
-            <div style={{ marginBottom: 10 }}>No playlists yet.</div>
-            {!creating ? (
+  const playlistListContent = (
+    <>
+      {playlists.length === 0 ? (
+        <EmptyState>
+          <div style={{ marginBottom: 10 }}>No playlists yet.</div>
+          {!creating ? (
+            <PrimaryButton
+              type="button"
+              onClick={() => {
+                setCreating(true)
+              }}
+            >
+              Create a new playlist
+            </PrimaryButton>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <InputWrapper
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  const name = newPlaylistName.trim()
+                  if (name === '') return
+
+                  const id = uuidv4()
+                  dispatch(createPlaylist({ id, name }))
+                  dispatch(setActivePlaylistId(id))
+                  setCreating(false)
+                  setNewPlaylistName('')
+                  setScreen('detail')
+                }}
+              >
+                <InputTextField
+                  autoFocus
+                  fullWidth
+                  placeholder="Playlist name"
+                  value={newPlaylistName}
+                  onChange={(e: React.FormEvent<HTMLInputElement>) => {
+                    setNewPlaylistName(e.currentTarget.value)
+                  }}
+                />
+              </InputWrapper>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <PrimaryButton
+                  type="button"
+                  onClick={() => {
+                    setCreating(false)
+                    setNewPlaylistName('')
+                  }}
+                >
+                  Cancel
+                </PrimaryButton>
+                <PrimaryButton
+                  type="button"
+                  onClick={() => {
+                    const name = newPlaylistName.trim()
+                    if (name === '') return
+
+                    const id = uuidv4()
+                    dispatch(createPlaylist({ id, name }))
+                    dispatch(setActivePlaylistId(id))
+                    setCreating(false)
+                    setNewPlaylistName('')
+                    setScreen('detail')
+                  }}
+                >
+                  Create
+                </PrimaryButton>
+              </div>
+            </div>
+          )}
+        </EmptyState>
+      ) : (
+        <>
+          {!creating ? (
+            <div style={{ padding: '0 0 10px 0' }}>
               <PrimaryButton
                 type="button"
                 onClick={() => {
                   setCreating(true)
                 }}
               >
-                Create a new playlist
+                <AddIcon fontSize="small" />
+                New playlist
               </PrimaryButton>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <InputWrapper
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    const name = newPlaylistName.trim()
-                    if (name === '') return
+            </div>
+          ) : (
+            <div
+              style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 0 10px 0' }}
+            >
+              <InputWrapper
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  const name = newPlaylistName.trim()
+                  if (name === '') return
 
-                    const id = uuidv4()
-                    dispatch(createPlaylist({ id, name }))
-                    dispatch(setActivePlaylistId(id))
-                    setCreating(false)
-                    setNewPlaylistName('')
-                    setScreen('detail')
+                  const id = uuidv4()
+                  dispatch(createPlaylist({ id, name }))
+                  dispatch(setActivePlaylistId(id))
+                  setCreating(false)
+                  setNewPlaylistName('')
+                  setScreen('detail')
+                }}
+              >
+                <InputTextField
+                  autoFocus
+                  fullWidth
+                  placeholder="Playlist name"
+                  value={newPlaylistName}
+                  onChange={(e: React.FormEvent<HTMLInputElement>) => {
+                    setNewPlaylistName(e.currentTarget.value)
                   }}
-                >
-                  <InputTextField
-                    autoFocus
-                    fullWidth
-                    placeholder="Playlist name"
-                    value={newPlaylistName}
-                    onChange={(e: React.FormEvent<HTMLInputElement>) => {
-                      setNewPlaylistName(e.currentTarget.value)
-                    }}
-                  />
-                </InputWrapper>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <PrimaryButton
-                    type="button"
-                    onClick={() => {
-                      setCreating(false)
-                      setNewPlaylistName('')
-                    }}
-                  >
-                    Cancel
-                  </PrimaryButton>
-                  <PrimaryButton
-                    type="button"
-                    onClick={() => {
-                      const name = newPlaylistName.trim()
-                      if (name === '') return
-
-                      const id = uuidv4()
-                      dispatch(createPlaylist({ id, name }))
-                      dispatch(setActivePlaylistId(id))
-                      setCreating(false)
-                      setNewPlaylistName('')
-                      setScreen('detail')
-                    }}
-                  >
-                    Create
-                  </PrimaryButton>
-                </div>
-              </div>
-            )}
-          </EmptyState>
-        ) : (
-          <>
-            {!creating ? (
-              <div style={{ padding: '0 0 10px 0' }}>
+                />
+              </InputWrapper>
+              <div style={{ display: 'flex', gap: 8 }}>
                 <PrimaryButton
                   type="button"
                   onClick={() => {
-                    setCreating(true)
+                    setCreating(false)
+                    setNewPlaylistName('')
                   }}
                 >
-                  <AddIcon fontSize="small" />
-                  New playlist
+                  Cancel
                 </PrimaryButton>
-              </div>
-            ) : (
-              <div
-                style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 0 10px 0' }}
-              >
-                <InputWrapper
-                  onSubmit={(event) => {
-                    event.preventDefault()
+                <PrimaryButton
+                  type="button"
+                  onClick={() => {
                     const name = newPlaylistName.trim()
                     if (name === '') return
 
@@ -791,68 +1104,71 @@ const MusicSearch = () => {
                     setScreen('detail')
                   }}
                 >
-                  <InputTextField
-                    autoFocus
-                    fullWidth
-                    placeholder="Playlist name"
-                    value={newPlaylistName}
-                    onChange={(e: React.FormEvent<HTMLInputElement>) => {
-                      setNewPlaylistName(e.currentTarget.value)
-                    }}
-                  />
-                </InputWrapper>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <PrimaryButton
-                    type="button"
-                    onClick={() => {
-                      setCreating(false)
-                      setNewPlaylistName('')
-                    }}
-                  >
-                    Cancel
-                  </PrimaryButton>
-                  <PrimaryButton
-                    type="button"
-                    onClick={() => {
-                      const name = newPlaylistName.trim()
-                      if (name === '') return
-
-                      const id = uuidv4()
-                      dispatch(createPlaylist({ id, name }))
-                      dispatch(setActivePlaylistId(id))
-                      setCreating(false)
-                      setNewPlaylistName('')
-                      setScreen('detail')
-                    }}
-                  >
-                    Create
-                  </PrimaryButton>
-                </div>
+                  Create
+                </PrimaryButton>
               </div>
-            )}
-            <Tab>
-              {playlists.map((p) => (
-                <ListItem
-                  key={p.id}
-                  onClick={() => {
-                    dispatch(setActivePlaylistId(p.id))
-                    setScreen('detail')
-                    setTab('playlist')
-                  }}
-                >
-                  <section>
-                    <h4>{p.name}</h4>
-                  </section>
-                  <section>
-                    <span>{p.items.length}</span>
-                  </section>
-                </ListItem>
-              ))}
-            </Tab>
-          </>
-        )}
-      </section>
-    )
+            </div>
+          )}
+          <Tab>
+            {playlists.map((p) => (
+              <ListItem
+                key={p.id}
+                onClick={() => {
+                  dispatch(setActivePlaylistId(p.id))
+                  setScreen('detail')
+                  setTab('playlist')
+                }}
+              >
+                <section>
+                  <h4>{p.name}</h4>
+                </section>
+                <section style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>{p.items.length}</span>
+                  {isInDJQueue && p.items.length > 0 && (
+                    <IconButton
+                      size="small"
+                      title="Add all tracks to queue"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleAddAllToQueue(p)
+                      }}
+                    >
+                      <AddIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </section>
+              </ListItem>
+            ))}
+          </Tab>
+        </>
+      )}
+    </>
+  )
+
+  if (screen === 'home') {
+    if (isInDJQueue) {
+      return (
+        <section style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <TabBar>
+            <TabButton $active={djQueueTab === 'queue'} onClick={() => setDjQueueTab('queue')}>
+              DJ Queue
+            </TabButton>
+            <TabButton
+              $active={djQueueTab === 'playlists'}
+              onClick={() => setDjQueueTab('playlists')}
+            >
+              My Playlists
+            </TabButton>
+          </TabBar>
+
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            {djQueueTab === 'queue' ? <DJQueueSection /> : playlistListContent}
+          </div>
+        </section>
+      )
+    }
+
+    return <section>{playlistListContent}</section>
   }
 
   if (!activePlaylist) {

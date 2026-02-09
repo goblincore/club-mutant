@@ -33,6 +33,7 @@ import {
   DJQueueJoinCommand,
   DJQueueLeaveCommand,
   DJPlayCommand,
+  DJStopCommand,
   DJSkipTurnCommand,
   DJTurnCompleteCommand,
 } from './commands/DJQueueCommand'
@@ -575,6 +576,10 @@ export class ClubMutant extends Room {
 
     this.onMessage(Message.DJ_PLAY, (client) => {
       this.dispatcher.dispatch(new DJPlayCommand(), { client })
+    })
+
+    this.onMessage(Message.DJ_STOP, (client) => {
+      this.dispatcher.dispatch(new DJStopCommand(), { client })
     })
 
     this.onMessage(Message.DJ_SKIP_TURN, (client) => {
