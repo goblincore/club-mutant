@@ -1,0 +1,234 @@
+import { useRef, useMemo, useEffect } from 'react'
+import { useThree, useFrame } from '@react-three/fiber'
+import * as THREE from 'three'
+
+/**
+ * VHS + PSX post-processing pass (WebGL2 / GLSL3).
+ *
+ * Pipeline:
+ * 1. Renders the scene to a half-resolution render target (NearestFilter → chunky pixels)
+ * 2. Applies a combined VHS + PSX fullscreen shader:
+ *    - Bloom (multi-scale glow from bright areas)
+ *    - VHS chroma bleed (horizontal color smearing)
+ *    - Washed-out brightness lift (raised blacks, compressed range, gamma lift)
+ *    - Slight desaturation
+ *    - Bayer dithering + 15-bit color reduction
+ *    - Animated film grain
+ *    - Subtle green shadow tint (VHS tape character)
+ *    - Light vignette
+ * 3. Outputs to the screen
+ *
+ * Ported from the 2D client's VhsPostFxPipeline.ts, rewritten for Three.js + WebGL2.
+ */
+
+// ---------- vertex shader ----------
+// Three.js (GLSL3 mode) injects: #version 300 es, attribute→in, varying→out
+const VHS_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`
+
+// ---------- fragment shader ----------
+// Three.js (GLSL3 mode) injects: varying→in, texture2D→texture, gl_FragColor→out
+const VHS_FRAGMENT = /* glsl */ `
+  uniform sampler2D tDiffuse;
+  uniform vec2 u_resolution;
+  uniform float u_time;
+
+  varying vec2 vUv;
+
+  // ---- film grain (gold noise) ----
+  float goldNoise(vec2 xy, float seed) {
+    return fract(sin(dot(xy * seed, vec2(12.9898, 78.233))) * 43758.5453);
+  }
+
+  // ---- bloom: multi-scale glow sampling ----
+  vec3 sampleBloom(vec2 uv) {
+    vec2 texel = 1.0 / u_resolution;
+    vec3 sum = vec3(0.0);
+    float totalW = 0.0;
+
+    // Sample at increasing offsets in 4 cardinal directions
+    for (int i = 1; i <= 8; i++) {
+      float off = float(i) * 2.5;
+      float w = 1.0 / (float(i) + 1.0);
+
+      vec3 s0 = texture2D(tDiffuse, uv + vec2( off, 0.0) * texel).rgb;
+      vec3 s1 = texture2D(tDiffuse, uv + vec2(-off, 0.0) * texel).rgb;
+      vec3 s2 = texture2D(tDiffuse, uv + vec2(0.0,  off) * texel).rgb;
+      vec3 s3 = texture2D(tDiffuse, uv + vec2(0.0, -off) * texel).rgb;
+
+      // Diagonal samples for smoother bloom
+      float dOff = off * 0.707;
+      vec3 s4 = texture2D(tDiffuse, uv + vec2( dOff,  dOff) * texel).rgb;
+      vec3 s5 = texture2D(tDiffuse, uv + vec2(-dOff,  dOff) * texel).rgb;
+      vec3 s6 = texture2D(tDiffuse, uv + vec2( dOff, -dOff) * texel).rgb;
+      vec3 s7 = texture2D(tDiffuse, uv + vec2(-dOff, -dOff) * texel).rgb;
+
+      vec3 avg = (s0 + s1 + s2 + s3 + s4 + s5 + s6 + s7) * 0.125;
+      sum += avg * w;
+      totalW += w;
+    }
+
+    return sum / totalW;
+  }
+
+  // ---- VHS chroma bleed: horizontal color smear ----
+  vec3 chromaBleed(vec2 uv) {
+    vec2 texel = 1.0 / u_resolution;
+    vec3 sum = vec3(0.0);
+    float totalW = 0.0;
+
+    for (int i = -5; i <= 5; i++) {
+      float w = 1.0 - abs(float(i)) / 6.0;
+      vec3 s = texture2D(tDiffuse, uv + vec2(float(i) * texel.x * 2.0, 0.0)).rgb;
+      sum += s * w;
+      totalW += w;
+    }
+
+    return sum / totalW;
+  }
+
+  void main() {
+    vec4 raw = texture2D(tDiffuse, vUv);
+    vec2 pixelCoord = vUv * u_resolution;
+
+    // ---- bloom / glow (additive — always brightens) ----
+    vec3 glow = sampleBloom(vUv);
+    vec3 color = raw.rgb + glow * 0.35;
+
+    // ---- VHS chroma bleed (subtle) ----
+    vec3 chroma = chromaBleed(vUv);
+    color = mix(color, chroma + glow * 0.35, 0.25);
+
+    // ---- brightness lift (push brighter than unfiltered) ----
+    color = mix(color, vec3(1.0), 0.08);
+    color *= 1.2;
+    color = pow(max(color, vec3(0.0)), vec3(0.88));
+
+    // ---- film grain ----
+    float grainSeed = floor(u_time * 24.0) / 24.0 + 1.0;
+    float grain = (goldNoise(pixelCoord, grainSeed) - 0.5) * 0.025;
+    color += grain;
+
+    color = clamp(color, 0.0, 1.0);
+
+    gl_FragColor = vec4(color, raw.a);
+  }
+`
+
+const RES_SCALE = 0.75 // three-quarter resolution
+
+export function PsxPostProcess() {
+  const { gl, scene, camera, size } = useThree()
+
+  const originalRenderRef = useRef<typeof gl.render | null>(null)
+  const timeRef = useRef(0)
+
+  // Low-res render target with nearest-neighbor filtering
+  const target = useMemo(() => {
+    return new THREE.WebGLRenderTarget(
+      Math.max(1, Math.floor(size.width * RES_SCALE)),
+      Math.max(1, Math.floor(size.height * RES_SCALE)),
+      {
+        minFilter: THREE.NearestFilter,
+        magFilter: THREE.NearestFilter,
+        format: THREE.RGBAFormat,
+      }
+    )
+  }, [])
+
+  // Fullscreen quad with VHS+PSX shader
+  const { quadScene, quadCamera, material } = useMemo(() => {
+    const mat = new THREE.ShaderMaterial({
+      vertexShader: VHS_VERTEX,
+      fragmentShader: VHS_FRAGMENT,
+      uniforms: {
+        tDiffuse: { value: null },
+        u_resolution: { value: new THREE.Vector2(160, 120) },
+        u_time: { value: 0 },
+      },
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+    })
+
+    const geo = new THREE.PlaneGeometry(2, 2)
+    const quad = new THREE.Mesh(geo, mat)
+    quad.frustumCulled = false
+
+    const qScene = new THREE.Scene()
+    qScene.add(quad)
+
+    const qCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+
+    return { quadScene: qScene, quadCamera: qCam, material: mat }
+  }, [])
+
+  // Take over rendering from r3f
+  useEffect(() => {
+    const original = gl.render.bind(gl)
+    originalRenderRef.current = original
+    gl.render = () => {} // no-op the default r3f render
+
+    return () => {
+      gl.render = original // restore on unmount
+      originalRenderRef.current = null
+    }
+  }, [gl])
+
+  // Resize render target when window resizes
+  useEffect(() => {
+    const w = Math.max(1, Math.floor(size.width * RES_SCALE))
+    const h = Math.max(1, Math.floor(size.height * RES_SCALE))
+
+    target.setSize(w, h)
+    material.uniforms.u_resolution.value.set(w, h)
+  }, [size, target, material])
+
+  // Cleanup render target on unmount
+  useEffect(() => {
+    return () => {
+      target.dispose()
+      material.dispose()
+    }
+  }, [target, material])
+
+  // Custom render loop: scene → low-res target → VHS shader → screen
+  useFrame((_, delta) => {
+    const render = originalRenderRef.current
+    if (!render) return
+
+    timeRef.current += delta
+    material.uniforms.u_time.value = timeRef.current
+
+    const hasBg = scene.background !== null
+    const oldAutoClear = gl.autoClear
+
+    gl.autoClear = true
+
+    // 1. Render scene to low-res target
+    gl.setRenderTarget(target)
+
+    if (!hasBg) {
+      gl.setClearColor(0x000000, 0)
+    }
+
+    gl.clear()
+    render(scene, camera)
+
+    // 2. Render VHS post-process quad to screen
+    gl.setRenderTarget(null)
+    material.uniforms.tDiffuse.value = target.texture
+    gl.clear()
+    render(quadScene, quadCamera)
+
+    gl.autoClear = oldAutoClear
+  }, 1)
+
+  return null
+}

@@ -164,9 +164,14 @@ Characters face the direction they're moving (left/right flip via scale.x = -1).
 - [x] Bottom toolbar with playlist/chat/PSX toggle buttons
 - [x] Booth store (boothStore.ts): booth connection, DJ queue, queue playlist, video background
 
-### M3: Polish
+### M3: Polish (in progress)
 
-- [ ] PSX post-processing pass (dithering, color reduction, scanlines, low-res render)
+- [x] VHS + PSX post-processing pass (bloom, chroma bleed, brightness lift, film grain, ¾-res render)
+  - Ported from 2D client's `VhsPostFxPipeline.ts`, rewritten for Three.js
+  - Toggle button in bottom toolbar ("VHS on/off")
+- [x] DJ booth interaction: double-click booth mesh → confirmation popup → teleport behind booth + join queue
+  - Replaced R-key interaction with proximity-based double-click
+  - `BoothPrompt.tsx` confirmation modal
 - [ ] Textured DJ booth (custom texture via `useTexture` from drei)
 - [ ] Room furniture / decoration
 - [ ] Multiple character skins (character select)
@@ -240,8 +245,9 @@ playersProxy.onAdd((player, sessionId) => {
 
 ### DJ booth interaction
 
-- Booth proximity check uses server coords: booth at `(0, 540)`, interact radius 120px
-- R key toggles connection: connect → auto-join queue → open playlist; disconnect → leave queue → close playlist
+- Booth moved 2.5 world units from back wall; position exported as `BOOTH_WORLD_X/Z` from `Room.tsx`
+- Double-click on booth mesh (within 1.8 world units) → `BoothPrompt` confirmation popup → teleport behind booth + join queue + open playlist
+- Spawn position fix: `NetworkManager` syncs `localX/localY` to server position on `onAdd` so players spawn inside the room
 - Booth state in `boothStore.ts`: `isConnected`, `boothIndex`, `djQueue[]`, `currentDjSessionId`, `isInQueue`, `queuePlaylist[]`, `videoBackgroundEnabled`
 
 ### YouTube integration

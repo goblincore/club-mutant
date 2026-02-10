@@ -2,8 +2,10 @@ import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { Suspense, useRef, useCallback } from 'react'
 import * as THREE from 'three'
 import { useBoothStore } from '../stores/boothStore'
+import { useUIStore } from '../stores/uiStore'
+import { PsxPostProcess } from '../shaders/PsxPostProcess'
 
-import { Room } from './Room'
+import { Room, BOOTH_WORLD_X, BOOTH_WORLD_Z } from './Room'
 import { FollowCamera, wasCameraDrag } from './Camera'
 import { PlayerEntity } from './PlayerEntity'
 import { useGameStore } from '../stores/gameStore'
@@ -88,16 +90,40 @@ function DynamicBackground() {
   return null
 }
 
+const BOOTH_INTERACT_DIST = 1.8 // world units — how close you need to be to interact
+
 function SceneContent() {
   const videoTexture = useVideoBackground()
+
+  const handleBoothDoubleClick = useCallback(() => {
+    const booth = useBoothStore.getState()
+
+    // Already connected — no need to prompt
+    if (booth.isConnected) return
+
+    // Check proximity in world coords
+    const state = useGameStore.getState()
+    const px = state.localX * WORLD_SCALE
+    const pz = -state.localY * WORLD_SCALE
+    const dx = px - BOOTH_WORLD_X
+    const dz = pz - BOOTH_WORLD_Z
+    const dist = Math.sqrt(dx * dx + dz * dz)
+
+    if (dist < BOOTH_INTERACT_DIST) {
+      useUIStore.getState().setBoothPromptOpen(true)
+    }
+  }, [])
+
+  const psxEnabled = useUIStore((s) => s.psxEnabled)
 
   return (
     <>
       <DynamicBackground />
-      <Room videoTexture={videoTexture} />
+      <Room videoTexture={videoTexture} onBoothDoubleClick={handleBoothDoubleClick} />
       <ClickPlane />
       <Players />
       <FollowCamera />
+      {psxEnabled && <PsxPostProcess />}
     </>
   )
 }

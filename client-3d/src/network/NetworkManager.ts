@@ -81,6 +81,11 @@ export class NetworkManager {
         scale: player.scale,
       })
 
+      // Sync local input position to server spawn for the local player
+      if (sessionId === this.room?.sessionId) {
+        gameStore.setLocalPosition(player.x, player.y)
+      }
+
       const playerProxy = $(player) as any
 
       playerProxy.listen('x', (value: number) => {

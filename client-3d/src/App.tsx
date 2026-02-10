@@ -8,9 +8,27 @@ import { PlaylistPanel } from './ui/PlaylistPanel'
 import { LobbyScreen } from './ui/LobbyScreen'
 import { NowPlaying } from './ui/NowPlaying'
 import { IframeVideoBackground } from './ui/IframeVideoBackground'
+import { BoothPrompt } from './ui/BoothPrompt'
 
 const CHAT_WIDTH = 340
 const PLAYLIST_WIDTH = 360
+
+function PsxToggle() {
+  const psxEnabled = useUIStore((s) => s.psxEnabled)
+
+  return (
+    <button
+      onClick={useUIStore.getState().togglePsx}
+      className={`px-3 py-1.5 text-[10px] font-mono rounded border transition-colors ${
+        psxEnabled
+          ? 'bg-purple-500/30 border-purple-500/50 text-purple-200 hover:bg-purple-500/50'
+          : 'bg-black/60 border-white/10 text-white/60 hover:text-white hover:border-white/30'
+      }`}
+    >
+      VHS {psxEnabled ? 'on' : 'off'}
+    </button>
+  )
+}
 
 export function App() {
   const connected = useGameStore((s) => s.connected)
@@ -102,21 +120,11 @@ export function App() {
           {chatOpen ? 'hide chat' : 'chat'}
         </button>
 
-        <button
-          onClick={useUIStore.getState().togglePsx}
-          className="px-3 py-1.5 text-[10px] font-mono bg-black/60 border border-white/10 rounded text-white/60 hover:text-white hover:border-white/30 transition-colors"
-        >
-          PSX
-        </button>
+        <PsxToggle />
       </div>
 
-      {/* Controls hint */}
-      <div
-        className="absolute bottom-3 right-3 text-[9px] font-mono text-white/20"
-        style={{ zIndex: 20 }}
-      >
-        WASD or click · R near booth · Enter to chat
-      </div>
+      {/* Booth prompt popup */}
+      <BoothPrompt />
     </div>
   )
 }

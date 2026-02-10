@@ -7,6 +7,7 @@ import { useGameStore } from '../stores/gameStore'
 
 interface RoomProps {
   videoTexture?: THREE.VideoTexture | null
+  onBoothDoubleClick?: () => void
 }
 
 const ROOM_SIZE = 12
@@ -14,6 +15,11 @@ const WALL_HEIGHT = 3
 const WALL_COLOR = '#e84420'
 const FLOOR_COLOR = '#f5d442'
 const WORLD_SCALE = 0.01
+
+// Booth position in world coords (exported for interaction logic)
+const HALF = ROOM_SIZE / 2
+export const BOOTH_WORLD_Z = -(HALF - 2.5)
+export const BOOTH_WORLD_X = 0
 
 const FADE_SPEED = 6 // opacity lerp speed
 const OCCLUDE_OPACITY = 0.08 // near-invisible when blocking
@@ -25,9 +31,21 @@ const playerWorldPos = new THREE.Vector3()
 // To add a texture: import { useTexture } from '@react-three/drei'
 // then: const tex = useTexture('/path/to/texture.png')
 // and add map={tex} to the <meshStandardMaterial>
-function DJBooth({ position }: { position: [number, number, number] }) {
+function DJBooth({
+  position,
+  onDoubleClick,
+}: {
+  position: [number, number, number]
+  onDoubleClick?: () => void
+}) {
   return (
     <group position={position}>
+      {/* Invisible click-capture box covering the whole booth */}
+      <mesh position={[0, 0.75, 0]} onDoubleClick={onDoubleClick} visible={false}>
+        <boxGeometry args={[4.2, 1.8, 1.2]} />
+        <meshBasicMaterial />
+      </mesh>
+
       {/* Main desk */}
       <mesh position={[0, 0.5, 0]}>
         <boxGeometry args={[3, 1, 0.8]} />
@@ -85,7 +103,7 @@ function DJBooth({ position }: { position: [number, number, number] }) {
   )
 }
 
-export function Room({ videoTexture }: RoomProps) {
+export function Room({ videoTexture, onBoothDoubleClick }: RoomProps) {
   const half = ROOM_SIZE / 2
   const { camera } = useThree()
 
@@ -198,8 +216,8 @@ export function Room({ videoTexture }: RoomProps) {
         <meshStandardMaterial color={WALL_COLOR} side={2} />
       </mesh>
 
-      {/* DJ Booth — placeholder against back wall */}
-      <DJBooth position={[0, 0, -(half - 0.6)]} />
+      {/* DJ Booth — forward from back wall */}
+      <DJBooth position={[0, 0, -(half - 2.5)]} onDoubleClick={onBoothDoubleClick} />
 
       {/* Ambient light */}
       <ambientLight intensity={1.0} />
