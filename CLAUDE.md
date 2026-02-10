@@ -28,11 +28,11 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
     - `src/character/` — PaperDoll, CharacterLoader, DistortMaterial (PaRappa vertex warp), AnimationMixer
     - `src/network/` — NetworkManager (Colyseus client, player/chat/music/DJ queue wiring, YouTube search)
     - `src/stores/` — gameStore, chatStore (+ bubbles), musicStore, uiStore, boothStore (DJ booth + queue + video bg)
-    - `src/shaders/` — PsxPostProcess (VHS+bloom+fisheye post-processing, ¾-res render target, NearestFilter upscale), TvStaticFloor (animated TV noise floor material), TrippySky (Win95-style blue sky + procedural clouds skybox)
+    - `src/shaders/` — PsxPostProcess (VHS+bloom+fisheye post-processing, ¾-res render target, NearestFilter upscale), TvStaticFloor (animated TV noise floor material), TrippySky (Win95-style blue sky + animated procedural clouds skybox, drift speed 0.4), BrickWallMaterial (procedural brick wall shader)
     - `src/input/` — usePlayerInput (WASD + click-to-move)
     - `src/ui/` — ChatPanel, PlaylistPanel (search + queue), NowPlaying (mini bar + video bg toggle), LobbyScreen, BoothPrompt (double-click booth confirmation)
   - Planning doc: `docs/ideas/client-3d-psx-multiplayer.md`
-  - Status: M1 + M1.5 + M2 + M2.5 complete. M3 in progress — VHS shader (bloom + chroma bleed + fisheye), character select, auto-scaling, 540p render cap, TV static floor, Win95 cloud skybox done. DJ booth textures + furniture remaining.
+  - Status: M1 + M1.5 + M2 + M2.5 + M3 mostly complete. VHS shader, character select (3 characters: PaRappa, Ramona, Mutant), auto-scaling, TV static floor, animated Win95 cloud skybox, full DJ queue UI (playlist panel + NowPlaying mini player), DJ booth overlap fix (2 DJs sit left/right), ambient stream filtering all done. Remaining: PSX geometry shaders, textured booth furniture, sound, mobile.
 - `server/`
   - **Has its own `package.json` with `"type": "module"`** (required for Colyseus 0.17 decorator support)
   - Server code lives in `server/src/`
@@ -41,6 +41,13 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Main room: `server/src/rooms/ClubMutant.ts`
   - Schema state: `server/src/rooms/schema/OfficeState.ts`
   - Commands: `server/src/rooms/commands/*`
+- `tools/`
+  - `paper-rig-editor/` — Vite + React + r3f character rig editor for building paper-doll characters
+    - Drop PNGs, set pivots/offsets/bone roles, preview animations, export zip
+    - Export: `manifest.json` + all image files (zipped via JSZip)
+    - Preset animations: idle, wave, walk, dance (with advanced scale.x/scale.y distortion on arms)
+    - Character manifest format matches `client-3d/src/character/CharacterLoader.ts`
+    - Run: `cd tools/paper-rig-editor && npm run dev`
 - `types/`
   - Shared types workspace package (`@club-mutant/types`)
   - Imported via pnpm workspace (no copying needed)
@@ -160,9 +167,11 @@ express: (app) => {
 
 - **Client (Netlify)**:
   - Config: `netlify.toml`
-  - Build command: `corepack enable && pnpm install --frozen-lockfile && pnpm --filter club-mutant build`
-  - Publish dir: `client/dist`
-  - Note: `postinstall` skips electron-builder on Netlify via `$NETLIFY` env check
+  - Build command: `corepack enable && pnpm install --frozen-lockfile && pnpm --filter club-mutant-3d build`
+  - Publish dir: `client-3d/dist`
+  - **Switched from 2D client (`client/`) to 3D client (`client-3d/`) in Feb 2026**
+  - Env vars set in `netlify.toml`: `VITE_WS_ENDPOINT`, `VITE_HTTP_ENDPOINT`, `VITE_YOUTUBE_SERVICE_URL`
+  - The 3D client reads `VITE_WS_ENDPOINT` (not `VITE_SERVER_URL`) for the Colyseus server URL
 
 ## YouTube Video Resolution (rusty-ytdl-hybrid)
 
@@ -1252,7 +1261,6 @@ A single `DEBUG_MODE` flag in `client/src/config.ts` controls all debug keyboard
 
 ## Current tasks
 
-- Fix dev duplication: prevent multiple Phaser/Network instances (multiple connects / duplicated chat) under Vite HMR/refresh
 - ~~Implement DJ Queue Rotation System~~ ✅ COMPLETED (Feb 2026)
 - ~~Stabilize legacy music booth/music stream code~~ ✅ COMPLETED - DJ Queue replaces legacy system
 - ~~DJ Queue inline playlist picker~~ ✅ COMPLETED → merged into unified MyPlaylistPanel (Feb 2026)
@@ -1262,10 +1270,22 @@ A single `DEBUG_MODE` flag in `client/src/config.ts` controls all debug keyboard
 - ~~Add-all-tracks button per playlist when in DJ queue~~ ✅ COMPLETED (Feb 2026)
 - ~~Fix track #1 disabling (only when actually streaming)~~ ✅ COMPLETED (Feb 2026)
 - ~~Dynamic CD button positioning (top-left when no mini player)~~ ✅ COMPLETED (Feb 2026)
-- Replace random-spawned pathfinding obstacles with Tiled-placed items (chairs/vending) + proper item classes/object layers
-- Cache walkability grid (and expanded clearance grid) instead of rebuilding each click; recompute only when map/obstacles change
-- Add path debug rendering (waypoints/polyline and optionally blocked tiles overlay) for easier tuning
-- Get client TypeScript build (tsc) passing under Vite (fix nullable Phaser tilemap layer types, etc.)
+- ~~Fix DJ queue: music keeps playing when DJ leaves~~ ✅ COMPLETED (Feb 2026)
+- ~~Fix player spawn slide~~ ✅ COMPLETED (Feb 2026)
+- ~~Animated skybox: increase cloud drift speed~~ ✅ COMPLETED (Feb 2026)
+- ~~Cursor change on hover over interactable objects~~ ✅ COMPLETED (Feb 2026)
+- ~~UI overhaul: match 2D client playlist/DJ panel layout~~ ✅ COMPLETED (Feb 2026)
+- ~~Fix DJ rotation: next DJ's queue doesn't auto-play after current song finishes~~ ✅ COMPLETED (Feb 2026)
+- ~~Redesign NowPlaying mini player~~ ✅ COMPLETED (Feb 2026)
+- ~~Fix DJ booth overlap: position 2 DJs left/right, 1 DJ center; widen desk~~ ✅ COMPLETED (Feb 2026)
+- ~~Editor: rename export to manifest.json, update char 3 manifest, add scale tracks to presets~~ ✅ COMPLETED (Feb 2026)
+- ~~Add new character (default3/Mutant) to lobby select + GameScene texture map~~ ✅ COMPLETED (Feb 2026)
+- ~~Fix: NowPlaying shows 'untitled' + time when no DJ/track; characters dance when no music~~ ✅ COMPLETED (Feb 2026)
+- ~~Switch Netlify deployment from 2D client to 3D client~~ ✅ COMPLETED (Feb 2026)
+- PSX geometry shaders (vertex snapping, affine texture mapping)
+- Textured DJ booth furniture
+- Sound effects (footsteps, UI clicks, punch impacts)
+- Mobile support (touch controls, responsive UI)
 
 ## Recent noteworthy commits (Jan 2026)
 
@@ -1290,6 +1310,47 @@ A single `DEBUG_MODE` flag in `client/src/config.ts` controls all debug keyboard
 - Fixed music sync on late-join (TimeSync + playerRef issues).
 - Fixed background video sync for both WebGL and iframe fallback renderers.
 - **Phaser Rendering Performance Optimizations** (see **Client Rendering Optimizations** below)
+
+## client-3d Recent Changes (Feb 2026)
+
+### Character System
+
+Three selectable characters in lobby (`LobbyScreen.tsx`):
+
+- **PaRappa** (`/characters/default`, textureId 0)
+- **Ramona** (`/characters/default2`, textureId 1)
+- **Mutant** (`/characters/default3`, textureId 2)
+
+`GameScene.tsx` maps `textureId → character path` in `TEXTURE_ID_TO_CHARACTER` for remote players. Each character folder contains `manifest.json` + PNG part images. `CharacterLoader.ts` loads `{basePath}/manifest.json`. `AnimationMixer.ts` supports `rotation.x/y/z`, `position.x/y/z`, and `scale.x/y/z` track properties.
+
+### DJ Booth Overlap Fix
+
+- **1 DJ**: centered (`x = 0`). **2 DJs**: left/right (`x = ±1.0` world units)
+- `Room.tsx`: Desk widened `2.2 → 3.6`, added second laptop, exported `getDJBoothWorldX(queueIndex, queueCount)`
+- `BoothPrompt.tsx`: Initial join position uses `getDJBoothWorldX`
+- `NetworkManager.ts`: On `DJ_QUEUE_UPDATED`, repositions ALL DJs to correct spots (handles dynamic re-centering)
+
+### NowPlaying Mini Player
+
+Shows DJ name, track title, elapsed/total time, up next, stop/skip buttons (current DJ only), video bg toggle. Hidden `ReactPlayer` plays audio. `onEnded` sends `djTurnComplete()`. Returns `null` when nothing playing.
+
+### Ambient Stream Filtering
+
+Server plays ambient background video (`isAmbient: true`) when no DJ is active. The 3D client now skips these in both `START_MUSIC_STREAM` handler and late-join sync (`!ms.isAmbient`). This prevents false "playing" state, phantom NowPlaying bar, and characters dancing when no DJ is active.
+
+### Animated Skybox
+
+`TrippySky.tsx` — procedural FBM cloud layer with `uTime`-driven drift at speed `0.4` (increased from `0.06` for visible movement). Five-octave fractal brownian motion, two overlapping cloud layers, horizon fade.
+
+### Paper Rig Editor (`tools/paper-rig-editor/`)
+
+Character rig tool for building paper-doll characters used by `client-3d`:
+
+- Drop PNGs → set pivots, offsets, parent bones, bone roles → preview animations → export zip
+- Export produces `manifest.json` + all original image files (via JSZip)
+- Preset animations include advanced dance with `scale.x`/`scale.y` distortion on arms
+- `AnimationTrack.property` union: `rotation.x/y/z | position.x/y/z | scale.x/y/z`
+- Stores `originalFilename` on each part so exported manifest references real filenames
 
 ## YoutubePlayer Architecture (Feb 2026 refactor)
 
