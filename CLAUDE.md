@@ -18,6 +18,13 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Redux stores: `client/src/stores`
   - Client networking: `client/src/services/Network.ts`
   - Assets: `client/public/assets`
+- `client-3d/` **(new — Feb 2026)**
+  - PSX-style 3D multiplayer client replacing Phaser 2D. Same server, same protocol.
+  - Tech: Vite + React + react-three-fiber + drei + TailwindCSS + Zustand + @colyseus/sdk
+  - Dev server: port 5175 (`cd client-3d && pnpm dev`)
+  - Characters: paper-doll rigs (flat textured planes on bone hierarchy) from rig editor export
+  - Key dirs: `src/scene/` (Room, Camera, PlayerEntity, GameScene), `src/character/` (PaperDoll, CharacterLoader, DistortMaterial, AnimationMixer), `src/network/` (NetworkManager), `src/stores/`, `src/input/`, `src/ui/`
+  - Planning doc: `docs/ideas/client-3d-psx-multiplayer.md`
   - Electron types: `client/src/types/electron.d.ts`
 - `server/`
   - **Has its own `package.json` with `"type": "module"`** (required for Colyseus 0.17 decorator support)

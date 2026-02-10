@@ -10,23 +10,23 @@ Characters are **paper-doll rigs** exported from the rig editor (`tools/paper-ri
 
 ### Reuse from existing repo
 
-| Component | Reuse strategy |
-|---|---|
-| **Colyseus server** | Connect to the same server — no server changes needed |
-| **@club-mutant/types** | Import via pnpm workspace (Messages, IOfficeState, Dtos, Rooms) |
-| **YouTube search/resolve** | Same server endpoints (`/youtube/*`) |
-| **Room system** | Join PUBLIC / CUSTOM rooms with same protocol |
+| Component                  | Reuse strategy                                                  |
+| -------------------------- | --------------------------------------------------------------- |
+| **Colyseus server**        | Connect to the same server — no server changes needed           |
+| **@club-mutant/types**     | Import via pnpm workspace (Messages, IOfficeState, Dtos, Rooms) |
+| **YouTube search/resolve** | Same server endpoints (`/youtube/*`)                            |
+| **Room system**            | Join PUBLIC / CUSTOM rooms with same protocol                   |
 
 ### New in client-3d
 
-| Component | Tech |
-|---|---|
-| **3D renderer** | Three.js via `@react-three/fiber` + `@react-three/drei` |
-| **PSX shaders** | Ported from rig editor (`PsxMaterial.ts`) |
+| Component            | Tech                                                              |
+| -------------------- | ----------------------------------------------------------------- |
+| **3D renderer**      | Three.js via `@react-three/fiber` + `@react-three/drei`           |
+| **PSX shaders**      | Ported from rig editor (`PsxMaterial.ts`)                         |
 | **Character system** | Load JSON manifests + PNGs, build bone hierarchy, play animations |
-| **State management** | Zustand (replaces Redux from old client) |
-| **UI overlays** | React + TailwindCSS (chat, playlist, DJ queue) |
-| **Networking** | `@colyseus/sdk` — same protocol, cleaner implementation |
+| **State management** | Zustand (replaces Redux from old client)                          |
+| **UI overlays**      | React + TailwindCSS (chat, playlist, DJ queue)                    |
+| **Networking**       | `@colyseus/sdk` — same protocol, cleaner implementation           |
 
 ### Key difference from old client
 
@@ -96,6 +96,7 @@ client-3d/
 ## Player position mapping
 
 Server uses 2D coords `(x, y)` for player position. The 3D client maps:
+
 - Server `x` → Three.js `x` (horizontal)
 - Server `y` → Three.js `-z` (depth, negative because Three.js Z points toward camera)
 - Three.js `y` = 0 (ground plane)
@@ -119,33 +120,100 @@ Characters face the direction they're moving (left/right flip via scale.x = -1).
 
 ## Milestones
 
-### M1: Walking around (MVP)
-- [ ] Project scaffold + Colyseus connection
-- [ ] 3D room with ground plane
-- [ ] Paper-doll character rendering (static, default character)
-- [ ] WASD movement synced via server
-- [ ] Other players visible + moving
-- [ ] Nametags
+### M1: Walking around (MVP) ✅ Complete
+
+- [x] Project scaffold (Vite + React + r3f + TailwindCSS + Zustand + @colyseus/sdk)
+- [x] Added to pnpm workspace, imports @club-mutant/types
+- [x] Colyseus connection with correct `getStateCallbacks` pattern
+- [x] 3D room with ground plane, grid, walls (yellow floor, red-orange walls)
+- [x] Paper-doll character rendering from rig editor export (manifest.json + PNGs)
+- [x] WASD movement synced via server
+- [x] Click-to-move (raycast ground plane, walk to click point)
+- [x] Other players visible + moving (smooth lerp interpolation)
+- [x] Nametags (Html overlay from drei)
+- [x] Chat panel (bottom-left overlay)
+- [x] Lobby screen (name input + join)
+
+### M1.5: Camera + Feel ✅ Complete
+
+- [x] Orbit camera: hold-drag to rotate, scroll to zoom (spherical coords)
+- [x] Idle camera sway (±15° slow oscillation when not interacting)
+- [x] Camera-to-player occlusion: walls fade out when blocking view
+- [x] PaRappa-style vertex distortion on characters (twist, lean, squash-stretch, wobble, bounce)
+- [x] Smooth movement interpolation (exponential lerp, no snapping)
+- [x] Stable walk/idle animation (grace period prevents flicker)
 
 ### M2: Chat + music
-- [ ] Chat panel + in-world chat bubbles
+
+- [x] Chat panel (basic — send/receive messages)
+- [ ] In-world chat bubbles (3D)
 - [ ] YouTube player integration
 - [ ] Playlist panel (room playlist)
 - [ ] DJ queue panel
 - [ ] Now playing display
 
 ### M3: Polish
-- [ ] PSX post-processing pass
-- [ ] Room furniture / decoration
-- [ ] Multiple character skins
+
+- [ ] PSX post-processing pass (dithering, color reduction, scanlines, low-res render)
+- [ ] Room furniture / decoration / music booth
+- [ ] Multiple character skins (character select)
 - [ ] Sound effects
 - [ ] Mobile touch controls
 
-## Open questions
+## Resolved questions
 
-- **Camera style**: Fixed isometric? Follow camera? Player-controlled orbit?
-  → Start with fixed isometric, iterate.
-- **Room layout**: How to define room geometry? JSON? Tile-based? Free-form?
-  → Start with a simple hardcoded flat room, add layout system later.
-- **Character facing**: Billboard (always face camera) or direction-based?
-  → Direction-based with left/right flip, like PaRappa.
+- **Camera style**: Player-controlled orbit camera with idle sway. Hold-drag to rotate, scroll to zoom. Spherical coordinates with configurable polar/azimuth/distance.
+- **Room layout**: Hardcoded flat room with 4 walls. Walls auto-fade when occluding camera-to-player ray.
+- **Character facing**: Direction-based left/right flip via `scale.x = -1`, computed from visual velocity.
+
+## Learnings & gotchas (Feb 2026)
+
+### Colyseus 0.17 `getStateCallbacks` pattern
+
+The correct pattern for listening to state changes in client-3d:
+
+```typescript
+const $ = getStateCallbacks(this.room)
+const stateProxy = $(this.room.state) as any
+const playersProxy = stateProxy.players
+playersProxy.onAdd((player, sessionId) => {
+  const playerProxy = $(player) as any
+  playerProxy.listen('x', (value) => { ... })
+}, true) // true = trigger for existing items
+```
+
+- Must wrap `this.room.state` first, then access `.players` on the proxy
+- `CollectionCallback` and `CallbackProxy` types are NOT exported from `@colyseus/schema` in this version — use `any` casts
+- The `true` flag on `onAdd` is critical for processing players already in the room when you join
+
+### Character texture loading
+
+- Texture filenames in `manifest.json` must exactly match files on disk
+- `loadCharacter()` is resilient — skips individual failed textures instead of failing everything
+- Cache is cleared on each load during dev to avoid stale failed promises
+
+### Movement & animation stability
+
+- Local player uses fast exponential lerp (`1 - e^(-18*dt)`) instead of snap for smooth movement
+- `isMoving` must be computed from visual velocity inside `useFrame`, not from store prop deltas (which cause flicker)
+- A 150ms grace period prevents walk↔idle animation toggling during deceleration
+- Animation name is stored in `useState` — only changes when truly needed to avoid PaperDoll's `useEffect` resetting the clock
+
+### Vertex distortion shader
+
+- Uses `onBeforeCompile` to patch MeshBasicMaterial's vertex shader
+- Geometry needs subdivisions (8×8) for smooth warping
+- Speed/velocity uniforms are smoothed with exponential filtering to avoid jitter
+- Y bounds per geometry are set via `setDistortBounds()` for proper height normalization
+
+### Camera occlusion
+
+- Raycast from camera to player each frame; any wall intersection closer than the player fades that wall
+- Opacity is smoothly lerped (not snapped) for natural transitions
+- Wall materials need `transparent: true` set on ref callback
+
+### Click-to-move vs camera drag
+
+- Both use left mouse — differentiated by drag threshold (5px)
+- `wasCameraDrag` is exported from Camera and checked in ClickPlane
+- WASD input cancels any active click-to-move target
