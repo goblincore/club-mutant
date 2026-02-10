@@ -82,7 +82,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       name: 'untitled',
       parts: parts.map((p) => ({
         id: p.id,
-        texture: `${p.id}.png`,
+        texture: p.originalFilename,
         pivot: p.pivot,
         size: [p.textureWidth, p.textureHeight] as [number, number],
         parent: p.parentId,

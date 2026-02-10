@@ -35,6 +35,7 @@ export function PartsPanel() {
           const part: CharacterPart = {
             id: generatePartId(file),
             textureUrl: url,
+            originalFilename: file.name,
             textureWidth: img.width,
             textureHeight: img.height,
             pivot: [0.5, 0.5],

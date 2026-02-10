@@ -192,6 +192,9 @@ export class NetworkManager {
         const ms = data.musicStream
         if (!ms) return
 
+        // Skip ambient background streams — no DJ is playing
+        if (ms.isAmbient) return
+
         useMusicStore.getState().setStream({
           currentLink: ms.currentLink ?? null,
           currentTitle: ms.currentTitle ?? null,
@@ -209,7 +212,11 @@ export class NetworkManager {
 
     // Sync music state from room on join (late-join)
     const roomState = this.room.state as any
-    if (roomState.musicStream?.status === 'playing' && roomState.musicStream?.currentLink) {
+    if (
+      roomState.musicStream?.status === 'playing' &&
+      roomState.musicStream?.currentLink &&
+      !roomState.musicStream?.isAmbient
+    ) {
       const ms = roomState.musicStream
       useMusicStore.getState().setStream({
         currentLink: ms.currentLink,

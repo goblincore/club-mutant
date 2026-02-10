@@ -1,3 +1,5 @@
+import JSZip from 'jszip'
+
 import { useEditorStore } from '../store'
 
 export function Toolbar() {
@@ -6,14 +8,30 @@ export function Toolbar() {
   const exportManifest = useEditorStore((s) => s.exportManifest)
   const parts = useEditorStore((s) => s.parts)
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const json = exportManifest()
-    const blob = new Blob([json], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
+    const zip = new JSZip()
+
+    zip.file('manifest.json', json)
+
+    // Fetch each part's image blob and add to zip with the original filename
+    for (const part of parts) {
+      try {
+        const response = await fetch(part.textureUrl)
+        const blob = await response.blob()
+
+        zip.file(part.originalFilename, blob)
+      } catch (err) {
+        console.warn(`[export] Failed to fetch image for part "${part.id}":`, err)
+      }
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' })
+    const url = URL.createObjectURL(zipBlob)
     const a = document.createElement('a')
 
     a.href = url
-    a.download = 'character.json'
+    a.download = 'character.zip'
     a.click()
 
     URL.revokeObjectURL(url)
@@ -26,9 +44,7 @@ export function Toolbar() {
           PAPER RIG EDITOR
         </h1>
 
-        <span className="text-[10px] text-white/30 font-mono">
-          {parts.length} parts
-        </span>
+        <span className="text-[10px] text-white/30 font-mono">{parts.length} parts</span>
       </div>
 
       <div className="flex items-center gap-2">
@@ -50,7 +66,7 @@ export function Toolbar() {
           onClick={handleExport}
           disabled={parts.length === 0}
         >
-          export json
+          export zip
         </button>
       </div>
     </div>

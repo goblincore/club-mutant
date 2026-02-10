@@ -21,12 +21,11 @@ const CHARACTERS = [
     textureId: 1,
   },
   {
-    id: 'char3',
-    name: '???',
-    path: '/characters/default',
-    thumbnail: '/characters/default/head.png',
-    textureId: 0,
-    comingSoon: true,
+    id: 'default3',
+    name: 'Mutant',
+    path: '/characters/default3',
+    thumbnail: '/characters/default3/head.png',
+    textureId: 2,
   },
 ]
 
@@ -77,21 +76,18 @@ export function LobbyScreen() {
         <div className="flex gap-3">
           {CHARACTERS.map((char) => {
             const isSelected = char.id === selectedId
-            const isLocked = !!char.comingSoon
 
             return (
               <button
                 key={char.id}
-                onClick={() => !isLocked && setSelectedId(char.id)}
-                disabled={isLocked}
+                onClick={() => setSelectedId(char.id)}
                 className={`
-                  relative flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all
+                  relative flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all cursor-pointer
                   ${
                     isSelected
                       ? 'border-green-400/60 bg-green-500/10 shadow-[0_0_12px_rgba(74,222,128,0.15)]'
                       : 'border-white/10 bg-white/[0.03] hover:border-white/25'
                   }
-                  ${isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
                 `}
               >
                 {/* Character thumbnail */}
@@ -111,13 +107,6 @@ export function LobbyScreen() {
                 >
                   {char.name}
                 </span>
-
-                {/* Coming soon badge */}
-                {isLocked && (
-                  <span className="absolute -top-1.5 -right-1.5 text-[8px] font-mono bg-white/10 border border-white/20 rounded px-1 py-0.5 text-white/40">
-                    soon
-                  </span>
-                )}
 
                 {/* Selection indicator */}
                 {isSelected && (

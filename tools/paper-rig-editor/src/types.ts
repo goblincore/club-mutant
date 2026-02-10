@@ -2,6 +2,7 @@
 export interface CharacterPart {
   id: string
   textureUrl: string // object URL or asset path
+  originalFilename: string // original filename from the uploaded file
   textureWidth: number
   textureHeight: number
 
@@ -38,7 +39,16 @@ export type Keyframe = [number, number]
 // A single animation track targeting one bone property
 export interface AnimationTrack {
   boneId: string
-  property: 'rotation.x' | 'rotation.y' | 'rotation.z' | 'position.x' | 'position.y' | 'position.z'
+  property:
+    | 'rotation.x'
+    | 'rotation.y'
+    | 'rotation.z'
+    | 'position.x'
+    | 'position.y'
+    | 'position.z'
+    | 'scale.x'
+    | 'scale.y'
+    | 'scale.z'
   keys: Keyframe[]
 }
 
