@@ -15,13 +15,13 @@ interface SearchResult {
 
 // Fully leave the booth: disconnect, leave queue, close panel, unlock movement
 function leaveBooth() {
-  getNetwork().leaveDJQueue()
-  getNetwork().disconnectFromBooth()
+  getNetwork().disconnectFromBooth() // disconnect first (server guard check still sees active queue)
+  getNetwork().leaveDJQueue() // then leave queue (handles music stop)
   useUIStore.getState().setPlaylistOpen(false)
 }
 
-type BoothTab = 'queue' | 'playlists' | 'search'
-type BrowseTab = 'playlists' | 'search'
+type BoothTab = 'queue' | 'playlists'
+type PlaylistDetailTab = 'tracks' | 'search' | 'link'
 
 export function PlaylistPanel() {
   const isConnected = useBoothStore((s) => s.isConnected)
@@ -39,7 +39,10 @@ export function PlaylistPanel() {
 
   // Tabs
   const [boothTab, setBoothTab] = useState<BoothTab>('queue')
-  const [browseTab, setBrowseTab] = useState<BrowseTab>('playlists')
+
+  // Playlist navigation
+  const [viewingPlaylistId, setViewingPlaylistId] = useState<string | null>(null)
+  const [detailTab, setDetailTab] = useState<PlaylistDetailTab>('tracks')
 
   // Search
   const [searchQuery, setSearchQuery] = useState('')
@@ -50,9 +53,8 @@ export function PlaylistPanel() {
   // Playlist management
   const [newPlaylistName, setNewPlaylistName] = useState('')
   const [creating, setCreating] = useState(false)
-  const [viewingPlaylistId, setViewingPlaylistId] = useState<string | null>(null)
 
-  const activePlaylist = playlists.find((p) => p.id === (viewingPlaylistId ?? activePlaylistId))
+  const viewingPlaylist = playlists.find((p) => p.id === viewingPlaylistId) ?? null
 
   const handleSearch = useCallback(async () => {
     const q = searchQuery.trim()
@@ -78,26 +80,22 @@ export function PlaylistPanel() {
     }
   }, [searchQuery])
 
-  // Add search result to DJ queue (at booth) or to active playlist (browsing)
+  // Search always adds to the currently viewed playlist
   const handleAddFromSearch = useCallback(
     (result: SearchResult) => {
+      const targetId = viewingPlaylistId ?? activePlaylistId
+      if (!targetId) return
+
       const link = `https://www.youtube.com/watch?v=${result.videoId}`
 
-      if (isConnected) {
-        getNetwork().addToQueuePlaylist(result.title, link, result.duration ?? 0)
-      } else {
-        const targetId = viewingPlaylistId ?? activePlaylistId
-        if (!targetId) return
-
-        usePlaylistStore.getState().addTrack(targetId, {
-          id: crypto.randomUUID(),
-          title: result.title,
-          link,
-          duration: result.duration ?? 0,
-        })
-      }
+      usePlaylistStore.getState().addTrack(targetId, {
+        id: crypto.randomUUID(),
+        title: result.title,
+        link,
+        duration: result.duration ?? 0,
+      })
     },
-    [isConnected, viewingPlaylistId, activePlaylistId]
+    [viewingPlaylistId, activePlaylistId]
   )
 
   const handleAddLink = useCallback(() => {
@@ -107,24 +105,20 @@ export function PlaylistPanel() {
     const videoId = extractVideoId(url)
     if (!videoId) return
 
+    const targetId = viewingPlaylistId ?? activePlaylistId
+    if (!targetId) return
+
     const link = `https://www.youtube.com/watch?v=${videoId}`
 
-    if (isConnected) {
-      getNetwork().addToQueuePlaylist('YouTube Video', link, 0)
-    } else {
-      const targetId = viewingPlaylistId ?? activePlaylistId
-      if (!targetId) return
-
-      usePlaylistStore.getState().addTrack(targetId, {
-        id: crypto.randomUUID(),
-        title: 'YouTube Video',
-        link,
-        duration: 0,
-      })
-    }
+    usePlaylistStore.getState().addTrack(targetId, {
+      id: crypto.randomUUID(),
+      title: 'YouTube Video',
+      link,
+      duration: 0,
+    })
 
     setLinkInput('')
-  }, [linkInput, isConnected, viewingPlaylistId, activePlaylistId])
+  }, [linkInput, viewingPlaylistId, activePlaylistId])
 
   const handleCreatePlaylist = () => {
     const name = newPlaylistName.trim()
@@ -135,7 +129,7 @@ export function PlaylistPanel() {
     setCreating(false)
   }
 
-  // Add a single track from My Playlists to DJ queue
+  // Add a single track from playlist to DJ queue
   const handleAddTrackToQueue = (track: PlaylistTrack) => {
     getNetwork().addToQueuePlaylist(track.title, track.link, track.duration)
   }
@@ -154,265 +148,308 @@ export function PlaylistPanel() {
     getNetwork().removeFromQueuePlaylist(id)
   }, [])
 
-  // ---------- Shared sub-components ----------
+  // ---------- Playlist Detail View (Tracks / Search / Link sub-tabs) ----------
 
-  const searchContent = (
+  const playlistDetailView = viewingPlaylist ? (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Search */}
-      <div className="px-3 py-2 border-b border-white/[0.1]">
-        <div className="flex gap-1">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="search youtube..."
-            className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] text-white placeholder-white/30 focus:border-purple-400/50 focus:outline-none font-mono"
-          />
+      {/* Detail header: ← Back + playlist name */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.1]">
+        <button
+          onClick={() => {
+            setViewingPlaylistId(null)
+            setDetailTab('tracks')
+            setSearchResults([])
+            setSearchQuery('')
+          }}
+          className="text-[9px] font-mono text-white/40 hover:text-white flex items-center gap-1 flex-shrink-0"
+        >
+          ← Back
+        </button>
 
-          <button
-            onClick={handleSearch}
-            disabled={searching}
-            className="px-2 py-1 text-[9px] font-mono bg-white/10 border border-white/20 rounded text-white/60 hover:text-white transition-colors disabled:opacity-30"
-          >
-            {searching ? '...' : 'search'}
-          </button>
-        </div>
+        <span className="text-[11px] font-mono text-white/80 truncate flex-1 text-center">
+          {viewingPlaylist.name}
+        </span>
+
+        {/* Spacer to balance the back button */}
+        <div className="w-10 flex-shrink-0" />
       </div>
 
-      {/* Link paste */}
-      <div className="px-3 py-2 border-b border-white/[0.1]">
-        <div className="flex gap-1">
-          <input
-            type="text"
-            value={linkInput}
-            onChange={(e) => setLinkInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAddLink()}
-            placeholder="paste youtube link..."
-            className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] text-white placeholder-white/30 focus:border-purple-400/50 focus:outline-none font-mono"
-          />
-
+      {/* Sub-tabs: Tracks / Search / Link */}
+      <div className="flex border-b border-white/[0.15]">
+        {(['tracks', 'search', 'link'] as PlaylistDetailTab[]).map((t) => (
           <button
-            onClick={handleAddLink}
-            className="px-2 py-1 text-[9px] font-mono bg-white/10 border border-white/20 rounded text-white/60 hover:text-white transition-colors"
+            key={t}
+            onClick={() => setDetailTab(t)}
+            className={`flex-1 py-1.5 text-[10px] font-mono text-center transition-colors ${
+              detailTab === t
+                ? 'text-purple-300 border-b-2 border-purple-400'
+                : 'text-white/40 hover:text-white/60'
+            }`}
           >
-            add
+            {t === 'tracks' ? 'Tracks' : t === 'search' ? 'Search' : 'Link'}
           </button>
-        </div>
-      </div>
-
-      {/* Where tracks go */}
-      {!isConnected && playlists.length > 0 && (
-        <div className="px-3 py-1 border-b border-white/[0.06]">
-          <span className="text-[8px] font-mono text-white/25">
-            adding to: {activePlaylist?.name ?? 'select a playlist'}
-          </span>
-        </div>
-      )}
-
-      {/* Results */}
-      <div className="flex-1 overflow-y-auto px-3 py-1">
-        {searchResults.length === 0 && !searching && (
-          <p className="text-white/20 text-[10px] font-mono text-center mt-4">
-            {isConnected
-              ? 'search for tracks to add to your queue'
-              : 'search for tracks to add to your playlist'}
-          </p>
-        )}
-
-        {searchResults.map((result) => (
-          <div
-            key={result.videoId}
-            className="flex items-center gap-2 py-1.5 border-b border-white/[0.05] group"
-          >
-            {result.thumbnail && (
-              <img
-                src={result.thumbnail}
-                alt=""
-                className="w-10 h-7 rounded object-cover flex-shrink-0"
-              />
-            )}
-
-            <div className="flex-1 min-w-0">
-              <div className="text-[10px] font-mono text-white/70 truncate">{result.title}</div>
-
-              {result.duration ? (
-                <div className="text-[8px] font-mono text-white/30">
-                  {formatDuration(result.duration)}
-                </div>
-              ) : null}
-            </div>
-
-            <button
-              onClick={() => handleAddFromSearch(result)}
-              className="text-[9px] font-mono px-1.5 py-0.5 bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 hover:bg-purple-500/30 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-            >
-              +
-            </button>
-          </div>
         ))}
       </div>
-    </div>
-  )
 
-  const playlistsContent = (
-    <div className="flex-1 overflow-y-auto px-3 py-2">
-      {/* Viewing a specific playlist's tracks */}
-      {viewingPlaylistId && activePlaylist ? (
-        <>
-          <button
-            onClick={() => setViewingPlaylistId(null)}
-            className="text-[9px] font-mono text-white/40 hover:text-white mb-2 flex items-center gap-1"
-          >
-            ← back to playlists
-          </button>
+      {/* Sub-tab content */}
+      {detailTab === 'tracks' ? (
+        <div className="flex-1 overflow-y-auto px-3 py-2">
+          {isConnected && viewingPlaylist.items.length > 0 && (
+            <button
+              onClick={() => handleAddAllToQueue(viewingPlaylist.id)}
+              className="mb-2 w-full py-1 text-[9px] font-mono bg-green-500/15 border border-green-500/25 rounded text-green-400 hover:bg-green-500/25 transition-colors"
+            >
+              + add all to queue
+            </button>
+          )}
 
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-mono text-white/80">{activePlaylist.name}</span>
-
-            {isConnected && activePlaylist.items.length > 0 && (
-              <button
-                onClick={() => handleAddAllToQueue(activePlaylist.id)}
-                className="text-[8px] font-mono px-1.5 py-0.5 bg-green-500/20 border border-green-500/30 rounded text-green-400 hover:bg-green-500/30 transition-colors"
-              >
-                add all to queue
-              </button>
-            )}
-          </div>
-
-          {activePlaylist.items.length === 0 && (
-            <p className="text-white/20 text-[10px] font-mono mt-2">
-              empty playlist — use Search & Add to add tracks
+          {viewingPlaylist.items.length === 0 && (
+            <p className="text-white/20 text-[10px] font-mono text-center mt-4">
+              no tracks yet — use Search or Link tabs to add
             </p>
           )}
 
-          {activePlaylist.items.map((track, i) => (
-            <div key={track.id} className="flex items-center justify-between py-1 group">
-              <div className="text-[10px] font-mono text-white/70 truncate flex-1 mr-2">
-                {i + 1}. {track.title}
+          {viewingPlaylist.items.map((track) => (
+            <div
+              key={track.id}
+              className="flex items-center py-1.5 border-b border-white/[0.05] group"
+            >
+              <div className="flex-1 min-w-0 mr-2">
+                <div className="text-[10px] font-mono text-white/70 truncate">{track.title}</div>
               </div>
 
-              <div className="flex gap-1 flex-shrink-0">
-                {isConnected && (
-                  <button
-                    onClick={() => handleAddTrackToQueue(track)}
-                    className="text-[8px] font-mono text-green-400/60 hover:text-green-400 transition-colors opacity-0 group-hover:opacity-100"
-                    title="Add to DJ queue"
-                  >
-                    +queue
-                  </button>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {track.duration > 0 && (
+                  <span className="text-[9px] font-mono text-white/30 mr-1">
+                    {formatDuration(track.duration)}
+                  </span>
                 )}
 
                 <button
                   onClick={() =>
-                    usePlaylistStore.getState().removeTrack(activePlaylist.id, track.id)
+                    usePlaylistStore.getState().removeTrack(viewingPlaylist.id, track.id)
                   }
-                  className="text-[9px] text-white/30 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                  className="w-5 h-5 flex items-center justify-center text-[10px] text-white/25 hover:text-red-400 transition-colors"
+                  title="Delete track"
                 >
-                  ✕
+                  🗑
                 </button>
-              </div>
-            </div>
-          ))}
-        </>
-      ) : (
-        <>
-          {/* Playlist list */}
-          {playlists.length === 0 && !creating && (
-            <p className="text-white/20 text-[10px] font-mono text-center mt-4">
-              no playlists yet — create one to start saving tracks
-            </p>
-          )}
 
-          {playlists.map((pl) => (
-            <div
-              key={pl.id}
-              className="flex items-center justify-between py-1.5 border-b border-white/[0.05] group cursor-pointer hover:bg-white/[0.03] rounded px-1 -mx-1"
-              onClick={() => {
-                setViewingPlaylistId(pl.id)
-                usePlaylistStore.getState().setActivePlaylist(pl.id)
-              }}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-mono text-white/70">{pl.name}</div>
-
-                <div className="text-[8px] font-mono text-white/30">
-                  {pl.items.length} track{pl.items.length !== 1 ? 's' : ''}
-                </div>
-              </div>
-
-              <div className="flex gap-1 flex-shrink-0">
-                {isConnected && pl.items.length > 0 && (
+                {isConnected && (
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleAddAllToQueue(pl.id)
-                    }}
-                    className="text-[8px] font-mono px-1 py-0.5 text-green-400/60 hover:text-green-400 transition-colors opacity-0 group-hover:opacity-100"
+                    onClick={() => handleAddTrackToQueue(track)}
+                    className="w-5 h-5 flex items-center justify-center text-[11px] text-white/25 hover:text-green-400 transition-colors"
+                    title="Add to DJ queue"
                   >
-                    +all
+                    +
                   </button>
                 )}
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    usePlaylistStore.getState().removePlaylist(pl.id)
-                  }}
-                  className="text-[9px] text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                >
-                  ✕
-                </button>
               </div>
             </div>
           ))}
-
-          {/* Create playlist */}
-          {creating ? (
-            <div className="flex gap-1 mt-2">
+        </div>
+      ) : detailTab === 'search' ? (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="px-3 py-2 border-b border-white/[0.1]">
+            <div className="flex gap-1">
               <input
                 type="text"
-                value={newPlaylistName}
-                onChange={(e) => setNewPlaylistName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCreatePlaylist()}
-                placeholder="playlist name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                placeholder="search youtube..."
                 className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] text-white placeholder-white/30 focus:border-purple-400/50 focus:outline-none font-mono"
-                autoFocus
               />
 
               <button
-                onClick={handleCreatePlaylist}
-                className="px-2 py-1 text-[9px] font-mono bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 hover:bg-purple-500/30 transition-colors"
+                onClick={handleSearch}
+                disabled={searching}
+                className="px-2 py-1 text-[9px] font-mono bg-white/10 border border-white/20 rounded text-white/60 hover:text-white transition-colors disabled:opacity-30"
               >
-                create
-              </button>
-
-              <button
-                onClick={() => {
-                  setCreating(false)
-                  setNewPlaylistName('')
-                }}
-                className="px-1.5 py-1 text-[9px] font-mono text-white/30 hover:text-white transition-colors"
-              >
-                ✕
+                {searching ? '...' : 'go'}
               </button>
             </div>
-          ) : (
+          </div>
+
+          <div className="px-3 py-1 border-b border-white/[0.06]">
+            <span className="text-[8px] font-mono text-white/25">
+              adding to: {viewingPlaylist.name}
+            </span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-3 py-1">
+            {searchResults.length === 0 && !searching && (
+              <p className="text-white/20 text-[10px] font-mono text-center mt-4">
+                search for tracks to add to this playlist
+              </p>
+            )}
+
+            {searchResults.map((result) => (
+              <div
+                key={result.videoId}
+                className="flex items-center gap-2 py-1.5 border-b border-white/[0.05] group"
+              >
+                {result.thumbnail && (
+                  <img
+                    src={result.thumbnail}
+                    alt=""
+                    className="w-10 h-7 rounded object-cover flex-shrink-0"
+                  />
+                )}
+
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] font-mono text-white/70 truncate">{result.title}</div>
+
+                  {result.duration ? (
+                    <div className="text-[8px] font-mono text-white/30">
+                      {formatDuration(result.duration)}
+                    </div>
+                  ) : null}
+                </div>
+
+                <button
+                  onClick={() => handleAddFromSearch(result)}
+                  className="text-[9px] font-mono px-1.5 py-0.5 bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 hover:bg-purple-500/30 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                >
+                  +
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        /* Link tab */
+        <div className="flex-1 flex flex-col px-3 py-3">
+          <div className="flex gap-1">
+            <input
+              type="text"
+              value={linkInput}
+              onChange={(e) => setLinkInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddLink()}
+              placeholder="paste youtube link..."
+              className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] text-white placeholder-white/30 focus:border-purple-400/50 focus:outline-none font-mono"
+            />
+
             <button
-              onClick={() => setCreating(true)}
-              className="mt-2 w-full py-1.5 text-[9px] font-mono text-white/30 hover:text-white/60 border border-dashed border-white/10 hover:border-white/20 rounded transition-colors"
+              onClick={handleAddLink}
+              className="px-2 py-1 text-[9px] font-mono bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 hover:bg-purple-500/30 transition-colors"
             >
-              + new playlist
+              add
             </button>
-          )}
-        </>
+          </div>
+
+          <p className="text-white/20 text-[10px] font-mono mt-3">
+            paste a YouTube URL to add it to{' '}
+            <span className="text-white/40">{viewingPlaylist.name}</span>
+          </p>
+        </div>
+      )}
+    </div>
+  ) : null
+
+  // ---------- Playlist List View ----------
+
+  const playlistListView = (
+    <div className="flex-1 overflow-y-auto px-3 py-2">
+      {playlists.length === 0 && !creating && (
+        <p className="text-white/20 text-[10px] font-mono text-center mt-4">
+          no playlists yet — create one to start saving tracks
+        </p>
+      )}
+
+      {playlists.map((pl) => (
+        <div
+          key={pl.id}
+          className="flex items-center justify-between py-1.5 border-b border-white/[0.05] group cursor-pointer hover:bg-white/[0.03] rounded px-1 -mx-1"
+          onClick={() => {
+            setViewingPlaylistId(pl.id)
+            setDetailTab('tracks')
+            usePlaylistStore.getState().setActivePlaylist(pl.id)
+          }}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] font-mono text-white/70">{pl.name}</div>
+
+            <div className="text-[8px] font-mono text-white/30">
+              {pl.items.length} track{pl.items.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+
+          <div className="flex gap-1 flex-shrink-0">
+            {isConnected && pl.items.length > 0 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleAddAllToQueue(pl.id)
+                }}
+                className="text-[8px] font-mono px-1 py-0.5 text-green-400/60 hover:text-green-400 transition-colors opacity-0 group-hover:opacity-100"
+              >
+                +all
+              </button>
+            )}
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                usePlaylistStore.getState().removePlaylist(pl.id)
+              }}
+              className="text-[9px] text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {/* Create playlist */}
+      {creating ? (
+        <div className="flex gap-1 mt-2">
+          <input
+            type="text"
+            value={newPlaylistName}
+            onChange={(e) => setNewPlaylistName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreatePlaylist()}
+            placeholder="playlist name..."
+            className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] text-white placeholder-white/30 focus:border-purple-400/50 focus:outline-none font-mono"
+            autoFocus
+          />
+
+          <button
+            onClick={handleCreatePlaylist}
+            className="px-2 py-1 text-[9px] font-mono bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 hover:bg-purple-500/30 transition-colors"
+          >
+            create
+          </button>
+
+          <button
+            onClick={() => {
+              setCreating(false)
+              setNewPlaylistName('')
+            }}
+            className="px-1.5 py-1 text-[9px] font-mono text-white/30 hover:text-white transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setCreating(true)}
+          className="mt-2 w-full py-1.5 text-[9px] font-mono text-white/30 hover:text-white/60 border border-dashed border-white/10 hover:border-white/20 rounded transition-colors"
+        >
+          + new playlist
+        </button>
       )}
     </div>
   )
 
+  // ---------- My Playlists content (list or detail) ----------
+
+  const myPlaylistsContent =
+    viewingPlaylistId && viewingPlaylist ? playlistDetailView : playlistListView
+
   // ---------- Layout ----------
 
-  // When at booth: DJ booth header + 3 tabs
+  // When at booth: DJ booth header + 2 tabs (DJ Queue / My Playlists)
   if (isConnected) {
     return (
       <div className="flex flex-col h-full">
@@ -472,9 +509,9 @@ export function PlaylistPanel() {
           </div>
         )}
 
-        {/* Tabs */}
+        {/* 2 tabs: DJ Queue / My Playlists */}
         <div className="flex border-b border-white/[0.15]">
-          {(['queue', 'playlists', 'search'] as BoothTab[]).map((t) => (
+          {(['queue', 'playlists'] as BoothTab[]).map((t) => (
             <button
               key={t}
               onClick={() => setBoothTab(t)}
@@ -484,7 +521,7 @@ export function PlaylistPanel() {
                   : 'text-white/40 hover:text-white/60'
               }`}
             >
-              {t === 'queue' ? 'DJ Queue' : t === 'playlists' ? 'My Playlists' : 'Search & Add'}
+              {t === 'queue' ? 'DJ Queue' : 'My Playlists'}
             </button>
           ))}
         </div>
@@ -526,7 +563,7 @@ export function PlaylistPanel() {
 
             {queuePlaylist.length === 0 && (
               <p className="text-white/20 text-[10px] font-mono mt-2">
-                no tracks — use My Playlists or Search & Add
+                no tracks — go to My Playlists to add tracks
               </p>
             )}
 
@@ -550,16 +587,14 @@ export function PlaylistPanel() {
               </div>
             ))}
           </div>
-        ) : boothTab === 'playlists' ? (
-          playlistsContent
         ) : (
-          searchContent
+          myPlaylistsContent
         )}
       </div>
     )
   }
 
-  // When NOT at booth: simple My Playlists manager
+  // When NOT at booth: My Playlists (list or detail)
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -574,24 +609,7 @@ export function PlaylistPanel() {
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-white/[0.15]">
-        {(['playlists', 'search'] as BrowseTab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setBrowseTab(t)}
-            className={`flex-1 py-1.5 text-[10px] font-mono text-center transition-colors ${
-              browseTab === t
-                ? 'text-purple-300 border-b-2 border-purple-400'
-                : 'text-white/40 hover:text-white/60'
-            }`}
-          >
-            {t === 'playlists' ? 'My Playlists' : 'Search & Add'}
-          </button>
-        ))}
-      </div>
-
-      {browseTab === 'playlists' ? playlistsContent : searchContent}
+      {myPlaylistsContent}
     </div>
   )
 }

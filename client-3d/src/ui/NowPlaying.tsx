@@ -1,19 +1,40 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 import ReactPlayer from 'react-player/youtube'
 
+import { getNetwork } from '../network/NetworkManager'
 import { useMusicStore } from '../stores/musicStore'
 import { useBoothStore } from '../stores/boothStore'
+import { useGameStore } from '../stores/gameStore'
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
 
 export function NowPlaying() {
   const stream = useMusicStore((s) => s.stream)
   const videoBackground = useBoothStore((s) => s.videoBackgroundEnabled)
-  const videoBgMode = useBoothStore((s) => s.videoBgMode)
-  const videoBgLabel = useBoothStore((s) => s.videoBgLabel)
   const toggleVideo = useBoothStore((s) => s.toggleVideoBackground)
+  const currentDjSessionId = useBoothStore((s) => s.currentDjSessionId)
+  const djQueue = useBoothStore((s) => s.djQueue)
+  const mySessionId = useGameStore((s) => s.mySessionId)
+  const isCurrentDJ = currentDjSessionId === mySessionId
+
   const playerRef = useRef<ReactPlayer>(null)
-  const [minimized, setMinimized] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
+  const [totalDuration, setTotalDuration] = useState(0)
 
   const isPlaying = stream.isPlaying && !!stream.currentLink
+
+  // When the current DJ's song ends, notify the server to advance rotation
+  const handleEnded = useCallback(() => {
+    if (!isCurrentDJ) return
+
+    console.log('[NowPlaying] Song ended, sending djTurnComplete')
+    getNetwork().djTurnComplete()
+  }, [isCurrentDJ])
 
   // Seek to correct offset on stream start (late-join sync)
   useEffect(() => {
@@ -26,113 +47,118 @@ export function NowPlaying() {
     }
   }, [stream.currentLink, stream.startTime, stream.isPlaying])
 
-  // Auto-expand when a new track starts
+  // Track elapsed time and total duration
   useEffect(() => {
-    if (isPlaying) setMinimized(false)
-  }, [stream.currentLink])
+    if (!isPlaying || !stream.startTime) {
+      setElapsed(0)
+      setTotalDuration(0)
+      return
+    }
+
+    const tick = () => {
+      setElapsed(Math.max(0, Math.floor((Date.now() - stream.startTime) / 1000)))
+
+      const dur = playerRef.current?.getDuration?.()
+
+      if (dur && typeof dur === 'number' && dur > 0) {
+        setTotalDuration(Math.floor(dur))
+      }
+    }
+
+    tick()
+    const id = setInterval(tick, 1000)
+
+    return () => clearInterval(id)
+  }, [isPlaying, stream.startTime, stream.currentLink])
+
+  // Build "up next" text
+  const nextDJ = djQueue.length > 1 ? djQueue[1] : null
+  const upNextText = nextDJ ? `Up next: ${nextDJ.name}` : null
+
+  // Time display
+  const timeText =
+    isPlaying && totalDuration > 0
+      ? `${formatTime(elapsed)} / ${formatTime(totalDuration)}`
+      : isPlaying
+        ? formatTime(elapsed)
+        : null
+
+  // Nothing playing, nothing to show
+  if (!isPlaying) {
+    return null
+  }
 
   return (
     <>
-      {/* Hidden audio player (only when playing) */}
-      {isPlaying && (
-        <div className="fixed -left-[9999px] -top-[9999px] w-1 h-1 overflow-hidden">
-          <ReactPlayer
-            ref={playerRef}
-            url={stream.currentLink!}
-            playing={stream.isPlaying}
-            volume={0.5}
-            width={1}
-            height={1}
-            config={{
-              playerVars: {
-                autoplay: 1,
-                controls: 0,
-              },
-            }}
-          />
-        </div>
-      )}
+      {/* Hidden audio player */}
+      <div className="fixed -left-[9999px] -top-[9999px] w-1 h-1 overflow-hidden">
+        <ReactPlayer
+          ref={playerRef}
+          url={stream.currentLink!}
+          playing={stream.isPlaying}
+          volume={0.5}
+          width={1}
+          height={1}
+          onEnded={handleEnded}
+          config={{
+            playerVars: {
+              autoplay: 1,
+              controls: 0,
+            },
+          }}
+        />
+      </div>
 
-      {/* Now playing bar */}
-      {minimized ? (
-        // Minimized: just a small clickable pill
-        <button
-          onClick={() => setMinimized(false)}
-          className="flex items-center gap-1.5 bg-black/70 backdrop-blur-sm border border-white/10 rounded-full px-2 py-1.5 hover:border-white/30 transition-colors"
-          title="Expand now playing"
-        >
-          <div
-            className={`relative w-5 h-5 rounded-full flex-shrink-0 ${
-              isPlaying
-                ? 'bg-gradient-to-br from-purple-500 to-pink-500 animate-spin'
-                : 'bg-white/10'
-            }`}
-            style={{ animationDuration: '3s' }}
-          >
-            <div className="w-1.5 h-1.5 rounded-full bg-black/80 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-          </div>
-
-          {isPlaying && (
-            <span className="text-[9px] font-mono text-white/50 max-w-[80px] truncate">
-              {stream.currentTitle ?? '♪'}
-            </span>
-          )}
-        </button>
-      ) : (
-        // Expanded: full bar
-        <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm border border-white/10 rounded-lg px-3 py-2 max-w-[400px]">
-          {/* Disc icon / minimize button */}
-          <button
-            onClick={() => setMinimized(true)}
-            className="relative w-6 h-6 rounded-full flex-shrink-0 hover:ring-1 hover:ring-white/20 transition-all"
-            title="Minimize"
-          >
-            <div
-              className={`w-6 h-6 rounded-full ${
-                isPlaying
-                  ? 'bg-gradient-to-br from-purple-500 to-pink-500 animate-spin'
-                  : 'bg-white/10'
-              }`}
-              style={{ animationDuration: '3s' }}
-            >
-              <div className="w-2 h-2 rounded-full bg-black/80 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-            </div>
-          </button>
-
-          <div className="min-w-0 flex-1">
-            {isPlaying ? (
-              <>
-                <div className="text-[10px] font-mono text-white/40 uppercase tracking-wider">
-                  {stream.currentDjName ? `${stream.currentDjName} playing` : 'now playing'}
-                </div>
-
-                <div className="text-[11px] font-mono text-white truncate">
-                  {stream.currentTitle ?? '♪ untitled'}
-                </div>
-              </>
-            ) : (
-              <div className="text-[11px] font-mono text-white/30 italic">
-                silence... the booth awaits a dj ♪
-              </div>
-            )}
-          </div>
-
-          {/* Video background toggle (only when playing) */}
-          {isPlaying && (
+      {/* Mini player bar */}
+      <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm border border-white/10 rounded-lg px-3 py-2 min-w-[320px] max-w-[500px]">
+        {/* DJ controls: stop + skip (only for current DJ) */}
+        {isCurrentDJ && (
+          <div className="flex items-center gap-1 flex-shrink-0">
             <button
-              onClick={toggleVideo}
-              className={`px-2 py-0.5 text-[9px] font-mono border rounded transition-colors flex-shrink-0 ${
-                videoBackground
-                  ? 'bg-purple-500/30 border-purple-500/50 text-purple-300'
-                  : 'bg-white/10 border-white/20 text-white/40 hover:text-white'
-              }`}
-              title={videoBackground ? 'Hide video background' : 'Show video background'}
+              onClick={() => getNetwork().djStop()}
+              className="w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 border border-white/15 rounded transition-colors"
+              title="Stop"
             >
-              {videoBackground ? `video: ${videoBgLabel || videoBgMode}` : 'video'}
+              <span className="text-[10px] text-white/70">■</span>
             </button>
-          )}
+
+            <button
+              onClick={() => getNetwork().djTurnComplete()}
+              className="w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 border border-white/15 rounded transition-colors"
+              title="Skip to next"
+            >
+              <span className="text-[10px] text-white/70">▶▶</span>
+            </button>
+          </div>
+        )}
+
+        {/* Track info */}
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-mono text-white truncate">
+            {stream.currentDjName ? `${stream.currentDjName} — ` : ''}
+            {stream.currentTitle ?? '♪ untitled'}
+          </div>
+
+          <div className="text-[9px] font-mono text-white/40 truncate">
+            {timeText}
+            {timeText && upNextText && ' • '}
+            {upNextText}
+          </div>
         </div>
-      )}
+
+        {/* Video background toggle */}
+        <button
+          onClick={toggleVideo}
+          className={`w-7 h-7 flex items-center justify-center border rounded transition-colors flex-shrink-0 ${
+            videoBackground
+              ? 'bg-purple-500/30 border-purple-500/50 text-purple-300'
+              : 'bg-white/10 border-white/20 text-white/40 hover:text-white'
+          }`}
+          title={videoBackground ? 'Hide video background' : 'Show video background'}
+        >
+          <span className="text-[11px]">📹</span>
+        </button>
+      </div>
     </>
   )
 }

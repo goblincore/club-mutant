@@ -7,6 +7,7 @@ import { useGameStore } from '../stores/gameStore'
 import { useChatStore } from '../stores/chatStore'
 import { useMusicStore } from '../stores/musicStore'
 import { useBoothStore } from '../stores/boothStore'
+import { getDJBoothWorldX, BOOTH_WORLD_Z } from '../scene/Room'
 
 const PLAYER_ID_KEY = 'club-mutant-3d:player-id'
 
@@ -83,29 +84,43 @@ export class NetworkManager {
         `[network] onAdd ${sessionId} textureId=${player.textureId} name=${player.name} pos=(${player.x},${player.y})→(${cx},${cy})`
       )
 
+      // Force local player to spawn at room center (server default 705,500 is for the 2D client)
+      const isLocal = sessionId === this.room?.sessionId
+      const spawnX = isLocal ? 0 : cx
+      const spawnY = isLocal ? 0 : cy
+
       gameStore.addPlayer(sessionId, {
         sessionId,
         name: player.name,
-        x: cx,
-        y: cy,
+        x: spawnX,
+        y: spawnY,
         textureId: player.textureId,
         animId: player.animId,
         scale: player.scale,
       })
 
-      // Sync local input position to server spawn for the local player
-      if (sessionId === this.room?.sessionId) {
-        gameStore.setLocalPosition(cx, cy)
+      if (isLocal) {
+        gameStore.setLocalPosition(0, 0)
+        // Tell the server we're at (0,0) so it doesn't echo back the 2D default
+        this.sendPosition(0, 0, 'idle')
       }
 
       const playerProxy = $(player) as any
 
+      // Only update remote players from server echoes —
+      // the local player drives its own position via input.
+      const localSessionId = this.room?.sessionId
+
       playerProxy.listen('x', (value: number) => {
-        useGameStore.getState().updatePlayer(sessionId, { x: clampPos(value) })
+        if (sessionId !== localSessionId) {
+          useGameStore.getState().updatePlayer(sessionId, { x: clampPos(value) })
+        }
       })
 
       playerProxy.listen('y', (value: number) => {
-        useGameStore.getState().updatePlayer(sessionId, { y: clampPos(value) })
+        if (sessionId !== localSessionId) {
+          useGameStore.getState().updatePlayer(sessionId, { y: clampPos(value) })
+        }
       })
 
       playerProxy.listen('name', (value: string) => {
@@ -216,6 +231,32 @@ export class NetworkManager {
         const myId = this.room?.sessionId
         const inQueue = payload.djQueue.some((e) => e.sessionId === myId)
         booth.setIsInQueue(inQueue)
+
+        // Reposition all DJs behind the booth based on their queue index
+        const WORLD_SCALE = 0.01
+        const behindBoothY = -(BOOTH_WORLD_Z - 0.8) / WORLD_SCALE
+        const queueCount = payload.djQueue.length
+        const gameState = useGameStore.getState()
+
+        for (let i = 0; i < queueCount; i++) {
+          const entry = payload.djQueue[i]
+          const offsetX = getDJBoothWorldX(i, queueCount)
+          const serverX = offsetX / WORLD_SCALE
+
+          if (entry.sessionId === myId) {
+            // Reposition local player
+            gameState.setLocalPosition(serverX, behindBoothY)
+
+            if (myId) {
+              gameState.updatePlayer(myId, { x: serverX, y: behindBoothY })
+            }
+
+            this.sendPosition(serverX, behindBoothY, 'idle')
+          } else {
+            // Reposition remote players
+            gameState.updatePlayer(entry.sessionId, { x: serverX, y: behindBoothY })
+          }
+        }
       }
     )
 
@@ -322,6 +363,10 @@ export class NetworkManager {
 
   djSkipTurn() {
     this.room?.send(Message.DJ_SKIP_TURN, {})
+  }
+
+  djTurnComplete() {
+    this.room?.send(Message.DJ_TURN_COMPLETE, {})
   }
 
   // Room queue playlist (per-player DJ queue tracks)

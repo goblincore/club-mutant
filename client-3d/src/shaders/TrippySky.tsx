@@ -86,8 +86,8 @@ void main() {
     float cloudHeight = 1.0 / max(elevation, 0.05);
     vec2 cloudUv = dir.xz * cloudHeight * 0.8;
 
-    // Drift clouds slowly
-    float drift = uTime * 0.02;
+    // Drift clouds
+    float drift = uTime * 0.4;
     cloudUv += vec2(drift, drift * 0.3);
 
     // Two layers of FBM for fluffy cloud shapes

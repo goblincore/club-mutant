@@ -58,8 +58,8 @@ function MinimizedBoothBar() {
       <button
         onClick={() => {
           const { getNetwork } = require('./network/NetworkManager')
-          getNetwork().leaveDJQueue()
           getNetwork().disconnectFromBooth()
+          getNetwork().leaveDJQueue()
           useUIStore.getState().setPlaylistOpen(false)
         }}
         className="text-[9px] font-mono px-2 py-0.5 bg-red-500/15 border border-red-500/30 rounded text-red-400 hover:bg-red-500/30 transition-colors"

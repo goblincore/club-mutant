@@ -6,7 +6,7 @@ import * as THREE from 'three'
 import { PaperDoll } from '../character/PaperDoll'
 import type { PlayerState } from '../stores/gameStore'
 import { useChatStore } from '../stores/chatStore'
-import { useBoothStore } from '../stores/boothStore'
+import { useMusicStore } from '../stores/musicStore'
 
 const WORLD_SCALE = 0.01 // Server pixels → world units
 const LOCAL_LERP = 18 // Fast lerp for local player (smooth but responsive)
@@ -52,7 +52,7 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
   const { camera } = useThree()
 
   const [animName, setAnimName] = useState('idle')
-  const isAtBooth = useBoothStore((s) => s.isConnected)
+  const isMusicPlaying = useMusicStore((s) => s.stream.isPlaying)
   const [flipX, setFlipX] = useState(false)
   const [speed, setSpeed] = useState(0)
   const [velX, setVelX] = useState(0)
@@ -135,13 +135,16 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
     if (Math.abs(roundedSpeed - speed) > 0.02) setSpeed(roundedSpeed)
     if (Math.abs(roundedVelX - velX) > 0.02) setVelX(roundedVelX)
 
-    // Dance scale bounce (squash-stretch) when at booth
+    const isWalking = vSq > MOVE_THRESHOLD
+    const shouldDance = isMusicPlaying && !isWalking && stopTimer.current <= 0
+
+    // Dance scale bounce (squash-stretch) when dancing
     if (charGroupRef.current) {
-      if (isLocal && isAtBooth) {
+      if (shouldDance) {
         danceClockRef.current += delta
-        const beat = (danceClockRef.current * (Math.PI * 2)) / 0.6 // match dance period ~0.6s per bounce
+        const beat = (danceClockRef.current * (Math.PI * 2)) / 0.6
         const scaleY = 1 + Math.sin(beat) * 0.08
-        const scaleX = 1 - Math.sin(beat) * 0.04 // inverse squash
+        const scaleX = 1 - Math.sin(beat) * 0.04
         charGroupRef.current.scale.set(scaleX, scaleY, 1)
       } else {
         danceClockRef.current = 0
@@ -149,7 +152,7 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
       }
     }
 
-    if (vSq > MOVE_THRESHOLD) {
+    if (isWalking) {
       stopTimer.current = STOP_GRACE
 
       if (animName !== 'walk') setAnimName('walk')
@@ -158,8 +161,9 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
     } else {
       stopTimer.current -= delta
 
-      if (stopTimer.current <= 0 && animName !== 'idle') {
-        setAnimName('idle')
+      if (stopTimer.current <= 0) {
+        const target = isMusicPlaying ? 'dance' : 'idle'
+        if (animName !== target) setAnimName(target)
       }
     }
   })
@@ -172,7 +176,7 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
         <group ref={charGroupRef} position={[0, 0.7, 0]}>
           <PaperDoll
             characterPath={characterPath}
-            animationName={isLocal && isAtBooth ? 'dance' : animName}
+            animationName={animName}
             flipX={flipX}
             speed={speed}
             velocityX={velX}
