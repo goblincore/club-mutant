@@ -1,10 +1,18 @@
 import { useEffect, useRef } from 'react'
 
 import { useGameStore } from '../stores/gameStore'
+import { useBoothStore } from '../stores/boothStore'
+import { useUIStore } from '../stores/uiStore'
 import { getNetwork } from '../network/NetworkManager'
 
 const SPEED = 150 // pixels per second (server coordinates)
 const CLICK_ARRIVE_THRESHOLD = 3 // server pixels — close enough to stop
+
+// DJ booth position in server coords (Room is 12x12, WORLD_SCALE=0.01, booth at z=-(half-0.6))
+// Server coords: booth center x=0/0.01=0, y = (half-0.6)/0.01 = 540
+const BOOTH_SERVER_X = 0
+const BOOTH_SERVER_Y = 540
+const BOOTH_INTERACT_RADIUS = 120 // server pixels
 
 // Shared click target — set by ClickPlane (in GameScene), consumed by tick loop
 let clickTarget: { x: number; y: number } | null = null
@@ -25,15 +33,39 @@ export function usePlayerInput() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
 
-      keysDown.current.add(e.key.toLowerCase())
+      const key = e.key.toLowerCase()
+      keysDown.current.add(key)
 
       // Any WASD key cancels click-to-move
-      if (
-        ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(
-          e.key.toLowerCase()
-        )
-      ) {
+      if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
         clickTarget = null
+      }
+
+      // R key: toggle DJ booth connection
+      if (key === 'r') {
+        const booth = useBoothStore.getState()
+        const state = useGameStore.getState()
+
+        if (booth.isConnected) {
+          // Leave booth
+          if (booth.isInQueue) {
+            getNetwork().leaveDJQueue()
+          }
+
+          getNetwork().disconnectFromBooth()
+          useUIStore.getState().setPlaylistOpen(false)
+        } else {
+          // Check proximity to booth
+          const dx = state.localX - BOOTH_SERVER_X
+          const dy = state.localY - BOOTH_SERVER_Y
+          const dist = Math.sqrt(dx * dx + dy * dy)
+
+          if (dist < BOOTH_INTERACT_RADIUS) {
+            getNetwork().connectToBooth(0)
+            getNetwork().joinDJQueue()
+            useUIStore.getState().setPlaylistOpen(true)
+          }
+        }
       }
     }
 

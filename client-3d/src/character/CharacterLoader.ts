@@ -42,17 +42,8 @@ const textureLoader = new THREE.TextureLoader()
 // Load a character manifest + all its textures
 export async function loadCharacter(basePath: string): Promise<LoadedCharacter> {
   const manifestUrl = `${basePath}/manifest.json`
-  console.log('[character] Loading manifest from:', manifestUrl)
-
   const response = await fetch(manifestUrl)
   const manifest: CharacterManifest = await response.json()
-
-  console.log(
-    '[character] Manifest loaded:',
-    manifest.name,
-    '— parts:',
-    manifest.parts.map((p) => `${p.id}(${p.texture})`).join(', ')
-  )
 
   const textures = new Map<string, THREE.Texture>()
 
@@ -76,14 +67,11 @@ export async function loadCharacter(basePath: string): Promise<LoadedCharacter> 
         })
 
         textures.set(part.id, tex)
-        console.log('[character] Loaded texture:', part.id, '←', url)
       } catch (err) {
         console.error('[character] Failed to load texture:', part.id, '←', url, err)
       }
     })
   )
-
-  console.log('[character] Total textures loaded:', textures.size, '/', manifest.parts.length)
 
   return { manifest, textures }
 }

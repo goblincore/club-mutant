@@ -5,6 +5,10 @@ import * as THREE from 'three'
 
 import { useGameStore } from '../stores/gameStore'
 
+interface RoomProps {
+  videoTexture?: THREE.VideoTexture | null
+}
+
 const ROOM_SIZE = 12
 const WALL_HEIGHT = 3
 const WALL_COLOR = '#e84420'
@@ -17,7 +21,71 @@ const OCCLUDE_OPACITY = 0.08 // near-invisible when blocking
 const raycaster = new THREE.Raycaster()
 const playerWorldPos = new THREE.Vector3()
 
-export function Room() {
+// Placeholder DJ booth — geometric boxes, ready for custom textures later
+// To add a texture: import { useTexture } from '@react-three/drei'
+// then: const tex = useTexture('/path/to/texture.png')
+// and add map={tex} to the <meshStandardMaterial>
+function DJBooth({ position }: { position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      {/* Main desk */}
+      <mesh position={[0, 0.5, 0]}>
+        <boxGeometry args={[3, 1, 0.8]} />
+        <meshStandardMaterial color="#1a1a2e" />
+      </mesh>
+
+      {/* Desk top surface (lighter) */}
+      <mesh position={[0, 1.02, 0]}>
+        <boxGeometry args={[3.1, 0.04, 0.85]} />
+        <meshStandardMaterial color="#2d2d44" />
+      </mesh>
+
+      {/* Left turntable */}
+      <mesh position={[-0.7, 1.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.25, 0.25, 0.02, 16]} />
+        <meshStandardMaterial color="#111111" />
+      </mesh>
+
+      {/* Right turntable */}
+      <mesh position={[0.7, 1.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.25, 0.25, 0.02, 16]} />
+        <meshStandardMaterial color="#111111" />
+      </mesh>
+
+      {/* Mixer (center strip) */}
+      <mesh position={[0, 1.06, 0]}>
+        <boxGeometry args={[0.4, 0.03, 0.5]} />
+        <meshStandardMaterial color="#333355" />
+      </mesh>
+
+      {/* Left speaker */}
+      <mesh position={[-1.8, 0.75, -0.1]}>
+        <boxGeometry args={[0.6, 1.5, 0.6]} />
+        <meshStandardMaterial color="#0d0d1a" />
+      </mesh>
+
+      {/* Left speaker cone */}
+      <mesh position={[-1.8, 0.75, 0.21]}>
+        <cylinderGeometry args={[0.18, 0.22, 0.04, 12]} />
+        <meshStandardMaterial color="#222244" />
+      </mesh>
+
+      {/* Right speaker */}
+      <mesh position={[1.8, 0.75, -0.1]}>
+        <boxGeometry args={[0.6, 1.5, 0.6]} />
+        <meshStandardMaterial color="#0d0d1a" />
+      </mesh>
+
+      {/* Right speaker cone */}
+      <mesh position={[1.8, 0.75, 0.21]}>
+        <cylinderGeometry args={[0.18, 0.22, 0.04, 12]} />
+        <meshStandardMaterial color="#222244" />
+      </mesh>
+    </group>
+  )
+}
+
+export function Room({ videoTexture }: RoomProps) {
   const half = ROOM_SIZE / 2
   const { camera } = useThree()
 
@@ -78,7 +146,11 @@ export function Room() {
       {/* Floor */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
         <planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} />
-        <meshStandardMaterial color={FLOOR_COLOR} />
+        {videoTexture ? (
+          <meshBasicMaterial map={videoTexture} toneMapped={false} />
+        ) : (
+          <meshStandardMaterial color={FLOOR_COLOR} />
+        )}
       </mesh>
 
       {/* Grid overlay */}
@@ -125,6 +197,9 @@ export function Room() {
         <planeGeometry args={[ROOM_SIZE, WALL_HEIGHT]} />
         <meshStandardMaterial color={WALL_COLOR} side={2} />
       </mesh>
+
+      {/* DJ Booth — placeholder against back wall */}
+      <DJBooth position={[0, 0, -(half - 0.6)]} />
 
       {/* Ambient light */}
       <ambientLight intensity={1.0} />

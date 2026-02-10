@@ -1,16 +1,43 @@
 import { useRef, useState } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { PaperDoll } from '../character/PaperDoll'
 import type { PlayerState } from '../stores/gameStore'
+import { useChatStore } from '../stores/chatStore'
 
 const WORLD_SCALE = 0.01 // Server pixels → world units
 const LOCAL_LERP = 18 // Fast lerp for local player (smooth but responsive)
 const REMOTE_LERP = 8 // Slower lerp for remote players
 const MOVE_THRESHOLD = 0.0001 // World-unit velocity² threshold for "moving"
 const STOP_GRACE = 0.15 // Seconds to keep "walk" after stopping (prevents flicker)
+const BILLBOARD_LERP = 4 // How fast the billboard rotation catches up (lower = more lag/twist)
+const TWIST_DAMPING = 6 // How fast the twist value decays
+
+function ChatBubble({ sessionId }: { sessionId: string }) {
+  const bubble = useChatStore((s) => s.bubbles.get(sessionId))
+
+  if (!bubble) return null
+
+  return (
+    <Html position={[0, 2.2, 0]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
+      <div className="relative max-w-[160px] px-2 py-1 bg-white rounded-lg text-[10px] text-black font-mono leading-tight select-none shadow-md">
+        {bubble.content}
+
+        {/* Tail */}
+        <div
+          className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-0 h-0"
+          style={{
+            borderLeft: '5px solid transparent',
+            borderRight: '5px solid transparent',
+            borderTop: '6px solid white',
+          }}
+        />
+      </div>
+    </Html>
+  )
+}
 
 interface PlayerEntityProps {
   player: PlayerState
@@ -20,16 +47,21 @@ interface PlayerEntityProps {
 
 export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityProps) {
   const groupRef = useRef<THREE.Group>(null)
+  const dollGroupRef = useRef<THREE.Group>(null)
+  const { camera } = useThree()
 
   const [animName, setAnimName] = useState('idle')
   const [flipX, setFlipX] = useState(false)
   const [speed, setSpeed] = useState(0)
   const [velX, setVelX] = useState(0)
+  const [bbTwist, setBbTwist] = useState(0)
 
   const lastVisualX = useRef(0)
   const stopTimer = useRef(0)
   const smoothSpeed = useRef(0)
   const smoothVelX = useRef(0)
+  const currentYRot = useRef(0)
+  const smoothTwist = useRef(0)
 
   useFrame((_, delta) => {
     if (!groupRef.current) return
@@ -45,6 +77,38 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
 
     groupRef.current.position.x = curX + (targetX - curX) * t
     groupRef.current.position.z = curZ + (targetZ - curZ) * t
+
+    // --- Billboard rotation (lazy, with twist) ---
+    if (dollGroupRef.current) {
+      // Angle from character to camera (Y-axis only)
+      const dx = camera.position.x - groupRef.current.position.x
+      const dz = camera.position.z - groupRef.current.position.z
+      const targetYRot = Math.atan2(dx, dz)
+
+      // Shortest-path angle difference
+      let angleDiff = targetYRot - currentYRot.current
+      while (angleDiff > Math.PI) angleDiff -= Math.PI * 2
+      while (angleDiff < -Math.PI) angleDiff += Math.PI * 2
+
+      // Lazy lerp toward target
+      const bbT = 1 - Math.exp(-BILLBOARD_LERP * delta)
+      currentYRot.current += angleDiff * bbT
+
+      dollGroupRef.current.rotation.y = currentYRot.current
+
+      // Angular velocity drives the twist
+      const angularVelocity = (angleDiff * bbT) / Math.max(delta, 0.001)
+
+      // Smooth the twist value
+      smoothTwist.current +=
+        (angularVelocity - smoothTwist.current) * (1 - Math.exp(-TWIST_DAMPING * delta))
+
+      // Clamp and quantize for setState
+      const clampedTwist = Math.max(-1, Math.min(1, smoothTwist.current * 0.3))
+      const roundedTwist = Math.round(clampedTwist * 100) / 100
+
+      if (Math.abs(roundedTwist - bbTwist) > 0.01) setBbTwist(roundedTwist)
+    }
 
     // Compute visual velocity for animation state
     const vx = groupRef.current.position.x - lastVisualX.current
@@ -84,23 +148,30 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
 
   return (
     <group ref={groupRef}>
-      {/* Character model — raised above ground */}
-      <group position={[0, 0.7, 0]}>
-        <PaperDoll
-          characterPath={characterPath}
-          animationName={animName}
-          flipX={flipX}
-          speed={speed}
-          velocityX={velX}
-        />
-      </group>
+      {/* Billboard rotation group — lazily faces camera */}
+      <group ref={dollGroupRef}>
+        {/* Character model — raised above ground */}
+        <group position={[0, 0.7, 0]}>
+          <PaperDoll
+            characterPath={characterPath}
+            animationName={animName}
+            flipX={flipX}
+            speed={speed}
+            velocityX={velX}
+            billboardTwist={bbTwist}
+          />
+        </group>
 
-      {/* Nametag */}
-      <Html position={[0, 1.8, 0]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
-        <div className="text-[10px] font-mono text-white bg-black/60 px-1.5 py-0.5 rounded whitespace-nowrap select-none">
-          {player.name}
-        </div>
-      </Html>
+        {/* Chat bubble */}
+        <ChatBubble sessionId={player.sessionId} />
+
+        {/* Nametag */}
+        <Html position={[0, 1.8, 0]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
+          <div className="text-[10px] font-mono text-white bg-black/60 px-1.5 py-0.5 rounded whitespace-nowrap select-none">
+            {player.name}
+          </div>
+        </Html>
+      </group>
     </group>
   )
 }

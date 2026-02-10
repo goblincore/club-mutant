@@ -143,19 +143,32 @@ Characters face the direction they're moving (left/right flip via scale.x = -1).
 - [x] Smooth movement interpolation (exponential lerp, no snapping)
 - [x] Stable walk/idle animation (grace period prevents flicker)
 
-### M2: Chat + music
+### M2: Chat + Music ✅ Complete
 
-- [x] Chat panel (basic — send/receive messages)
-- [ ] In-world chat bubbles (3D)
-- [ ] YouTube player integration
-- [ ] Playlist panel (room playlist)
-- [ ] DJ queue panel
-- [ ] Now playing display
+- [x] Chat panel moved to right side (full-height, matching 2D client style)
+- [x] In-world chat bubbles (Html overlay above players, auto-clear after 5s)
+- [x] YouTube audio player (hidden ReactPlayer, late-join seek sync)
+- [x] Now-playing mini bar (top-left, spinning disc, DJ name, track title)
+- [x] Music stream wiring (START_MUSIC_STREAM, STOP_MUSIC_STREAM, late-join state sync)
+- [x] Debug logging cleaned up from CharacterLoader + NetworkManager
+
+### M2.5: DJ Booth + Playlist + Video Background ✅ Complete
+
+- [x] Playlist panel (left side) with YouTube search, link paste, queue management
+- [x] DJ booth placeholder (geometric desk + turntables + speakers + mixer)
+- [x] DJ booth interaction: press R near booth → connect + join queue + open playlist
+- [x] DJ queue wiring (DJ_QUEUE_UPDATED, ROOM_QUEUE_PLAYLIST_UPDATED messages)
+- [x] DJ controls: play, stop, skip turn, leave queue
+- [x] Per-player queue playlist with add/remove tracks
+- [x] YouTube video background toggle (fullscreen behind 3D scene, pointer-events: none)
+- [x] Bottom toolbar with playlist/chat/PSX toggle buttons
+- [x] Booth store (boothStore.ts): booth connection, DJ queue, queue playlist, video background
 
 ### M3: Polish
 
 - [ ] PSX post-processing pass (dithering, color reduction, scanlines, low-res render)
-- [ ] Room furniture / decoration / music booth
+- [ ] Textured DJ booth (custom texture via `useTexture` from drei)
+- [ ] Room furniture / decoration
 - [ ] Multiple character skins (character select)
 - [ ] Sound effects
 - [ ] Mobile touch controls
@@ -217,3 +230,36 @@ playersProxy.onAdd((player, sessionId) => {
 - Both use left mouse — differentiated by drag threshold (5px)
 - `wasCameraDrag` is exported from Camera and checked in ClickPlane
 - WASD input cancels any active click-to-move target
+
+### In-world chat bubbles
+
+- Per-player bubble map in `chatStore.bubbles` (Map<sessionId, {content, timestamp}>)
+- Auto-clear after 5s via `setTimeout` with timer cleanup
+- Both local (immediate on send) and remote (on `ADD_CHAT_MESSAGE`) set bubbles
+- Rendered as `Html` overlay in `PlayerEntity` with white speech bubble + CSS tail
+
+### DJ booth interaction
+
+- Booth proximity check uses server coords: booth at `(0, 540)`, interact radius 120px
+- R key toggles connection: connect → auto-join queue → open playlist; disconnect → leave queue → close playlist
+- Booth state in `boothStore.ts`: `isConnected`, `boothIndex`, `djQueue[]`, `currentDjSessionId`, `isInQueue`, `queuePlaylist[]`, `videoBackgroundEnabled`
+
+### YouTube integration
+
+- `react-player` added as dependency; uses `react-player/youtube` import for smaller bundle
+- Hidden ReactPlayer for audio-only; fullscreen `z-[-1]` + `pointer-events: none` for video background mode
+- Late-join seek: `useEffect` on `[currentLink, startTime, isPlaying]` computes offset and calls `seekTo`
+- Video background is local-only state (not synced to server yet — would need `SET_VIDEO_BACKGROUND` message)
+
+### Server HTTP URL for YouTube search
+
+- `NetworkManager` stores `httpBaseUrl` computed from the WebSocket URL (`ws→http` replace)
+- YouTube search: `GET {httpBaseUrl}/youtube/{query}` — server proxies to Go youtube-api service
+- Search results have inconsistent field casing from Go service (`Title` vs `title`) — mapped in PlaylistPanel
+
+### UI layout (M2.5)
+
+- Chat: right side, full height, `bg-black/[0.35] backdrop-blur-md border-l border-white/[0.25]`
+- Playlist: left side, same style, with DJ queue status bar + search + link paste + queue list + results
+- Now-playing: top-left, compact bar with spinning disc, DJ name, title, video toggle button
+- Bottom toolbar: centered, playlist/chat/PSX toggle buttons

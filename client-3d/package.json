@@ -16,6 +16,7 @@
     "@react-three/postprocessing": "^2.16.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
+    "react-player": "^2.16.1",
     "three": "^0.170.0",
     "zustand": "^5.0.0"
   },

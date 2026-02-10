@@ -15,7 +15,8 @@ interface PaperDollProps {
   animationName?: string
   flipX?: boolean
   speed?: number // 0..1 normalized movement speed
-  velocityX?: number // horizontal velocity for lean direction
+  velocityX?: number // horizontal velocity direction
+  billboardTwist?: number // angular velocity from billboard rotation
 }
 
 // A single part mesh within the bone hierarchy
@@ -101,6 +102,7 @@ export function PaperDoll({
   flipX = false,
   speed = 0,
   velocityX = 0,
+  billboardTwist = 0,
 }: PaperDollProps) {
   const [loaded, setLoaded] = useState<LoadedCharacter | null>(null)
   const boneRefs = useRef<Map<string, THREE.Group>>(new Map())
@@ -167,7 +169,7 @@ export function PaperDoll({
     distortTimeRef.current += delta
 
     for (const mat of materialsRef.current) {
-      updateDistortUniforms(mat, distortTimeRef.current, speed, velocityX)
+      updateDistortUniforms(mat, distortTimeRef.current, speed, velocityX, billboardTwist)
     }
   })
 

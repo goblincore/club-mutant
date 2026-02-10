@@ -17,6 +17,7 @@ export function createDistortMaterial(texture: THREE.Texture): THREE.MeshBasicMa
     uSpeed: { value: 0 }, // movement speed magnitude (0..1 normalized)
     uVelocityX: { value: 0 }, // horizontal velocity direction (-1..1)
     uBoundsY: { value: new THREE.Vector2(-0.5, 0.5) }, // min/max Y of the geometry
+    uBillboardTwist: { value: 0 }, // angular velocity of billboard rotation (rad/s)
   }
 
   material.onBeforeCompile = (shader) => {
@@ -26,6 +27,7 @@ export function createDistortMaterial(texture: THREE.Texture): THREE.MeshBasicMa
     shader.uniforms.uSpeed = uniforms.uSpeed
     shader.uniforms.uVelocityX = uniforms.uVelocityX
     shader.uniforms.uBoundsY = uniforms.uBoundsY
+    shader.uniforms.uBillboardTwist = uniforms.uBillboardTwist
 
     // Inject uniform declarations before main()
     shader.vertexShader = shader.vertexShader.replace(
@@ -35,6 +37,7 @@ export function createDistortMaterial(texture: THREE.Texture): THREE.MeshBasicMa
       uniform float uSpeed;
       uniform float uVelocityX;
       uniform vec2 uBoundsY;
+      uniform float uBillboardTwist;
 
       void main() {
       `
@@ -75,6 +78,20 @@ export function createDistortMaterial(texture: THREE.Texture): THREE.MeshBasicMa
 
       // 5. Bounce — subtle vertical bounce cycle
       transformed.y += abs(sin(uTime * 8.0)) * spd * 0.03;
+
+      // 6. Billboard twist — rubbery rotation, top twists more than bottom
+      float bTwist = uBillboardTwist;
+      float twistH = h * h; // quadratic: top moves way more
+      float bbAngle = twistH * bTwist * 2.5;
+      float bbc = cos(bbAngle);
+      float bbs = sin(bbAngle);
+      float bbx = transformed.x;
+      float bbz = transformed.z;
+      transformed.x = bbx * bbc - bbz * bbs;
+      transformed.z = bbx * bbs + bbz * bbc;
+
+      // Add subtle lateral shear from billboard twist (bendy feel)
+      transformed.x += twistH * bTwist * 0.12;
       `
     )
   }
@@ -91,6 +108,7 @@ export function updateDistortUniforms(
   time: number,
   speed: number,
   velocityX: number,
+  billboardTwist: number = 0
 ) {
   const u = material.userData.uniforms
   if (!u) return
@@ -98,6 +116,7 @@ export function updateDistortUniforms(
   u.uTime.value = time
   u.uSpeed.value = speed
   u.uVelocityX.value = velocityX
+  u.uBillboardTwist.value = billboardTwist
 }
 
 // Set the Y bounds for proper height normalization

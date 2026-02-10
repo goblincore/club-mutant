@@ -1,12 +1,14 @@
-import { Canvas, useThree } from '@react-three/fiber'
+import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { Suspense, useRef, useCallback } from 'react'
 import * as THREE from 'three'
+import { useBoothStore } from '../stores/boothStore'
 
 import { Room } from './Room'
 import { FollowCamera, wasCameraDrag } from './Camera'
 import { PlayerEntity } from './PlayerEntity'
 import { useGameStore } from '../stores/gameStore'
 import { usePlayerInput, setClickTarget } from '../input/usePlayerInput'
+import { useVideoBackground } from '../hooks/useVideoBackground'
 
 const WORLD_SCALE = 0.01
 
@@ -63,22 +65,54 @@ function Players() {
   )
 }
 
+const DEFAULT_BG = new THREE.Color('#2a0a3a')
+
+// Dynamically toggle scene background: opaque purple normally, transparent when iframe video is behind
+function DynamicBackground() {
+  const { scene } = useThree()
+  const prevIframe = useRef(false)
+
+  useFrame(() => {
+    const { videoBackgroundEnabled, videoBgMode } = useBoothStore.getState()
+    const isIframe = videoBackgroundEnabled && videoBgMode === 'iframe'
+
+    if (isIframe !== prevIframe.current) {
+      prevIframe.current = isIframe
+      scene.background = isIframe ? null : DEFAULT_BG
+    }
+  })
+
+  // Set initial background
+  scene.background = DEFAULT_BG
+
+  return null
+}
+
+function SceneContent() {
+  const videoTexture = useVideoBackground()
+
+  return (
+    <>
+      <DynamicBackground />
+      <Room videoTexture={videoTexture} />
+      <ClickPlane />
+      <Players />
+      <FollowCamera />
+    </>
+  )
+}
+
 export function GameScene() {
   usePlayerInput()
 
   return (
     <Canvas
       camera={{ position: [0, 8, 8], fov: 50, near: 0.1, far: 100 }}
-      gl={{ antialias: false, alpha: false }}
+      gl={{ antialias: false, alpha: true }}
       style={{ width: '100%', height: '100%' }}
     >
-      <color attach="background" args={['#2a0a3a']} />
-
       <Suspense fallback={null}>
-        <Room />
-        <ClickPlane />
-        <Players />
-        <FollowCamera />
+        <SceneContent />
       </Suspense>
     </Canvas>
   )

@@ -5,6 +5,8 @@ import { RoomType } from '@club-mutant/types/Rooms'
 
 import { useGameStore } from '../stores/gameStore'
 import { useChatStore } from '../stores/chatStore'
+import { useMusicStore } from '../stores/musicStore'
+import { useBoothStore } from '../stores/boothStore'
 
 const PLAYER_ID_KEY = 'club-mutant-3d:player-id'
 
@@ -24,6 +26,7 @@ export class NetworkManager {
   private room: Room<IOfficeState> | null = null
   private lobby: Room | null = null
   private moveThrottleTimer: ReturnType<typeof setTimeout> | null = null
+  private httpBaseUrl: string
 
   constructor(serverUrl?: string) {
     const url =
@@ -34,6 +37,7 @@ export class NetworkManager {
           : `wss://${window.location.hostname}`))
 
     this.client = new Client(url)
+    this.httpBaseUrl = url.replace(/^ws/, 'http')
   }
 
   async joinPublicRoom(playerName: string): Promise<void> {
@@ -47,8 +51,6 @@ export class NetworkManager {
 
       gameStore.setConnected(true, this.room.sessionId)
       this.wireRoomListeners()
-
-      console.log('[network] Joined public room, sessionId:', this.room.sessionId)
     } catch (err) {
       console.error('[network] Failed to join room:', err)
       throw err
@@ -64,21 +66,8 @@ export class NetworkManager {
     const stateProxy = $(this.room.state) as any
     const playersProxy = stateProxy.players
 
-    console.log('[network] Wiring room listeners...', {
-      stateProxy: typeof stateProxy,
-      playersProxy: typeof playersProxy,
-      hasOnAdd: typeof playersProxy?.onAdd,
-    })
-
     // Player add/remove/change
     playersProxy.onAdd((player: IPlayer, sessionId: string) => {
-      console.log(
-        '[network] Player added:',
-        sessionId,
-        player.name,
-        `pos(${player.x}, ${player.y})`
-      )
-
       const gameStore = useGameStore.getState()
       const chatStore = useChatStore.getState()
 
@@ -145,7 +134,7 @@ export class NetworkManager {
       })
     })
 
-    // Chat messages
+    // Chat messages (from other players)
     this.room.onMessage(Message.ADD_CHAT_MESSAGE, (data: { clientId: string; content: string }) => {
       const player = useGameStore.getState().players.get(data.clientId)
       const chatStore = useChatStore.getState()
@@ -156,18 +145,104 @@ export class NetworkManager {
         content: data.content,
         createdAt: Date.now(),
       })
+
+      // Show in-world chat bubble
+      if (data.clientId) {
+        chatStore.setBubble(data.clientId, data.content)
+      }
+    })
+
+    // Music stream messages
+    this.room.onMessage(
+      Message.START_MUSIC_STREAM,
+      (data: { musicStream: any; offset: number }) => {
+        const ms = data.musicStream
+        if (!ms) return
+
+        useMusicStore.getState().setStream({
+          currentLink: ms.currentLink ?? null,
+          currentTitle: ms.currentTitle ?? null,
+          currentDjName: ms.currentDj?.name ?? null,
+          startTime: ms.startTime ?? 0,
+          duration: ms.duration ?? 0,
+          isPlaying: true,
+        })
+      }
+    )
+
+    this.room.onMessage(Message.STOP_MUSIC_STREAM, () => {
+      useMusicStore.getState().clearStream()
+    })
+
+    // Sync music state from room on join (late-join)
+    const roomState = this.room.state as any
+    if (roomState.musicStream?.status === 'playing' && roomState.musicStream?.currentLink) {
+      const ms = roomState.musicStream
+      useMusicStore.getState().setStream({
+        currentLink: ms.currentLink,
+        currentTitle: ms.currentTitle ?? null,
+        currentDjName: ms.currentDj?.name ?? null,
+        startTime: ms.startTime ?? 0,
+        duration: ms.duration ?? 0,
+        isPlaying: true,
+      })
+    }
+
+    // DJ Queue updates
+    this.room.onMessage(
+      Message.DJ_QUEUE_UPDATED,
+      (payload: { djQueue: any[]; currentDjSessionId: string | null }) => {
+        const booth = useBoothStore.getState()
+        booth.setDJQueue(payload.djQueue, payload.currentDjSessionId)
+
+        const myId = this.room?.sessionId
+        const inQueue = payload.djQueue.some((e) => e.sessionId === myId)
+        booth.setIsInQueue(inQueue)
+      }
+    )
+
+    // Per-player queue playlist updates
+    this.room.onMessage(Message.ROOM_QUEUE_PLAYLIST_UPDATED, (payload: { items: any[] }) => {
+      useBoothStore.getState().setQueuePlaylist(
+        payload.items.map((item) => ({
+          id: item.id,
+          title: item.title,
+          link: item.link,
+          duration: item.duration ?? 0,
+          played: item.played ?? false,
+        }))
+      )
     })
 
     // Room leave
     this.room.onLeave((code: number) => {
       console.log('[network] Left room, code:', code)
       useGameStore.getState().setConnected(false)
+      useMusicStore.getState().clearStream()
+      useBoothStore.getState().setBoothConnected(false)
+      useBoothStore.getState().setIsInQueue(false)
     })
   }
 
   // Send chat message
   sendChat(content: string) {
     this.room?.send(Message.ADD_CHAT_MESSAGE, { content })
+
+    if (this.room?.sessionId) {
+      const myName =
+        useGameStore.getState().players.get(this.room.sessionId)?.name ?? this.room.sessionId
+
+      // Add to chat panel immediately
+      useChatStore.getState().addMessage({
+        id: crypto.randomUUID(),
+        author: myName,
+        content,
+        createdAt: Date.now(),
+      })
+
+      // Show local player's own bubble immediately
+      useChatStore.getState().setBubble(this.room.sessionId, content)
+    }
   }
 
   // Send position update (throttled)
@@ -197,6 +272,71 @@ export class NetworkManager {
 
   skipRoomPlaylist() {
     this.room?.send(Message.ROOM_PLAYLIST_SKIP, {})
+  }
+
+  // DJ booth
+  connectToBooth(boothIndex: number) {
+    this.room?.send(Message.CONNECT_TO_MUSIC_BOOTH, { visitorIndex: boothIndex })
+    useBoothStore.getState().setBoothConnected(true, boothIndex)
+  }
+
+  disconnectFromBooth() {
+    this.room?.send(Message.DISCONNECT_FROM_MUSIC_BOOTH, {})
+    useBoothStore.getState().setBoothConnected(false)
+  }
+
+  // DJ queue
+  joinDJQueue() {
+    this.room?.send(Message.DJ_QUEUE_JOIN, {})
+  }
+
+  leaveDJQueue() {
+    this.room?.send(Message.DJ_QUEUE_LEAVE, {})
+  }
+
+  djPlay() {
+    this.room?.send(Message.DJ_PLAY, {})
+  }
+
+  djStop() {
+    this.room?.send(Message.DJ_STOP, {})
+  }
+
+  djSkipTurn() {
+    this.room?.send(Message.DJ_SKIP_TURN, {})
+  }
+
+  // Room queue playlist (per-player DJ queue tracks)
+  addToQueuePlaylist(title: string, link: string, duration: number) {
+    this.room?.send(Message.ROOM_QUEUE_PLAYLIST_ADD, { title, link, duration })
+  }
+
+  removeFromQueuePlaylist(id: string) {
+    this.room?.send(Message.ROOM_QUEUE_PLAYLIST_REMOVE, { id })
+  }
+
+  // YouTube search (via server)
+  async searchYouTube(query: string): Promise<any[]> {
+    const res = await fetch(`${this.httpBaseUrl}/youtube/${encodeURIComponent(query)}`)
+    if (!res.ok) throw new Error('Search failed')
+
+    const data = await res.json()
+
+    // Go service returns { items: [...] }, legacy scraper returns raw array
+    return Array.isArray(data) ? data : (data.items ?? [])
+  }
+
+  // Resolve direct video URL for WebGL texture rendering
+  async resolveYouTube(videoId: string): Promise<{ url: string; expiresAtMs: number | null }> {
+    const res = await fetch(`${this.httpBaseUrl}/youtube/resolve/${videoId}`)
+    if (!res.ok) throw new Error('Resolve failed')
+
+    return res.json()
+  }
+
+  // Get proxied video URL (same-origin, avoids CORS issues with googlevideo)
+  getYouTubeProxyUrl(videoId: string): string {
+    return `${this.httpBaseUrl}/youtube/proxy/${videoId}`
   }
 
   get sessionId(): string | undefined {

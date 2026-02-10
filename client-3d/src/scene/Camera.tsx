@@ -111,8 +111,8 @@ export function FollowCamera() {
     const me = state.players.get(myId)
     if (!me) return
 
-    // Target = player world position
-    targetRef.current.set(me.x * WORLD_SCALE, 0, -me.y * WORLD_SCALE)
+    // Target = player world position, raised to character center height
+    targetRef.current.set(me.x * WORLD_SCALE, 0.7, -me.y * WORLD_SCALE)
 
     // Idle sway: oscillate azimuth when user hasn't interacted recently
     const now = performance.now() / 1000

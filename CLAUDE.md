@@ -20,12 +20,18 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Assets: `client/public/assets`
 - `client-3d/` **(new — Feb 2026)**
   - PSX-style 3D multiplayer client replacing Phaser 2D. Same server, same protocol.
-  - Tech: Vite + React + react-three-fiber + drei + TailwindCSS + Zustand + @colyseus/sdk
+  - Tech: Vite + React + r3f + drei + TailwindCSS + Zustand + @colyseus/sdk + react-player
   - Dev server: port 5175 (`cd client-3d && pnpm dev`)
   - Characters: paper-doll rigs (flat textured planes on bone hierarchy) from rig editor export
-  - Key dirs: `src/scene/` (Room, Camera, PlayerEntity, GameScene), `src/character/` (PaperDoll, CharacterLoader, DistortMaterial, AnimationMixer), `src/network/` (NetworkManager), `src/stores/`, `src/input/`, `src/ui/`
+  - Key dirs:
+    - `src/scene/` — Room (walls + DJ booth + occlusion), Camera (orbit + sway), PlayerEntity (lerp + chat bubbles), GameScene (Canvas + ClickPlane)
+    - `src/character/` — PaperDoll, CharacterLoader, DistortMaterial (PaRappa vertex warp), AnimationMixer
+    - `src/network/` — NetworkManager (Colyseus client, player/chat/music/DJ queue wiring, YouTube search)
+    - `src/stores/` — gameStore, chatStore (+ bubbles), musicStore, uiStore, boothStore (DJ booth + queue + video bg)
+    - `src/input/` — usePlayerInput (WASD + click-to-move + R for booth)
+    - `src/ui/` — ChatPanel, PlaylistPanel (search + queue), NowPlaying (mini bar + video bg toggle), LobbyScreen
   - Planning doc: `docs/ideas/client-3d-psx-multiplayer.md`
-  - Electron types: `client/src/types/electron.d.ts`
+  - Status: M1 + M1.5 + M2 + M2.5 complete. M3 (PSX shaders, textures, skins) remaining.
 - `server/`
   - **Has its own `package.json` with `"type": "module"`** (required for Colyseus 0.17 decorator support)
   - Server code lives in `server/src/`
