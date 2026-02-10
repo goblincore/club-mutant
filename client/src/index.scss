@@ -7,6 +7,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   box-sizing: border-box;
+  background: #000;
 }
 
 *,
@@ -20,17 +21,125 @@ body {
   inset: 0;
   z-index: 1;
   background: #000;
+  transition: right 0.3s ease;
+
+  &.chat-expanded {
+    right: 360px;
+  }
+
+  // Glitch overlay (invisible by default)
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  &.glitch-transition::after {
+    animation: signal-glitch 0.45s ease-out forwards;
+    background:
+      // Scanlines
+      repeating-linear-gradient(
+        0deg,
+        transparent 0px,
+        transparent 2px,
+        rgba(0, 0, 0, 0.5) 2px,
+        rgba(0, 0, 0, 0.5) 3px
+      ),
+      // Horizontal color tear bands
+      linear-gradient(
+          180deg,
+          transparent 0%,
+          rgba(0, 255, 200, 0.12) 12%,
+          transparent 18%,
+          rgba(255, 0, 80, 0.1) 32%,
+          transparent 38%,
+          rgba(0, 150, 255, 0.15) 52%,
+          transparent 58%,
+          rgba(255, 255, 255, 0.08) 72%,
+          transparent 78%,
+          rgba(0, 255, 150, 0.12) 90%,
+          transparent 100%
+        );
+  }
+
+  // Hide the canvas during glitch so the WebGL blackout is invisible
+  &.glitch-transition canvas {
+    opacity: 0;
+  }
 
   canvas {
     position: relative;
     z-index: 1;
     display: block;
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    height: 100%;
   }
 
   > div {
     z-index: 0;
+  }
+}
+
+@keyframes signal-glitch {
+  // Phase 1: Fully opaque — bright CRT signal disruption (covers the 300ms resize)
+  0% {
+    opacity: 1;
+    background-color: rgba(220, 255, 245, 1);
+    background-position: 0 0;
+  }
+  4% {
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 1);
+    background-position: 6px 0;
+  }
+  8% {
+    opacity: 1;
+    background-color: rgba(200, 255, 240, 0.95);
+    background-position: -4px 0;
+  }
+  14% {
+    opacity: 1;
+    background-color: rgba(255, 180, 200, 0.9);
+    background-position: 5px 0;
+  }
+  22% {
+    opacity: 1;
+    background-color: rgba(230, 255, 245, 0.95);
+    background-position: -3px 0;
+  }
+  35% {
+    opacity: 1;
+    background-color: rgba(180, 255, 230, 0.9);
+    background-position: 2px 0;
+  }
+  50% {
+    opacity: 1;
+    background-color: rgba(240, 255, 250, 0.95);
+    background-position: -1px 0;
+  }
+  62% {
+    opacity: 0.95;
+    background-color: rgba(220, 245, 240, 0.9);
+    background-position: 0 0;
+  }
+  // Phase 2: Rapid fade — canvas has stabilized, reveal it
+  75% {
+    opacity: 0.5;
+    background-color: rgba(200, 230, 220, 0.4);
+    background-position: 0 0;
+  }
+  88% {
+    opacity: 0.15;
+    background-color: transparent;
+    background-position: 0 0;
+  }
+  100% {
+    opacity: 0;
+    background-color: transparent;
+    background-position: 0 0;
   }
 }
 

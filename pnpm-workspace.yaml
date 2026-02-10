@@ -1,5 +1,6 @@
 packages:
   - client
+  - client-3d
   - server
   - types
 
