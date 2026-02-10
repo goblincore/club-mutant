@@ -32,7 +32,7 @@ export class NetworkManager {
   constructor(serverUrl?: string) {
     const url =
       serverUrl ??
-      (import.meta.env.VITE_SERVER_URL ||
+      (import.meta.env.VITE_WS_ENDPOINT ||
         (window.location.hostname === 'localhost'
           ? 'ws://localhost:2567'
           : `wss://${window.location.hostname}`))

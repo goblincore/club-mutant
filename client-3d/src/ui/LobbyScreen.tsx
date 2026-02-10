@@ -66,11 +66,11 @@ export function LobbyScreen() {
     <div className="flex items-center justify-center w-full h-full bg-neutral-950">
       <div className="flex flex-col items-center gap-6 p-8 border border-white/10 rounded-xl bg-black/40 backdrop-blur max-w-md">
         <h1 className="text-2xl font-bold tracking-tight">
-          Club Mutant <span className="text-green-400">3D</span>
+          Club Mutant <span className="text-green-400"></span>
         </h1>
 
         <p className="text-xs text-white/40 max-w-xs text-center">
-          PSX-style multiplayer hangout. Pick a character and enter a name to join.
+          {/* PSX-style multiplayer hangout. Pick a character and enter a name to join. */}
         </p>
 
         {/* Character select grid */}
