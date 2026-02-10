@@ -4,6 +4,8 @@ import { Grid } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { useGameStore } from '../stores/gameStore'
+import { TvStaticFloorMaterial } from '../shaders/TvStaticFloor'
+import { TrippySky } from '../shaders/TrippySky'
 
 interface RoomProps {
   videoTexture?: THREE.VideoTexture | null
@@ -167,7 +169,7 @@ export function Room({ videoTexture, onBoothDoubleClick }: RoomProps) {
         {videoTexture ? (
           <meshBasicMaterial map={videoTexture} toneMapped={false} />
         ) : (
-          <meshStandardMaterial color={FLOOR_COLOR} />
+          <TvStaticFloorMaterial />
         )}
       </mesh>
 
@@ -218,6 +220,9 @@ export function Room({ videoTexture, onBoothDoubleClick }: RoomProps) {
 
       {/* DJ Booth — forward from back wall */}
       <DJBooth position={[0, 0, -(half - 2.5)]} onDoubleClick={onBoothDoubleClick} />
+
+      {/* Skybox */}
+      <TrippySky />
 
       {/* Ambient light */}
       <ambientLight intensity={1.0} />

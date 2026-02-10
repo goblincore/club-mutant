@@ -41,6 +41,16 @@ const VHS_FRAGMENT = /* glsl */ `
 
   varying vec2 vUv;
 
+  // ---- fisheye / barrel distortion ----
+  const float BARREL_STRENGTH = 0.35;
+
+  vec2 barrelDistort(vec2 uv) {
+    vec2 centered = uv - 0.5;
+    float r2 = dot(centered, centered);
+    float distort = 1.0 + r2 * BARREL_STRENGTH;
+    return centered * distort + 0.5;
+  }
+
   // ---- film grain (gold noise) ----
   float goldNoise(vec2 xy, float seed) {
     return fract(sin(dot(xy * seed, vec2(12.9898, 78.233))) * 43758.5453);
@@ -94,15 +104,24 @@ const VHS_FRAGMENT = /* glsl */ `
   }
 
   void main() {
-    vec4 raw = texture2D(tDiffuse, vUv);
-    vec2 pixelCoord = vUv * u_resolution;
+    // Apply fisheye distortion to UVs
+    vec2 distUv = barrelDistort(vUv);
+
+    // Black outside the distorted frame
+    if (distUv.x < 0.0 || distUv.x > 1.0 || distUv.y < 0.0 || distUv.y > 1.0) {
+      gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+      return;
+    }
+
+    vec4 raw = texture2D(tDiffuse, distUv);
+    vec2 pixelCoord = distUv * u_resolution;
 
     // ---- bloom / glow (additive — always brightens) ----
-    vec3 glow = sampleBloom(vUv);
+    vec3 glow = sampleBloom(distUv);
     vec3 color = raw.rgb + glow * 0.35;
 
     // ---- VHS chroma bleed (subtle) ----
-    vec3 chroma = chromaBleed(vUv);
+    vec3 chroma = chromaBleed(distUv);
     color = mix(color, chroma + glow * 0.35, 0.25);
 
     // ---- brightness lift (push brighter than unfiltered) ----
