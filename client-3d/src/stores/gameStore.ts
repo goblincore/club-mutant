@@ -22,12 +22,16 @@ export interface GameState {
   localX: number
   localY: number
 
+  // Character selection (set on lobby, used by renderer)
+  selectedCharacterPath: string
+
   // Actions
   setConnected: (connected: boolean, sessionId?: string) => void
   addPlayer: (sessionId: string, player: PlayerState) => void
   removePlayer: (sessionId: string) => void
   updatePlayer: (sessionId: string, updates: Partial<PlayerState>) => void
   setLocalPosition: (x: number, y: number) => void
+  setSelectedCharacterPath: (path: string) => void
 }
 
 export const useGameStore = create<GameState>((set) => ({
@@ -39,8 +43,9 @@ export const useGameStore = create<GameState>((set) => ({
   localX: 300,
   localY: 300,
 
-  setConnected: (connected, sessionId) =>
-    set({ connected, mySessionId: sessionId ?? null }),
+  selectedCharacterPath: '/characters/default',
+
+  setConnected: (connected, sessionId) => set({ connected, mySessionId: sessionId ?? null }),
 
   addPlayer: (sessionId, player) =>
     set((s) => {
@@ -67,4 +72,6 @@ export const useGameStore = create<GameState>((set) => ({
     }),
 
   setLocalPosition: (x, y) => set({ localX: x, localY: y }),
+
+  setSelectedCharacterPath: (path) => set({ selectedCharacterPath: path }),
 }))

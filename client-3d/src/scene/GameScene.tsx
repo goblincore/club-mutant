@@ -52,6 +52,7 @@ const DEFAULT_CHARACTER = '/characters/default'
 function Players() {
   const players = useGameStore((s) => s.players)
   const mySessionId = useGameStore((s) => s.mySessionId)
+  const selectedCharacterPath = useGameStore((s) => s.selectedCharacterPath)
 
   return (
     <>
@@ -60,7 +61,7 @@ function Players() {
           key={sessionId}
           player={player}
           isLocal={sessionId === mySessionId}
-          characterPath={DEFAULT_CHARACTER}
+          characterPath={sessionId === mySessionId ? selectedCharacterPath : DEFAULT_CHARACTER}
         />
       ))}
     </>
@@ -128,13 +129,19 @@ function SceneContent() {
   )
 }
 
+const MAX_HEIGHT = 540
+
 export function GameScene() {
   usePlayerInput()
+
+  // Cap renderer at 540p — compute dpr so rendered height never exceeds MAX_HEIGHT
+  const dpr = Math.min(1, MAX_HEIGHT / window.innerHeight)
 
   return (
     <Canvas
       camera={{ position: [0, 8, 8], fov: 50, near: 0.1, far: 100 }}
       gl={{ antialias: false, alpha: true }}
+      dpr={dpr}
       style={{ width: '100%', height: '100%' }}
     >
       <Suspense fallback={null}>

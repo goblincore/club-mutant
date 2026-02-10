@@ -10,6 +10,52 @@ import { createDistortMaterial, updateDistortUniforms, setDistortBounds } from '
 const PX_SCALE = 0.01
 const PLANE_SEGMENTS = 8 // subdivisions for smooth vertex distortion
 
+// Target character height in pixels — all characters are normalized to this
+const TARGET_HEIGHT_PX = 110
+
+// Compute a uniform scale factor so the character's bounding height matches TARGET_HEIGHT_PX
+function computeCharacterScale(parts: ManifestPart[]): number {
+  // Build a lookup: id → part
+  const byId = new Map<string, ManifestPart>()
+
+  for (const p of parts) byId.set(p.id, p)
+
+  // Compute absolute Y offset for each part (cumulative parent chain)
+  function absY(part: ManifestPart): number {
+    let y = part.offset[1]
+    let cur = part.parent ? byId.get(part.parent) : undefined
+
+    while (cur) {
+      y += cur.offset[1]
+      cur = cur.parent ? byId.get(cur.parent) : undefined
+    }
+
+    return y
+  }
+
+  let minY = Infinity
+  let maxY = -Infinity
+
+  for (const part of parts) {
+    const ay = absY(part)
+    const h = part.size[1]
+    const pivotFrac = part.pivot[1]
+
+    // Top and bottom of this part in pixel space (Y down in manifest)
+    const top = ay - pivotFrac * h
+    const bottom = ay + (1 - pivotFrac) * h
+
+    if (top < minY) minY = top
+    if (bottom > maxY) maxY = bottom
+  }
+
+  const totalHeight = maxY - minY
+
+  if (totalHeight <= 0) return 1
+
+  return TARGET_HEIGHT_PX / totalHeight
+}
+
 interface PaperDollProps {
   characterPath: string
   animationName?: string
@@ -173,12 +219,18 @@ export function PaperDoll({
     }
   })
 
+  // Compute uniform scale to normalize character height
+  const charScale = useMemo(() => {
+    if (!loaded) return 1
+    return computeCharacterScale(loaded.manifest.parts)
+  }, [loaded])
+
   if (!loaded) return null
 
   const rootParts = loaded.manifest.parts.filter((p) => p.parent === null)
 
   return (
-    <group scale={[flipX ? -1 : 1, 1, 1]}>
+    <group scale={[flipX ? -charScale : charScale, charScale, charScale]}>
       {rootParts.map((part) => {
         const tex = loaded.textures.get(part.id)
         if (!tex) return null

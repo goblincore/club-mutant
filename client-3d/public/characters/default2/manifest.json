@@ -1,0 +1,184 @@
+{
+  "name": "untitled",
+  "parts": [
+    {
+      "id": "larm_7",
+      "texture": "larm.png",
+      "pivot": [1, 1],
+      "size": [231, 120],
+      "parent": "body_11",
+      "offset": [-42, -71, -1],
+      "zIndex": 0,
+      "boneRole": "arm_l"
+    },
+    {
+      "id": "lleg_8",
+      "texture": "lleg.png",
+      "pivot": [1, 1],
+      "size": [320, 197],
+      "parent": "body_11",
+      "offset": [56, 4, -3],
+      "zIndex": 0,
+      "boneRole": "leg_l"
+    },
+    {
+      "id": "rarm_9",
+      "texture": "rarm.png",
+      "pivot": [0, 1],
+      "size": [231, 120],
+      "parent": "body_11",
+      "offset": [70, -55, 3],
+      "zIndex": 0,
+      "boneRole": "arm_r"
+    },
+    {
+      "id": "rleg_10",
+      "texture": "rleg.png",
+      "pivot": [0, 1],
+      "size": [320, 197],
+      "parent": "body_11",
+      "offset": [-22, 15, -1],
+      "zIndex": 0,
+      "boneRole": "leg_r"
+    },
+    {
+      "id": "body_11",
+      "texture": "body.png",
+      "pivot": [0.5, 0.5],
+      "size": [339, 124],
+      "parent": null,
+      "offset": [0, 0, 0],
+      "zIndex": 0,
+      "boneRole": "torso"
+    },
+    {
+      "id": "head_12",
+      "texture": "head.png",
+      "pivot": [0.5, 0.5],
+      "size": [787, 450],
+      "parent": "body_11",
+      "offset": [0, -234, 3],
+      "zIndex": 0,
+      "boneRole": "head"
+    }
+  ],
+  "animations": [
+    {
+      "name": "idle",
+      "fps": 10,
+      "duration": 2,
+      "interpolation": "linear",
+      "tracks": [
+        {
+          "boneId": "torso",
+          "property": "rotation.z",
+          "keys": [[0, 0], [1, 0.02], [2, 0]]
+        },
+        {
+          "boneId": "head",
+          "property": "rotation.z",
+          "keys": [[0, 0], [1, -0.03], [2, 0]]
+        },
+        {
+          "boneId": "arm_l",
+          "property": "rotation.z",
+          "keys": [[0, 0.05], [1, -0.02], [2, 0.05]]
+        },
+        {
+          "boneId": "arm_r",
+          "property": "rotation.z",
+          "keys": [[0, -0.05], [1, 0.02], [2, -0.05]]
+        }
+      ]
+    },
+    {
+      "name": "wave",
+      "fps": 12,
+      "duration": 1,
+      "interpolation": "linear",
+      "tracks": [
+        {
+          "boneId": "arm_r",
+          "property": "rotation.z",
+          "keys": [[0, 0.3], [0.25, 1.2], [0.5, 0.8], [0.75, 1.2], [1, 0.3]]
+        },
+        {
+          "boneId": "torso",
+          "property": "rotation.z",
+          "keys": [[0, 0], [0.5, 0.05], [1, 0]]
+        }
+      ]
+    },
+    {
+      "name": "walk",
+      "fps": 12,
+      "duration": 0.8,
+      "interpolation": "linear",
+      "tracks": [
+        {
+          "boneId": "torso",
+          "property": "rotation.z",
+          "keys": [[0, -0.04], [0.4, 0.04], [0.8, -0.04]]
+        },
+        {
+          "boneId": "arm_l",
+          "property": "rotation.z",
+          "keys": [[0, 0.4], [0.4, -0.4], [0.8, 0.4]]
+        },
+        {
+          "boneId": "arm_r",
+          "property": "rotation.z",
+          "keys": [[0, -0.4], [0.4, 0.4], [0.8, -0.4]]
+        },
+        {
+          "boneId": "leg_l",
+          "property": "rotation.z",
+          "keys": [[0, -0.3], [0.4, 0.3], [0.8, -0.3]]
+        },
+        {
+          "boneId": "leg_r",
+          "property": "rotation.z",
+          "keys": [[0, 0.3], [0.4, -0.3], [0.8, 0.3]]
+        }
+      ]
+    },
+    {
+      "name": "dance",
+      "fps": 12,
+      "duration": 1.2,
+      "interpolation": "step",
+      "tracks": [
+        {
+          "boneId": "torso",
+          "property": "position.y",
+          "keys": [[0, 0], [0.3, 8], [0.6, 0], [0.9, 8], [1.2, 0]]
+        },
+        {
+          "boneId": "torso",
+          "property": "rotation.z",
+          "keys": [[0, -0.08], [0.3, 0.08], [0.6, -0.08], [0.9, 0.08], [1.2, -0.08]]
+        },
+        {
+          "boneId": "arm_l",
+          "property": "rotation.z",
+          "keys": [[0, 0.5], [0.3, -0.8], [0.6, 0.5], [0.9, -0.8], [1.2, 0.5]]
+        },
+        {
+          "boneId": "arm_r",
+          "property": "rotation.z",
+          "keys": [[0, -0.8], [0.3, 0.5], [0.6, -0.8], [0.9, 0.5], [1.2, -0.8]]
+        },
+        {
+          "boneId": "leg_l",
+          "property": "rotation.z",
+          "keys": [[0, 0.15], [0.3, -0.15], [0.6, 0.15], [0.9, -0.15], [1.2, 0.15]]
+        },
+        {
+          "boneId": "leg_r",
+          "property": "rotation.z",
+          "keys": [[0, -0.15], [0.3, 0.15], [0.6, -0.15], [0.9, 0.15], [1.2, -0.15]]
+        }
+      ]
+    }
+  ]
+}
