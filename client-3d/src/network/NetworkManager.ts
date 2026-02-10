@@ -1,11 +1,10 @@
 import { Client, Room, getStateCallbacks } from '@colyseus/sdk'
-import type { IOfficeState, IPlayer, IRoomPlaylistItem } from '@club-mutant/types/IOfficeState'
+import type { IOfficeState, IPlayer } from '@club-mutant/types/IOfficeState'
 import { Message } from '@club-mutant/types/Messages'
 import { RoomType } from '@club-mutant/types/Rooms'
 
 import { useGameStore } from '../stores/gameStore'
 import { useChatStore } from '../stores/chatStore'
-import { useMusicStore } from '../stores/musicStore'
 
 const PLAYER_ID_KEY = 'club-mutant-3d:player-id'
 
@@ -27,12 +26,12 @@ export class NetworkManager {
   private moveThrottleTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(serverUrl?: string) {
-    const url = serverUrl ?? (
-      import.meta.env.VITE_SERVER_URL ||
-      (window.location.hostname === 'localhost'
-        ? 'ws://localhost:2567'
-        : `wss://${window.location.hostname}`)
-    )
+    const url =
+      serverUrl ??
+      (import.meta.env.VITE_SERVER_URL ||
+        (window.location.hostname === 'localhost'
+          ? 'ws://localhost:2567'
+          : `wss://${window.location.hostname}`))
 
     this.client = new Client(url)
   }
@@ -59,14 +58,30 @@ export class NetworkManager {
   private wireRoomListeners() {
     if (!this.room) return
 
-    const gameStore = useGameStore.getState()
-    const chatStore = useChatStore.getState()
-    const musicStore = useMusicStore.getState()
-
     const $ = getStateCallbacks(this.room)
 
+    // Colyseus 0.17 pattern: wrap state, then access collections on the proxy
+    const stateProxy = $(this.room.state) as any
+    const playersProxy = stateProxy.players
+
+    console.log('[network] Wiring room listeners...', {
+      stateProxy: typeof stateProxy,
+      playersProxy: typeof playersProxy,
+      hasOnAdd: typeof playersProxy?.onAdd,
+    })
+
     // Player add/remove/change
-    $(this.room.state.players).onAdd((player: IPlayer, sessionId: string) => {
+    playersProxy.onAdd((player: IPlayer, sessionId: string) => {
+      console.log(
+        '[network] Player added:',
+        sessionId,
+        player.name,
+        `pos(${player.x}, ${player.y})`
+      )
+
+      const gameStore = useGameStore.getState()
+      const chatStore = useChatStore.getState()
+
       gameStore.addPlayer(sessionId, {
         sessionId,
         name: player.name,
@@ -77,26 +92,46 @@ export class NetworkManager {
         scale: player.scale,
       })
 
-      $(player).onChange(() => {
-        gameStore.updatePlayer(sessionId, {
-          name: player.name,
-          x: player.x,
-          y: player.y,
-          textureId: player.textureId,
-          animId: player.animId,
-          scale: player.scale,
+      const playerProxy = $(player) as any
+
+      playerProxy.listen('x', (value: number) => {
+        useGameStore.getState().updatePlayer(sessionId, { x: value })
+      })
+
+      playerProxy.listen('y', (value: number) => {
+        useGameStore.getState().updatePlayer(sessionId, { y: value })
+      })
+
+      playerProxy.listen('name', (value: string) => {
+        useGameStore.getState().updatePlayer(sessionId, { name: value })
+      })
+
+      playerProxy.listen('animId', (value: number) => {
+        useGameStore.getState().updatePlayer(sessionId, { animId: value })
+      })
+
+      playerProxy.listen('textureId', (value: number) => {
+        useGameStore.getState().updatePlayer(sessionId, { textureId: value })
+      })
+
+      playerProxy.listen('scale', (value: number) => {
+        useGameStore.getState().updatePlayer(sessionId, { scale: value })
+      })
+
+      if (player.name) {
+        chatStore.addMessage({
+          id: crypto.randomUUID(),
+          author: 'system',
+          content: `${player.name} joined`,
+          createdAt: Date.now(),
         })
-      })
+      }
+    }, true) // true = trigger for existing items
 
-      chatStore.addMessage({
-        id: crypto.randomUUID(),
-        author: 'system',
-        content: `${player.name} joined`,
-        createdAt: Date.now(),
-      })
-    })
+    playersProxy.onRemove((_player: IPlayer, sessionId: string) => {
+      const gameStore = useGameStore.getState()
+      const chatStore = useChatStore.getState()
 
-    $(this.room.state.players).onRemove((_player: IPlayer, sessionId: string) => {
       const existing = gameStore.players.get(sessionId)
       const name = existing?.name ?? sessionId
 
@@ -113,6 +148,7 @@ export class NetworkManager {
     // Chat messages
     this.room.onMessage(Message.ADD_CHAT_MESSAGE, (data: { clientId: string; content: string }) => {
       const player = useGameStore.getState().players.get(data.clientId)
+      const chatStore = useChatStore.getState()
 
       chatStore.addMessage({
         id: crypto.randomUUID(),
@@ -122,41 +158,10 @@ export class NetworkManager {
       })
     })
 
-    // Music stream updates
-    $(this.room.state.musicStream).onChange(() => {
-      const ms = this.room!.state.musicStream
-
-      musicStore.setStream({
-        currentLink: ms.currentLink,
-        currentTitle: ms.currentTitle,
-        currentDjName: ms.currentDj?.name ?? null,
-        startTime: ms.startTime,
-        duration: ms.duration,
-        isPlaying: ms.currentLink !== null,
-        videoBackgroundEnabled: ms.videoBackgroundEnabled,
-      })
-    })
-
-    // Room playlist
-    $(this.room.state.roomPlaylist).onAdd((item: IRoomPlaylistItem) => {
-      musicStore.addRoomPlaylistItem({
-        id: item.id,
-        title: item.title,
-        link: item.link,
-        duration: item.duration,
-        addedAtMs: item.addedAtMs,
-        addedBySessionId: item.addedBySessionId,
-      })
-    })
-
-    $(this.room.state.roomPlaylist).onRemove((item: IRoomPlaylistItem) => {
-      musicStore.removeRoomPlaylistItem(item.id)
-    })
-
     // Room leave
     this.room.onLeave((code: number) => {
       console.log('[network] Left room, code:', code)
-      gameStore.setConnected(false)
+      useGameStore.getState().setConnected(false)
     })
   }
 

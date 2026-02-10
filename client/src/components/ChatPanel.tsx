@@ -296,63 +296,6 @@ export default function Chat() {
     scrollToBottom()
   }, [chatMessages, showChat])
 
-  // Resize game viewport when chat is expanded/collapsed
-  const isInitialRender = useRef(true)
-
-  useEffect(() => {
-    const container = document.getElementById('phaser-container')
-    if (!container) return
-
-    // On first render, just ensure correct state without animation
-    if (isInitialRender.current) {
-      isInitialRender.current = false
-      if (showChat) {
-        container.classList.add('chat-expanded')
-      }
-      return
-    }
-
-    // Trigger the glitch overlay animation
-    container.classList.remove('glitch-transition')
-    // Force a reflow so re-adding the class restarts the animation
-    void container.offsetWidth
-    container.classList.add('glitch-transition')
-
-    if (showChat) {
-      container.classList.add('chat-expanded')
-    } else {
-      container.classList.remove('chat-expanded')
-    }
-
-    // Continuously refresh Phaser scale during the CSS transition
-    let active = true
-    const startTime = performance.now()
-    const TRANSITION_MS = 300
-    const GLITCH_MS = 450
-
-    const tick = () => {
-      if (!active) return
-
-      phaserGame.scale.refresh()
-
-      if (performance.now() - startTime < TRANSITION_MS + 50) {
-        requestAnimationFrame(tick)
-      }
-    }
-
-    requestAnimationFrame(tick)
-
-    // Remove glitch class after animation completes
-    const glitchTimer = setTimeout(() => {
-      container.classList.remove('glitch-transition')
-    }, GLITCH_MS)
-
-    return () => {
-      active = false
-      clearTimeout(glitchTimer)
-    }
-  }, [showChat])
-
   return (
     <Backdrop $expanded={showChat}>
       <Wrapper>

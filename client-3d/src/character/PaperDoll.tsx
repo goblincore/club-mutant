@@ -5,13 +5,17 @@ import * as THREE from 'three'
 import type { LoadedCharacter, ManifestPart } from './CharacterLoader'
 import { loadCharacterCached } from './CharacterLoader'
 import { applyAnimation, resetBones } from './AnimationMixer'
+import { createDistortMaterial, updateDistortUniforms, setDistortBounds } from './DistortMaterial'
 
 const PX_SCALE = 0.01
+const PLANE_SEGMENTS = 8 // subdivisions for smooth vertex distortion
 
 interface PaperDollProps {
   characterPath: string
   animationName?: string
   flipX?: boolean
+  speed?: number // 0..1 normalized movement speed
+  velocityX?: number // horizontal velocity for lean direction
 }
 
 // A single part mesh within the bone hierarchy
@@ -21,12 +25,14 @@ function PartMesh({
   texture,
   textures,
   registerBone,
+  onMaterialCreated,
 }: {
   part: ManifestPart
   allParts: ManifestPart[]
   texture: THREE.Texture
   textures: Map<string, THREE.Texture>
   registerBone: (id: string, boneRole: string | null, group: THREE.Group | null) => void
+  onMaterialCreated: (mat: THREE.MeshBasicMaterial) => void
 }) {
   const groupRef = useRef<THREE.Group>(null)
 
@@ -36,38 +42,35 @@ function PartMesh({
   }, [part.id, part.boneRole, registerBone])
 
   const material = useMemo(() => {
-    return new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true,
-      alphaTest: 0.01,
-      side: THREE.DoubleSide,
-      depthWrite: true,
-    })
-  }, [texture])
+    const mat = createDistortMaterial(texture)
+    onMaterialCreated(mat)
+    return mat
+  }, [texture, onMaterialCreated])
 
   const geometry = useMemo(() => {
     const w = part.size[0] * PX_SCALE
     const h = part.size[1] * PX_SCALE
-    const geo = new THREE.PlaneGeometry(w, h)
+    const geo = new THREE.PlaneGeometry(w, h, PLANE_SEGMENTS, PLANE_SEGMENTS)
 
     // Shift geometry so pivot is at group origin
     const offsetX = (0.5 - part.pivot[0]) * w
     const offsetY = (0.5 - part.pivot[1]) * h
     geo.translate(offsetX, offsetY, 0)
 
+    // Compute Y bounds for distortion height normalization
+    geo.computeBoundingBox()
+    const box = geo.boundingBox!
+    setDistortBounds(material, box.min.y, box.max.y)
+
     return geo
-  }, [part.size, part.pivot])
+  }, [part.size, part.pivot, material])
 
   const children = allParts.filter((p) => p.parent === part.id)
 
   return (
     <group
       ref={groupRef}
-      position={[
-        part.offset[0] * PX_SCALE,
-        -part.offset[1] * PX_SCALE,
-        part.offset[2] * PX_SCALE,
-      ]}
+      position={[part.offset[0] * PX_SCALE, -part.offset[1] * PX_SCALE, part.offset[2] * PX_SCALE]}
       renderOrder={part.zIndex}
     >
       <mesh geometry={geometry} material={material} renderOrder={part.zIndex} />
@@ -84,6 +87,7 @@ function PartMesh({
             texture={childTex}
             textures={textures}
             registerBone={registerBone}
+            onMaterialCreated={onMaterialCreated}
           />
         )
       })}
@@ -91,10 +95,18 @@ function PartMesh({
   )
 }
 
-export function PaperDoll({ characterPath, animationName = 'idle', flipX = false }: PaperDollProps) {
+export function PaperDoll({
+  characterPath,
+  animationName = 'idle',
+  flipX = false,
+  speed = 0,
+  velocityX = 0,
+}: PaperDollProps) {
   const [loaded, setLoaded] = useState<LoadedCharacter | null>(null)
   const boneRefs = useRef<Map<string, THREE.Group>>(new Map())
   const clockRef = useRef(0)
+  const materialsRef = useRef<THREE.MeshBasicMaterial[]>([])
+  const distortTimeRef = useRef(0)
 
   // Load character on mount
   useEffect(() => {
@@ -135,12 +147,28 @@ export function PaperDoll({ characterPath, animationName = 'idle', flipX = false
     resetBones(boneRefs.current)
   }, [animationName])
 
-  // Animate
+  // Track all distort materials for per-frame uniform updates
+  const onMaterialCreated = useMemo(() => {
+    return (mat: THREE.MeshBasicMaterial) => {
+      if (!materialsRef.current.includes(mat)) {
+        materialsRef.current.push(mat)
+      }
+    }
+  }, [])
+
+  // Animate + update distortion
   useFrame((_, delta) => {
     if (!activeAnim) return
 
     clockRef.current += delta
     applyAnimation(activeAnim, boneRefs.current, clockRef.current, PX_SCALE)
+
+    // Update distortion uniforms on all part materials
+    distortTimeRef.current += delta
+
+    for (const mat of materialsRef.current) {
+      updateDistortUniforms(mat, distortTimeRef.current, speed, velocityX)
+    }
   })
 
   if (!loaded) return null
@@ -161,6 +189,7 @@ export function PaperDoll({ characterPath, animationName = 'idle', flipX = false
             texture={tex}
             textures={loaded.textures}
             registerBone={registerBone}
+            onMaterialCreated={onMaterialCreated}
           />
         )
       })}

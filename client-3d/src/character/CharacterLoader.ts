@@ -42,30 +42,48 @@ const textureLoader = new THREE.TextureLoader()
 // Load a character manifest + all its textures
 export async function loadCharacter(basePath: string): Promise<LoadedCharacter> {
   const manifestUrl = `${basePath}/manifest.json`
+  console.log('[character] Loading manifest from:', manifestUrl)
+
   const response = await fetch(manifestUrl)
   const manifest: CharacterManifest = await response.json()
+
+  console.log(
+    '[character] Manifest loaded:',
+    manifest.name,
+    '— parts:',
+    manifest.parts.map((p) => `${p.id}(${p.texture})`).join(', ')
+  )
 
   const textures = new Map<string, THREE.Texture>()
 
   await Promise.all(
     manifest.parts.map(async (part) => {
-      const tex = await new Promise<THREE.Texture>((resolve, reject) => {
-        textureLoader.load(
-          `${basePath}/${part.texture}`,
-          (t) => {
-            t.magFilter = THREE.NearestFilter
-            t.minFilter = THREE.NearestFilter
-            t.colorSpace = THREE.SRGBColorSpace
-            resolve(t)
-          },
-          undefined,
-          reject,
-        )
-      })
+      const url = `${basePath}/${part.texture}`
 
-      textures.set(part.id, tex)
-    }),
+      try {
+        const tex = await new Promise<THREE.Texture>((resolve, reject) => {
+          textureLoader.load(
+            url,
+            (t) => {
+              t.magFilter = THREE.NearestFilter
+              t.minFilter = THREE.NearestFilter
+              t.colorSpace = THREE.SRGBColorSpace
+              resolve(t)
+            },
+            undefined,
+            reject
+          )
+        })
+
+        textures.set(part.id, tex)
+        console.log('[character] Loaded texture:', part.id, '←', url)
+      } catch (err) {
+        console.error('[character] Failed to load texture:', part.id, '←', url, err)
+      }
+    })
   )
+
+  console.log('[character] Total textures loaded:', textures.size, '/', manifest.parts.length)
 
   return { manifest, textures }
 }
@@ -74,12 +92,11 @@ export async function loadCharacter(basePath: string): Promise<LoadedCharacter> 
 const cache = new Map<string, Promise<LoadedCharacter>>()
 
 export function loadCharacterCached(basePath: string): Promise<LoadedCharacter> {
-  let existing = cache.get(basePath)
+  // During dev, always reload to avoid caching failed loads
+  cache.delete(basePath)
 
-  if (!existing) {
-    existing = loadCharacter(basePath)
-    cache.set(basePath, existing)
-  }
+  const promise = loadCharacter(basePath)
+  cache.set(basePath, promise)
 
-  return existing
+  return promise
 }

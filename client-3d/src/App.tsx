@@ -43,7 +43,7 @@ export function App() {
 
       {/* Controls hint */}
       <div className="absolute bottom-3 right-3 text-[9px] font-mono text-white/20">
-        WASD to move · Enter to chat
+        WASD or click to move · Enter to chat
       </div>
     </div>
   )

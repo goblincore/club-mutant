@@ -1,11 +1,47 @@
-import { Canvas } from '@react-three/fiber'
-import { Suspense } from 'react'
+import { Canvas, useThree } from '@react-three/fiber'
+import { Suspense, useRef, useCallback } from 'react'
+import * as THREE from 'three'
 
 import { Room } from './Room'
-import { FollowCamera } from './Camera'
+import { FollowCamera, wasCameraDrag } from './Camera'
 import { PlayerEntity } from './PlayerEntity'
 import { useGameStore } from '../stores/gameStore'
-import { usePlayerInput } from '../input/usePlayerInput'
+import { usePlayerInput, setClickTarget } from '../input/usePlayerInput'
+
+const WORLD_SCALE = 0.01
+
+// Invisible ground plane for click-to-move raycasting
+function ClickPlane() {
+  const { camera, raycaster, pointer } = useThree()
+  const planeRef = useRef<THREE.Mesh>(null)
+
+  const handleClick = useCallback(() => {
+    // Skip click-to-move if the user was dragging the camera
+    if (wasCameraDrag) return
+    if (!planeRef.current) return
+
+    raycaster.setFromCamera(pointer, camera)
+    const intersects = raycaster.intersectObject(planeRef.current)
+
+    if (intersects.length > 0) {
+      const point = intersects[0]!.point
+      setClickTarget(point.x / WORLD_SCALE, -point.z / WORLD_SCALE)
+    }
+  }, [camera, raycaster, pointer])
+
+  return (
+    <mesh
+      ref={planeRef}
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, 0.001, 0]}
+      onClick={handleClick}
+      visible={false}
+    >
+      <planeGeometry args={[100, 100]} />
+      <meshBasicMaterial />
+    </mesh>
+  )
+}
 
 const DEFAULT_CHARACTER = '/characters/default'
 
@@ -36,10 +72,11 @@ export function GameScene() {
       gl={{ antialias: false, alpha: false }}
       style={{ width: '100%', height: '100%' }}
     >
-      <color attach="background" args={['#0a0a1a']} />
+      <color attach="background" args={['#2a0a3a']} />
 
       <Suspense fallback={null}>
         <Room />
+        <ClickPlane />
         <Players />
         <FollowCamera />
       </Suspense>
