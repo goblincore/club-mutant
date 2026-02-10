@@ -1,6 +1,6 @@
 [build]
-  command = "corepack enable && pnpm install --frozen-lockfile && pnpm --filter club-mutant build"
-  publish = "client/dist"
+  command = "corepack enable && pnpm install --frozen-lockfile && pnpm --filter club-mutant-3d build"
+  publish = "client-3d/dist"
 
 [build.environment]
   VITE_WS_ENDPOINT = "wss://api.mutante.club"
