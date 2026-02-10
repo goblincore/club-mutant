@@ -1,4 +1,4 @@
-import { Canvas, useThree, useFrame } from '@react-three/fiber'
+import { Canvas, useThree } from '@react-three/fiber'
 import { Suspense, useRef, useCallback } from 'react'
 import * as THREE from 'three'
 import { useBoothStore } from '../stores/boothStore'
@@ -47,7 +47,15 @@ function ClickPlane() {
   )
 }
 
-const DEFAULT_CHARACTER = '/characters/default'
+// Map textureId → character path (must match LobbyScreen CHARACTERS entries)
+const TEXTURE_ID_TO_CHARACTER: Record<number, string> = {
+  0: '/characters/default',
+  1: '/characters/default2',
+}
+
+function characterPathForTextureId(textureId: number): string {
+  return TEXTURE_ID_TO_CHARACTER[textureId] ?? '/characters/default'
+}
 
 function Players() {
   const players = useGameStore((s) => s.players)
@@ -61,32 +69,24 @@ function Players() {
           key={sessionId}
           player={player}
           isLocal={sessionId === mySessionId}
-          characterPath={sessionId === mySessionId ? selectedCharacterPath : DEFAULT_CHARACTER}
+          characterPath={
+            sessionId === mySessionId
+              ? selectedCharacterPath
+              : characterPathForTextureId(player.textureId)
+          }
         />
       ))}
     </>
   )
 }
 
-const DEFAULT_BG = new THREE.Color('#2a0a3a')
-
-// Dynamically toggle scene background: opaque purple normally, transparent when iframe video is behind
+// Ensure scene.background is null so the TrippySky sphere is visible.
+// When iframe video mode is active the canvas needs to be transparent (alpha: true on gl),
+// which already works with background = null.
 function DynamicBackground() {
   const { scene } = useThree()
-  const prevIframe = useRef(false)
 
-  useFrame(() => {
-    const { videoBackgroundEnabled, videoBgMode } = useBoothStore.getState()
-    const isIframe = videoBackgroundEnabled && videoBgMode === 'iframe'
-
-    if (isIframe !== prevIframe.current) {
-      prevIframe.current = isIframe
-      scene.background = isIframe ? null : DEFAULT_BG
-    }
-  })
-
-  // Set initial background
-  scene.background = DEFAULT_BG
+  scene.background = null
 
   return null
 }

@@ -76,6 +76,15 @@ function applyTrackValue(bone: THREE.Group, track: ManifestTrack, value: number,
     case 'position.z':
       bone.position.z = (bone.userData.baseZ ?? 0) + value * PX_SCALE
       break
+    case 'scale.x':
+      bone.scale.x = value
+      break
+    case 'scale.y':
+      bone.scale.y = value
+      break
+    case 'scale.z':
+      bone.scale.z = value
+      break
   }
 }
 
@@ -83,6 +92,7 @@ function applyTrackValue(bone: THREE.Group, track: ManifestTrack, value: number,
 export function resetBones(boneMap: Map<string, THREE.Group>) {
   boneMap.forEach((bone) => {
     bone.rotation.set(0, 0, 0)
+    bone.scale.set(1, 1, 1)
 
     bone.position.set(
       bone.userData.baseX ?? bone.position.x,

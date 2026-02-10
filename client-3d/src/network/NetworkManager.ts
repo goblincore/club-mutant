@@ -40,13 +40,14 @@ export class NetworkManager {
     this.httpBaseUrl = url.replace(/^ws/, 'http')
   }
 
-  async joinPublicRoom(playerName: string): Promise<void> {
+  async joinPublicRoom(playerName: string, textureId?: number): Promise<void> {
     const gameStore = useGameStore.getState()
 
     try {
       this.room = await this.client.joinOrCreate<IOfficeState>(RoomType.PUBLIC, {
         name: playerName,
         playerId: getOrCreatePlayerId(),
+        ...(textureId != null ? { textureId } : {}),
       })
 
       gameStore.setConnected(true, this.room.sessionId)
@@ -66,16 +67,27 @@ export class NetworkManager {
     const stateProxy = $(this.room.state) as any
     const playersProxy = stateProxy.players
 
+    // Clamp server positions to 3D room bounds (ROOM_SIZE=12, WORLD_SCALE=0.01 → ±550 server px)
+    const ROOM_MAX = 550
+    const clampPos = (v: number) => Math.max(-ROOM_MAX, Math.min(ROOM_MAX, v))
+
     // Player add/remove/change
     playersProxy.onAdd((player: IPlayer, sessionId: string) => {
       const gameStore = useGameStore.getState()
       const chatStore = useChatStore.getState()
 
+      const cx = clampPos(player.x)
+      const cy = clampPos(player.y)
+
+      console.log(
+        `[network] onAdd ${sessionId} textureId=${player.textureId} name=${player.name} pos=(${player.x},${player.y})→(${cx},${cy})`
+      )
+
       gameStore.addPlayer(sessionId, {
         sessionId,
         name: player.name,
-        x: player.x,
-        y: player.y,
+        x: cx,
+        y: cy,
         textureId: player.textureId,
         animId: player.animId,
         scale: player.scale,
@@ -83,17 +95,17 @@ export class NetworkManager {
 
       // Sync local input position to server spawn for the local player
       if (sessionId === this.room?.sessionId) {
-        gameStore.setLocalPosition(player.x, player.y)
+        gameStore.setLocalPosition(cx, cy)
       }
 
       const playerProxy = $(player) as any
 
       playerProxy.listen('x', (value: number) => {
-        useGameStore.getState().updatePlayer(sessionId, { x: value })
+        useGameStore.getState().updatePlayer(sessionId, { x: clampPos(value) })
       })
 
       playerProxy.listen('y', (value: number) => {
-        useGameStore.getState().updatePlayer(sessionId, { y: value })
+        useGameStore.getState().updatePlayer(sessionId, { y: clampPos(value) })
       })
 
       playerProxy.listen('name', (value: string) => {
@@ -105,6 +117,7 @@ export class NetworkManager {
       })
 
       playerProxy.listen('textureId', (value: number) => {
+        console.log(`[network] textureId listen ${sessionId} -> ${value}`)
         useGameStore.getState().updatePlayer(sessionId, { textureId: value })
       })
 

@@ -40,8 +40,8 @@ export const useGameStore = create<GameState>((set) => ({
 
   players: new Map(),
 
-  localX: 300,
-  localY: 300,
+  localX: 0,
+  localY: 0,
 
   selectedCharacterPath: '/characters/default',
 
@@ -71,7 +71,13 @@ export const useGameStore = create<GameState>((set) => ({
       return { players: next }
     }),
 
-  setLocalPosition: (x, y) => set({ localX: x, localY: y }),
+  setLocalPosition: (x, y) => {
+    // Clamp to room bounds (ROOM_SIZE=12, WORLD_SCALE=0.01 → ±550 server px, with margin)
+    const MAX = 550
+    const cx = Math.max(-MAX, Math.min(MAX, x))
+    const cy = Math.max(-MAX, Math.min(MAX, y))
+    set({ localX: cx, localY: cy })
+  },
 
   setSelectedCharacterPath: (path) => set({ selectedCharacterPath: path }),
 }))

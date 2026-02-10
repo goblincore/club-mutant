@@ -28,11 +28,11 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
     - `src/character/` — PaperDoll, CharacterLoader, DistortMaterial (PaRappa vertex warp), AnimationMixer
     - `src/network/` — NetworkManager (Colyseus client, player/chat/music/DJ queue wiring, YouTube search)
     - `src/stores/` — gameStore, chatStore (+ bubbles), musicStore, uiStore, boothStore (DJ booth + queue + video bg)
-    - `src/shaders/` — PsxPostProcess (VHS+bloom post-processing, ¾-res render target, NearestFilter upscale)
+    - `src/shaders/` — PsxPostProcess (VHS+bloom+fisheye post-processing, ¾-res render target, NearestFilter upscale), TvStaticFloor (animated TV noise floor material), TrippySky (Win95-style blue sky + procedural clouds skybox)
     - `src/input/` — usePlayerInput (WASD + click-to-move)
     - `src/ui/` — ChatPanel, PlaylistPanel (search + queue), NowPlaying (mini bar + video bg toggle), LobbyScreen, BoothPrompt (double-click booth confirmation)
   - Planning doc: `docs/ideas/client-3d-psx-multiplayer.md`
-  - Status: M1 + M1.5 + M2 + M2.5 complete. M3 in progress — VHS shader + booth UX done, textures/skins/furniture remaining.
+  - Status: M1 + M1.5 + M2 + M2.5 complete. M3 in progress — VHS shader (bloom + chroma bleed + fisheye), character select, auto-scaling, 540p render cap, TV static floor, Win95 cloud skybox done. DJ booth textures + furniture remaining.
 - `server/`
   - **Has its own `package.json` with `"type": "module"`** (required for Colyseus 0.17 decorator support)
   - Server code lives in `server/src/`

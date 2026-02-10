@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { PaperDoll } from '../character/PaperDoll'
 import type { PlayerState } from '../stores/gameStore'
 import { useChatStore } from '../stores/chatStore'
+import { useBoothStore } from '../stores/boothStore'
 
 const WORLD_SCALE = 0.01 // Server pixels → world units
 const LOCAL_LERP = 18 // Fast lerp for local player (smooth but responsive)
@@ -51,6 +52,7 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
   const { camera } = useThree()
 
   const [animName, setAnimName] = useState('idle')
+  const isAtBooth = useBoothStore((s) => s.isConnected)
   const [flipX, setFlipX] = useState(false)
   const [speed, setSpeed] = useState(0)
   const [velX, setVelX] = useState(0)
@@ -62,6 +64,8 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
   const smoothVelX = useRef(0)
   const currentYRot = useRef(0)
   const smoothTwist = useRef(0)
+  const danceClockRef = useRef(0)
+  const charGroupRef = useRef<THREE.Group>(null)
 
   useFrame((_, delta) => {
     if (!groupRef.current) return
@@ -131,6 +135,20 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
     if (Math.abs(roundedSpeed - speed) > 0.02) setSpeed(roundedSpeed)
     if (Math.abs(roundedVelX - velX) > 0.02) setVelX(roundedVelX)
 
+    // Dance scale bounce (squash-stretch) when at booth
+    if (charGroupRef.current) {
+      if (isLocal && isAtBooth) {
+        danceClockRef.current += delta
+        const beat = (danceClockRef.current * (Math.PI * 2)) / 0.6 // match dance period ~0.6s per bounce
+        const scaleY = 1 + Math.sin(beat) * 0.08
+        const scaleX = 1 - Math.sin(beat) * 0.04 // inverse squash
+        charGroupRef.current.scale.set(scaleX, scaleY, 1)
+      } else {
+        danceClockRef.current = 0
+        charGroupRef.current.scale.set(1, 1, 1)
+      }
+    }
+
     if (vSq > MOVE_THRESHOLD) {
       stopTimer.current = STOP_GRACE
 
@@ -151,10 +169,10 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
       {/* Billboard rotation group — lazily faces camera */}
       <group ref={dollGroupRef}>
         {/* Character model — raised above ground */}
-        <group position={[0, 0.7, 0]}>
+        <group ref={charGroupRef} position={[0, 0.7, 0]}>
           <PaperDoll
             characterPath={characterPath}
-            animationName={animName}
+            animationName={isLocal && isAtBooth ? 'dance' : animName}
             flipX={flipX}
             speed={speed}
             velocityX={velX}

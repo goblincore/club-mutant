@@ -42,12 +42,14 @@ const VHS_FRAGMENT = /* glsl */ `
   varying vec2 vUv;
 
   // ---- fisheye / barrel distortion ----
-  const float BARREL_STRENGTH = 0.35;
+  // Higher-order polynomial for true fisheye center magnification
+  const float BARREL_K1 = 0.6;  // r² term — main curvature
+  const float BARREL_K2 = 0.4;  // r⁴ term — extra center bulge
 
   vec2 barrelDistort(vec2 uv) {
     vec2 centered = uv - 0.5;
     float r2 = dot(centered, centered);
-    float distort = 1.0 + r2 * BARREL_STRENGTH;
+    float distort = 1.0 + r2 * BARREL_K1 + r2 * r2 * BARREL_K2;
     return centered * distort + 0.5;
   }
 

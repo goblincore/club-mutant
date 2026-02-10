@@ -172,9 +172,16 @@ Characters face the direction they're moving (left/right flip via scale.x = -1).
 - [x] DJ booth interaction: double-click booth mesh → confirmation popup → teleport behind booth + join queue
   - Replaced R-key interaction with proximity-based double-click
   - `BoothPrompt.tsx` confirmation modal
+- [x] Character select screen in lobby (username + character picker grid)
+  - Two characters: PaRappa (default), Ramona (default2) + coming-soon placeholder
+  - `selectedCharacterPath` in gameStore, used by GameScene for local player
+- [x] Auto-scale characters to consistent height via `computeCharacterScale` in PaperDoll
+- [x] Renderer resolution cap at 540p (`MAX_HEIGHT` dpr calculation in GameScene)
+- [x] Fisheye barrel distortion in VHS shader (`BARREL_STRENGTH = 0.5`)
+- [x] TV static floor shader (animated noise when no video playing, ported from 2D client)
+- [x] Skybox — Windows 95-style blue sky with procedural fluffy clouds (FBM noise, drifting)
 - [ ] Textured DJ booth (custom texture via `useTexture` from drei)
 - [ ] Room furniture / decoration
-- [ ] Multiple character skins (character select)
 - [ ] Sound effects
 - [ ] Mobile touch controls
 

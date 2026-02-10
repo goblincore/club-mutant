@@ -479,7 +479,7 @@ export class ClubMutant extends Room {
         if (distance > maxAllowedDistance) return
 
         const sanitizedTextureId = this.isPublic
-          ? TEXTURE_IDS.mutant
+          ? player.textureId
           : sanitizeTextureId(message.textureId)
 
         const sanitizedAnimId = sanitizeAnimId(message.animId, sanitizedTextureId)
@@ -640,9 +640,14 @@ export class ClubMutant extends Room {
 
     if (!existingPlayer && this.isPublic) {
       const playerId = options?.playerId || client.sessionId.slice(0, 8)
-      player.name = `mutant-${playerId}`
-      player.textureId = TEXTURE_IDS.mutant
+      const playerName = options?.name?.trim()
+      player.name = playerName || `mutant-${playerId}`
+      const rawTextureId = options?.textureId
+      player.textureId = rawTextureId != null ? sanitizeTextureId(rawTextureId) : TEXTURE_IDS.mutant
       player.animId = packDirectionalAnimId('idle', 'down')
+      console.log(
+        `[onJoin] name=${player.name} textureId=${player.textureId} (raw=${rawTextureId})`
+      )
     }
 
     if (!existingPlayer) {

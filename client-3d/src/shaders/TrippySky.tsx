@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
-// Trippy animated skybox — large inverted sphere with shifting nebula/gradient shader
+// Windows 95-style sky — blue gradient with soft fluffy procedural clouds
 
 const vertexShader = `
 varying vec3 vWorldPos;
@@ -20,46 +20,35 @@ varying vec3 vWorldPos;
 
 uniform float uTime;
 
-// Simplex-ish noise
-float hash(vec3 p) {
-  p = fract(p * vec3(0.1031, 0.1030, 0.0973));
-  p += dot(p, p.yxz + 33.33);
-  return fract((p.x + p.y) * p.z);
+// --- value noise ---
+float hash(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
 }
 
-float noise(vec3 p) {
-  vec3 i = floor(p);
-  vec3 f = fract(p);
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
   f = f * f * (3.0 - 2.0 * f);
 
-  float n000 = hash(i);
-  float n100 = hash(i + vec3(1.0, 0.0, 0.0));
-  float n010 = hash(i + vec3(0.0, 1.0, 0.0));
-  float n110 = hash(i + vec3(1.0, 1.0, 0.0));
-  float n001 = hash(i + vec3(0.0, 0.0, 1.0));
-  float n101 = hash(i + vec3(1.0, 0.0, 1.0));
-  float n011 = hash(i + vec3(0.0, 1.0, 1.0));
-  float n111 = hash(i + vec3(1.0, 1.0, 1.0));
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
 
-  float nx00 = mix(n000, n100, f.x);
-  float nx10 = mix(n010, n110, f.x);
-  float nx01 = mix(n001, n101, f.x);
-  float nx11 = mix(n011, n111, f.x);
-
-  float nxy0 = mix(nx00, nx10, f.y);
-  float nxy1 = mix(nx01, nx11, f.y);
-
-  return mix(nxy0, nxy1, f.z);
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
-// Fractal brownian motion
-float fbm(vec3 p) {
+// --- fractal brownian motion (5 octaves for fluffy detail) ---
+float fbm(vec2 p) {
   float val = 0.0;
   float amp = 0.5;
+  float freq = 1.0;
 
-  for (int i = 0; i < 4; i++) {
-    val += amp * noise(p);
-    p *= 2.1;
+  for (int i = 0; i < 5; i++) {
+    val += amp * noise(p * freq);
+    freq *= 2.0;
     amp *= 0.5;
   }
 
@@ -69,34 +58,62 @@ float fbm(vec3 p) {
 void main() {
   vec3 dir = normalize(vWorldPos);
 
-  // Slowly rotating sample point
-  float t = uTime * 0.04;
-  vec3 samplePos = dir * 2.0 + vec3(t, t * 0.7, t * 0.3);
+  // Spherical coords for sky mapping
+  float elevation = dir.y; // -1 (bottom) to +1 (top)
 
-  float n = fbm(samplePos);
-  float n2 = fbm(samplePos + vec3(5.2, 1.3, 2.8));
+  // --- sky gradient (Win95 teal-to-deep-blue, darkened to survive VHS bloom) ---
+  vec3 skyTop = vec3(0.02, 0.12, 0.4);     // deep blue
+  vec3 skyMid = vec3(0.12, 0.3, 0.55);     // mid blue
+  vec3 skyHorizon = vec3(0.25, 0.4, 0.6);  // pale horizon
+  vec3 skyBottom = vec3(0.15, 0.25, 0.45); // muted blue below
 
-  // Color palette — deep purples, teals, and dark magentas
-  vec3 deepPurple = vec3(0.08, 0.02, 0.15);
-  vec3 darkTeal = vec3(0.02, 0.08, 0.12);
-  vec3 magenta = vec3(0.2, 0.02, 0.15);
-  vec3 midnight = vec3(0.01, 0.01, 0.03);
+  vec3 sky;
 
-  // Layered color mixing
-  vec3 color = mix(deepPurple, darkTeal, n);
-  color = mix(color, magenta, n2 * 0.5);
-  color = mix(midnight, color, 0.6 + n * 0.4);
+  if (elevation > 0.0) {
+    // Upper hemisphere
+    float t = elevation;
+    sky = mix(skyHorizon, skyMid, smoothstep(0.0, 0.3, t));
+    sky = mix(sky, skyTop, smoothstep(0.3, 0.8, t));
+  } else {
+    // Below horizon — muted gradient
+    sky = mix(skyHorizon, skyBottom, smoothstep(0.0, 0.5, -elevation));
+  }
 
-  // Subtle stars — bright dots from high-frequency noise
-  float starNoise = hash(dir * 500.0 + floor(uTime * 0.5));
-  float stars = smoothstep(0.97, 1.0, starNoise) * 0.6;
-  color += vec3(stars);
+  // --- cloud layer ---
+  // Project onto a flat plane above the viewer for classic flat cloud look
+  if (elevation > 0.02) {
+    // Flatten direction onto xz plane at a fixed height
+    float cloudHeight = 1.0 / max(elevation, 0.05);
+    vec2 cloudUv = dir.xz * cloudHeight * 0.8;
 
-  // Vertical gradient — darker at bottom, lighter at top
-  float heightGrad = dir.y * 0.5 + 0.5;
-  color *= 0.5 + heightGrad * 0.6;
+    // Drift clouds slowly
+    float drift = uTime * 0.02;
+    cloudUv += vec2(drift, drift * 0.3);
 
-  gl_FragColor = vec4(color, 1.0);
+    // Two layers of FBM for fluffy cloud shapes
+    float cloud1 = fbm(cloudUv * 0.6);
+    float cloud2 = fbm(cloudUv * 0.6 + vec2(3.7, 1.2));
+
+    // Combine layers for shape variation
+    float cloudDensity = (cloud1 + cloud2) * 0.5;
+
+    // Soft threshold for puffy edges
+    float cloudMask = smoothstep(0.35, 0.55, cloudDensity);
+
+    // Cloud colors (toned down to survive VHS bloom)
+    vec3 cloudBright = vec3(0.65, 0.68, 0.72);
+    vec3 cloudShadow = vec3(0.4, 0.42, 0.5);
+    float cloudShading = smoothstep(0.35, 0.6, cloud1);
+    vec3 cloudColor = mix(cloudShadow, cloudBright, cloudShading);
+
+    // Fade clouds near horizon for depth
+    float horizonFade = smoothstep(0.02, 0.15, elevation);
+    cloudMask *= horizonFade;
+
+    sky = mix(sky, cloudColor, cloudMask * 0.9);
+  }
+
+  gl_FragColor = vec4(sky, 1.0);
 }
 `
 

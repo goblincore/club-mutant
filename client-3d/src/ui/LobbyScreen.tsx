@@ -11,18 +11,21 @@ const CHARACTERS = [
     name: 'PaRappa',
     path: '/characters/default',
     thumbnail: '/characters/default/head.png',
+    textureId: 0,
   },
   {
     id: 'default2',
     name: 'Ramona',
     path: '/characters/default2',
     thumbnail: '/characters/default2/head.png',
+    textureId: 1,
   },
   {
     id: 'char3',
     name: '???',
     path: '/characters/default',
     thumbnail: '/characters/default/head.png',
+    textureId: 0,
     comingSoon: true,
   },
 ]
@@ -45,7 +48,7 @@ export function LobbyScreen() {
     setError(null)
 
     try {
-      await getNetwork().joinPublicRoom(trimmed)
+      await getNetwork().joinPublicRoom(trimmed, character.textureId)
       getNetwork().sendReady()
     } catch (err) {
       setError('Failed to connect. Is the server running?')

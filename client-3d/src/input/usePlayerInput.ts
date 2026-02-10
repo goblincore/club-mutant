@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { useGameStore } from '../stores/gameStore'
+import { useBoothStore } from '../stores/boothStore'
 import { getNetwork } from '../network/NetworkManager'
 
 const SPEED = 150 // pixels per second (server coordinates)
@@ -47,6 +48,12 @@ export function usePlayerInput() {
       const now = performance.now()
       const dt = (now - lastTime) / 1000
       lastTime = now
+
+      // Lock movement when at the DJ booth
+      if (useBoothStore.getState().isConnected) {
+        requestAnimationFrame(tick)
+        return
+      }
 
       const keys = keysDown.current
       let dx = 0
