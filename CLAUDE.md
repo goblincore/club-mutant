@@ -1318,13 +1318,15 @@ A single `DEBUG_MODE` flag in `client/src/config.ts` controls all debug keyboard
 Four selectable characters in lobby (`LobbyScreen.tsx`):
 
 - **PaRappa** (`/characters/default`, textureId 0)
-- **Ramona** (`/characters/default2`, textureId 1, scale 0.6)
+- **Ramona** (`/characters/default2`, textureId 1, scale 0.64)
 - **Mutant** (`/characters/default3`, textureId 2)
 - **default4** (`/characters/default4`, textureId 3)
 
 `GameScene.tsx` maps `textureId → character path` in `TEXTURE_ID_TO_CHARACTER` for remote players. Each character folder contains `manifest.json` + PNG part images. `CharacterLoader.ts` loads `{basePath}/manifest.json`. `AnimationMixer.ts` supports `rotation.x/y/z`, `position.x/y/z`, and `scale.x/y/z` track properties.
 
-**Per-character scale override**: Add `"scale": 0.6` (or any multiplier) to a character's `manifest.json` top-level. Applied on top of the auto-normalization in `PaperDoll.tsx` (`computeCharacterScale` normalizes all characters to `TARGET_HEIGHT_PX = 110`, then multiplies by `manifest.scale ?? 1`). No re-export needed — just edit the JSON.
+**Per-character scale override**: Add `"scale": 0.64` (or any multiplier) to a character's `manifest.json` top-level. Applied on top of the auto-normalization in `PaperDoll.tsx` (`computeCharacterLayout` normalizes all characters to `TARGET_HEIGHT_PX = 110`, then multiplies by `manifest.scale ?? 1`). No re-export needed — just edit the JSON.
+
+**Dynamic ground alignment**: `computeCharacterLayout` in `PaperDoll.tsx` computes per-character `groundOffsetY` from the actual bounding box so feet sit at Y=0 regardless of part layout or scale. It tracks `feetY = max(ay + pivot[1] * h)` across all parts (matching how `PartMesh` geometry is shifted by pivot), then shifts the root group up by `feetY * PX_SCALE * charScale`. Reports `worldHeight` to `PlayerEntity.tsx` for nametag/chat bubble positioning.
 
 ### DJ Booth Overlap Fix
 

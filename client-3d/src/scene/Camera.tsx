@@ -103,7 +103,10 @@ export function FollowCamera() {
     }
   }, [gl])
 
-  useFrame((_, delta) => {
+  useFrame((_, rawDelta) => {
+    // Clamp delta to avoid camera jump when returning from a backgrounded tab
+    const delta = Math.min(rawDelta, 0.1)
+
     const state = useGameStore.getState()
     const myId = state.mySessionId
     if (!myId) return

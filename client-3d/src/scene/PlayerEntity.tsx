@@ -68,7 +68,9 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
   const danceClockRef = useRef(0)
   const charGroupRef = useRef<THREE.Group>(null)
 
-  useFrame((_, delta) => {
+  useFrame((_, rawDelta) => {
+    const delta = Math.min(rawDelta, 0.1)
+
     if (!groupRef.current) return
 
     const targetX = player.x * WORLD_SCALE
