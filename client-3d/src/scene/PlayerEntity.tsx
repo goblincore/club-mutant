@@ -16,13 +16,13 @@ const STOP_GRACE = 0.15 // Seconds to keep "walk" after stopping (prevents flick
 const BILLBOARD_LERP = 4 // How fast the billboard rotation catches up (lower = more lag/twist)
 const TWIST_DAMPING = 6 // How fast the twist value decays
 
-function ChatBubble({ sessionId }: { sessionId: string }) {
+function ChatBubble({ sessionId, yOffset = 2.2 }: { sessionId: string; yOffset?: number }) {
   const bubble = useChatStore((s) => s.bubbles.get(sessionId))
 
   if (!bubble) return null
 
   return (
-    <Html position={[0, 2.2, 0]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
+    <Html position={[0, yOffset, 0]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
       <div className="relative max-w-[160px] px-2 py-1 bg-white rounded-lg text-[10px] text-black font-mono leading-tight select-none shadow-md">
         {bubble.content}
 
@@ -57,6 +57,7 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
   const [speed, setSpeed] = useState(0)
   const [velX, setVelX] = useState(0)
   const [bbTwist, setBbTwist] = useState(0)
+  const [worldHeight, setWorldHeight] = useState(1.1)
 
   const lastVisualX = useRef(0)
   const stopTimer = useRef(0)
@@ -172,8 +173,8 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
     <group ref={groupRef}>
       {/* Billboard rotation group — lazily faces camera */}
       <group ref={dollGroupRef}>
-        {/* Character model — raised above ground */}
-        <group ref={charGroupRef} position={[0, 0.7, 0]}>
+        {/* Character model — PaperDoll self-grounds (feet at Y=0) */}
+        <group ref={charGroupRef}>
           <PaperDoll
             characterPath={characterPath}
             animationName={animName}
@@ -181,14 +182,20 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
             speed={speed}
             velocityX={velX}
             billboardTwist={bbTwist}
+            onWorldHeight={setWorldHeight}
           />
         </group>
 
         {/* Chat bubble */}
-        <ChatBubble sessionId={player.sessionId} />
+        <ChatBubble sessionId={player.sessionId} yOffset={worldHeight + 0.4} />
 
         {/* Nametag */}
-        <Html position={[0, 1.8, 0]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
+        <Html
+          position={[0, worldHeight + 0.15, 0]}
+          center
+          distanceFactor={10}
+          style={{ pointerEvents: 'none' }}
+        >
           <div className="text-[10px] font-mono text-white bg-black/60 px-1.5 py-0.5 rounded whitespace-nowrap select-none">
             {player.name}
           </div>

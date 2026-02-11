@@ -32,7 +32,7 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
     - `src/input/` — usePlayerInput (WASD + click-to-move)
     - `src/ui/` — ChatPanel, PlaylistPanel (search + queue), NowPlaying (mini bar + video bg toggle), LobbyScreen, BoothPrompt (double-click booth confirmation)
   - Planning doc: `docs/ideas/client-3d-psx-multiplayer.md`
-  - Status: M1 + M1.5 + M2 + M2.5 + M3 mostly complete. VHS shader, character select (3 characters: PaRappa, Ramona, Mutant), auto-scaling, TV static floor, animated Win95 cloud skybox, full DJ queue UI (playlist panel + NowPlaying mini player), DJ booth overlap fix (2 DJs sit left/right), ambient stream filtering all done. Remaining: PSX geometry shaders, textured booth furniture, sound, mobile.
+  - Status: M1 + M1.5 + M2 + M2.5 + M3 mostly complete. VHS shader, character select (4 characters with per-manifest scale override), auto-scaling, TV static floor, animated Win95 cloud skybox, full DJ queue UI (playlist panel + NowPlaying mini player), DJ booth overlap fix (2 DJs sit left/right), ambient stream filtering all done. Remaining: PSX geometry shaders, textured booth furniture, sound, mobile.
 - `server/`
   - **Has its own `package.json` with `"type": "module"`** (required for Colyseus 0.17 decorator support)
   - Server code lives in `server/src/`
@@ -1315,13 +1315,16 @@ A single `DEBUG_MODE` flag in `client/src/config.ts` controls all debug keyboard
 
 ### Character System
 
-Three selectable characters in lobby (`LobbyScreen.tsx`):
+Four selectable characters in lobby (`LobbyScreen.tsx`):
 
 - **PaRappa** (`/characters/default`, textureId 0)
-- **Ramona** (`/characters/default2`, textureId 1)
+- **Ramona** (`/characters/default2`, textureId 1, scale 0.6)
 - **Mutant** (`/characters/default3`, textureId 2)
+- **default4** (`/characters/default4`, textureId 3)
 
 `GameScene.tsx` maps `textureId → character path` in `TEXTURE_ID_TO_CHARACTER` for remote players. Each character folder contains `manifest.json` + PNG part images. `CharacterLoader.ts` loads `{basePath}/manifest.json`. `AnimationMixer.ts` supports `rotation.x/y/z`, `position.x/y/z`, and `scale.x/y/z` track properties.
+
+**Per-character scale override**: Add `"scale": 0.6` (or any multiplier) to a character's `manifest.json` top-level. Applied on top of the auto-normalization in `PaperDoll.tsx` (`computeCharacterScale` normalizes all characters to `TARGET_HEIGHT_PX = 110`, then multiplies by `manifest.scale ?? 1`). No re-export needed — just edit the JSON.
 
 ### DJ Booth Overlap Fix
 
@@ -1348,7 +1351,7 @@ Character rig tool for building paper-doll characters used by `client-3d`:
 
 - Drop PNGs → set pivots, offsets, parent bones, bone roles → preview animations → export zip
 - Export produces `manifest.json` + all original image files (via JSZip)
-- Preset animations include advanced dance with `scale.x`/`scale.y` distortion on arms
+- Preset dance animation uses `rotation.y` on arms for z-axis twist effect (replaced earlier `scale.x`/`scale.y` approach which looked glitchy)
 - `AnimationTrack.property` union: `rotation.x/y/z | position.x/y/z | scale.x/y/z`
 - Stores `originalFilename` on each part so exported manifest references real filenames
 

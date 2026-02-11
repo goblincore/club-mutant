@@ -1,6 +1,6 @@
 {
   "name": "untitled",
-  "scale": 0.6,
+  "scale": 0.64,
   "parts": [
     {
       "id": "larm_13",
@@ -8,7 +8,7 @@
       "pivot": [1, 1],
       "size": [35, 59],
       "parent": "torso_16",
-      "offset": [-27, -36, 0],
+      "offset": [-13, -36, -2],
       "zIndex": 6,
       "boneRole": "arm_l"
     },
@@ -18,7 +18,7 @@
       "pivot": [1, 1],
       "size": [84, 73],
       "parent": "torso_16",
-      "offset": [-4, -14, -1],
+      "offset": [3, -18, -2],
       "zIndex": 6,
       "boneRole": "leg_l"
     },
@@ -28,7 +28,7 @@
       "pivot": [0, 1],
       "size": [85, 59],
       "parent": "torso_16",
-      "offset": [-3, 2, -1],
+      "offset": [-7, -6, -2],
       "zIndex": 6,
       "boneRole": "leg_r"
     },
@@ -58,7 +58,7 @@
       "pivot": [0, 0.9],
       "size": [35, 48],
       "parent": "torso_16",
-      "offset": [24, -26, 0],
+      "offset": [20, -22, -1],
       "zIndex": 6,
       "boneRole": "arm_r"
     }

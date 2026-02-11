@@ -13,9 +13,14 @@ const PLANE_SEGMENTS = 8 // subdivisions for smooth vertex distortion
 // Target character height in pixels — all characters are normalized to this
 const TARGET_HEIGHT_PX = 110
 
-// Compute a uniform scale factor so the character's bounding height matches TARGET_HEIGHT_PX
-function computeCharacterScale(parts: ManifestPart[]): number {
-  // Build a lookup: id → part
+interface CharacterLayout {
+  charScale: number
+  groundOffsetY: number
+  worldHeight: number
+}
+
+// Compute scale, ground offset (so feet sit at Y=0), and world height for a character
+function computeCharacterLayout(parts: ManifestPart[], manifestScale: number): CharacterLayout {
   const byId = new Map<string, ManifestPart>()
 
   for (const p of parts) byId.set(p.id, p)
@@ -35,25 +40,43 @@ function computeCharacterScale(parts: ManifestPart[]): number {
 
   let minY = Infinity
   let maxY = -Infinity
+  let feetY = -Infinity // tracks the lowest world point: max(ay + pivot * h)
 
   for (const part of parts) {
     const ay = absY(part)
     const h = part.size[1]
     const pivotFrac = part.pivot[1]
 
-    // Top and bottom of this part in pixel space (Y down in manifest)
+    // Bounding box in manifest pixel space (Y down)
     const top = ay - pivotFrac * h
     const bottom = ay + (1 - pivotFrac) * h
 
     if (top < minY) minY = top
     if (bottom > maxY) maxY = bottom
+
+    // In PartMesh, geometry bottom in local 3D = -(ay + pivot*h) * PX_SCALE
+    // So the lowest world point corresponds to the largest (ay + pivot*h)
+    const partFeet = ay + pivotFrac * h
+
+    if (partFeet > feetY) feetY = partFeet
   }
 
   const totalHeight = maxY - minY
 
-  if (totalHeight <= 0) return 1
+  if (totalHeight <= 0)
+    return { charScale: manifestScale, groundOffsetY: 0, worldHeight: 1.1 * manifestScale }
 
-  return TARGET_HEIGHT_PX / totalHeight
+  const baseScale = TARGET_HEIGHT_PX / totalHeight
+  const charScale = baseScale * manifestScale
+
+  // PartMesh places geometry bottom at -(ay + pivot*h) * PX_SCALE in local space.
+  // After group scale, feet are at -feetY * PX_SCALE * charScale in parent space.
+  // Shift up by that amount to place feet at Y=0.
+  const groundOffsetY = feetY * PX_SCALE * charScale
+
+  const worldHeight = TARGET_HEIGHT_PX * PX_SCALE * manifestScale
+
+  return { charScale, groundOffsetY, worldHeight }
 }
 
 interface PaperDollProps {
@@ -63,6 +86,7 @@ interface PaperDollProps {
   speed?: number // 0..1 normalized movement speed
   velocityX?: number // horizontal velocity direction
   billboardTwist?: number // angular velocity from billboard rotation
+  onWorldHeight?: (height: number) => void
 }
 
 // A single part mesh within the bone hierarchy
@@ -149,6 +173,7 @@ export function PaperDoll({
   speed = 0,
   velocityX = 0,
   billboardTwist = 0,
+  onWorldHeight,
 }: PaperDollProps) {
   const [loaded, setLoaded] = useState<LoadedCharacter | null>(null)
   const boneRefs = useRef<Map<string, THREE.Group>>(new Map())
@@ -219,19 +244,28 @@ export function PaperDoll({
     }
   })
 
-  // Compute uniform scale to normalize character height
-  const charScale = useMemo(() => {
-    if (!loaded) return 1
-    const base = computeCharacterScale(loaded.manifest.parts)
-    return base * (loaded.manifest.scale ?? 1)
+  // Compute layout metrics: scale, ground offset, world height
+  const layout = useMemo(() => {
+    if (!loaded) return { charScale: 1, groundOffsetY: 0, worldHeight: 1.1 }
+    return computeCharacterLayout(loaded.manifest.parts, loaded.manifest.scale ?? 1)
   }, [loaded])
+
+  // Report world height to parent for nametag/chat positioning
+  useEffect(() => {
+    if (loaded && onWorldHeight) {
+      onWorldHeight(layout.worldHeight)
+    }
+  }, [loaded, layout.worldHeight, onWorldHeight])
 
   if (!loaded) return null
 
   const rootParts = loaded.manifest.parts.filter((p) => p.parent === null)
 
   return (
-    <group scale={[flipX ? -charScale : charScale, charScale, charScale]}>
+    <group
+      position={[0, layout.groundOffsetY, 0]}
+      scale={[flipX ? -layout.charScale : layout.charScale, layout.charScale, layout.charScale]}
+    >
       {rootParts.map((part) => {
         const tex = loaded.textures.get(part.id)
         if (!tex) return null
