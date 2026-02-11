@@ -117,8 +117,6 @@ function SceneContent() {
     }
   }, [])
 
-  const psxEnabled = useUIStore((s) => s.psxEnabled)
-
   return (
     <>
       <DynamicBackground />
@@ -126,7 +124,7 @@ function SceneContent() {
       <ClickPlane />
       <Players />
       <FollowCamera />
-      {psxEnabled && <PsxPostProcess />}
+      <PsxPostProcess />
     </>
   )
 }

@@ -20,6 +20,10 @@ export function Viewport() {
         onPointerMissed={() => {
           useEditorStore.getState().selectPart(null)
         }}
+        onCreated={({ gl }) => {
+          // Ensure transparent objects respect renderOrder
+          gl.sortObjects = true
+        }}
       >
         <ambientLight intensity={1} />
 

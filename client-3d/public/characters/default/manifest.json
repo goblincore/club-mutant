@@ -1,65 +1,66 @@
 {
-  "name": "untitled",
+  "name": "lrmouse",
+  "scale": 0.76,
   "parts": [
     {
-      "id": "body_1",
-      "texture": "body.png",
-      "pivot": [0.5, 0.5],
-      "size": [61, 55],
-      "parent": null,
-      "offset": [0, 0, 0],
-      "zIndex": 0,
-      "boneRole": "torso"
-    },
-    {
-      "id": "head_2",
+      "id": "head_1",
       "texture": "head.png",
-      "pivot": [0.5, 0.5],
-      "size": [139, 130],
-      "parent": "body_1",
-      "offset": [0, -76, 1],
+      "pivot": [0.5, 0],
+      "size": [121, 93],
+      "parent": "body_6",
+      "offset": [-1, -29, 1],
       "zIndex": 0,
       "boneRole": "head"
     },
     {
-      "id": "larm_3",
-      "texture": "larm.png",
-      "pivot": [1, 0.5],
-      "size": [55, 46],
-      "parent": "body_1",
-      "offset": [-15, 0, 0],
-      "zIndex": 0,
-      "boneRole": "arm_l"
-    },
-    {
-      "id": "lfoot_4",
-      "texture": "lfoot.png",
-      "pivot": [1, 1],
-      "size": [68, 46],
-      "parent": "body_1",
-      "offset": [-1, 13, -2],
-      "zIndex": 0,
-      "boneRole": "leg_l"
-    },
-    {
-      "id": "rarm_5",
+      "id": "rarm_2",
       "texture": "rarm.png",
-      "pivot": [0.15, 1],
-      "size": [55, 46],
-      "parent": "body_1",
-      "offset": [8, -19, 2],
+      "pivot": [0, 0.84],
+      "size": [33, 33],
+      "parent": "body_6",
+      "offset": [21, 0, -1],
       "zIndex": 0,
       "boneRole": "arm_r"
     },
     {
-      "id": "rfoot_6",
-      "texture": "rfoot.png",
-      "pivot": [0.5, 0.42],
-      "size": [68, 46],
-      "parent": "body_1",
-      "offset": [33, 36, -2],
+      "id": "rleg_3",
+      "texture": "rleg.png",
+      "pivot": [0.26, 0.87],
+      "size": [42, 74],
+      "parent": "body_6",
+      "offset": [5, 31, -2],
       "zIndex": 0,
       "boneRole": "leg_r"
+    },
+    {
+      "id": "lleg_4",
+      "texture": "lleg.png",
+      "pivot": [0.87, 0.86],
+      "size": [42, 74],
+      "parent": "body_6",
+      "offset": [0, 32, -2],
+      "zIndex": 0,
+      "boneRole": "leg_l"
+    },
+    {
+      "id": "larm_5",
+      "texture": "larm.png",
+      "pivot": [1, 0.9],
+      "size": [33, 33],
+      "parent": "body_6",
+      "offset": [-26, -3, -1],
+      "zIndex": 0,
+      "boneRole": "arm_l"
+    },
+    {
+      "id": "body_6",
+      "texture": "body.png",
+      "pivot": [0.5, 0.5],
+      "size": [95, 87],
+      "parent": null,
+      "offset": [0, 0, 0],
+      "zIndex": 0,
+      "boneRole": "torso"
     }
   ],
   "animations": [

@@ -17,6 +17,8 @@ interface CharacterLayout {
   charScale: number
   groundOffsetY: number
   worldHeight: number
+  headTopY: number
+  visualTopY: number
 }
 
 // Compute scale, ground offset (so feet sit at Y=0), and world height for a character
@@ -64,7 +66,13 @@ function computeCharacterLayout(parts: ManifestPart[], manifestScale: number): C
   const totalHeight = maxY - minY
 
   if (totalHeight <= 0)
-    return { charScale: manifestScale, groundOffsetY: 0, worldHeight: 1.1 * manifestScale }
+    return {
+      charScale: manifestScale,
+      groundOffsetY: 0,
+      worldHeight: 1.1 * manifestScale,
+      headTopY: 1.1 * manifestScale,
+      visualTopY: 1.1 * manifestScale,
+    }
 
   const baseScale = TARGET_HEIGHT_PX / totalHeight
   const charScale = baseScale * manifestScale
@@ -76,7 +84,34 @@ function computeCharacterLayout(parts: ManifestPart[], manifestScale: number): C
 
   const worldHeight = TARGET_HEIGHT_PX * PX_SCALE * manifestScale
 
-  return { charScale, groundOffsetY, worldHeight }
+  // Compute the actual visual top Y in dollGroup space by matching how PartMesh
+  // positions geometry: top3D = -absY*PX_SCALE + (1-pivot)*h*PX_SCALE
+  let highest3D = -Infinity
+
+  for (const part of parts) {
+    const ay = absY(part)
+    const h = part.size[1] * PX_SCALE
+    const pivot = part.pivot[1]
+    const top3D = -ay * PX_SCALE + (1 - pivot) * h
+
+    if (top3D > highest3D) highest3D = top3D
+  }
+
+  const visualTopY = highest3D * charScale + groundOffsetY
+
+  // Find head part and compute its top Y in dollGroup space
+  const headPart = parts.find((p) => p.boneRole === 'head')
+  let headTopY = visualTopY // fallback to visual top if no head part
+
+  if (headPart) {
+    const headAbsY = absY(headPart)
+    const headH = headPart.size[1] * PX_SCALE
+    const headPivot = headPart.pivot[1]
+    const headTop3D = -headAbsY * PX_SCALE + (1 - headPivot) * headH
+    headTopY = headTop3D * charScale + groundOffsetY
+  }
+
+  return { charScale, groundOffsetY, worldHeight, headTopY, visualTopY }
 }
 
 interface PaperDollProps {
@@ -86,7 +121,7 @@ interface PaperDollProps {
   speed?: number // 0..1 normalized movement speed
   velocityX?: number // horizontal velocity direction
   billboardTwist?: number // angular velocity from billboard rotation
-  onWorldHeight?: (height: number) => void
+  onLayout?: (layout: { worldHeight: number; headTopY: number; visualTopY: number }) => void
 }
 
 // A single part mesh within the bone hierarchy
@@ -173,7 +208,7 @@ export function PaperDoll({
   speed = 0,
   velocityX = 0,
   billboardTwist = 0,
-  onWorldHeight,
+  onLayout,
 }: PaperDollProps) {
   const [loaded, setLoaded] = useState<LoadedCharacter | null>(null)
   const boneRefs = useRef<Map<string, THREE.Group>>(new Map())
@@ -246,16 +281,21 @@ export function PaperDoll({
 
   // Compute layout metrics: scale, ground offset, world height
   const layout = useMemo(() => {
-    if (!loaded) return { charScale: 1, groundOffsetY: 0, worldHeight: 1.1 }
+    if (!loaded)
+      return { charScale: 1, groundOffsetY: 0, worldHeight: 1.1, headTopY: 1.1, visualTopY: 1.1 }
     return computeCharacterLayout(loaded.manifest.parts, loaded.manifest.scale ?? 1)
   }, [loaded])
 
-  // Report world height to parent for nametag/chat positioning
+  // Report layout metrics to parent for nametag/chat positioning
   useEffect(() => {
-    if (loaded && onWorldHeight) {
-      onWorldHeight(layout.worldHeight)
+    if (loaded && onLayout) {
+      onLayout({
+        worldHeight: layout.worldHeight,
+        headTopY: layout.headTopY,
+        visualTopY: layout.visualTopY,
+      })
     }
-  }, [loaded, layout.worldHeight, onWorldHeight])
+  }, [loaded, layout.worldHeight, layout.headTopY, layout.visualTopY, onLayout])
 
   if (!loaded) return null
 

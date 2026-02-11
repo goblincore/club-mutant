@@ -46,7 +46,7 @@ function DJBooth({
   position: [number, number, number]
   onDoubleClick?: () => void
 }) {
-  const TABLE_Y = 0.72
+  const TABLE_Y = 0.5
   const TABLE_W = 3.6
   const TABLE_D = 0.7
 
@@ -54,7 +54,7 @@ function DJBooth({
     <group position={position}>
       {/* Invisible click-capture box covering the whole booth */}
       <mesh
-        position={[0, 0.75, 0]}
+        position={[0, 0.55, 0]}
         onDoubleClick={onDoubleClick}
         onPointerOver={() => {
           document.body.style.cursor = 'pointer'
@@ -64,7 +64,7 @@ function DJBooth({
         }}
         visible={false}
       >
-        <boxGeometry args={[5.5, 1.8, 1.4]} />
+        <boxGeometry args={[5.5, 1.4, 1.4]} />
         <meshBasicMaterial />
       </mesh>
 
@@ -72,7 +72,7 @@ function DJBooth({
       {/* Table top — thin slab */}
       <mesh position={[0, TABLE_Y, 0]}>
         <boxGeometry args={[TABLE_W, 0.03, TABLE_D]} />
-        <meshStandardMaterial color="#2a2a2a" />
+        <meshStandardMaterial color="#555555" roughness={0.7} metalness={0.1} />
       </mesh>
 
       {/* Table legs (4 thin cylinders, slightly angled inward) */}
@@ -198,48 +198,48 @@ function DJBooth({
 
       {/* === Amp stacks (left) === */}
       {/* Bottom amp */}
-      <mesh position={[-1.6, 0.4, -0.1]}>
-        <boxGeometry args={[0.6, 0.8, 0.5]} />
+      <mesh position={[-1.6, 0.3, -0.1]}>
+        <boxGeometry args={[0.6, 0.6, 0.5]} />
         <meshStandardMaterial color="#0d0d1a" />
       </mesh>
 
       {/* Top amp */}
-      <mesh position={[-1.6, 1.05, -0.1]}>
-        <boxGeometry args={[0.6, 0.5, 0.5]} />
+      <mesh position={[-1.6, 0.75, -0.1]}>
+        <boxGeometry args={[0.6, 0.35, 0.5]} />
         <meshStandardMaterial color="#0d0d1a" />
       </mesh>
 
       {/* Left speaker cones */}
-      <mesh position={[-1.6, 0.4, 0.16]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[-1.6, 0.3, 0.16]} rotation={[-Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.18, 0.22, 0.04, 12]} />
         <meshStandardMaterial color="#222244" />
       </mesh>
 
-      <mesh position={[-1.6, 1.05, 0.16]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[-1.6, 0.75, 0.16]} rotation={[-Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.12, 0.16, 0.04, 12]} />
         <meshStandardMaterial color="#222244" />
       </mesh>
 
       {/* === Amp stacks (right) === */}
       {/* Bottom amp */}
-      <mesh position={[1.6, 0.4, -0.1]}>
-        <boxGeometry args={[0.6, 0.8, 0.5]} />
+      <mesh position={[1.6, 0.3, -0.1]}>
+        <boxGeometry args={[0.6, 0.6, 0.5]} />
         <meshStandardMaterial color="#0d0d1a" />
       </mesh>
 
       {/* Top amp */}
-      <mesh position={[1.6, 1.05, -0.1]}>
-        <boxGeometry args={[0.6, 0.5, 0.5]} />
+      <mesh position={[1.6, 0.75, -0.1]}>
+        <boxGeometry args={[0.6, 0.35, 0.5]} />
         <meshStandardMaterial color="#0d0d1a" />
       </mesh>
 
       {/* Right speaker cones */}
-      <mesh position={[1.6, 0.4, 0.16]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[1.6, 0.3, 0.16]} rotation={[-Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.18, 0.22, 0.04, 12]} />
         <meshStandardMaterial color="#222244" />
       </mesh>
 
-      <mesh position={[1.6, 1.05, 0.16]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[1.6, 0.75, 0.16]} rotation={[-Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.12, 0.16, 0.04, 12]} />
         <meshStandardMaterial color="#222244" />
       </mesh>

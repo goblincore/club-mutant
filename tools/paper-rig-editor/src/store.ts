@@ -6,7 +6,7 @@ import { PRESET_ANIMATIONS } from './presets'
 interface EditorState {
   // Character parts
   parts: CharacterPart[]
-  selectedPartId: string | null
+  selectedPartIds: Set<string>
   activeTool: EditorTool
 
   // Animations
@@ -22,7 +22,10 @@ interface EditorState {
   addPart: (part: CharacterPart) => void
   removePart: (id: string) => void
   updatePart: (id: string, updates: Partial<CharacterPart>) => void
+  updateParts: (ids: string[], updates: Partial<CharacterPart>) => void
   selectPart: (id: string | null) => void
+  toggleSelectPart: (id: string) => void
+  selectAllParts: () => void
   setActiveTool: (tool: EditorTool) => void
 
   setActiveAnimation: (name: string | null) => void
@@ -37,7 +40,7 @@ interface EditorState {
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   parts: [],
-  selectedPartId: null,
+  selectedPartIds: new Set(),
   activeTool: 'select',
 
   animations: [...PRESET_ANIMATIONS],
@@ -55,7 +58,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         .filter((p) => p.id !== id)
         // Also unparent any children of the removed part
         .map((p) => (p.parentId === id ? { ...p, parentId: null } : p)),
-      selectedPartId: s.selectedPartId === id ? null : s.selectedPartId,
+      selectedPartIds: s.selectedPartIds.has(id)
+        ? new Set([...s.selectedPartIds].filter((x) => x !== id))
+        : s.selectedPartIds,
     })),
 
   updatePart: (id, updates) =>
@@ -63,7 +68,31 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       parts: s.parts.map((p) => (p.id === id ? { ...p, ...updates } : p)),
     })),
 
-  selectPart: (id) => set({ selectedPartId: id }),
+  updateParts: (ids, updates) =>
+    set((s) => {
+      const idSet = new Set(ids)
+
+      return {
+        parts: s.parts.map((p) => (idSet.has(p.id) ? { ...p, ...updates } : p)),
+      }
+    }),
+
+  selectPart: (id) => set({ selectedPartIds: id ? new Set([id]) : new Set() }),
+
+  toggleSelectPart: (id) =>
+    set((s) => {
+      const next = new Set(s.selectedPartIds)
+
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+
+      return { selectedPartIds: next }
+    }),
+
+  selectAllParts: () => set((s) => ({ selectedPartIds: new Set(s.parts.map((p) => p.id)) })),
 
   setActiveTool: (tool) => set({ activeTool: tool }),
 

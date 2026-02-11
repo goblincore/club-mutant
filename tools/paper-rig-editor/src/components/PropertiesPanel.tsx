@@ -3,16 +3,106 @@ import { BONE_ROLES } from '../types'
 
 export function PropertiesPanel() {
   const parts = useEditorStore((s) => s.parts)
-  const selectedPartId = useEditorStore((s) => s.selectedPartId)
+  const selectedPartIds = useEditorStore((s) => s.selectedPartIds)
   const updatePart = useEditorStore((s) => s.updatePart)
+  const updateParts = useEditorStore((s) => s.updateParts)
 
-  const selectedPart = parts.find((p) => p.id === selectedPartId)
+  const selectedParts = parts.filter((p) => selectedPartIds.has(p.id))
 
-  if (!selectedPart) {
+  if (selectedParts.length === 0) {
     return (
       <div className="text-xs text-white/30 text-center mt-8">Select a part to edit properties</div>
     )
   }
+
+  // Multi-select: batch property editing
+  if (selectedParts.length > 1) {
+    const selectedIds = selectedParts.map((p) => p.id)
+    const selectedIdSet = new Set(selectedIds)
+
+    // Check if all selected parts share the same parent
+    const parentIds = new Set(selectedParts.map((p) => p.parentId))
+    const commonParent = parentIds.size === 1 ? [...parentIds][0] : undefined
+
+    // Parts that can be a parent (not in the selection)
+    const availableParents = parts.filter((p) => !selectedIdSet.has(p.id))
+
+    return (
+      <div className="flex flex-col gap-3">
+        <h2 className="text-sm font-bold text-white/80 uppercase tracking-wider">Properties</h2>
+
+        <div>
+          <span className="text-sm font-mono text-green-300">
+            {selectedParts.length} parts selected
+          </span>
+        </div>
+
+        {/* Batch Parent */}
+        <div>
+          <label className="text-xs text-white/50 block mb-1">Parent (all selected)</label>
+
+          <select
+            value={commonParent === undefined ? '__mixed__' : (commonParent ?? '')}
+            onChange={(e) => {
+              const value = e.target.value
+              if (value === '__mixed__') return
+
+              updateParts(selectedIds, { parentId: value || null })
+            }}
+            className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs font-mono text-white/80 focus:border-green-400/50 focus:outline-none"
+          >
+            {commonParent === undefined && <option value="__mixed__">— mixed —</option>}
+
+            <option value="">None (root)</option>
+
+            {availableParents.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.id}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Batch Bone Role */}
+        <div>
+          <label className="text-xs text-white/50 block mb-1">Bone Role (all selected)</label>
+
+          {(() => {
+            const roles = new Set(selectedParts.map((p) => p.boneRole))
+            const commonRole = roles.size === 1 ? [...roles][0] : undefined
+
+            return (
+              <select
+                value={commonRole === undefined ? '__mixed__' : (commonRole ?? '')}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === '__mixed__') return
+
+                  updateParts(selectedIds, { boneRole: value || null })
+                }}
+                className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs font-mono text-white/80 focus:border-green-400/50 focus:outline-none"
+              >
+                {commonRole === undefined && <option value="__mixed__">— mixed —</option>}
+
+                <option value="">None</option>
+
+                {BONE_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            )
+          })()}
+        </div>
+
+        <p className="text-[10px] text-white/30 mt-1">Cmd/Ctrl+click to toggle individual parts</p>
+      </div>
+    )
+  }
+
+  // Single selection — full property editor
+  const selectedPart = selectedParts[0]!
 
   return (
     <div className="flex flex-col gap-3">

@@ -16,27 +16,103 @@ const STOP_GRACE = 0.15 // Seconds to keep "walk" after stopping (prevents flick
 const BILLBOARD_LERP = 4 // How fast the billboard rotation catches up (lower = more lag/twist)
 const TWIST_DAMPING = 6 // How fast the twist value decays
 
-function ChatBubble({ sessionId, yOffset = 2.2 }: { sessionId: string; yOffset?: number }) {
-  const bubble = useChatStore((s) => s.bubbles.get(sessionId))
+function bubbleFontSize(len: number): number {
+  if (len <= 8) return 7
+  if (len <= 20) return 6
+  return 5
+}
 
-  if (!bubble) return null
+const TALL_THRESHOLD = 1.2 // visualTopY above this → side bubble
+
+function ChatBubble({ sessionId, visualTopY }: { sessionId: string; visualTopY: number }) {
+  const bubble = useChatStore((s) => s.bubbles.get(sessionId))
+  const markerRef = useRef<THREE.Group>(null)
+  const { camera } = useThree()
+  const [flipLeft, setFlipLeft] = useState(false)
+  const tempVec = useRef(new THREE.Vector3())
+  const frameCount = useRef(0)
+
+  const useSide = visualTopY > TALL_THRESHOLD
+
+  // Project character position to screen space every 4th frame (only for side bubbles)
+  useFrame(() => {
+    if (!useSide) return
+
+    frameCount.current++
+    if (frameCount.current % 4 !== 0) return
+    if (!markerRef.current || !bubble) return
+
+    markerRef.current.getWorldPosition(tempVec.current)
+    tempVec.current.project(camera)
+
+    const shouldFlip = tempVec.current.x > 0.3
+    if (shouldFlip !== flipLeft) setFlipLeft(shouldFlip)
+  })
+
+  const fontSize = bubble ? bubbleFontSize(bubble.content.length) : 6
+
+  // Short chars: above head. Tall chars: to the side.
+  const position: [number, number, number] = useSide
+    ? [flipLeft ? -0.5 : 0.5, visualTopY * 0.85, 0]
+    : [0, visualTopY + 0.1, 0]
 
   return (
-    <Html position={[0, yOffset, 0]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
-      <div className="relative max-w-[160px] px-2 py-1 bg-white rounded-lg text-[10px] text-black font-mono leading-tight select-none shadow-md">
-        {bubble.content}
+    <>
+      <group ref={markerRef} />
 
-        {/* Tail */}
-        <div
-          className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-0 h-0"
-          style={{
-            borderLeft: '5px solid transparent',
-            borderRight: '5px solid transparent',
-            borderTop: '6px solid white',
-          }}
-        />
-      </div>
-    </Html>
+      {bubble && (
+        <Html position={position} center distanceFactor={6} style={{ pointerEvents: 'none' }}>
+          <div
+            className="relative max-w-[140px] px-2 py-1 bg-white rounded-lg text-black font-mono leading-tight select-none shadow-md"
+            style={{
+              fontSize: `${fontSize}px`,
+              animation: 'bubble-in 0.2s ease-out both',
+            }}
+          >
+            {bubble.content}
+
+            {useSide ? (
+              // Side tail — on the edge facing the character
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  [flipLeft ? 'right' : 'left']: -5,
+                  marginTop: -4,
+                  width: 0,
+                  height: 0,
+                  borderTop: '4px solid transparent',
+                  borderBottom: '4px solid transparent',
+                  [flipLeft ? 'borderLeft' : 'borderRight']: '6px solid white',
+                }}
+              />
+            ) : (
+              // Bottom tail — centered below bubble, pointing down
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: -5,
+                  left: '50%',
+                  marginLeft: -4,
+                  width: 0,
+                  height: 0,
+                  borderLeft: '4px solid transparent',
+                  borderRight: '4px solid transparent',
+                  borderTop: '6px solid white',
+                }}
+              />
+            )}
+          </div>
+
+          <style>{`
+            @keyframes bubble-in {
+              0% { opacity: 0; transform: scale(0.5); }
+              100% { opacity: 1; transform: scale(1); }
+            }
+          `}</style>
+        </Html>
+      )}
+    </>
   )
 }
 
@@ -57,7 +133,7 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
   const [speed, setSpeed] = useState(0)
   const [velX, setVelX] = useState(0)
   const [bbTwist, setBbTwist] = useState(0)
-  const [worldHeight, setWorldHeight] = useState(1.1)
+  const [visualTopY, setVisualTopY] = useState(1.1)
 
   const lastVisualX = useRef(0)
   const stopTimer = useRef(0)
@@ -184,21 +260,16 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
             speed={speed}
             velocityX={velX}
             billboardTwist={bbTwist}
-            onWorldHeight={setWorldHeight}
+            onLayout={({ visualTopY: vt }) => setVisualTopY(vt)}
           />
         </group>
 
         {/* Chat bubble */}
-        <ChatBubble sessionId={player.sessionId} yOffset={worldHeight + 0.4} />
+        <ChatBubble sessionId={player.sessionId} visualTopY={visualTopY} />
 
-        {/* Nametag */}
-        <Html
-          position={[0, worldHeight + 0.15, 0]}
-          center
-          distanceFactor={10}
-          style={{ pointerEvents: 'none' }}
-        >
-          <div className="text-[10px] font-mono text-white bg-black/60 px-1.5 py-0.5 rounded whitespace-nowrap select-none">
+        {/* Nametag — below the character */}
+        <Html position={[0, -0.15, 0]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
+          <div className="text-[8px] font-mono text-white/80 bg-black/50 px-1 py-0.5 rounded whitespace-nowrap select-none">
             {player.name}
           </div>
         </Html>

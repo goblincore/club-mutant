@@ -176,9 +176,9 @@ interface PartMeshWithRefProps {
 function PartMeshWithRef({ part, allParts, psxEnabled, registerBone }: PartMeshWithRefProps) {
   const groupRef = useRef<THREE.Group>(null)
 
-  const selectedPartId = useEditorStore((s) => s.selectedPartId)
+  const selectedPartIds = useEditorStore((s) => s.selectedPartIds)
   const selectPart = useEditorStore((s) => s.selectPart)
-  const isSelected = selectedPartId === part.id
+  const isSelected = selectedPartIds.has(part.id)
 
   useEffect(() => {
     registerBone(part.id, part.boneRole, groupRef.current)
@@ -249,12 +249,33 @@ function PartMeshWithRef({ part, allParts, psxEnabled, registerBone }: PartMeshW
         </mesh>
       )}
 
-      {/* Pivot dot */}
+      {/* Pivot dot — always on top via transparent + depthWrite off */}
       {isSelected && (
-        <mesh position={[0, 0, 0.01]} renderOrder={999}>
-          <circleGeometry args={[0.03, 16]} />
-          <meshBasicMaterial color="#ff3366" depthTest={false} />
-        </mesh>
+        <group position={[0, 0, 0.01]} renderOrder={999}>
+          {/* Outer ring */}
+          <mesh renderOrder={999}>
+            <ringGeometry args={[0.025, 0.04, 16]} />
+            <meshBasicMaterial
+              color="#ff3366"
+              transparent
+              opacity={1}
+              depthTest={false}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* Center dot */}
+          <mesh renderOrder={999}>
+            <circleGeometry args={[0.015, 12]} />
+            <meshBasicMaterial
+              color="#ff3366"
+              transparent
+              opacity={1}
+              depthTest={false}
+              depthWrite={false}
+            />
+          </mesh>
+        </group>
       )}
 
       {children.map((child) => (

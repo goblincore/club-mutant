@@ -15,10 +15,12 @@ function generatePartId(file: File): string {
 
 export function PartsPanel() {
   const parts = useEditorStore((s) => s.parts)
-  const selectedPartId = useEditorStore((s) => s.selectedPartId)
+  const selectedPartIds = useEditorStore((s) => s.selectedPartIds)
   const addPart = useEditorStore((s) => s.addPart)
   const removePart = useEditorStore((s) => s.removePart)
   const selectPart = useEditorStore((s) => s.selectPart)
+  const toggleSelectPart = useEditorStore((s) => s.toggleSelectPart)
+  const selectAllParts = useEditorStore((s) => s.selectAllParts)
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -60,7 +62,18 @@ export function PartsPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <h2 className="text-sm font-bold text-white/80 uppercase tracking-wider mb-3">Parts</h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-bold text-white/80 uppercase tracking-wider">Parts</h2>
+
+        {parts.length > 0 && (
+          <button
+            className="text-[10px] text-white/40 hover:text-white/70 transition-colors"
+            onClick={selectAllParts}
+          >
+            select all
+          </button>
+        )}
+      </div>
 
       {/* Drop zone */}
       <div
@@ -77,11 +90,17 @@ export function PartsPanel() {
           <div
             key={part.id}
             className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm transition-colors ${
-              selectedPartId === part.id
+              selectedPartIds.has(part.id)
                 ? 'bg-green-500/20 text-green-300'
                 : 'hover:bg-white/5 text-white/70'
             }`}
-            onClick={() => selectPart(part.id)}
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey) {
+                toggleSelectPart(part.id)
+              } else {
+                selectPart(part.id)
+              }
+            }}
           >
             {/* Thumbnail */}
             <img

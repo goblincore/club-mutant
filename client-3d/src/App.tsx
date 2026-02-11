@@ -10,25 +10,7 @@ import { NowPlaying } from './ui/NowPlaying'
 import { IframeVideoBackground } from './ui/IframeVideoBackground'
 import { BoothPrompt } from './ui/BoothPrompt'
 
-const CHAT_WIDTH = 340
 const PLAYLIST_WIDTH = 360
-
-function PsxToggle() {
-  const psxEnabled = useUIStore((s) => s.psxEnabled)
-
-  return (
-    <button
-      onClick={useUIStore.getState().togglePsx}
-      className={`px-3 py-1.5 text-[10px] font-mono rounded border transition-colors ${
-        psxEnabled
-          ? 'bg-purple-500/30 border-purple-500/50 text-purple-200 hover:bg-purple-500/50'
-          : 'bg-black/60 border-white/10 text-white/60 hover:text-white hover:border-white/30'
-      }`}
-    >
-      VHS {psxEnabled ? 'on' : 'off'}
-    </button>
-  )
-}
 
 function MinimizedBoothBar() {
   const isInQueue = useBoothStore((s) => s.isInQueue)
@@ -72,7 +54,6 @@ function MinimizedBoothBar() {
 
 export function App() {
   const connected = useGameStore((s) => s.connected)
-  const chatOpen = useUIStore((s) => s.chatOpen)
   const playlistOpen = useUIStore((s) => s.playlistOpen)
   const playlistMinimized = useUIStore((s) => s.playlistMinimized)
   const isAtBooth = useBoothStore((s) => s.isConnected)
@@ -132,26 +113,8 @@ export function App() {
         </div>
       )}
 
-      {/* Chat panel — right side, full height, matching 2D client style */}
-      {chatOpen && (
-        <div
-          className="absolute top-0 right-0 bottom-0 bg-black/[0.35] backdrop-blur-md border-l border-white/[0.25] flex flex-col"
-          style={{ width: CHAT_WIDTH, zIndex: 20 }}
-        >
-          <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.15]">
-            <span className="text-[13px] font-mono text-white/80">chat</span>
-
-            <button
-              onClick={useUIStore.getState().toggleChat}
-              className="text-[10px] font-mono text-white/40 hover:text-white transition-colors"
-            >
-              ✕
-            </button>
-          </div>
-
-          <ChatPanel />
-        </div>
-      )}
+      {/* Chat panel — always visible, self-manages expand/collapse */}
+      <ChatPanel />
 
       {/* Bottom toolbar */}
       <div
@@ -164,15 +127,6 @@ export function App() {
         >
           {playlistOpen ? 'hide playlist' : 'playlist'}
         </button>
-
-        <button
-          onClick={useUIStore.getState().toggleChat}
-          className="px-3 py-1.5 text-[10px] font-mono bg-black/60 border border-white/10 rounded text-white/60 hover:text-white hover:border-white/30 transition-colors"
-        >
-          {chatOpen ? 'hide chat' : 'chat'}
-        </button>
-
-        <PsxToggle />
       </div>
 
       {/* Booth prompt popup */}
