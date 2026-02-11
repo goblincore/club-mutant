@@ -52,6 +52,7 @@ const TEXTURE_ID_TO_CHARACTER: Record<number, string> = {
   0: '/characters/default',
   1: '/characters/default2',
   2: '/characters/default3',
+  3: '/characters/default4',
 }
 
 function characterPathForTextureId(textureId: number): string {

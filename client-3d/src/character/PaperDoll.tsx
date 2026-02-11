@@ -222,7 +222,8 @@ export function PaperDoll({
   // Compute uniform scale to normalize character height
   const charScale = useMemo(() => {
     if (!loaded) return 1
-    return computeCharacterScale(loaded.manifest.parts)
+    const base = computeCharacterScale(loaded.manifest.parts)
+    return base * (loaded.manifest.scale ?? 1)
   }, [loaded])
 
   if (!loaded) return null

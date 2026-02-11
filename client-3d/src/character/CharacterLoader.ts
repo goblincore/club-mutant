@@ -3,6 +3,7 @@ import * as THREE from 'three'
 // Matches the export format from the rig editor
 export interface CharacterManifest {
   name: string
+  scale?: number
   parts: ManifestPart[]
   animations: ManifestAnimation[]
 }

@@ -27,6 +27,13 @@ const CHARACTERS = [
     thumbnail: '/characters/default3/head.png',
     textureId: 2,
   },
+  {
+    id: 'default4',
+    name: 'default4',
+    path: '/characters/default4',
+    thumbnail: '/characters/default4/head.png',
+    textureId: 3,
+  },
 ]
 
 export function LobbyScreen() {

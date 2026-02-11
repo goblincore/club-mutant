@@ -2,55 +2,35 @@
   "name": "untitled",
   "parts": [
     {
-      "id": "head_7",
-      "texture": "head.png",
-      "pivot": [
-        0.5,
-        0
-      ],
-      "size": [
-        140,
-        102
-      ],
-      "parent": "torso_9",
-      "offset": [
-        0,
-        -15,
-        3
-      ],
-      "zIndex": 6,
-      "boneRole": "head"
-    },
-    {
-      "id": "lleg_8",
+      "id": "lleg_1",
       "texture": "lleg.png",
       "pivot": [
-        0.8,
+        1,
         1
       ],
       "size": [
-        38,
-        44
+        31,
+        45
       ],
-      "parent": "torso_9",
+      "parent": "torso_2",
       "offset": [
-        -8,
-        14,
-        -1
+        0,
+        0,
+        0
       ],
-      "zIndex": 6,
+      "zIndex": 0,
       "boneRole": "leg_l"
     },
     {
-      "id": "torso_9",
+      "id": "torso_2",
       "texture": "torso.png",
       "pivot": [
         0.5,
         0.5
       ],
       "size": [
-        62,
-        60
+        35,
+        42
       ],
       "parent": null,
       "offset": [
@@ -58,68 +38,88 @@
         0,
         0
       ],
-      "zIndex": 6,
+      "zIndex": 0,
       "boneRole": "torso"
     },
     {
-      "id": "rleg_10",
-      "texture": "rleg.png",
+      "id": "head_3",
+      "texture": "head.png",
       "pivot": [
-        0.24,
-        1
+        0.5,
+        0
       ],
       "size": [
-        38,
-        44
+        120,
+        88
       ],
-      "parent": "torso_9",
+      "parent": "torso_2",
       "offset": [
-        11,
-        15,
-        -1
+        0,
+        5,
+        1
       ],
-      "zIndex": 6,
-      "boneRole": "leg_r"
+      "zIndex": 0,
+      "boneRole": "head"
     },
     {
-      "id": "rarm_11",
+      "id": "rarm_4",
       "texture": "rarm.png",
       "pivot": [
         0,
-        1
+        0.88
       ],
       "size": [
-        37,
-        67
+        40,
+        44
       ],
-      "parent": "torso_9",
+      "parent": "torso_2",
       "offset": [
-        17,
-        -23,
-        2
+        10,
+        -10,
+        0
       ],
-      "zIndex": 6,
+      "zIndex": 0,
       "boneRole": "arm_r"
     },
     {
-      "id": "larm_12",
+      "id": "larm_5",
       "texture": "larm.png",
       "pivot": [
         1,
         1
       ],
       "size": [
-        37,
-        67
+        40,
+        44
       ],
-      "parent": "torso_9",
+      "parent": "torso_2",
       "offset": [
-        -14,
-        -26,
+        -6,
+        -15,
         0
       ],
-      "zIndex": 6,
+      "zIndex": 0,
       "boneRole": "arm_l"
+    },
+    {
+      "id": "rleg_6",
+      "texture": "rleg.png",
+      "pivot": [
+        0,
+        0.86
+      ],
+      "size": [
+        31,
+        47
+      ],
+      "parent": "torso_2",
+      "offset": [
+        0,
+        4,
+        0
+      ],
+      "zIndex": 0,
+      "boneRole": "leg_r"
     }
   ],
   "animations": [
