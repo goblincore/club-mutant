@@ -101,71 +101,12 @@ void main() {
 
 export const FLOOR_SEGMENTS = 48
 
-// Video texture vertex shader — same displacement texture sampling
-const videoVertexShader = `
-varying vec2 vUv;
-
-${DISPLACEMENT_SAMPLE_GLSL}
-
-void main() {
-  vUv = uv;
-
-  vec4 worldPos = modelMatrix * vec4(position, 1.0);
-  vec2 worldXZ = worldPos.xz;
-
-  vec3 displaced = position;
-  displaced.z += getDisplacement(worldXZ);
-
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
-}
-`
-
-const videoFragmentShader = `
-precision highp float;
-
-varying vec2 vUv;
-uniform sampler2D uVideoMap;
-
-void main() {
-  gl_FragColor = texture2D(uVideoMap, vUv);
-}
-`
-
 // Helper to update displacement texture uniform on a shader material.
 function updateDisplacementUniforms(mat: THREE.ShaderMaterial) {
   bakeDisplacement()
 
   mat.uniforms.uTime.value = getTime()
   mat.uniforms.uDisplacementMap.value = getDisplacementTexture()
-}
-
-// Video texture material with ripple displacement
-export function TrampolineVideoMaterial({ videoTexture }: { videoTexture: THREE.VideoTexture }) {
-  const matRef = useRef<THREE.ShaderMaterial>(null)
-
-  const uniforms = useMemo(
-    () => ({
-      uVideoMap: { value: videoTexture },
-      uDisplacementMap: { value: getDisplacementTexture() },
-      uRoomSize: { value: DISP_ROOM_SIZE },
-      uTime: { value: 0 },
-    }),
-    [videoTexture]
-  )
-
-  useFrame(() => {
-    if (!matRef.current) return
-    updateDisplacementUniforms(matRef.current)
-  })
-
-  return (
-    <shaderMaterial
-      ref={matRef}
-      vertexShader={videoVertexShader}
-      fragmentShader={videoFragmentShader}
-      uniforms={uniforms}
-    />
-  )
 }
 
 export function TvStaticFloorMaterial() {

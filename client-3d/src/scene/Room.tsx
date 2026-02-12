@@ -3,11 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 
 import { useGameStore, getPlayerPosition } from '../stores/gameStore'
-import {
-  TvStaticFloorMaterial,
-  TrampolineVideoMaterial,
-  FLOOR_SEGMENTS,
-} from '../shaders/TvStaticFloor'
+import { TvStaticFloorMaterial, FLOOR_SEGMENTS } from '../shaders/TvStaticFloor'
 import { TrampolineGrid } from '../shaders/TrampolineGrid'
 import { TrippySky } from '../shaders/TrippySky'
 import { BrickWallMaterial } from '../shaders/BrickWallMaterial'
@@ -614,6 +610,40 @@ function OldComputerDesk({
   )
 }
 
+// Video display — screen on the back wall behind the DJ booth
+function VideoDisplay({
+  position,
+  videoTexture,
+}: {
+  position: [number, number, number]
+  videoTexture?: THREE.VideoTexture | null
+}) {
+  const SCREEN_W = 4.0
+  const SCREEN_H = SCREEN_W * (9 / 16)
+  const BEZEL = 0.1
+  const FRAME_DEPTH = 0.08
+
+  return (
+    <group position={position}>
+      {/* Frame / bezel */}
+      <mesh position={[0, 0, -FRAME_DEPTH / 2]}>
+        <boxGeometry args={[SCREEN_W + BEZEL * 2, SCREEN_H + BEZEL * 2, FRAME_DEPTH]} />
+        <meshStandardMaterial color="#0a0a0a" />
+      </mesh>
+
+      {/* Screen surface */}
+      <mesh position={[0, 0, 0.001]}>
+        <planeGeometry args={[SCREEN_W, SCREEN_H]} />
+        {videoTexture ? (
+          <meshBasicMaterial map={videoTexture} toneMapped={false} />
+        ) : (
+          <meshStandardMaterial color="#080812" emissive="#060610" emissiveIntensity={0.3} />
+        )}
+      </mesh>
+    </group>
+  )
+}
+
 // Door — recessed rectangle with a frame and handle knob
 function Door({ position }: { position: [number, number, number] }) {
   const doorWidth = 1.6
@@ -808,11 +838,7 @@ export function Room({ videoTexture, onBoothDoubleClick }: RoomProps) {
       {/* Floor — subdivided for trampoline ripple vertex displacement */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
         <planeGeometry args={[ROOM_SIZE, ROOM_SIZE, FLOOR_SEGMENTS, FLOOR_SEGMENTS]} />
-        {videoTexture ? (
-          <TrampolineVideoMaterial videoTexture={videoTexture} />
-        ) : (
-          <TvStaticFloorMaterial />
-        )}
+        <TvStaticFloorMaterial />
       </mesh>
 
       {/* Grid overlay — custom deforming grid that rides the ripples */}
@@ -823,6 +849,9 @@ export function Room({ videoTexture, onBoothDoubleClick }: RoomProps) {
         <planeGeometry args={[ROOM_SIZE, WALL_HEIGHT]} />
         <BrickWallMaterial repeat={[8, 4]} />
       </mesh>
+
+      {/* Video display on back wall, above DJ booth */}
+      <VideoDisplay position={[0, WALL_HEIGHT * 0.55, -half + 0.02]} videoTexture={videoTexture} />
 
       {/* Left wall (-X) */}
       <mesh

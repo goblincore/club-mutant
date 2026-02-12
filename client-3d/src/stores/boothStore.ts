@@ -56,7 +56,7 @@ export const useBoothStore = create<BoothState>((set) => ({
 
   queuePlaylist: [],
 
-  videoBackgroundEnabled: false,
+  videoBackgroundEnabled: true,
   videoBgMode: 'off',
   videoBgLabel: '',
 
