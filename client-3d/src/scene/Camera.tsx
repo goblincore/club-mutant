@@ -29,6 +29,9 @@ const SWAY_RESUME_DELAY = 3 // seconds of no input before sway resumes
 // Exported so ClickPlane can skip click-to-move after a camera drag
 export let wasCameraDrag = false
 
+// Current camera distance — readable by other systems (e.g. fisheye scaling)
+export let cameraDistance = DEFAULT_DISTANCE
+
 // Orbit camera: follows player, hold-drag to rotate, scroll to zoom
 export function FollowCamera() {
   const { camera, gl } = useThree()
@@ -145,6 +148,8 @@ export function FollowCamera() {
 
     camera.position.lerp(desiredPos, delta * LERP_SPEED)
     camera.lookAt(targetRef.current)
+
+    cameraDistance = r
   })
 
   return null

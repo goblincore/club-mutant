@@ -2,6 +2,7 @@ import { useRef, useMemo, useEffect } from 'react'
 import { useThree, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useUIStore } from '../stores/uiStore'
+import { cameraDistance } from '../scene/Camera'
 
 /**
  * VHS + PSX post-processing pass (WebGL2 / GLSL3).
@@ -43,14 +44,15 @@ const VHS_FRAGMENT = /* glsl */ `
   varying vec2 vUv;
 
   // ---- fisheye / barrel distortion ----
-  // Higher-order polynomial for true fisheye center magnification
-  const float BARREL_K1 = 0.6;  // r² term — main curvature
-  const float BARREL_K2 = 0.4;  // r⁴ term — extra center bulge
+  // Driven by u_fisheye uniform (0 = none, 1 = default, 2+ = extreme)
+  uniform float u_fisheye;
 
   vec2 barrelDistort(vec2 uv) {
     vec2 centered = uv - 0.5;
     float r2 = dot(centered, centered);
-    float distort = 1.0 + r2 * BARREL_K1 + r2 * r2 * BARREL_K2;
+    float k1 = 0.6 * u_fisheye;  // r² term
+    float k2 = 0.4 * u_fisheye;  // r⁴ term
+    float distort = 1.0 + r2 * k1 + r2 * r2 * k2;
     return centered * distort + 0.5;
   }
 
@@ -205,6 +207,7 @@ export function PsxPostProcess() {
         u_resolution: { value: new THREE.Vector2(160, 120) },
         u_bloomResolution: { value: new THREE.Vector2(80, 60) },
         u_time: { value: 0 },
+        u_fisheye: { value: 1.0 },
       },
       transparent: true,
       depthTest: false,
@@ -265,6 +268,17 @@ export function PsxPostProcess() {
 
     timeRef.current += delta
     material.uniforms.u_time.value = timeRef.current
+
+    // Dynamic fisheye: stronger when zoomed in, weaker when zoomed out
+    const override = useUIStore.getState().fisheyeOverride
+
+    if (override !== null) {
+      material.uniforms.u_fisheye.value = override
+    } else {
+      // Map distance 3..15 → fisheye 1.8..0.6 (closer = more distortion)
+      const t = Math.max(0, Math.min(1, (cameraDistance - 3) / 12))
+      material.uniforms.u_fisheye.value = 1.8 - t * 1.2
+    }
 
     const hasBg = scene.background !== null
     const oldAutoClear = gl.autoClear

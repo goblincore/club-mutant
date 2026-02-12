@@ -12,6 +12,7 @@ interface UIState {
   muted: boolean
   showFps: boolean
   renderScale: number
+  fisheyeOverride: number | null
 
   toggleChatExpanded: () => void
   togglePlaylist: () => void
@@ -22,6 +23,7 @@ interface UIState {
   toggleMuted: () => void
   toggleFps: () => void
   cycleRenderScale: () => void
+  setFisheyeOverride: (v: number | null) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -34,6 +36,7 @@ export const useUIStore = create<UIState>((set) => ({
   muted: false,
   showFps: false,
   renderScale: 0.75,
+  fisheyeOverride: null,
 
   toggleChatExpanded: () => set((s) => ({ chatExpanded: !s.chatExpanded })),
   togglePlaylist: () => set((s) => ({ playlistOpen: !s.playlistOpen })),
@@ -44,6 +47,8 @@ export const useUIStore = create<UIState>((set) => ({
   toggleMuted: () => set((s) => ({ muted: !s.muted })),
 
   toggleFps: () => set((s) => ({ showFps: !s.showFps })),
+
+  setFisheyeOverride: (v) => set({ fisheyeOverride: v }),
 
   cycleRenderScale: () =>
     set((s) => {
