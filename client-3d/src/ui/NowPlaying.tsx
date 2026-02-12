@@ -142,7 +142,7 @@ export function NowPlaying() {
               className="w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 border border-white/15 rounded transition-colors"
               title="Skip to next"
             >
-              <span className="text-[12px] text-white/70">▶▶</span>
+              <span className="text-[12px] text-white/90">▶▶</span>
             </button>
           </div>
         )}
@@ -156,14 +156,14 @@ export function NowPlaying() {
                 {stream.currentTitle ?? '♪ untitled'}
               </div>
 
-              <div className="text-[11px] font-mono text-white/40 truncate">
+              <div className="text-[11px] font-mono text-white/60 truncate">
                 {timeText}
                 {timeText && upNextText && ' • '}
                 {upNextText}
               </div>
             </>
           ) : (
-            <div className="text-[13px] font-mono text-white/40">stopped — press ▶ to play</div>
+            <div className="text-[13px] font-mono text-white/60">stopped — press ▶ to play</div>
           )}
         </div>
 
@@ -174,7 +174,7 @@ export function NowPlaying() {
             className={`w-7 h-7 flex items-center justify-center border rounded transition-colors flex-shrink-0 ${
               videoBackground
                 ? 'bg-purple-500/30 border-purple-500/50 text-purple-300'
-                : 'bg-white/10 border-white/20 text-white/40 hover:text-white'
+                : 'bg-white/10 border-white/20 text-white/60 hover:text-white'
             }`}
             title={videoBackground ? 'Hide video background' : 'Show video background'}
           >

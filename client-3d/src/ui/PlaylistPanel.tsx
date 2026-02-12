@@ -167,12 +167,12 @@ export function PlaylistPanel() {
             setSearchResults([])
             setSearchQuery('')
           }}
-          className="text-[11px] font-mono text-white/40 hover:text-white flex items-center gap-1 flex-shrink-0"
+          className="text-[11px] font-mono text-white/60 hover:text-white flex items-center gap-1 flex-shrink-0"
         >
           ← Back
         </button>
 
-        <span className="text-[13px] font-mono text-white/80 truncate flex-1 text-center">
+        <span className="text-[13px] font-mono text-white/90 truncate flex-1 text-center">
           {viewingPlaylist.name}
         </span>
 
@@ -189,7 +189,7 @@ export function PlaylistPanel() {
             className={`flex-1 py-2 text-[13px] font-mono text-center transition-colors ${
               detailTab === t
                 ? 'text-purple-300 border-b-2 border-purple-400'
-                : 'text-white/40 hover:text-white/60'
+                : 'text-white/60 hover:text-white/80'
             }`}
           >
             {t === 'tracks' ? 'Tracks' : t === 'search' ? 'Search' : 'Link'}
@@ -210,7 +210,7 @@ export function PlaylistPanel() {
           )}
 
           {viewingPlaylist.items.length === 0 && (
-            <p className="text-white/20 text-[12px] font-mono text-center mt-4">
+            <p className="text-white/40 text-[12px] font-mono text-center mt-4">
               no tracks yet — use Search or Link tabs to add
             </p>
           )}
@@ -247,15 +247,15 @@ export function PlaylistPanel() {
               }`}
             >
               {/* Drag handle */}
-              <span className="text-[10px] text-white/20 mr-1.5 flex-shrink-0 select-none">⠿</span>
+              <span className="text-[10px] text-white/40 mr-1.5 flex-shrink-0 select-none">⠿</span>
 
               <div className="flex-1 min-w-0 mr-2">
-                <div className="text-[12px] font-mono text-white/70 truncate">{track.title}</div>
+                <div className="text-[12px] font-mono text-white/90 truncate">{track.title}</div>
               </div>
 
               <div className="flex items-center gap-1 flex-shrink-0">
                 {track.duration > 0 && (
-                  <span className="text-[11px] font-mono text-white/30 mr-1">
+                  <span className="text-[11px] font-mono text-white/50 mr-1">
                     {formatDuration(track.duration)}
                   </span>
                 )}
@@ -264,7 +264,7 @@ export function PlaylistPanel() {
                   onClick={() =>
                     usePlaylistStore.getState().removeTrack(viewingPlaylist.id, track.id)
                   }
-                  className="w-6 h-6 flex items-center justify-center text-[12px] text-white/25 hover:text-red-400 transition-colors"
+                  className="w-6 h-6 flex items-center justify-center text-[12px] text-white/45 hover:text-red-400 transition-colors"
                   title="Delete track"
                 >
                   🗑
@@ -273,7 +273,7 @@ export function PlaylistPanel() {
                 {isConnected && (
                   <button
                     onClick={() => handleAddTrackToQueue(track)}
-                    className="w-6 h-6 flex items-center justify-center text-[13px] text-white/25 hover:text-green-400 transition-colors"
+                    className="w-6 h-6 flex items-center justify-center text-[13px] text-white/45 hover:text-green-400 transition-colors"
                     title="Add to DJ queue"
                   >
                     +
@@ -299,7 +299,7 @@ export function PlaylistPanel() {
               <button
                 onClick={handleSearch}
                 disabled={searching}
-                className="px-2.5 py-1.5 text-[12px] font-mono bg-white/10 border border-white/20 rounded text-white/60 hover:text-white transition-colors disabled:opacity-30"
+                className="px-2.5 py-1.5 text-[12px] font-mono bg-white/10 border border-white/20 rounded text-white/80 hover:text-white transition-colors disabled:opacity-30"
               >
                 {searching ? '...' : 'go'}
               </button>
@@ -307,14 +307,14 @@ export function PlaylistPanel() {
           </div>
 
           <div className="px-3 py-1 border-b border-white/[0.06]">
-            <span className="text-[10px] font-mono text-white/25">
+            <span className="text-[10px] font-mono text-white/45">
               adding to: {viewingPlaylist.name}
             </span>
           </div>
 
           <div className="flex-1 overflow-y-auto px-3 py-1">
             {searchResults.length === 0 && !searching && (
-              <p className="text-white/20 text-[12px] font-mono text-center mt-4">
+              <p className="text-white/40 text-[12px] font-mono text-center mt-4">
                 search for tracks to add to this playlist
               </p>
             )}
@@ -333,10 +333,10 @@ export function PlaylistPanel() {
                 )}
 
                 <div className="flex-1 min-w-0">
-                  <div className="text-[12px] font-mono text-white/70 truncate">{result.title}</div>
+                  <div className="text-[12px] font-mono text-white/90 truncate">{result.title}</div>
 
                   {result.duration ? (
-                    <div className="text-[10px] font-mono text-white/30">
+                    <div className="text-[10px] font-mono text-white/50">
                       {formatDuration(result.duration)}
                     </div>
                   ) : null}
@@ -373,9 +373,9 @@ export function PlaylistPanel() {
             </button>
           </div>
 
-          <p className="text-white/20 text-[13px] font-mono mt-3">
+          <p className="text-white/40 text-[13px] font-mono mt-3">
             paste a YouTube URL to add it to{' '}
-            <span className="text-white/40">{viewingPlaylist.name}</span>
+            <span className="text-white/60">{viewingPlaylist.name}</span>
           </p>
         </div>
       )}
@@ -387,7 +387,7 @@ export function PlaylistPanel() {
   const playlistListView = (
     <div className="flex-1 overflow-y-auto px-3 py-2">
       {playlists.length === 0 && !creating && (
-        <p className="text-white/20 text-[13px] font-mono text-center mt-4">
+        <p className="text-white/40 text-[13px] font-mono text-center mt-4">
           no playlists yet — create one to start saving tracks
         </p>
       )}
@@ -403,9 +403,9 @@ export function PlaylistPanel() {
           }}
         >
           <div className="min-w-0 flex-1">
-            <div className="text-[16px] font-mono text-white/70">{pl.name}</div>
+            <div className="text-[16px] font-mono text-white/90">{pl.name}</div>
 
-            <div className="text-[12px] font-mono text-white/30">
+            <div className="text-[12px] font-mono text-white/50">
               {pl.items.length} track{pl.items.length !== 1 ? 's' : ''}
             </div>
           </div>
@@ -428,7 +428,7 @@ export function PlaylistPanel() {
                 e.stopPropagation()
                 usePlaylistStore.getState().removePlaylist(pl.id)
               }}
-              className="text-[13px] text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+              className="text-[13px] text-white/40 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
             >
               ✕
             </button>
@@ -461,7 +461,7 @@ export function PlaylistPanel() {
               setCreating(false)
               setNewPlaylistName('')
             }}
-            className="px-2 py-1.5 text-[13px] font-mono text-white/30 hover:text-white transition-colors"
+            className="px-2 py-1.5 text-[13px] font-mono text-white/50 hover:text-white transition-colors"
           >
             ✕
           </button>
@@ -469,7 +469,7 @@ export function PlaylistPanel() {
       ) : (
         <button
           onClick={() => setCreating(true)}
-          className="mt-2 w-full py-2 text-[12px] font-mono text-white/30 hover:text-white/60 border border-dashed border-white/10 hover:border-white/20 rounded transition-colors"
+          className="mt-2 w-full py-2 text-[12px] font-mono text-white/50 hover:text-white/80 border border-dashed border-white/10 hover:border-white/20 rounded transition-colors"
         >
           + new playlist
         </button>
@@ -492,7 +492,7 @@ export function PlaylistPanel() {
         <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.15]">
           <button
             onClick={() => useUIStore.getState().setPlaylistMinimized(true)}
-            className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white transition-colors rounded hover:bg-white/10 flex-shrink-0"
+            className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white transition-colors rounded hover:bg-white/10 flex-shrink-0"
             title="Minimize panel"
           >
             <svg
@@ -551,7 +551,7 @@ export function PlaylistPanel() {
               className={`flex-1 py-2 text-[13px] font-mono text-center transition-colors ${
                 boothTab === t
                   ? 'text-purple-300 border-b-2 border-purple-400'
-                  : 'text-white/40 hover:text-white/60'
+                  : 'text-white/60 hover:text-white/80'
               }`}
             >
               {t === 'queue' ? 'DJ Queue' : 'My Playlists'}
@@ -564,7 +564,7 @@ export function PlaylistPanel() {
           <div className="flex-1 overflow-y-auto px-3 py-2">
             {djQueue.length > 0 && (
               <div className="mb-3">
-                <div className="text-[11px] font-mono text-white/30 uppercase tracking-wider mb-1">
+                <div className="text-[11px] font-mono text-white/50 uppercase tracking-wider mb-1">
                   dj rotation
                 </div>
 
@@ -572,7 +572,7 @@ export function PlaylistPanel() {
                   <div
                     key={entry.sessionId}
                     className={`flex items-center gap-2 py-1 ${
-                      entry.sessionId === currentDjSessionId ? 'text-green-400' : 'text-white/60'
+                      entry.sessionId === currentDjSessionId ? 'text-green-400' : 'text-white/80'
                     }`}
                   >
                     <span className="text-[12px] font-mono w-5">{i + 1}.</span>
@@ -591,7 +591,7 @@ export function PlaylistPanel() {
                 {isCurrentDJ && (
                   <button
                     onClick={() => getNetwork().djSkipTurn()}
-                    className="mt-2 px-2.5 py-1 text-[11px] font-mono bg-white/10 border border-white/20 rounded text-white/50 hover:text-white transition-colors"
+                    className="mt-2 px-2.5 py-1 text-[11px] font-mono bg-white/10 border border-white/20 rounded text-white/70 hover:text-white transition-colors"
                   >
                     skip my turn
                   </button>
@@ -599,12 +599,12 @@ export function PlaylistPanel() {
               </div>
             )}
 
-            <div className="text-[11px] font-mono text-white/30 uppercase tracking-wider mb-1">
+            <div className="text-[11px] font-mono text-white/50 uppercase tracking-wider mb-1">
               my queue ({queuePlaylist.filter((t) => !t.played).length} tracks)
             </div>
 
             {queuePlaylist.length === 0 && (
-              <p className="text-white/20 text-[12px] font-mono mt-2">
+              <p className="text-white/40 text-[12px] font-mono mt-2">
                 no tracks — go to My Playlists to add tracks
               </p>
             )}
@@ -660,14 +660,14 @@ export function PlaylistPanel() {
                 >
                   {/* Drag handle or lock indicator */}
                   {!isLocked ? (
-                    <span className="text-[10px] text-white/20 mr-1.5 flex-shrink-0 select-none">
+                    <span className="text-[10px] text-white/40 mr-1.5 flex-shrink-0 select-none">
                       ⠿
                     </span>
                   ) : (
                     <span className="w-[14px] mr-1.5 flex-shrink-0" />
                   )}
 
-                  <div className="text-[12px] font-mono text-white/70 truncate flex-1 mr-2">
+                  <div className="text-[12px] font-mono text-white/90 truncate flex-1 mr-2">
                     {i + 1}. {track.title}
                     {isNowPlaying && <span className="text-green-400/60 ml-1">♪</span>}
                   </div>
@@ -675,7 +675,7 @@ export function PlaylistPanel() {
                   {!track.played && (
                     <button
                       onClick={() => handleRemoveQueueTrack(track.id)}
-                      className="text-[12px] text-white/30 hover:text-red-400 transition-colors flex-shrink-0"
+                      className="text-[12px] text-white/50 hover:text-red-400 transition-colors flex-shrink-0"
                     >
                       ✕
                     </button>
@@ -696,11 +696,11 @@ export function PlaylistPanel() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.15]">
-        <span className="text-base font-mono text-white/80">my playlists</span>
+        <span className="text-base font-mono text-white/90">my playlists</span>
 
         <button
           onClick={() => useUIStore.getState().setPlaylistOpen(false)}
-          className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white transition-colors rounded hover:bg-white/10"
+          className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white transition-colors rounded hover:bg-white/10"
         >
           <svg
             width="16"

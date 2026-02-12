@@ -91,12 +91,12 @@ export function ChatPanel() {
       {expanded && (
         <>
           {/* Header */}
-          <div className="pointer-events-auto bg-black/[0.35] backdrop-blur-md border border-white/[0.25] border-b-0 rounded-t-lg mx-4 mt-4 px-3 py-2 flex items-center justify-between">
-            <span className="text-base font-mono text-white/80">chat</span>
+          <div className="pointer-events-auto bg-black/[0.85] backdrop-blur-md border border-white/[0.15] border-b-0 rounded-t-lg mx-4 mt-4 px-3 py-2 flex items-center justify-between">
+            <span className="text-base font-mono text-white">chat</span>
 
             <button
               onClick={toggleExpanded}
-              className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white transition-colors rounded hover:bg-white/10"
+              className="w-7 h-7 flex items-center justify-center text-white/80 hover:text-white transition-colors rounded hover:bg-white/15"
             >
               <svg
                 width="16"
@@ -117,23 +117,23 @@ export function ChatPanel() {
           {/* Messages */}
           <div
             ref={scrollRef}
-            className="pointer-events-auto flex-1 overflow-y-auto space-y-1 p-2 text-[13px] bg-black/[0.25] backdrop-blur-md border-x border-white/[0.25] mx-4"
+            className="pointer-events-auto flex-1 overflow-y-auto space-y-1 p-2 text-[13px] bg-black/[0.65] backdrop-blur-md border-x border-white/[0.15] mx-4"
           >
             {messages.map((msg) => (
               <div key={msg.id} className="leading-tight hover:bg-white/[0.08] px-1 rounded">
                 {msg.author === 'system' ? (
-                  <span className="text-white/30 italic">{msg.content}</span>
+                  <span className="text-white/70 italic">{msg.content}</span>
                 ) : (
                   <>
                     <span className="text-green-300 font-bold">{msg.author}</span>
-                    <span className="text-white/60">: {msg.content}</span>
+                    <span className="text-white/80">: {msg.content}</span>
                   </>
                 )}
               </div>
             ))}
 
             {messages.length === 0 && (
-              <p className="text-white/20 text-center mt-4">No messages yet</p>
+              <p className="text-white/40 text-center mt-4">No messages yet</p>
             )}
           </div>
         </>
@@ -141,14 +141,14 @@ export function ChatPanel() {
 
       {/* Input bar — always visible */}
       <div
-        className={`pointer-events-auto mx-4 mb-4 flex items-center bg-black/[0.35] backdrop-blur-md border border-white/[0.25] transition-all duration-150 ${
+        className={`pointer-events-auto mx-4 mb-4 flex items-center bg-black/[0.75] backdrop-blur-md border border-white/[0.15] transition-all duration-150 ${
           expanded ? 'rounded-b-lg rounded-t-none' : 'rounded-lg'
         } ${focused ? 'shadow-[0_0_8px_2px_rgba(255,255,255,0.6),0_0_20px_6px_rgba(200,230,255,0.3)] border-white/70' : ''}`}
       >
         {/* Chat toggle icon */}
         <button
           onClick={toggleExpanded}
-          className="px-2.5 py-2 text-white/40 hover:text-white transition-colors flex-shrink-0"
+          className="px-2.5 py-2 text-white/60 hover:text-white transition-colors flex-shrink-0"
         >
           <svg
             width="16"
@@ -173,7 +173,7 @@ export function ChatPanel() {
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder="Press Enter to chat"
-          className="flex-1 bg-transparent py-2 pr-3 text-[13px] text-white font-mono placeholder-white/30 focus:outline-none"
+          className="flex-1 bg-transparent py-2 pr-3 text-[13px] text-white font-mono placeholder-white/50 focus:outline-none"
         />
       </div>
     </div>

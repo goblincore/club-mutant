@@ -31,7 +31,7 @@ function MinimizedBoothBar() {
     <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm border border-white/10 rounded-lg px-3 py-2">
       <button
         onClick={() => useUIStore.getState().setPlaylistMinimized(false)}
-        className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white transition-colors rounded hover:bg-white/10 flex-shrink-0"
+        className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white transition-colors rounded hover:bg-white/10 flex-shrink-0"
         title="Expand panel"
       >
         <svg
@@ -144,7 +144,7 @@ export function App() {
       {/* Playlist panel — left side, below NowPlaying bar */}
       {showFullPanel && (
         <div
-          className="absolute left-0 bottom-0 bg-black/[0.35] backdrop-blur-md border-r border-white/[0.25] flex flex-col"
+          className="absolute left-0 bottom-0 bg-black/[0.75] backdrop-blur-md border-r border-white/[0.15] flex flex-col"
           style={{ top: playlistTop, width: PLAYLIST_WIDTH, zIndex: 20 }}
         >
           <PlaylistPanel />
@@ -161,7 +161,7 @@ export function App() {
       >
         <button
           onClick={useUIStore.getState().togglePlaylist}
-          className="px-3 py-1.5 text-[12px] font-mono bg-black/60 border border-white/10 rounded text-white/60 hover:text-white hover:border-white/30 transition-colors"
+          className="px-3 py-1.5 text-[12px] font-mono bg-black/60 border border-white/10 rounded text-white/70 hover:text-white hover:border-white/30 transition-colors"
         >
           {playlistOpen ? 'hide playlist' : 'playlist'}
         </button>
