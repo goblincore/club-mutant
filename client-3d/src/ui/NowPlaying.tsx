@@ -5,6 +5,7 @@ import { getNetwork } from '../network/NetworkManager'
 import { useMusicStore } from '../stores/musicStore'
 import { useBoothStore } from '../stores/boothStore'
 import { useGameStore } from '../stores/gameStore'
+import { useUIStore } from '../stores/uiStore'
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -21,6 +22,7 @@ export function NowPlaying() {
   const djQueue = useBoothStore((s) => s.djQueue)
   const mySessionId = useGameStore((s) => s.mySessionId)
   const isCurrentDJ = currentDjSessionId === mySessionId
+  const muted = useUIStore((s) => s.muted)
 
   const playerRef = useRef<ReactPlayer>(null)
   const [elapsed, setElapsed] = useState(0)
@@ -98,7 +100,7 @@ export function NowPlaying() {
             ref={playerRef}
             url={stream.currentLink!}
             playing={stream.isPlaying}
-            volume={0.5}
+            volume={muted ? 0 : 0.5}
             width={1}
             height={1}
             onEnded={handleEnded}

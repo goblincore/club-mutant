@@ -7,6 +7,7 @@ interface UIState {
   psxEnabled: boolean
   showNametags: boolean
   boothPromptOpen: boolean
+  muted: boolean
 
   toggleChatExpanded: () => void
   togglePlaylist: () => void
@@ -14,6 +15,7 @@ interface UIState {
   setPlaylistMinimized: (minimized: boolean) => void
   toggleNametags: () => void
   setBoothPromptOpen: (open: boolean) => void
+  toggleMuted: () => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -23,6 +25,7 @@ export const useUIStore = create<UIState>((set) => ({
   psxEnabled: true,
   showNametags: true,
   boothPromptOpen: false,
+  muted: false,
 
   toggleChatExpanded: () => set((s) => ({ chatExpanded: !s.chatExpanded })),
   togglePlaylist: () => set((s) => ({ playlistOpen: !s.playlistOpen })),
@@ -30,4 +33,5 @@ export const useUIStore = create<UIState>((set) => ({
   setPlaylistMinimized: (minimized) => set({ playlistMinimized: minimized }),
   toggleNametags: () => set((s) => ({ showNametags: !s.showNametags })),
   setBoothPromptOpen: (open) => set({ boothPromptOpen: open }),
+  toggleMuted: () => set((s) => ({ muted: !s.muted })),
 }))

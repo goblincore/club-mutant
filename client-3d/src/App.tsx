@@ -89,9 +89,12 @@ export function App() {
   const playlistMinimized = useUIStore((s) => s.playlistMinimized)
   const isAtBooth = useBoothStore((s) => s.isConnected)
 
+  const muted = useUIStore((s) => s.muted)
   const videoBackgroundEnabled = useBoothStore((s) => s.videoBackgroundEnabled)
   const videoBgMode = useBoothStore((s) => s.videoBgMode)
   const stream = useMusicStore((s) => s.stream)
+  const currentDjSessionId = useBoothStore((s) => s.currentDjSessionId)
+  const mySessionId = useGameStore((s) => s.mySessionId)
 
   const showIframe =
     videoBackgroundEnabled && videoBgMode === 'iframe' && stream.isPlaying && !!stream.currentLink
@@ -103,8 +106,12 @@ export function App() {
   // Show full panel only when open AND not minimized
   const showFullPanel = playlistOpen && !playlistMinimized
 
-  // Mini bar left offset: push right when full playlist panel is visible
-  const miniBarLeft = showFullPanel ? PLAYLIST_WIDTH + 12 : 12
+  // NowPlaying is visible when something is playing OR the current user is the DJ
+  const isCurrentDJ = currentDjSessionId === mySessionId
+  const nowPlayingVisible = (stream.isPlaying && !!stream.currentLink) || isCurrentDJ
+
+  // Playlist panel starts below NowPlaying when visible, otherwise full height
+  const playlistTop = nowPlayingVisible ? 68 : 0
 
   return (
     <div className="relative w-full h-full overflow-hidden">
@@ -122,8 +129,8 @@ export function App() {
 
       {/* Layer 2+: All UI */}
 
-      {/* Now playing mini bar — shifts right when full playlist panel is visible */}
-      <div className="absolute top-3" style={{ left: miniBarLeft, zIndex: 20 }}>
+      {/* Now playing mini bar — always top-left, above playlist panel */}
+      <div className="absolute top-3 left-3" style={{ zIndex: 30 }}>
         <NowPlaying />
       </div>
 
@@ -134,11 +141,11 @@ export function App() {
         </div>
       )}
 
-      {/* Playlist panel — left side, full height */}
+      {/* Playlist panel — left side, below NowPlaying bar */}
       {showFullPanel && (
         <div
-          className="absolute top-0 left-0 bottom-0 bg-black/[0.35] backdrop-blur-md border-r border-white/[0.25] flex flex-col"
-          style={{ width: PLAYLIST_WIDTH, zIndex: 20 }}
+          className="absolute left-0 bottom-0 bg-black/[0.35] backdrop-blur-md border-r border-white/[0.25] flex flex-col"
+          style={{ top: playlistTop, width: PLAYLIST_WIDTH, zIndex: 20 }}
         >
           <PlaylistPanel />
         </div>
@@ -159,6 +166,50 @@ export function App() {
           {playlistOpen ? 'hide playlist' : 'playlist'}
         </button>
       </div>
+
+      {/* Mute toggle — lower left */}
+      <button
+        onClick={useUIStore.getState().toggleMuted}
+        className={`absolute bottom-3 left-3 w-9 h-9 flex items-center justify-center rounded-lg border transition-colors ${
+          muted
+            ? 'bg-red-500/20 border-red-500/30 text-red-400'
+            : 'bg-black/60 border-white/10 text-white/50 hover:text-white hover:border-white/30'
+        }`}
+        style={{ zIndex: 20 }}
+        title={muted ? 'Unmute' : 'Mute'}
+      >
+        {muted ? (
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <line x1="23" y1="9" x2="17" y2="15" />
+            <line x1="17" y1="9" x2="23" y2="15" />
+          </svg>
+        ) : (
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+          </svg>
+        )}
+      </button>
 
       {/* Booth prompt popup */}
       <BoothPrompt />
