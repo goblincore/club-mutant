@@ -8,6 +8,8 @@ import { useChatStore } from '../stores/chatStore'
 import { useMusicStore } from '../stores/musicStore'
 import { useBoothStore } from '../stores/boothStore'
 import { getDJBoothWorldX, BOOTH_WORLD_Z } from '../scene/Room'
+import { triggerRemoteJump } from '../scene/PlayerEntity'
+import { addRipple } from '../scene/TrampolineRipples'
 
 const PLAYER_ID_KEY = 'club-mutant-3d:player-id'
 
@@ -72,6 +74,10 @@ export class NetworkManager {
     const ROOM_MAX = 550
     const clampPos = (v: number) => Math.max(-ROOM_MAX, Math.min(ROOM_MAX, v))
 
+    // Track recently-added remote players so we can skip initial listen fires
+    // that carry the server's legacy 2D default position (705, 500).
+    const freshRemotes = new Set<string>()
+
     // Player add/remove/change
     playersProxy.onAdd((player: IPlayer, sessionId: string) => {
       const gameStore = useGameStore.getState()
@@ -84,10 +90,52 @@ export class NetworkManager {
         `[network] onAdd ${sessionId} textureId=${player.textureId} name=${player.name} pos=(${player.x},${player.y})→(${cx},${cy})`
       )
 
-      // Force local player to spawn at room center (server default 705,500 is for the 2D client)
       const isLocal = sessionId === this.room?.sessionId
-      const spawnX = isLocal ? 0 : cx
-      const spawnY = isLocal ? 0 : cy
+      const localSessionId = this.room?.sessionId
+
+      // Detect players still at the server's legacy 2D default position (705, 500).
+      // These are freshly-spawned players who haven't sent a 3D position yet.
+      const isDefault2dSpawn = Math.abs(player.x - 705) < 2 && Math.abs(player.y - 500) < 2
+
+      // Only guard freshly-spawned remote players at the 2D default —
+      // their listen callback would echo 705/500 before they send (0,0).
+      // Existing players with real positions should NOT be guarded.
+      if (!isLocal && isDefault2dSpawn) {
+        freshRemotes.add(sessionId)
+        setTimeout(() => {
+          freshRemotes.delete(sessionId)
+          console.log(`[network] ${sessionId} no longer fresh, accepting listen updates`)
+        }, 300)
+      }
+
+      const playerProxy = $(player) as any
+
+      playerProxy.listen('x', (value: number) => {
+        if (sessionId === localSessionId) return
+
+        if (freshRemotes.has(sessionId)) {
+          console.log(`[network] SKIP listen x=${value} for fresh remote ${sessionId}`)
+          return
+        }
+
+        useGameStore.getState().updatePlayer(sessionId, { x: clampPos(value) })
+      })
+
+      playerProxy.listen('y', (value: number) => {
+        if (sessionId === localSessionId) return
+
+        if (freshRemotes.has(sessionId)) {
+          console.log(`[network] SKIP listen y=${value} for fresh remote ${sessionId}`)
+          return
+        }
+
+        useGameStore.getState().updatePlayer(sessionId, { y: clampPos(value) })
+      })
+
+      // Use (0,0) for local player and freshly-spawned remotes at the 2D default.
+      // Existing players with real positions keep their actual server position.
+      const spawnX = isLocal || isDefault2dSpawn ? 0 : cx
+      const spawnY = isLocal || isDefault2dSpawn ? 0 : cy
 
       gameStore.addPlayer(sessionId, {
         sessionId,
@@ -104,24 +152,6 @@ export class NetworkManager {
         // Tell the server we're at (0,0) so it doesn't echo back the 2D default
         this.sendPosition(0, 0, 'idle')
       }
-
-      const playerProxy = $(player) as any
-
-      // Only update remote players from server echoes —
-      // the local player drives its own position via input.
-      const localSessionId = this.room?.sessionId
-
-      playerProxy.listen('x', (value: number) => {
-        if (sessionId !== localSessionId) {
-          useGameStore.getState().updatePlayer(sessionId, { x: clampPos(value) })
-        }
-      })
-
-      playerProxy.listen('y', (value: number) => {
-        if (sessionId !== localSessionId) {
-          useGameStore.getState().updatePlayer(sessionId, { y: clampPos(value) })
-        }
-      })
 
       playerProxy.listen('name', (value: string) => {
         useGameStore.getState().updatePlayer(sessionId, { name: value })
@@ -280,6 +310,25 @@ export class NetworkManager {
       )
     })
 
+    // Trampoline jump from other players
+    this.room.onMessage(Message.PLAYER_JUMP, (data: { sessionId: string }) => {
+      if (!data.sessionId) return
+
+      triggerRemoteJump(data.sessionId)
+
+      // Create the floor ripple immediately using the player's current store position.
+      // This avoids timing issues where the PlayerEntity's useFrame hasn't run yet.
+      const WORLD_SCALE = 0.01
+      const TAKEOFF_RIPPLE_AMP = 0.08
+      const p = useGameStore.getState().players.get(data.sessionId)
+
+      if (p) {
+        const wx = p.x * WORLD_SCALE
+        const wz = -p.y * WORLD_SCALE
+        addRipple(wx, wz, TAKEOFF_RIPPLE_AMP)
+      }
+    })
+
     // Room leave
     this.room.onLeave((code: number) => {
       console.log('[network] Left room, code:', code)
@@ -374,6 +423,11 @@ export class NetworkManager {
 
   djTurnComplete() {
     this.room?.send(Message.DJ_TURN_COMPLETE, {})
+  }
+
+  // Trampoline jump
+  sendJump() {
+    this.room?.send(Message.PLAYER_JUMP, {})
   }
 
   // Room queue playlist (per-player DJ queue tracks)

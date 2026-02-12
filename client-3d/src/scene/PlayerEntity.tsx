@@ -11,6 +11,9 @@ import {
   type ChatBubble as ChatBubbleData,
 } from '../stores/chatStore'
 import { useMusicStore } from '../stores/musicStore'
+import { consumeJumpRequest } from '../input/usePlayerInput'
+import { addRipple, getDisplacementAt } from './TrampolineRipples'
+import { getNetwork } from '../network/NetworkManager'
 
 const WORLD_SCALE = 0.01 // Server pixels → world units
 const LOCAL_LERP = 18 // Fast lerp for local player (smooth but responsive)
@@ -19,6 +22,38 @@ const MOVE_THRESHOLD = 0.0001 // World-unit velocity² threshold for "moving"
 const STOP_GRACE = 0.15 // Seconds to keep "walk" after stopping (prevents flicker)
 const BILLBOARD_LERP = 4 // How fast the billboard rotation catches up (lower = more lag/twist)
 const TWIST_DAMPING = 6 // How fast the twist value decays
+
+// ── Jump / trampoline constants (moon-bounce feel) ──
+
+const JUMP_VELOCITY = 3.5 // world units/sec initial upward speed
+const DOUBLE_JUMP_VELOCITY = 2.8 // slightly weaker second jump
+const GRAVITY = 6.0 // world units/sec² (low = floaty moon-bounce)
+const LANDING_RIPPLE_AMP = 0.25 // ripple amplitude on landing
+const TAKEOFF_RIPPLE_AMP = 0.08 // smaller ripple on takeoff
+const CHAIN_LAUNCH_THRESHOLD = 0.15 // floor displacement that auto-launches standing players
+const CHAIN_LAUNCH_MULTIPLIER = 12.0 // displacement → launch velocity multiplier
+const JUMP_SPIN_SPEED = 8.0 // radians/sec spin during air time
+
+// Squash/stretch timing
+const TAKEOFF_SQUASH_DURATION = 0.1 // seconds of squash before launch
+const LANDING_SQUASH_DURATION = 0.15 // seconds of squash on landing
+const SQUASH_SPRING_SPEED = 12.0 // how fast scale springs back to 1
+
+// Shared jump signal for remote players (set by NetworkManager)
+const _remoteJumpSignals = new Map<string, boolean>()
+
+export function triggerRemoteJump(sessionId: string) {
+  _remoteJumpSignals.set(sessionId, true)
+}
+
+function consumeRemoteJump(sessionId: string): boolean {
+  if (_remoteJumpSignals.get(sessionId)) {
+    _remoteJumpSignals.delete(sessionId)
+    return true
+  }
+
+  return false
+}
 
 // ── 3D Chat bubble helpers ──
 
@@ -270,6 +305,16 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
   const danceClockRef = useRef(0)
   const charGroupRef = useRef<THREE.Group>(null)
 
+  // Jump state refs (not React state — updated every frame, no re-renders needed)
+  const jumpY = useRef(0)
+  const jumpVelY = useRef(0)
+  const isJumping = useRef(false)
+  const hasDoubleJump = useRef(true)
+  const jumpSpinAccum = useRef(0)
+  const landingSquashTimer = useRef(0)
+  const jumpScaleY = useRef(1)
+  const jumpScaleX = useRef(1)
+
   useFrame((_, rawDelta) => {
     const delta = Math.min(rawDelta, 0.1)
 
@@ -287,6 +332,105 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
     groupRef.current.position.x = curX + (targetX - curX) * t
     groupRef.current.position.z = curZ + (targetZ - curZ) * t
 
+    const worldX = groupRef.current.position.x
+    const worldZ = groupRef.current.position.z
+
+    // ── Jump input (local player) or remote signal ──
+    const wantsJump = isLocal ? consumeJumpRequest() : consumeRemoteJump(player.sessionId)
+
+    if (wantsJump) {
+      if (!isJumping.current) {
+        // Ground jump
+        isJumping.current = true
+        hasDoubleJump.current = true
+        jumpVelY.current = JUMP_VELOCITY
+        jumpSpinAccum.current = 0
+        landingSquashTimer.current = 0
+
+        // Takeoff ripple (local only — remote takeoff ripples are created
+        // immediately by NetworkManager when the PLAYER_JUMP message arrives)
+        if (isLocal) {
+          addRipple(worldX, worldZ, TAKEOFF_RIPPLE_AMP)
+          getNetwork().sendJump()
+        }
+      } else if (hasDoubleJump.current) {
+        // Double jump
+        hasDoubleJump.current = false
+        jumpVelY.current = DOUBLE_JUMP_VELOCITY
+        jumpSpinAccum.current = 0
+
+        // Small mid-air ripple at position below
+        if (isLocal) {
+          addRipple(worldX, worldZ, TAKEOFF_RIPPLE_AMP * 0.5)
+          getNetwork().sendJump()
+        }
+      }
+    }
+
+    // ── Jump physics ──
+    const floorHeight = getDisplacementAt(worldX, worldZ)
+
+    if (isJumping.current) {
+      jumpVelY.current -= GRAVITY * delta
+      jumpY.current += jumpVelY.current * delta
+
+      // Spin during air time
+      jumpSpinAccum.current += JUMP_SPIN_SPEED * delta
+
+      // Air stretch
+      const airPhase = jumpVelY.current > 0 ? 0.3 : 0.7 // going up vs coming down
+      jumpScaleY.current = 1 + (1 - airPhase) * 0.15
+      jumpScaleX.current = 1 - (1 - airPhase) * 0.08
+
+      // Landing check
+      if (jumpY.current <= floorHeight && jumpVelY.current < 0) {
+        // Landing ripple (amplitude scales with impact velocity)
+        const impactVel = Math.abs(jumpVelY.current)
+        const amp = Math.min(LANDING_RIPPLE_AMP * (impactVel / JUMP_VELOCITY), 0.4)
+        addRipple(worldX, worldZ, amp)
+
+        jumpY.current = floorHeight
+        jumpVelY.current = 0
+        isJumping.current = false
+        hasDoubleJump.current = true
+        jumpSpinAccum.current = 0
+
+        // Start landing squash
+        landingSquashTimer.current = LANDING_SQUASH_DURATION
+        jumpScaleY.current = 0.6
+        jumpScaleX.current = 1.3
+      }
+
+      groupRef.current.position.y = jumpY.current
+    } else {
+      // Grounded — ride the ripple waves
+      jumpY.current = floorHeight
+      groupRef.current.position.y = floorHeight
+
+      // Chain reaction: if floor pushes us high enough, auto-launch
+      if (floorHeight > CHAIN_LAUNCH_THRESHOLD) {
+        isJumping.current = true
+        hasDoubleJump.current = true
+        jumpVelY.current = floorHeight * CHAIN_LAUNCH_MULTIPLIER
+        jumpSpinAccum.current = 0
+        landingSquashTimer.current = 0
+      }
+
+      // Landing squash spring-back
+      if (landingSquashTimer.current > 0) {
+        landingSquashTimer.current -= delta
+        const progress = 1 - landingSquashTimer.current / LANDING_SQUASH_DURATION
+        const spring = 1 + Math.sin(progress * Math.PI) * 0.3 * (1 - progress)
+        jumpScaleY.current +=
+          (spring - jumpScaleY.current) * Math.min(delta * SQUASH_SPRING_SPEED, 1)
+        jumpScaleX.current +=
+          (2 - spring - jumpScaleX.current) * Math.min(delta * SQUASH_SPRING_SPEED, 1)
+      } else {
+        jumpScaleY.current += (1 - jumpScaleY.current) * Math.min(delta * SQUASH_SPRING_SPEED, 1)
+        jumpScaleX.current += (1 - jumpScaleX.current) * Math.min(delta * SQUASH_SPRING_SPEED, 1)
+      }
+    }
+
     // --- Billboard rotation (lazy, with twist) ---
     if (dollGroupRef.current) {
       // Angle from character to camera (Y-axis only)
@@ -303,7 +447,9 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
       const bbT = 1 - Math.exp(-BILLBOARD_LERP * delta)
       currentYRot.current += angleDiff * bbT
 
-      dollGroupRef.current.rotation.y = currentYRot.current
+      // Add jump spin on top of billboard rotation
+      dollGroupRef.current.rotation.y =
+        currentYRot.current + (isJumping.current ? jumpSpinAccum.current : 0)
 
       // Angular velocity drives the twist
       const angularVelocity = (angleDiff * bbT) / Math.max(delta, 0.001)
@@ -341,11 +487,14 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
     if (Math.abs(roundedVelX - velX) > 0.02) setVelX(roundedVelX)
 
     const isWalking = vSq > MOVE_THRESHOLD
-    const shouldDance = isMusicPlaying && !isWalking && stopTimer.current <= 0
+    const shouldDance = isMusicPlaying && !isWalking && stopTimer.current <= 0 && !isJumping.current
 
-    // Dance scale bounce (squash-stretch) when dancing
+    // Dance scale bounce OR jump squash-stretch
     if (charGroupRef.current) {
-      if (shouldDance) {
+      if (isJumping.current || landingSquashTimer.current > 0) {
+        // Jump squash-stretch takes priority
+        charGroupRef.current.scale.set(jumpScaleX.current, jumpScaleY.current, 1)
+      } else if (shouldDance) {
         danceClockRef.current += delta
         const beat = (danceClockRef.current * (Math.PI * 2)) / 0.6
         const scaleY = 1 + Math.sin(beat) * 0.08

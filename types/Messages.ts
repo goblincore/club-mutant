@@ -51,4 +51,7 @@ export enum Message {
   DJ_SKIP_TURN, // Skip entire turn
   DJ_TURN_COMPLETE, // Current DJ track finished
   DJ_PLAY_STARTED, // Broadcast: new DJ started playing
+
+  // Trampoline
+  PLAYER_JUMP, // Player jumped (cosmetic, broadcast to others)
 }

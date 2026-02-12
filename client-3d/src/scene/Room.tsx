@@ -1,12 +1,17 @@
 import { useRef, useState, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Grid } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { useGameStore } from '../stores/gameStore'
-import { TvStaticFloorMaterial } from '../shaders/TvStaticFloor'
+import {
+  TvStaticFloorMaterial,
+  TrampolineVideoMaterial,
+  FLOOR_SEGMENTS,
+} from '../shaders/TvStaticFloor'
+import { TrampolineGrid } from '../shaders/TrampolineGrid'
 import { TrippySky } from '../shaders/TrippySky'
 import { BrickWallMaterial } from '../shaders/BrickWallMaterial'
+import { getDisplacementAt } from './TrampolineRipples'
 
 interface RoomProps {
   videoTexture?: THREE.VideoTexture | null
@@ -708,6 +713,36 @@ function PictureFrame({
   )
 }
 
+// Wrapper that bobs its children with the trampoline ripple at (baseX, baseZ)
+function BobbingGroup({
+  baseX,
+  baseZ,
+  children,
+}: {
+  baseX: number
+  baseZ: number
+  children: React.ReactNode
+}) {
+  const groupRef = useRef<THREE.Group>(null)
+
+  useFrame(() => {
+    if (!groupRef.current) return
+
+    const dy = getDisplacementAt(baseX, baseZ)
+    groupRef.current.position.y = dy
+
+    // Subtle tilt from slope (sample nearby points)
+    const eps = 0.3
+    const dxSlope = getDisplacementAt(baseX + eps, baseZ) - getDisplacementAt(baseX - eps, baseZ)
+    const dzSlope = getDisplacementAt(baseX, baseZ + eps) - getDisplacementAt(baseX, baseZ - eps)
+
+    groupRef.current.rotation.x = -dzSlope * 0.5
+    groupRef.current.rotation.z = dxSlope * 0.5
+  })
+
+  return <group ref={groupRef}>{children}</group>
+}
+
 export function Room({ videoTexture, onBoothDoubleClick }: RoomProps) {
   const half = ROOM_SIZE / 2
   const { camera } = useThree()
@@ -767,28 +802,18 @@ export function Room({ videoTexture, onBoothDoubleClick }: RoomProps) {
 
   return (
     <group>
-      {/* Floor */}
+      {/* Floor — subdivided for trampoline ripple vertex displacement */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
-        <planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} />
+        <planeGeometry args={[ROOM_SIZE, ROOM_SIZE, FLOOR_SEGMENTS, FLOOR_SEGMENTS]} />
         {videoTexture ? (
-          <meshBasicMaterial map={videoTexture} toneMapped={false} />
+          <TrampolineVideoMaterial videoTexture={videoTexture} />
         ) : (
           <TvStaticFloorMaterial />
         )}
       </mesh>
 
-      {/* Grid overlay */}
-      <Grid
-        position={[0, 0, 0]}
-        args={[ROOM_SIZE, ROOM_SIZE]}
-        cellSize={1}
-        cellThickness={0.3}
-        cellColor="#e8c832"
-        sectionSize={4}
-        sectionThickness={0.8}
-        sectionColor="#d4a020"
-        fadeDistance={20}
-      />
+      {/* Grid overlay — custom deforming grid that rides the ripples */}
+      <TrampolineGrid roomSize={ROOM_SIZE} />
 
       {/* Back wall (-Z) */}
       <mesh ref={setWallRef(0)} position={[0, WALL_HEIGHT / 2, -half]}>
@@ -846,26 +871,40 @@ export function Room({ videoTexture, onBoothDoubleClick }: RoomProps) {
       />
 
       {/* DJ Booth — forward from back wall, rotated to face room */}
-      <group position={[0, 0, -(half - 2.5)]} rotation={[0, Math.PI, 0]}>
-        <DJBooth position={[0, 0, 0]} onDoubleClick={onBoothDoubleClick} />
-      </group>
+      <BobbingGroup baseX={0} baseZ={-(half - 2.5)}>
+        <group position={[0, 0, -(half - 2.5)]} rotation={[0, Math.PI, 0]}>
+          <DJBooth position={[0, 0, 0]} onDoubleClick={onBoothDoubleClick} />
+        </group>
+      </BobbingGroup>
 
       {/* Sofa — along right wall, facing inward */}
-      <Sofa position={[half - 0.8, 0, 1]} rotation={[0, -Math.PI / 2, 0]} />
+      <BobbingGroup baseX={half - 0.8} baseZ={1}>
+        <Sofa position={[half - 0.8, 0, 1]} rotation={[0, -Math.PI / 2, 0]} />
+      </BobbingGroup>
 
       {/* Potted plants */}
-      <PottedPlant position={[-half + 0.5, 0, half - 0.5]} scale={1.1} />
-      <PottedPlant position={[half - 0.5, 0, -(half - 0.5)]} scale={0.9} />
-      <PottedPlant position={[-half + 0.5, 0, -1.5]} scale={0.75} />
+      <BobbingGroup baseX={-half + 0.5} baseZ={half - 0.5}>
+        <PottedPlant position={[-half + 0.5, 0, half - 0.5]} scale={1.1} />
+      </BobbingGroup>
+      <BobbingGroup baseX={half - 0.5} baseZ={-(half - 0.5)}>
+        <PottedPlant position={[half - 0.5, 0, -(half - 0.5)]} scale={0.9} />
+      </BobbingGroup>
+      <BobbingGroup baseX={-half + 0.5} baseZ={-1.5}>
+        <PottedPlant position={[-half + 0.5, 0, -1.5]} scale={0.75} />
+      </BobbingGroup>
 
       {/* Water station — left wall, toward front */}
-      <WaterStation position={[-half + 0.5, 0, 2.5]} />
+      <BobbingGroup baseX={-half + 0.5} baseZ={2.5}>
+        <WaterStation position={[-half + 0.5, 0, 2.5]} />
+      </BobbingGroup>
 
       {/* Old Dell computer desk — back-left corner, facing into room */}
-      <OldComputerDesk
-        position={[-(half - 1.2), 0, -(half - 0.8)]}
-        rotation={[0, Math.PI / 4, 0]}
-      />
+      <BobbingGroup baseX={-(half - 1.2)} baseZ={-(half - 0.8)}>
+        <OldComputerDesk
+          position={[-(half - 1.2), 0, -(half - 0.8)]}
+          rotation={[0, Math.PI / 4, 0]}
+        />
+      </BobbingGroup>
 
       {/* Skybox */}
       <TrippySky />

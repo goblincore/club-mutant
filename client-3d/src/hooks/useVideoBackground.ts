@@ -30,7 +30,11 @@ function extractVideoId(link: string): string | null {
  */
 export function useVideoBackground(): THREE.VideoTexture | null {
   const enabled = useBoothStore((s) => s.videoBackgroundEnabled)
-  const stream = useMusicStore((s) => s.stream)
+
+  // Subscribe to specific stream properties to avoid re-rendering on every stream change
+  const isPlaying = useMusicStore((s) => s.stream.isPlaying)
+  const currentLink = useMusicStore((s) => s.stream.currentLink)
+  const startTime = useMusicStore((s) => s.stream.startTime)
 
   const [texture, setTexture] = useState<THREE.VideoTexture | null>(null)
 
@@ -56,14 +60,14 @@ export function useVideoBackground(): THREE.VideoTexture | null {
       setTexture(null)
     }
 
-    if (!enabled || !stream.isPlaying || !stream.currentLink) {
+    if (!enabled || !isPlaying || !currentLink) {
       cleanup()
       useBoothStore.getState().setVideoBgMode('off')
       useBoothStore.getState().setVideoBgLabel('')
       return
     }
 
-    const videoId = extractVideoId(stream.currentLink)
+    const videoId = extractVideoId(currentLink)
 
     if (!videoId) {
       cleanup()
@@ -140,7 +144,7 @@ export function useVideoBackground(): THREE.VideoTexture | null {
         }
 
         // Seek to correct offset
-        const offsetSec = stream.startTime > 0 ? (Date.now() - stream.startTime) / 1000 : 0
+        const offsetSec = startTime > 0 ? (Date.now() - startTime) / 1000 : 0
 
         if (offsetSec > 1) {
           video.currentTime = offsetSec
@@ -185,7 +189,7 @@ export function useVideoBackground(): THREE.VideoTexture | null {
     })()
 
     return cleanup
-  }, [enabled, stream.isPlaying, stream.currentLink, stream.startTime])
+  }, [enabled, isPlaying, currentLink, startTime])
 
   return texture
 }

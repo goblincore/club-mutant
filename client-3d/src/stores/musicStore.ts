@@ -7,7 +7,6 @@ export interface MusicStreamState {
   startTime: number
   duration: number
   isPlaying: boolean
-  videoBackgroundEnabled: boolean
 }
 
 export interface RoomPlaylistItem {
@@ -37,22 +36,19 @@ const EMPTY_STREAM: MusicStreamState = {
   startTime: 0,
   duration: 0,
   isPlaying: false,
-  videoBackgroundEnabled: false,
 }
 
 export const useMusicStore = create<MusicState>((set) => ({
   stream: { ...EMPTY_STREAM },
   roomPlaylist: [],
 
-  setStream: (partial) =>
-    set((s) => ({ stream: { ...s.stream, ...partial } })),
+  setStream: (partial) => set((s) => ({ stream: { ...s.stream, ...partial } })),
 
   clearStream: () => set({ stream: { ...EMPTY_STREAM } }),
 
   setRoomPlaylist: (items) => set({ roomPlaylist: items }),
 
-  addRoomPlaylistItem: (item) =>
-    set((s) => ({ roomPlaylist: [...s.roomPlaylist, item] })),
+  addRoomPlaylistItem: (item) => set((s) => ({ roomPlaylist: [...s.roomPlaylist, item] })),
 
   removeRoomPlaylistItem: (id) =>
     set((s) => ({

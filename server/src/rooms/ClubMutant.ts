@@ -590,6 +590,11 @@ export class ClubMutant extends Room {
       this.dispatcher.dispatch(new DJTurnCompleteCommand(), { client })
     })
 
+    // Trampoline jump — broadcast to all other clients (cosmetic)
+    this.onMessage(Message.PLAYER_JUMP, (client) => {
+      this.broadcast(Message.PLAYER_JUMP, { sessionId: client.sessionId }, { except: client })
+    })
+
     // Room Queue Playlist Management
     this.onMessage(
       Message.ROOM_QUEUE_PLAYLIST_ADD,

@@ -6,9 +6,23 @@ import { getNetwork } from '../network/NetworkManager'
 
 const SPEED = 150 // pixels per second (server coordinates)
 const CLICK_ARRIVE_THRESHOLD = 3 // server pixels — close enough to stop
+const JUMP_COOLDOWN = 0.3 // seconds between jump triggers
 
 // Shared click target — set by ClickPlane (in GameScene), consumed by tick loop
 let clickTarget: { x: number; y: number } | null = null
+
+// Jump signal — consumed (reset to false) by PlayerEntity each frame
+let _jumpRequested = false
+let _jumpCooldownTimer = 0
+
+export function consumeJumpRequest(): boolean {
+  if (_jumpRequested) {
+    _jumpRequested = false
+    return true
+  }
+
+  return false
+}
 
 export function setClickTarget(x: number, y: number) {
   clickTarget = { x, y }
@@ -33,6 +47,12 @@ export function usePlayerInput() {
       if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
         clickTarget = null
       }
+
+      // Spacebar triggers jump
+      if (key === ' ' && !useBoothStore.getState().isConnected && _jumpCooldownTimer <= 0) {
+        _jumpRequested = true
+        _jumpCooldownTimer = JUMP_COOLDOWN
+      }
     }
 
     const onKeyUp = (e: KeyboardEvent) => {
@@ -48,6 +68,11 @@ export function usePlayerInput() {
       const now = performance.now()
       const dt = (now - lastTime) / 1000
       lastTime = now
+
+      // Tick jump cooldown
+      if (_jumpCooldownTimer > 0) {
+        _jumpCooldownTimer -= dt
+      }
 
       // Lock movement when at the DJ booth
       if (useBoothStore.getState().isConnected) {
