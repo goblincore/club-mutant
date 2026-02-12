@@ -56,16 +56,6 @@ export class MusicBoothDisconnectUserCommand extends Command<ClubMutant, Payload
 
     const musicBooth = this.state.musicBooths[musicBoothIndex]
     if (!musicBooth) return
-    for (let i = this.state.musicBoothQueue.length - 1; i >= 0; i -= 1) {
-      if (this.state.musicBoothQueue[i] === musicBoothIndex) {
-        this.state.musicBoothQueue.splice(i, 1)
-      }
-    }
-    console.log('////MusicBoothDisconnectUserCommand, musicBooth', musicBooth)
-    console.log(
-      '////MusicBoothDisconnectUserCommand, this.state.musicQueue',
-      this.state.musicBoothQueue
-    )
 
     const userIndex = musicBooth.connectedUsers.findIndex((id) => id === clientId)
     if (userIndex !== -1) {

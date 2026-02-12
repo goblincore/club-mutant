@@ -27,14 +27,24 @@ export function NowPlaying() {
   const playerRef = useRef<ReactPlayer>(null)
   const [elapsed, setElapsed] = useState(0)
   const [totalDuration, setTotalDuration] = useState(0)
+  const lastEndedStreamIdRef = useRef<number>(-1)
 
   const isPlaying = stream.isPlaying && !!stream.currentLink
 
-  // When the current DJ's song ends, notify the server to advance rotation
+  // When the current DJ's song ends, notify the server to advance rotation.
+  // Guard with streamId to prevent ReactPlayer's onEnded from firing twice.
   const handleEnded = useCallback(() => {
     if (!isCurrentDJ) return
 
-    console.log('[NowPlaying] Song ended, sending djTurnComplete')
+    const sid = useMusicStore.getState().stream.streamId
+
+    if (lastEndedStreamIdRef.current === sid) {
+      console.log('[NowPlaying] Ignoring duplicate onEnded for streamId', sid)
+      return
+    }
+
+    lastEndedStreamIdRef.current = sid
+    console.log('[NowPlaying] Song ended (streamId=%d), sending djTurnComplete', sid)
     getNetwork().djTurnComplete()
   }, [isCurrentDJ])
 

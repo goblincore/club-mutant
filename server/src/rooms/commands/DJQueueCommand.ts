@@ -32,7 +32,6 @@ function playTrackForCurrentDJ(room: ClubMutant) {
 
   musicStream.startTime = Date.now()
   musicStream.duration = track.duration
-  musicStream.isRoomPlaylist = false
 
   console.log('[DJQueue] Playing track:', track.title, 'by DJ:', player.name)
   room.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })

@@ -1,13 +1,10 @@
 import bcrypt from 'bcrypt'
 import { Room, Client, ServerError, CloseCode } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
-import { v4 as uuidv4 } from 'uuid'
 
-import { Player, OfficeState, MusicBooth, RoomPlaylistItem, DJUserInfo } from './schema/OfficeState'
+import { Player, OfficeState, MusicBooth } from './schema/OfficeState'
 import { IRoomData } from '@club-mutant/types/Rooms'
 import { Message } from '@club-mutant/types/Messages'
-import type { PlaylistItemDto } from '@club-mutant/types/Dtos'
-import { prefetchVideo } from '../youtubeService'
 import {
   TEXTURE_IDS,
   packDirectionalAnimId,
@@ -17,17 +14,11 @@ import {
 
 import PlayerUpdateActionCommand from './commands/PlayerUpdateActionCommand'
 import PlayerUpdateNameCommand from './commands/PlayerUpdateNameCommand'
-import {
-  PlayerSetCurrentPlaylistItemCommand,
-  PlayerSetNextPlaylistItemCommand,
-} from './commands/PlayerUpdatePlaylistCommand'
 
 import {
   MusicBoothConnectUserCommand,
   MusicBoothDisconnectUserCommand,
 } from './commands/MusicBoothUpdateCommand'
-
-import { MusicStreamNextCommand } from './commands/MusicStreamUpdateCommand'
 
 import {
   DJQueueJoinCommand,
@@ -46,7 +37,6 @@ import {
 
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 import PunchPlayerCommand from './commands/PunchPlayerCommand'
-import Queue from '../Queue'
 
 export class ClubMutant extends Room {
   state = new OfficeState()
@@ -55,25 +45,54 @@ export class ClubMutant extends Room {
   private name = ''
   private description = ''
   private password: string | null = null
-  private musicBoothQueue: Queue | null = null
   private isPublic = false
   private publicBackgroundSeed: number | null = null
 
   private lastPlayerActionAtMsBySessionId = new Map<string, number>()
 
   private musicStreamTickIntervalId: NodeJS.Timeout | null = null
+  private trackWatchdogTimerId: NodeJS.Timeout | null = null
 
   private ambientPublicVideoId = '5-gDL5G-VQQ' //'5-gDL5G-VQQ'
 
-  private clearRoomPlaylistAfterDjLeft() {
-    const list = this.state.roomPlaylist
-    if (list.length > 0) {
-      list.splice(0, list.length)
-    }
+  /** Start a watchdog timer that auto-advances DJ rotation if no DJ_TURN_COMPLETE arrives. */
+  private startTrackWatchdog(durationMs: number) {
+    this.clearTrackWatchdog()
 
-    const musicStream = this.state.musicStream
-    musicStream.roomPlaylistIndex = 0
-    musicStream.videoBackgroundEnabled = false
+    const bufferMs = 10_000
+    const timeoutMs = Math.max(durationMs, 5_000) + bufferMs
+
+    this.trackWatchdogTimerId = setTimeout(() => {
+      this.trackWatchdogTimerId = null
+
+      const ms = this.state.musicStream
+      if (ms.status !== 'playing' || !ms.currentLink) return
+
+      const djId = this.state.currentDjSessionId
+      if (!djId) return
+
+      console.log('[Watchdog] Track duration exceeded for DJ %s, auto-advancing', djId)
+
+      this.dispatcher.dispatch(new DJTurnCompleteCommand(), {
+        client: { sessionId: djId } as Client,
+      })
+    }, timeoutMs)
+  }
+
+  private clearTrackWatchdog() {
+    if (this.trackWatchdogTimerId) {
+      clearTimeout(this.trackWatchdogTimerId)
+      this.trackWatchdogTimerId = null
+    }
+  }
+
+  /** Helper: start watchdog if a track is currently playing with a known duration. */
+  private startWatchdogIfPlaying() {
+    const ms = this.state.musicStream
+
+    if (ms.status === 'playing' && ms.currentLink && ms.duration > 0) {
+      this.startTrackWatchdog(ms.duration * 1000)
+    }
   }
 
   private setStoppedMusicStream() {
@@ -101,8 +120,6 @@ export class ClubMutant extends Room {
     if (musicStream.isAmbient && musicStream.status === 'playing') return
 
     musicStream.isAmbient = true
-    musicStream.isRoomPlaylist = false
-    musicStream.roomPlaylistIndex = 0
     musicStream.currentBooth = 0
     musicStream.status = 'playing'
     musicStream.streamId += 1
@@ -170,131 +187,7 @@ export class ClubMutant extends Room {
 
     this.startMusicStreamTickIfNeeded()
 
-    const setStoppedMusicStream = () => {
-      this.setStoppedMusicStream()
-    }
-
-    const startRoomPlaylistAtIndex = (requestedIndex: number) => {
-      const musicStream = this.state.musicStream
-
-      const djSessionId = this.state.musicBooths[0]?.connectedUsers.find((id) => id !== '')
-      if (!djSessionId) return
-
-      const djPlayer = this.state.players.get(djSessionId)
-      if (!djPlayer) return
-
-      const list = this.state.roomPlaylist
-      if (list.length === 0) {
-        musicStream.isRoomPlaylist = true
-        musicStream.roomPlaylistIndex = 0
-        musicStream.currentBooth = 0
-        setStoppedMusicStream()
-        this.broadcast(Message.STOP_MUSIC_STREAM, {})
-        return
-      }
-
-      const clampedIndex =
-        requestedIndex < 0 ? 0 : requestedIndex >= list.length ? 0 : requestedIndex
-
-      const current = list[clampedIndex]
-      if (!current) {
-        musicStream.isRoomPlaylist = true
-        musicStream.roomPlaylistIndex = 0
-        musicStream.currentBooth = 0
-        setStoppedMusicStream()
-        this.broadcast(Message.STOP_MUSIC_STREAM, {})
-        return
-      }
-
-      const djInfo = new DJUserInfo()
-      djInfo.name = djPlayer.name
-      djInfo.sessionId = djSessionId
-
-      musicStream.isRoomPlaylist = true
-      musicStream.roomPlaylistIndex = clampedIndex
-      musicStream.currentBooth = 0
-      musicStream.status = 'playing'
-      musicStream.streamId += 1
-      musicStream.currentLink = current.link
-      musicStream.currentTitle = current.title
-      musicStream.currentVisualUrl = null
-      musicStream.currentTrackMessage = null
-      musicStream.currentDj = djInfo
-      musicStream.startTime = Date.now()
-      musicStream.duration = current.duration
-
-      this.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
-    }
-
     this.state.musicBooths.push(new MusicBooth())
-
-    this.onMessage(
-      Message.ROOM_PLAYLIST_ADD,
-      (
-        client,
-        message: {
-          title: string
-          link: string
-          duration: number
-        }
-      ) => {
-        const item = new RoomPlaylistItem()
-        item.id = uuidv4()
-        item.title = message.title
-        item.link = message.link
-        item.duration = message.duration
-        item.addedAtMs = Date.now()
-        item.addedBySessionId = client.sessionId
-
-        this.state.roomPlaylist.push(item)
-
-        // Pre-fetch video to cache it before playback
-        prefetchVideo(message.link)
-      }
-    )
-
-    this.onMessage(
-      Message.ROOM_PLAYLIST_REMOVE,
-      (
-        client,
-        message: {
-          id: string
-        }
-      ) => {
-        const index = this.state.roomPlaylist.findIndex(
-          (i: RoomPlaylistItem) => i.id === message.id
-        )
-        if (index < 0) return
-
-        const item = this.state.roomPlaylist[index]
-        if (item.addedBySessionId !== client.sessionId) return
-
-        const musicStream = this.state.musicStream
-        if (musicStream.isRoomPlaylist) {
-          if (index < musicStream.roomPlaylistIndex) {
-            musicStream.roomPlaylistIndex -= 1
-          } else if (
-            index === musicStream.roomPlaylistIndex &&
-            musicStream.roomPlaylistIndex >= this.state.roomPlaylist.length - 1
-          ) {
-            musicStream.roomPlaylistIndex = this.state.roomPlaylist.length - 2
-          }
-
-          if (musicStream.roomPlaylistIndex < 0) {
-            musicStream.roomPlaylistIndex = 0
-          }
-        }
-
-        this.state.roomPlaylist.splice(index, 1)
-      }
-    )
-
-    this.onMessage(Message.SET_VIDEO_BACKGROUND, (client, message: { enabled: boolean }) => {
-      const isDj = this.state.musicBooths[0]?.connectedUsers.includes(client.sessionId)
-      if (!isDj) return
-
-      this.state.musicStream.videoBackgroundEnabled = Boolean(message.enabled)
-    })
 
     this.onMessage(Message.TIME_SYNC_REQUEST, (client, message: { clientSentAtMs?: unknown }) => {
       const clientSentAtMs =
@@ -308,54 +201,6 @@ export class ClubMutant extends Room {
         clientSentAtMs,
         serverNowMs: Date.now(),
       })
-    })
-
-    this.onMessage(Message.ROOM_PLAYLIST_SKIP, (client) => {
-      const isDj = this.state.musicBooths[0]?.connectedUsers.includes(client.sessionId)
-      if (!isDj) return
-
-      const musicStream = this.state.musicStream
-      const nextIndex = musicStream.isRoomPlaylist ? musicStream.roomPlaylistIndex + 1 : 0
-
-      if (nextIndex >= this.state.roomPlaylist.length) {
-        musicStream.isRoomPlaylist = true
-        musicStream.roomPlaylistIndex = this.state.roomPlaylist.length
-        musicStream.currentBooth = 0
-        setStoppedMusicStream()
-        this.broadcast(Message.STOP_MUSIC_STREAM, {})
-        return
-      }
-
-      startRoomPlaylistAtIndex(nextIndex)
-    })
-
-    this.onMessage(Message.ROOM_PLAYLIST_PREV, (client) => {
-      const isDj = this.state.musicBooths[0]?.connectedUsers.includes(client.sessionId)
-      if (!isDj) return
-
-      if (this.state.roomPlaylist.length === 0) return
-
-      const musicStream = this.state.musicStream
-      const nextIndex = musicStream.isRoomPlaylist ? musicStream.roomPlaylistIndex - 1 : 0
-
-      startRoomPlaylistAtIndex(Math.max(0, nextIndex))
-    })
-
-    this.onMessage(Message.ROOM_PLAYLIST_PLAY, (client) => {
-      const isDj = this.state.musicBooths[0]?.connectedUsers.includes(client.sessionId)
-      if (!isDj) return
-
-      const musicStream = this.state.musicStream
-      const index = musicStream.isRoomPlaylist ? musicStream.roomPlaylistIndex : 0
-      startRoomPlaylistAtIndex(index)
-    })
-
-    // when a player starts playing a song
-    this.onMessage(Message.SYNC_MUSIC_STREAM, (client, message: { item?: PlaylistItemDto }) => {
-      console.log('///ON MESSSAGE SYNYC MUSIC STREAM', message?.item)
-      console.log('///ON MESSSAGE SYNC USER PLAYLIST QUEUE', message?.item)
-
-      this.dispatcher.dispatch(new MusicStreamNextCommand(), { client, item: message?.item })
     })
 
     // when a player connects to a music booth
@@ -374,31 +219,19 @@ export class ClubMutant extends Room {
           musicBoothIndex,
         })
 
-        const isDj = this.state.musicBooths[musicBoothIndex]?.connectedUsers.includes(
-          client.sessionId
-        )
+        if (this.isPublic) {
+          const isDj = this.state.musicBooths[musicBoothIndex]?.connectedUsers.includes(
+            client.sessionId
+          )
 
-        if (this.isPublic && isDj) {
-          this.stopAmbientIfNeeded()
-        }
-
-        if (
-          (this.state.musicStream.status === 'waiting' ||
-            this.state.musicStream.status === 'seeking') &&
-          isDj
-        ) {
-          if (this.state.roomPlaylist.length > 0) {
-            const musicStream = this.state.musicStream
-            const index = musicStream.isRoomPlaylist ? musicStream.roomPlaylistIndex : 0
-            startRoomPlaylistAtIndex(index)
-          } else {
-            this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
+          if (isDj) {
+            this.stopAmbientIfNeeded()
           }
         }
       }
     )
 
-    // when a player disconnects from a music booth, remove the user from the musicBooth connectedUsers array
+    // when a player disconnects from a music booth
     this.onMessage(
       Message.DISCONNECT_FROM_MUSIC_BOOTH,
       (client, message: { musicBoothIndex: number }) => {
@@ -409,9 +242,6 @@ export class ClubMutant extends Room {
 
         if (musicBoothIndex < 0 || musicBoothIndex >= this.state.musicBooths.length) return
 
-        const wasDj = this.state.musicBooths[musicBoothIndex]?.connectedUsers.includes(
-          client.sessionId
-        )
         this.dispatcher.dispatch(new MusicBoothDisconnectUserCommand(), {
           client,
           musicBoothIndex,
@@ -421,25 +251,18 @@ export class ClubMutant extends Room {
         // DJQueueLeaveCommand handles all music state for the DJ queue flow.
         if (this.state.djQueue.length > 0 || this.state.currentDjSessionId !== null) return
 
-        if (wasDj && musicBoothIndex === 0) {
-          this.clearRoomPlaylistAfterDjLeft()
-        }
-
         const boothIsEmpty =
           this.state.musicBooths[musicBoothIndex]?.connectedUsers.every((id) => id === '') ?? true
+
         if (this.isPublic && boothIsEmpty) {
           this.startAmbientIfNeeded()
           return
         }
+
+        // No DJ queue active and booth emptied — stop music
         if (this.state.musicStream.currentBooth === musicBoothIndex) {
-          if (this.state.musicStream.isRoomPlaylist) {
-            this.state.musicStream.isRoomPlaylist = true
-            this.state.musicStream.roomPlaylistIndex = this.state.musicStream.roomPlaylistIndex ?? 0
-            setStoppedMusicStream()
-            this.broadcast(Message.STOP_MUSIC_STREAM, {})
-          } else {
-            this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
-          }
+          this.setStoppedMusicStream()
+          this.broadcast(Message.STOP_MUSIC_STREAM, {})
         }
       }
     )
@@ -546,48 +369,37 @@ export class ClubMutant extends Room {
       )
     })
 
-    this.onMessage(
-      Message.SET_USER_NEXT_PLAYLIST_ITEM,
-      (client, message: { item: PlaylistItemDto }) => {
-        console.log('////SET NEXT USER PLAYLIST ITEM', message.item)
-        this.dispatcher.dispatch(new PlayerSetNextPlaylistItemCommand(), {
-          client,
-          item: message.item,
-        })
-      }
-    )
-
-    this.onMessage(Message.SET_USER_PLAYLIST_ITEM, (client, message: { item: PlaylistItemDto }) => {
-      console.log('////SET USER PLAYLIST ITEM', message.item)
-      this.dispatcher.dispatch(new PlayerSetCurrentPlaylistItemCommand(), {
-        client,
-        item: message.item,
-      })
-    })
-
     // DJ Queue Management
     this.onMessage(Message.DJ_QUEUE_JOIN, (client) => {
       this.dispatcher.dispatch(new DJQueueJoinCommand(), { client })
     })
 
     this.onMessage(Message.DJ_QUEUE_LEAVE, (client) => {
+      this.clearTrackWatchdog()
       this.dispatcher.dispatch(new DJQueueLeaveCommand(), { client })
+      this.startWatchdogIfPlaying()
     })
 
     this.onMessage(Message.DJ_PLAY, (client) => {
       this.dispatcher.dispatch(new DJPlayCommand(), { client })
+      this.startWatchdogIfPlaying()
     })
 
     this.onMessage(Message.DJ_STOP, (client) => {
+      this.clearTrackWatchdog()
       this.dispatcher.dispatch(new DJStopCommand(), { client })
     })
 
     this.onMessage(Message.DJ_SKIP_TURN, (client) => {
+      this.clearTrackWatchdog()
       this.dispatcher.dispatch(new DJSkipTurnCommand(), { client })
+      this.startWatchdogIfPlaying()
     })
 
     this.onMessage(Message.DJ_TURN_COMPLETE, (client) => {
+      this.clearTrackWatchdog()
       this.dispatcher.dispatch(new DJTurnCompleteCommand(), { client })
+      this.startWatchdogIfPlaying()
     })
 
     // Trampoline jump — broadcast to all other clients (cosmetic)
@@ -713,22 +525,15 @@ export class ClubMutant extends Room {
         // DJQueueLeaveCommand handles all music state for the DJ queue flow.
         if (this.state.djQueue.length > 0 || this.state.currentDjSessionId !== null) return
 
-        if (index === 0) {
-          this.clearRoomPlaylistAfterDjLeft()
-        }
-
         if (this.isPublic) {
           this.startAmbientIfNeeded()
           return
         }
 
+        // No DJ queue active and booth emptied — stop music
         if (this.state.musicStream.currentBooth === index) {
-          if (this.state.musicStream.isRoomPlaylist) {
-            this.setStoppedMusicStream()
-            this.broadcast(Message.STOP_MUSIC_STREAM, {})
-          } else {
-            this.dispatcher.dispatch(new MusicStreamNextCommand(), {})
-          }
+          this.setStoppedMusicStream()
+          this.broadcast(Message.STOP_MUSIC_STREAM, {})
         }
       }
     })
@@ -743,6 +548,7 @@ export class ClubMutant extends Room {
   onDispose() {
     console.log('room', this.roomId, 'disposing...')
 
+    this.clearTrackWatchdog()
     this.stopMusicStreamTickIfNeeded()
     this.dispatcher.stop()
   }

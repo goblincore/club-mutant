@@ -10,6 +10,7 @@ import { useBoothStore } from '../stores/boothStore'
 import { getDJBoothWorldX, BOOTH_WORLD_Z } from '../scene/Room'
 import { triggerRemoteJump } from '../scene/PlayerEntity'
 import { addRipple } from '../scene/TrampolineRipples'
+import { TimeSync } from './TimeSync'
 
 const PLAYER_ID_KEY = 'club-mutant-3d:player-id'
 
@@ -30,6 +31,7 @@ export class NetworkManager {
   private lobby: Room | null = null
   private moveThrottleTimer: ReturnType<typeof setTimeout> | null = null
   private httpBaseUrl: string
+  private _timeSync: TimeSync | null = null
 
   constructor(serverUrl?: string) {
     const url =
@@ -54,6 +56,10 @@ export class NetworkManager {
       })
 
       gameStore.setConnected(true, this.room.sessionId)
+
+      this._timeSync = new TimeSync(this.room as Room)
+      this._timeSync.start()
+
       this.wireRoomListeners()
     } catch (err) {
       console.error('[network] Failed to join room:', err)
@@ -225,13 +231,19 @@ export class NetworkManager {
         // Skip ambient background streams — no DJ is playing
         if (ms.isAmbient) return
 
+        // Convert server startTime to client time using clock sync
+        const clientStartTime = this._timeSync?.ready
+          ? this._timeSync.toClientTime(ms.startTime ?? 0)
+          : (ms.startTime ?? 0)
+
         useMusicStore.getState().setStream({
           currentLink: ms.currentLink ?? null,
           currentTitle: ms.currentTitle ?? null,
           currentDjName: ms.currentDj?.name ?? null,
-          startTime: ms.startTime ?? 0,
+          startTime: clientStartTime,
           duration: ms.duration ?? 0,
           isPlaying: true,
+          streamId: ms.streamId ?? 0,
         })
       }
     )
@@ -239,6 +251,32 @@ export class NetworkManager {
     this.room.onMessage(Message.STOP_MUSIC_STREAM, () => {
       useMusicStore.getState().clearStream()
     })
+
+    // Periodic drift correction — server sends streamId + startTime every 5s
+    this.room.onMessage(
+      Message.MUSIC_STREAM_TICK,
+      (data: { streamId: number; startTime: number; serverNowMs: number }) => {
+        const store = useMusicStore.getState()
+
+        // Ignore ticks for a different stream
+        if (!store.stream.isPlaying || store.stream.streamId !== data.streamId) return
+
+        // Recompute client-local startTime from this tick's authoritative server time
+        const clientStartTime = this._timeSync?.ready
+          ? this._timeSync.toClientTime(data.startTime)
+          : data.startTime
+
+        const currentClientStart = store.stream.startTime
+        const drift = Math.abs(clientStartTime - currentClientStart)
+
+        // Only correct if drift > 2 seconds to avoid micro-jitter
+        if (drift > 2000) {
+          console.log(`[TimeSync] Drift correction: ${drift}ms, resyncing startTime`)
+
+          store.setStream({ startTime: clientStartTime })
+        }
+      }
+    )
 
     // Sync music state from room on join (late-join)
     const roomState = this.room.state as any
@@ -248,13 +286,19 @@ export class NetworkManager {
       !roomState.musicStream?.isAmbient
     ) {
       const ms = roomState.musicStream
+
+      const clientStartTime = this._timeSync?.ready
+        ? this._timeSync.toClientTime(ms.startTime ?? 0)
+        : (ms.startTime ?? 0)
+
       useMusicStore.getState().setStream({
         currentLink: ms.currentLink,
         currentTitle: ms.currentTitle ?? null,
         currentDjName: ms.currentDj?.name ?? null,
-        startTime: ms.startTime ?? 0,
+        startTime: clientStartTime,
         duration: ms.duration ?? 0,
         isPlaying: true,
+        streamId: ms.streamId ?? 0,
       })
     }
 
@@ -376,19 +420,6 @@ export class NetworkManager {
     this.room?.send(Message.READY_TO_CONNECT, {})
   }
 
-  // Room playlist
-  addToRoomPlaylist(title: string, link: string, duration: number) {
-    this.room?.send(Message.ROOM_PLAYLIST_ADD, { title, link, duration })
-  }
-
-  removeFromRoomPlaylist(id: string) {
-    this.room?.send(Message.ROOM_PLAYLIST_REMOVE, { id })
-  }
-
-  skipRoomPlaylist() {
-    this.room?.send(Message.ROOM_PLAYLIST_SKIP, {})
-  }
-
   // DJ booth
   connectToBooth(boothIndex: number) {
     this.room?.send(Message.CONNECT_TO_MUSIC_BOOTH, { visitorIndex: boothIndex })
@@ -471,7 +502,13 @@ export class NetworkManager {
     return this.room?.sessionId
   }
 
+  get timeSync(): TimeSync | null {
+    return this._timeSync
+  }
+
   disconnect() {
+    this._timeSync?.stop()
+    this._timeSync = null
     this.room?.leave()
     this.room = null
   }

@@ -1,26 +1,7 @@
 import { Schema, ArraySchema, MapSchema, type } from '@colyseus/schema'
 import { TEXTURE_IDS, packDirectionalAnimId } from '@club-mutant/types/AnimationCodec'
 
-export class PlaylistItem extends Schema {
-  @type('string') id = ''
-  @type('string') djId = ''
-  @type('string') title = ''
-  @type('string') link: string | null = null
-  @type('number') duration = 0
-  @type('string') visualUrl: string | null = null
-  @type('string') trackMessage: string | null = null
-}
-
-export class RoomPlaylistItem extends Schema {
-  @type('string') id = ''
-  @type('string') title = ''
-  @type('string') link = ''
-  @type('number') duration = 0
-  @type('number') addedAtMs = 0
-  @type('string') addedBySessionId = ''
-}
-
-// NEW: Per-player room queue playlist item for DJ rotation
+// Per-player room queue playlist item for DJ rotation
 export class RoomQueuePlaylistItem extends Schema {
   @type('string') id = ''
   @type('string') title = ''
@@ -48,10 +29,6 @@ export class Player extends Schema {
   @type('uint8') animId: number = packDirectionalAnimId('idle', 'down')
   @type('uint8') scale = 100 // Scale where 100 = 1.0x, 50 = 0.5x, etc.
   @type('boolean') readyToConnect = false
-  @type('boolean') videoConnected = false
-  @type(PlaylistItem) currentPlaylistItem = new PlaylistItem()
-  @type(PlaylistItem) nextPlaylistItem = new PlaylistItem()
-  @type([PlaylistItem]) nextTwoPlaylist = new ArraySchema<PlaylistItem>()
   @type([RoomQueuePlaylistItem]) roomQueuePlaylist = new ArraySchema<RoomQueuePlaylistItem>()
 }
 
@@ -77,9 +54,6 @@ export class MusicStream extends Schema {
   @type(DJUserInfo) currentDj = new DJUserInfo()
   @type('number') startTime = Date.now()
   @type('number') duration = 0
-  @type('boolean') isRoomPlaylist = false
-  @type('number') roomPlaylistIndex = 0
-  @type('boolean') videoBackgroundEnabled = false
   @type('boolean') isAmbient = false
 }
 
@@ -90,12 +64,8 @@ export class MusicBooth extends Schema {
 export class OfficeState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>()
   @type([MusicBooth]) musicBooths = new ArraySchema<MusicBooth>()
-  @type(['number']) musicBoothQueue = new ArraySchema<number>()
   @type([ChatMessage]) chatMessages = new ArraySchema<ChatMessage>()
   @type(MusicStream) musicStream = new MusicStream()
-  @type(MusicStream) nextStream = new MusicStream()
-  @type([RoomPlaylistItem]) roomPlaylist = new ArraySchema<RoomPlaylistItem>()
-  // NEW: DJ Queue rotation system
   @type([DJQueueEntry]) djQueue = new ArraySchema<DJQueueEntry>()
   @type('string') currentDjSessionId: string | null = null
 }

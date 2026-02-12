@@ -8,15 +8,12 @@ export interface IPlayer extends Schema {
   animId: number
   scale: number
   readyToConnect: boolean
-  videoConnected: boolean
-  currentPlaylistItem: IPlaylistItem
-  nextPlaylistItem: IPlaylistItem
-  nextTwoPlaylist: ArraySchema<IPlaylistItem>
+  roomQueuePlaylist: ArraySchema<IRoomQueuePlaylistItem>
 }
 
 export interface IDJUserInfo extends Schema {
-  name: string | null
-  sessionId: string | null
+  name: string
+  sessionId: string
 }
 
 export interface IMusicBooth extends Schema {
@@ -29,37 +26,20 @@ export interface IChatMessage extends Schema {
   content: string
 }
 
-export interface IPlaylistItem extends Schema {
-  id: string
-  djId: string
-  title: string
-  link: string | null
-  thumb?: string
-  type?: string
-  duration: number
-  visualUrl?: string | null
-  trackMessage?: string | null
-}
-
-export interface IRoomPlaylistItem extends Schema {
+export interface IRoomQueuePlaylistItem extends Schema {
   id: string
   title: string
   link: string
   duration: number
   addedAtMs: number
-  addedBySessionId: string
+  played: boolean
 }
 
-export type PlaylistItem = {
-  id: string
-  djId: string
-  title: string
-  link: string | null
-  thumb?: string
-  type?: string
-  duration: number
-  visualUrl?: string | null
-  trackMessage?: string | null
+export interface IDJQueueEntry extends Schema {
+  sessionId: string
+  name: string
+  joinedAtMs: number
+  queuePosition: number
 }
 
 export interface IMusicStream extends Schema {
@@ -67,24 +47,20 @@ export interface IMusicStream extends Schema {
   streamId: number
   currentLink: string | null
   currentTitle: string | null
+  currentVisualUrl: string | null
+  currentTrackMessage: string | null
   currentDj: IDJUserInfo
   currentBooth: number
   startTime: number
   duration: number
-  isRoomPlaylist: boolean
-  roomPlaylistIndex: number
-  videoBackgroundEnabled: boolean
   isAmbient: boolean
-  currentVisualUrl?: string | null
-  currentTrackMessage?: string | null
 }
 
 export interface IOfficeState extends Schema {
   players: MapSchema<IPlayer>
   musicBooths: ArraySchema<IMusicBooth>
-  musicBoothQueue: ArraySchema<number>
   chatMessages: ArraySchema<IChatMessage>
   musicStream: IMusicStream
-  nextStream: IMusicStream
-  roomPlaylist: ArraySchema<IRoomPlaylistItem>
+  djQueue: ArraySchema<IDJQueueEntry>
+  currentDjSessionId: string | null
 }
