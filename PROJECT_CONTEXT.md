@@ -74,8 +74,11 @@ Rule of thumb:
 - Relevant collections:
   - `players`: `MapSchema<Player>`
   - `musicBooths`: `ArraySchema<MusicBooth>`
-  - `roomPlaylist`: `ArraySchema<RoomPlaylistItem>`
+  - `djQueue`: `ArraySchema<DJQueueEntry>`
+  - `currentDjSessionId`: `string` (current DJ's session ID)
   - `musicStream`: `MusicStream`
+- Server-only (not synced via schema):
+  - `Player.roomQueuePlaylist`: plain `RoomQueuePlaylistItem[]` (clients get targeted `ROOM_QUEUE_PLAYLIST_UPDATED` messages)
 
 ### Client receives state
 
@@ -224,17 +227,19 @@ Public lobby differs from custom/private rooms:
   - Client `Network.ts` emits `Event.MY_PLAYER_FORCED_ANIM`.
   - `Game.ts` handles it by resetting the Arcade body (if `x/y` provided) and calling `MyPlayer.playHitAnim(...)`.
 
-## Music + room playlist (current implementation)
+## Music + room playlist (legacy — replaced by DJ Queue Rotation System)
 
-### The concept
+> **Note**: The DJ Queue Rotation System (Feb 2026) replaces all legacy playlist modes. See `CLAUDE.md` for full DJ Queue documentation. Each user now has their own `roomQueuePlaylist` (server-only plain array) and the system rotates through DJs in a round-robin fashion.
 
-There are two parallel playback modes:
+### Legacy concept (deprecated)
 
-1. **Per-DJ / per-player short queue** (legacy)
-   - Uses `MusicStreamNextCommand` and the player’s `nextTwoPlaylist`.
-2. **Room playlist playback** (shared)
-   - Uses `state.roomPlaylist` as a persistent list.
-   - Uses `musicStream.isRoomPlaylist` + `musicStream.roomPlaylistIndex` to indicate the active item.
+There were two parallel playback modes:
+
+1. **Per-DJ / per-player short queue** (legacy — removed)
+   - Used `MusicStreamNextCommand` and the player's `nextTwoPlaylist`.
+2. **Room playlist playback** (legacy — removed)
+   - Used `state.roomPlaylist` as a persistent list.
+   - Used `musicStream.isRoomPlaylist` + `musicStream.roomPlaylistIndex` to indicate the active item.
 
 ### My playlists (client-side, local)
 
@@ -394,9 +399,13 @@ YouTube ID into a direct playable video URL:
 - **Server state schema**: `server/rooms/schema/OfficeState.ts`
 - **Client UI playback**: `client/src/components/YoutubePlayer.tsx`
 - **My Playlists + DJ Queue UI**: `client/src/components/MyPlaylistPanel.tsx` (unified panel with DJ Queue section)
+- **DJ Queue logic**: `server/src/rooms/commands/DJQueueCommand.ts`
+- **DJ helpers (shared)**: `server/src/rooms/commands/djHelpers.ts` (`playTrackForCurrentDJ`)
+- **Room Queue Playlist**: `server/src/rooms/commands/RoomQueuePlaylistCommand.ts`
+- **Clock sync**: `client-3d/src/network/TimeSync.ts` (client-server clock sync with `onReady` callback)
 - **Debug mode config**: `client/src/config.ts` (`DEBUG_MODE` flag for debug keyboard shortcuts)
 - **Shared message enum**: `types/Messages.ts`
-- **Music sync/resync (implemented)**: `docs/music-sync-resync-plan.md`
+- **Performance audit**: `docs/performance-sync-audit.md` (all items ✅ completed Feb 2026)
 
 ## Conventions / tips
 

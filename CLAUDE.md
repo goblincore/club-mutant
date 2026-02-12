@@ -24,11 +24,11 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Dev server: port 5175 (`cd client-3d && pnpm dev`)
   - Characters: paper-doll rigs (flat textured planes on bone hierarchy) from rig editor export
   - Key dirs:
-    - `src/scene/` — Room (walls + DJ booth + occlusion), Camera (orbit + sway), PlayerEntity (lerp + 3D chat bubbles + nametags), GameScene (Canvas + ClickPlane)
+    - `src/scene/` — Room (walls + DJ booth + occlusion), Camera (orbit + sway), PlayerEntity (lerp + 3D chat bubbles + troika Text nametags on layer 1), GameScene (Canvas + ClickPlane)
     - `src/character/` — PaperDoll, CharacterLoader, DistortMaterial (PaRappa vertex warp), AnimationMixer
-    - `src/network/` — NetworkManager (Colyseus client, player/chat/music/DJ queue wiring, YouTube search)
+    - `src/network/` — NetworkManager (Colyseus client, player/chat/music/DJ queue wiring, YouTube search, late-join sync for music + DJ queue from schema), TimeSync (client-server clock sync with `onReady` callback for deferred operations)
     - `src/stores/` — gameStore, chatStore (+ bubbles), musicStore, uiStore, boothStore (DJ booth + queue + video bg)
-    - `src/shaders/` — PsxPostProcess (VHS+bloom+fisheye post-processing, ¾-res render target, NearestFilter upscale; **layer-based rendering**: layer 0 for scene with VHS, layer 1 for UI/chat bubbles rendered clean), TvStaticFloor (animated TV noise floor material + ripple vertex displacement via uniform arrays, also exports `TrampolineVideoMaterial` for video texture with displacement and `FLOOR_SEGMENTS`), TrampolineGrid (custom deforming grid shader replacing drei Grid, rides ripple waves), TrippySky (Win95-style blue sky + animated procedural clouds skybox, drift speed 0.4), BrickWallMaterial (procedural brick wall shader)
+    - `src/shaders/` — PsxPostProcess (VHS+bloom+fisheye post-processing, ¾-res render target, NearestFilter upscale; **half-res bloom**: scene RT downsampled to `BLOOM_SCALE=0.5` RT with LinearFilter, 16-tap bloom sampling (4 iterations × 4 cardinal), ~16x less bloom work than original 64-tap; **layer-based rendering**: layer 0 for scene with VHS, layer 1 for UI/chat bubbles/nametags rendered clean), TvStaticFloor (animated TV noise floor material + ripple vertex displacement via uniform arrays, also exports `TrampolineVideoMaterial` for video texture with displacement and `FLOOR_SEGMENTS`), TrampolineGrid (custom deforming grid shader replacing drei Grid, rides ripple waves), TrippySky (Win95-style blue sky + animated procedural clouds skybox, drift speed 0.4), BrickWallMaterial (procedural brick wall shader)
     - `src/scene/TrampolineRipples.ts` — Module-level ripple state manager (max 16 analytical ripples). Has its own `performance.now()`-based clock (`getTime()`) — no dependency on r3f clock or useFrame ordering. Provides CPU-side `getDisplacementAt(x,z)` for player/furniture Y offset and GPU-side `getRippleVec4s()`/`getRippleCount()` for shader uniforms. Shader `uTime` must use `getTime()` to match ripple birthTimes. Shared by floor shader, grid shader, PlayerEntity, Room furniture, and NetworkManager (remote jump ripples).
     - `src/input/` — usePlayerInput (WASD + click-to-move + spacebar jump with cooldown)
     - `src/ui/` — ChatPanel, PlaylistPanel (search + queue), NowPlaying (mini bar + video bg toggle), LobbyScreen, BoothPrompt (double-click booth confirmation)
@@ -282,7 +282,8 @@ Rule of thumb:
 - Relevant collections:
   - `players`: `MapSchema<Player>`
   - `musicBooths`: `ArraySchema<MusicBooth>`
-  - `roomPlaylist`: `ArraySchema<RoomPlaylistItem>`
+  - `djQueue`: `ArraySchema<DJQueueEntry>`
+  - `currentDjSessionId`: `string` (current DJ's session ID)
   - `musicStream`: `MusicStream`
 
 ### Client receives state
@@ -394,10 +395,10 @@ A round-robin DJ queue system where multiple users can join the DJ booth and tak
 
 ### Data Model
 
-- `OfficeState.djQueue`: Array of `DJQueueEntry` (sessionId, name, position)
-- `OfficeState.currentDjSessionId`: Who's currently playing
-- `Player.roomQueuePlaylist`: Each player's personal queue (array of `RoomQueuePlaylistItem`)
-- `RoomQueuePlaylistItem.played`: Boolean flag for track history
+- `OfficeState.djQueue`: `ArraySchema<DJQueueEntry>` (sessionId, name, position) — synced to clients
+- `OfficeState.currentDjSessionId`: Who's currently playing — synced to clients
+- `Player.roomQueuePlaylist`: Server-only plain `RoomQueuePlaylistItem[]` (not synced via schema — clients receive targeted `ROOM_QUEUE_PLAYLIST_UPDATED` messages via `client.send()`)
+- `RoomQueuePlaylistItem`: Plain class (no `extends Schema`, no `@type` decorators) with `id`, `title`, `link`, `duration`, `addedAtMs`, `played`
 
 ### Key Files
 
@@ -1065,11 +1066,12 @@ After extensive iteration, the final punch system parameters:
     - `stateCallbacks.players.onAdd(...)`, `stateCallbacks.chatMessages.onAdd(...)`, etc.
   - Avoid wiring listeners directly off `callbacks(room.state.players)` during `initialize()`. On first join, the initial patch can land after listeners are registered, and the underlying collection reference can be in an incomplete/transition state.
 
-- **Colyseus 0.16 timing: don’t read nested schema fields during join**
-  - Right after `joinOrCreate`, `room.state.musicStream` / `room.state.roomPlaylist` may be temporarily `undefined` before the first patch.
-  - Fix pattern:
-    - Default Redux/UI state to safe values
-    - Listen via `stateCallbacks.musicStream.listen(...)` and resync once fields arrive
+- **Colyseus 0.16/0.17 timing: don't read nested schema fields during join**
+  - Right after `joinOrCreate`, `room.state.musicStream` may be temporarily incomplete before the first patch. Additionally, `TimeSync` needs ~1s to complete probe burst before `toClientTime()` is accurate.
+  - Fix pattern (3D client):
+    - DJ queue: read from schema immediately on join (no TimeSync needed)
+    - Music stream: defer via `TimeSync.onReady()` callback — ensures correct seek offset. `streamId` dedup prevents double-set if `START_MUSIC_STREAM` message arrives first.
+    - Default Zustand state to safe values
 
 - **Avoid “toggle debug anim” drift**
   - Keeping a single authoritative DJ anim key (`mutant_djwip`) avoids hitbox/asset confusion.
@@ -1127,8 +1129,10 @@ YouTube ID into a direct playable video URL:
 - **Client UI playback**: `client/src/components/YoutubePlayer.tsx`
 - **My Playlists + DJ Queue UI**: `client/src/components/MyPlaylistPanel.tsx` (unified panel with DJ Queue section)
 - **DJ Queue logic**: `server/src/rooms/commands/DJQueueCommand.ts`
+- **DJ helpers (shared)**: `server/src/rooms/commands/djHelpers.ts` (`playTrackForCurrentDJ`)
 - **Debug mode config**: `client/src/config.ts`
 - **Room Queue Playlist**: `server/src/rooms/commands/RoomQueuePlaylistCommand.ts`
+- **Clock sync**: `client-3d/src/network/TimeSync.ts` (client-server clock sync with `onReady` callback)
 - **Shared message enum**: `types/Messages.ts`
 
 ## Conventions / tips
@@ -1295,8 +1299,22 @@ A single `DEBUG_MODE` flag in `client/src/config.ts` controls all debug keyboard
 - ~~Layer-based VHS rendering (layer 0 scene + VHS, layer 1 UI rendered clean)~~ ✅ COMPLETED (Feb 2026)
 - ~~PaperDoll layout metrics (headTopY, visualTopY) for smart chat bubble positioning~~ ✅ COMPLETED (Feb 2026)
 - ~~Editor multi-select + batch parent/bone role assignment~~ ✅ COMPLETED (Feb 2026)
-- **Performance & Sync Audit** (Feb 2026) — see `docs/performance-sync-audit.md` for full findings and status
-  - Schema cleanup (remove legacy fields), music clock sync, client rendering optimizations
+- ~~**Performance & Sync Audit**~~ ✅ COMPLETED (Feb 2026) — see `docs/performance-sync-audit.md` for full findings
+  - ~~A1: Remove legacy schema fields~~ ✅
+  - ~~A2: Remove roomQueuePlaylist from schema (server-only plain array)~~ ✅
+  - ~~A3: Fix IOfficeState drift~~ ✅
+  - ~~A5: DRY playTrackForCurrentDJ helper~~ ✅
+  - ~~B1: Client-server clock sync (TimeSync)~~ ✅
+  - ~~B2: Server-side track duration watchdog~~ ✅
+  - ~~B3: Use streamId for dedup~~ ✅
+  - ~~B4: Fix late-join race condition (TimeSync.onReady + DJ queue schema sync)~~ ✅
+  - ~~B5: Guard handleEnded~~ ✅
+  - ~~C1: Player positions via mutable refs (bypass React state)~~ ✅
+  - ~~C3: Replace Html nametags with troika Text on layer 1~~ ✅
+  - ~~C4: Optimize VHS bloom (half-res RT + 16 taps, ~16x reduction)~~ ✅
+  - ~~C5: Pre-alloc wall occlusion vector~~ ✅
+  - ~~C6: Fix SingleBubble useEffect deps~~ ✅
+  - ~~C7: Granular music store selectors in App.tsx~~ ✅
 - PSX geometry shaders (vertex snapping, affine texture mapping)
 - Textured DJ booth furniture
 - Sound effects (footsteps, UI clicks, punch impacts)
@@ -1371,15 +1389,16 @@ Chat bubbles were rewritten from HTML overlays (`<Html>` from drei) to native Th
 **Layer-based rendering** (avoids VHS post-processing on UI):
 
 - All bubble meshes (text, background, tail) use `layers.set(1)` — Three.js layer 1
-- `PsxPostProcess.tsx` renders in 3 passes:
-  1. Layer 0 only → low-res render target → VHS fullscreen quad
-  2. Layer 1 only → rendered clean directly to screen (no post-processing)
-  3. Restore camera layer mask
+- `PsxPostProcess.tsx` renders in 4 passes:
+  1. Layer 0 only → ¾-res scene render target (NearestFilter)
+  2. Blit downsample scene RT → half-res bloom render target (LinearFilter = free blur)
+  3. VHS fullscreen quad reads `tDiffuse` (scene RT) + `tBloom` (bloom RT) → screen
+  4. Layer 1 only → rendered clean directly to screen (no post-processing)
 - Camera has `layers.enable(1)` so bubbles also render when VHS is off
 
-**Nametags**: Moved from above character to below (`y = -0.15`) using `<Html>` overlay. Smaller text (`8px`) with subtle background.
+**Nametags**: Troika `<Text>` + rounded-rect background mesh on layer 1 (rendered clean, no VHS post-processing). Positioned below character (`y = -0.15`). Shared `nametagBgMat` material instance across all players. Background auto-sizes via `onSync` text bounds measurement. Replaced previous `<Html>` DOM overlay to eliminate per-player DOM nodes and CSS transform repositioning.
 
-**Key files**: `PlayerEntity.tsx` (SingleBubble, ChatBubble components), `PsxPostProcess.tsx` (layer render passes), `chatStore.ts` (exports `BUBBLE_DURATION`, `ChatBubble` type)
+**Key files**: `PlayerEntity.tsx` (Nametag, SingleBubble, ChatBubble components), `PsxPostProcess.tsx` (layer render passes), `chatStore.ts` (exports `BUBBLE_DURATION`, `ChatBubble` type)
 
 ### DJ Booth Overlap Fix
 
