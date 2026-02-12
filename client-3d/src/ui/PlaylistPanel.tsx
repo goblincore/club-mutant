@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 
 import { getNetwork } from '../network/NetworkManager'
 import { useBoothStore } from '../stores/boothStore'
 import { useGameStore } from '../stores/gameStore'
+import { useMusicStore } from '../stores/musicStore'
 import { useUIStore } from '../stores/uiStore'
 import { usePlaylistStore, type PlaylistTrack } from '../stores/playlistStore'
 
@@ -30,6 +31,7 @@ export function PlaylistPanel() {
   const currentDjSessionId = useBoothStore((s) => s.currentDjSessionId)
   const queuePlaylist = useBoothStore((s) => s.queuePlaylist)
   const mySessionId = useGameStore((s) => s.mySessionId)
+  const stream = useMusicStore((s) => s.stream)
 
   const playlists = usePlaylistStore((s) => s.playlists)
   const activePlaylistId = usePlaylistStore((s) => s.activePlaylistId)
@@ -53,6 +55,10 @@ export function PlaylistPanel() {
   // Playlist management
   const [newPlaylistName, setNewPlaylistName] = useState('')
   const [creating, setCreating] = useState(false)
+
+  // Drag-and-drop state
+  const dragSrc = useRef<number | null>(null)
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
 
   const viewingPlaylist = playlists.find((p) => p.id === viewingPlaylistId) ?? null
 
@@ -161,12 +167,12 @@ export function PlaylistPanel() {
             setSearchResults([])
             setSearchQuery('')
           }}
-          className="text-[9px] font-mono text-white/40 hover:text-white flex items-center gap-1 flex-shrink-0"
+          className="text-[11px] font-mono text-white/40 hover:text-white flex items-center gap-1 flex-shrink-0"
         >
           ← Back
         </button>
 
-        <span className="text-[11px] font-mono text-white/80 truncate flex-1 text-center">
+        <span className="text-[13px] font-mono text-white/80 truncate flex-1 text-center">
           {viewingPlaylist.name}
         </span>
 
@@ -180,7 +186,7 @@ export function PlaylistPanel() {
           <button
             key={t}
             onClick={() => setDetailTab(t)}
-            className={`flex-1 py-1.5 text-[10px] font-mono text-center transition-colors ${
+            className={`flex-1 py-2 text-[13px] font-mono text-center transition-colors ${
               detailTab === t
                 ? 'text-purple-300 border-b-2 border-purple-400'
                 : 'text-white/40 hover:text-white/60'
@@ -197,30 +203,59 @@ export function PlaylistPanel() {
           {isConnected && viewingPlaylist.items.length > 0 && (
             <button
               onClick={() => handleAddAllToQueue(viewingPlaylist.id)}
-              className="mb-2 w-full py-1 text-[9px] font-mono bg-green-500/15 border border-green-500/25 rounded text-green-400 hover:bg-green-500/25 transition-colors"
+              className="mb-2 w-full py-1.5 text-[12px] font-mono bg-green-500/15 border border-green-500/25 rounded text-green-400 hover:bg-green-500/25 transition-colors"
             >
               + add all to queue
             </button>
           )}
 
           {viewingPlaylist.items.length === 0 && (
-            <p className="text-white/20 text-[10px] font-mono text-center mt-4">
+            <p className="text-white/20 text-[12px] font-mono text-center mt-4">
               no tracks yet — use Search or Link tabs to add
             </p>
           )}
 
-          {viewingPlaylist.items.map((track) => (
+          {viewingPlaylist.items.map((track, i) => (
             <div
               key={track.id}
-              className="flex items-center py-1.5 border-b border-white/[0.05] group"
+              draggable
+              onDragStart={(e) => {
+                dragSrc.current = i
+                e.dataTransfer.effectAllowed = 'move'
+              }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+                setDragOverIdx(i)
+              }}
+              onDragLeave={() => setDragOverIdx(null)}
+              onDrop={(e) => {
+                e.preventDefault()
+                const from = dragSrc.current
+                if (from !== null && from !== i) {
+                  usePlaylistStore.getState().reorderTrack(viewingPlaylist.id, from, i)
+                }
+                dragSrc.current = null
+                setDragOverIdx(null)
+              }}
+              onDragEnd={() => {
+                dragSrc.current = null
+                setDragOverIdx(null)
+              }}
+              className={`flex items-center py-1.5 border-b group cursor-grab active:cursor-grabbing ${
+                dragOverIdx === i ? 'border-purple-400/60 bg-purple-500/10' : 'border-white/[0.05]'
+              }`}
             >
+              {/* Drag handle */}
+              <span className="text-[10px] text-white/20 mr-1.5 flex-shrink-0 select-none">⠿</span>
+
               <div className="flex-1 min-w-0 mr-2">
-                <div className="text-[10px] font-mono text-white/70 truncate">{track.title}</div>
+                <div className="text-[12px] font-mono text-white/70 truncate">{track.title}</div>
               </div>
 
               <div className="flex items-center gap-1 flex-shrink-0">
                 {track.duration > 0 && (
-                  <span className="text-[9px] font-mono text-white/30 mr-1">
+                  <span className="text-[11px] font-mono text-white/30 mr-1">
                     {formatDuration(track.duration)}
                   </span>
                 )}
@@ -229,7 +264,7 @@ export function PlaylistPanel() {
                   onClick={() =>
                     usePlaylistStore.getState().removeTrack(viewingPlaylist.id, track.id)
                   }
-                  className="w-5 h-5 flex items-center justify-center text-[10px] text-white/25 hover:text-red-400 transition-colors"
+                  className="w-6 h-6 flex items-center justify-center text-[12px] text-white/25 hover:text-red-400 transition-colors"
                   title="Delete track"
                 >
                   🗑
@@ -238,7 +273,7 @@ export function PlaylistPanel() {
                 {isConnected && (
                   <button
                     onClick={() => handleAddTrackToQueue(track)}
-                    className="w-5 h-5 flex items-center justify-center text-[11px] text-white/25 hover:text-green-400 transition-colors"
+                    className="w-6 h-6 flex items-center justify-center text-[13px] text-white/25 hover:text-green-400 transition-colors"
                     title="Add to DJ queue"
                   >
                     +
@@ -258,13 +293,13 @@ export function PlaylistPanel() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="search youtube..."
-                className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] text-white placeholder-white/30 focus:border-purple-400/50 focus:outline-none font-mono"
+                className="flex-1 bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-[12px] text-white placeholder-white/30 focus:border-purple-400/50 focus:outline-none font-mono"
               />
 
               <button
                 onClick={handleSearch}
                 disabled={searching}
-                className="px-2 py-1 text-[9px] font-mono bg-white/10 border border-white/20 rounded text-white/60 hover:text-white transition-colors disabled:opacity-30"
+                className="px-2.5 py-1.5 text-[12px] font-mono bg-white/10 border border-white/20 rounded text-white/60 hover:text-white transition-colors disabled:opacity-30"
               >
                 {searching ? '...' : 'go'}
               </button>
@@ -272,14 +307,14 @@ export function PlaylistPanel() {
           </div>
 
           <div className="px-3 py-1 border-b border-white/[0.06]">
-            <span className="text-[8px] font-mono text-white/25">
+            <span className="text-[10px] font-mono text-white/25">
               adding to: {viewingPlaylist.name}
             </span>
           </div>
 
           <div className="flex-1 overflow-y-auto px-3 py-1">
             {searchResults.length === 0 && !searching && (
-              <p className="text-white/20 text-[10px] font-mono text-center mt-4">
+              <p className="text-white/20 text-[12px] font-mono text-center mt-4">
                 search for tracks to add to this playlist
               </p>
             )}
@@ -298,10 +333,10 @@ export function PlaylistPanel() {
                 )}
 
                 <div className="flex-1 min-w-0">
-                  <div className="text-[10px] font-mono text-white/70 truncate">{result.title}</div>
+                  <div className="text-[12px] font-mono text-white/70 truncate">{result.title}</div>
 
                   {result.duration ? (
-                    <div className="text-[8px] font-mono text-white/30">
+                    <div className="text-[10px] font-mono text-white/30">
                       {formatDuration(result.duration)}
                     </div>
                   ) : null}
@@ -309,7 +344,7 @@ export function PlaylistPanel() {
 
                 <button
                   onClick={() => handleAddFromSearch(result)}
-                  className="text-[9px] font-mono px-1.5 py-0.5 bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 hover:bg-purple-500/30 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                  className="text-[12px] font-mono px-2 py-1 bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 hover:bg-purple-500/30 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
                 >
                   +
                 </button>
@@ -327,18 +362,18 @@ export function PlaylistPanel() {
               onChange={(e) => setLinkInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddLink()}
               placeholder="paste youtube link..."
-              className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] text-white placeholder-white/30 focus:border-purple-400/50 focus:outline-none font-mono"
+              className="flex-1 bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-[13px] text-white placeholder-white/30 focus:border-purple-400/50 focus:outline-none font-mono"
             />
 
             <button
               onClick={handleAddLink}
-              className="px-2 py-1 text-[9px] font-mono bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 hover:bg-purple-500/30 transition-colors"
+              className="px-2.5 py-1.5 text-[13px] font-mono bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 hover:bg-purple-500/30 transition-colors"
             >
               add
             </button>
           </div>
 
-          <p className="text-white/20 text-[10px] font-mono mt-3">
+          <p className="text-white/20 text-[13px] font-mono mt-3">
             paste a YouTube URL to add it to{' '}
             <span className="text-white/40">{viewingPlaylist.name}</span>
           </p>
@@ -352,7 +387,7 @@ export function PlaylistPanel() {
   const playlistListView = (
     <div className="flex-1 overflow-y-auto px-3 py-2">
       {playlists.length === 0 && !creating && (
-        <p className="text-white/20 text-[10px] font-mono text-center mt-4">
+        <p className="text-white/20 text-[13px] font-mono text-center mt-4">
           no playlists yet — create one to start saving tracks
         </p>
       )}
@@ -368,9 +403,9 @@ export function PlaylistPanel() {
           }}
         >
           <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-mono text-white/70">{pl.name}</div>
+            <div className="text-[16px] font-mono text-white/70">{pl.name}</div>
 
-            <div className="text-[8px] font-mono text-white/30">
+            <div className="text-[12px] font-mono text-white/30">
               {pl.items.length} track{pl.items.length !== 1 ? 's' : ''}
             </div>
           </div>
@@ -382,7 +417,7 @@ export function PlaylistPanel() {
                   e.stopPropagation()
                   handleAddAllToQueue(pl.id)
                 }}
-                className="text-[8px] font-mono px-1 py-0.5 text-green-400/60 hover:text-green-400 transition-colors opacity-0 group-hover:opacity-100"
+                className="text-[12px] font-mono px-1.5 py-0.5 text-green-400/60 hover:text-green-400 transition-colors opacity-0 group-hover:opacity-100"
               >
                 +all
               </button>
@@ -393,7 +428,7 @@ export function PlaylistPanel() {
                 e.stopPropagation()
                 usePlaylistStore.getState().removePlaylist(pl.id)
               }}
-              className="text-[9px] text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+              className="text-[13px] text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
             >
               ✕
             </button>
@@ -410,13 +445,13 @@ export function PlaylistPanel() {
             onChange={(e) => setNewPlaylistName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleCreatePlaylist()}
             placeholder="playlist name..."
-            className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] text-white placeholder-white/30 focus:border-purple-400/50 focus:outline-none font-mono"
+            className="flex-1 bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-[13px] text-white placeholder-white/30 focus:border-purple-400/50 focus:outline-none font-mono"
             autoFocus
           />
 
           <button
             onClick={handleCreatePlaylist}
-            className="px-2 py-1 text-[9px] font-mono bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 hover:bg-purple-500/30 transition-colors"
+            className="px-2.5 py-1.5 text-[13px] font-mono bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 hover:bg-purple-500/30 transition-colors"
           >
             create
           </button>
@@ -426,7 +461,7 @@ export function PlaylistPanel() {
               setCreating(false)
               setNewPlaylistName('')
             }}
-            className="px-1.5 py-1 text-[9px] font-mono text-white/30 hover:text-white transition-colors"
+            className="px-2 py-1.5 text-[13px] font-mono text-white/30 hover:text-white transition-colors"
           >
             ✕
           </button>
@@ -434,7 +469,7 @@ export function PlaylistPanel() {
       ) : (
         <button
           onClick={() => setCreating(true)}
-          className="mt-2 w-full py-1.5 text-[9px] font-mono text-white/30 hover:text-white/60 border border-dashed border-white/10 hover:border-white/20 rounded transition-colors"
+          className="mt-2 w-full py-2 text-[12px] font-mono text-white/30 hover:text-white/60 border border-dashed border-white/10 hover:border-white/20 rounded transition-colors"
         >
           + new playlist
         </button>
@@ -454,60 +489,58 @@ export function PlaylistPanel() {
     return (
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.15]">
-          <div className="flex items-center gap-2">
-            <span className="text-[13px] font-mono text-white/80">dj booth</span>
-
-            {isInQueue && (
-              <span className="text-[10px] font-mono text-green-400">
-                {isCurrentDJ ? '● you are the dj' : `● queue ${myQueuePos}/${djQueue.length}`}
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => useUIStore.getState().setPlaylistMinimized(true)}
-              className="text-[10px] font-mono px-1.5 py-0.5 text-white/30 hover:text-white transition-colors"
-              title="Minimize panel"
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.15]">
+          <button
+            onClick={() => useUIStore.getState().setPlaylistMinimized(true)}
+            className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white transition-colors rounded hover:bg-white/10 flex-shrink-0"
+            title="Minimize panel"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              ▾
-            </button>
+              <polyline points="4 14 10 14 10 20" />
+              <polyline points="20 10 14 10 14 4" />
+              <line x1="14" y1="10" x2="21" y2="3" />
+              <line x1="3" y1="21" x2="10" y2="14" />
+            </svg>
+          </button>
 
-            <button
-              onClick={leaveBooth}
-              className="text-[10px] font-mono px-2 py-0.5 bg-red-500/15 border border-red-500/30 rounded text-red-400 hover:bg-red-500/30 transition-colors"
+          <span className="text-[13px] font-mono text-green-400 flex-1 truncate">
+            {isCurrentDJ
+              ? '● you are the dj'
+              : isInQueue
+                ? `● queue ${myQueuePos}/${djQueue.length}`
+                : '● booth'}
+          </span>
+
+          <button
+            onClick={leaveBooth}
+            className="flex items-center gap-1 text-[12px] font-mono px-2.5 py-1 bg-red-500/15 border border-red-500/30 rounded text-red-400 hover:bg-red-500/30 transition-colors flex-shrink-0"
+          >
+            leave
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              leave booth
-            </button>
-          </div>
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </button>
         </div>
-
-        {/* DJ controls */}
-        {isCurrentDJ && (
-          <div className="flex items-center gap-1 px-3 py-1.5 border-b border-white/[0.1]">
-            <button
-              onClick={() => getNetwork().djPlay()}
-              className="px-2.5 py-1 text-[9px] font-mono bg-green-500/20 border border-green-500/30 rounded text-green-400 hover:bg-green-500/30 transition-colors"
-            >
-              ▶ play
-            </button>
-
-            <button
-              onClick={() => getNetwork().djStop()}
-              className="px-2.5 py-1 text-[9px] font-mono bg-red-500/20 border border-red-500/30 rounded text-red-400 hover:bg-red-500/30 transition-colors"
-            >
-              ■ stop
-            </button>
-
-            <button
-              onClick={() => getNetwork().djSkipTurn()}
-              className="px-2.5 py-1 text-[9px] font-mono bg-white/10 border border-white/20 rounded text-white/60 hover:text-white transition-colors"
-            >
-              skip turn
-            </button>
-          </div>
-        )}
 
         {/* 2 tabs: DJ Queue / My Playlists */}
         <div className="flex border-b border-white/[0.15]">
@@ -515,7 +548,7 @@ export function PlaylistPanel() {
             <button
               key={t}
               onClick={() => setBoothTab(t)}
-              className={`flex-1 py-1.5 text-[10px] font-mono text-center transition-colors ${
+              className={`flex-1 py-2 text-[13px] font-mono text-center transition-colors ${
                 boothTab === t
                   ? 'text-purple-300 border-b-2 border-purple-400'
                   : 'text-white/40 hover:text-white/60'
@@ -531,7 +564,7 @@ export function PlaylistPanel() {
           <div className="flex-1 overflow-y-auto px-3 py-2">
             {djQueue.length > 0 && (
               <div className="mb-3">
-                <div className="text-[9px] font-mono text-white/30 uppercase tracking-wider mb-1">
+                <div className="text-[11px] font-mono text-white/30 uppercase tracking-wider mb-1">
                   dj rotation
                 </div>
 
@@ -542,50 +575,114 @@ export function PlaylistPanel() {
                       entry.sessionId === currentDjSessionId ? 'text-green-400' : 'text-white/60'
                     }`}
                   >
-                    <span className="text-[10px] font-mono w-4">{i + 1}.</span>
+                    <span className="text-[12px] font-mono w-5">{i + 1}.</span>
 
-                    <span className="text-[10px] font-mono truncate">
+                    <span className="text-[12px] font-mono truncate">
                       {entry.name}
                       {entry.sessionId === mySessionId && ' (you)'}
                     </span>
 
                     {entry.sessionId === currentDjSessionId && (
-                      <span className="text-[8px] font-mono text-green-400/60 ml-auto">DJ</span>
+                      <span className="text-[10px] font-mono text-green-400/60 ml-auto">DJ</span>
                     )}
                   </div>
                 ))}
+
+                {isCurrentDJ && (
+                  <button
+                    onClick={() => getNetwork().djSkipTurn()}
+                    className="mt-2 px-2.5 py-1 text-[11px] font-mono bg-white/10 border border-white/20 rounded text-white/50 hover:text-white transition-colors"
+                  >
+                    skip my turn
+                  </button>
+                )}
               </div>
             )}
 
-            <div className="text-[9px] font-mono text-white/30 uppercase tracking-wider mb-1">
+            <div className="text-[11px] font-mono text-white/30 uppercase tracking-wider mb-1">
               my queue ({queuePlaylist.filter((t) => !t.played).length} tracks)
             </div>
 
             {queuePlaylist.length === 0 && (
-              <p className="text-white/20 text-[10px] font-mono mt-2">
+              <p className="text-white/20 text-[12px] font-mono mt-2">
                 no tracks — go to My Playlists to add tracks
               </p>
             )}
 
-            {queuePlaylist.map((track, i) => (
-              <div
-                key={track.id}
-                className={`flex items-center justify-between py-1 ${track.played ? 'opacity-40' : ''}`}
-              >
-                <div className="text-[10px] font-mono text-white/70 truncate flex-1 mr-2">
-                  {i + 1}. {track.title}
-                </div>
+            {queuePlaylist.map((track, i) => {
+              // First unplayed track is "now playing" when music is active
+              const firstUnplayedIdx = queuePlaylist.findIndex((t) => !t.played)
+              const isNowPlaying = isCurrentDJ && stream.isPlaying && i === firstUnplayedIdx
+              const isLocked = track.played || isNowPlaying
 
-                {!track.played && (
-                  <button
-                    onClick={() => handleRemoveQueueTrack(track.id)}
-                    className="text-[9px] text-white/30 hover:text-red-400 transition-colors flex-shrink-0"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            ))}
+              return (
+                <div
+                  key={track.id}
+                  draggable={!isLocked}
+                  onDragStart={(e) => {
+                    if (isLocked) {
+                      e.preventDefault()
+                      return
+                    }
+                    dragSrc.current = i
+                    e.dataTransfer.effectAllowed = 'move'
+                  }}
+                  onDragOver={(e) => {
+                    if (isLocked) return
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    setDragOverIdx(i)
+                  }}
+                  onDragLeave={() => setDragOverIdx(null)}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    const from = dragSrc.current
+                    if (from !== null && from !== i && !isLocked) {
+                      useBoothStore.getState().reorderQueueTrack(from, i)
+                      getNetwork().reorderQueuePlaylist(from, i)
+                    }
+                    dragSrc.current = null
+                    setDragOverIdx(null)
+                  }}
+                  onDragEnd={() => {
+                    dragSrc.current = null
+                    setDragOverIdx(null)
+                  }}
+                  className={`flex items-center justify-between py-1 ${
+                    track.played ? 'opacity-40' : ''
+                  } ${isNowPlaying ? 'opacity-70' : ''} ${
+                    !isLocked ? 'cursor-grab active:cursor-grabbing' : ''
+                  } ${
+                    dragOverIdx === i && !isLocked
+                      ? 'border-b border-purple-400/60 bg-purple-500/10'
+                      : ''
+                  }`}
+                >
+                  {/* Drag handle or lock indicator */}
+                  {!isLocked ? (
+                    <span className="text-[10px] text-white/20 mr-1.5 flex-shrink-0 select-none">
+                      ⠿
+                    </span>
+                  ) : (
+                    <span className="w-[14px] mr-1.5 flex-shrink-0" />
+                  )}
+
+                  <div className="text-[12px] font-mono text-white/70 truncate flex-1 mr-2">
+                    {i + 1}. {track.title}
+                    {isNowPlaying && <span className="text-green-400/60 ml-1">♪</span>}
+                  </div>
+
+                  {!track.played && (
+                    <button
+                      onClick={() => handleRemoveQueueTrack(track.id)}
+                      className="text-[12px] text-white/30 hover:text-red-400 transition-colors flex-shrink-0"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              )
+            })}
           </div>
         ) : (
           myPlaylistsContent
@@ -599,13 +696,25 @@ export function PlaylistPanel() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.15]">
-        <span className="text-[13px] font-mono text-white/80">my playlists</span>
+        <span className="text-base font-mono text-white/80">my playlists</span>
 
         <button
           onClick={() => useUIStore.getState().setPlaylistOpen(false)}
-          className="text-[10px] font-mono text-white/40 hover:text-white transition-colors"
+          className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white transition-colors rounded hover:bg-white/10"
         >
-          ✕
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
       </div>
 

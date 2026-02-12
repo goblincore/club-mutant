@@ -1,11 +1,15 @@
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Html } from '@react-three/drei'
+import { Html, Text } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { PaperDoll } from '../character/PaperDoll'
 import type { PlayerState } from '../stores/gameStore'
-import { useChatStore } from '../stores/chatStore'
+import {
+  useChatStore,
+  BUBBLE_DURATION,
+  type ChatBubble as ChatBubbleData,
+} from '../stores/chatStore'
 import { useMusicStore } from '../stores/musicStore'
 
 const WORLD_SCALE = 0.01 // Server pixels → world units
@@ -16,16 +20,167 @@ const STOP_GRACE = 0.15 // Seconds to keep "walk" after stopping (prevents flick
 const BILLBOARD_LERP = 4 // How fast the billboard rotation catches up (lower = more lag/twist)
 const TWIST_DAMPING = 6 // How fast the twist value decays
 
-function bubbleFontSize(len: number): number {
-  if (len <= 8) return 7
-  if (len <= 20) return 6
-  return 5
+// ── 3D Chat bubble helpers ──
+
+const TALL_THRESHOLD = 1.2
+const BUBBLE_PAD_X = 0.035
+const BUBBLE_PAD_Y = 0.025
+const BUBBLE_RADIUS = 0.03
+
+const bubbleMat = new THREE.MeshBasicMaterial({ color: 0xffffff })
+
+// Tail triangle (points -Y by default)
+const tailGeo = (() => {
+  const s = new THREE.Shape()
+  s.moveTo(-0.012, 0)
+  s.lineTo(0.012, 0)
+  s.lineTo(0, -0.025)
+  s.closePath()
+  return new THREE.ShapeGeometry(s)
+})()
+
+function makeRoundedRect(w: number, h: number, r: number): THREE.ShapeGeometry {
+  r = Math.min(r, w / 2, h / 2)
+  const shape = new THREE.Shape()
+  const hw = w / 2
+  const hh = h / 2
+
+  shape.moveTo(-hw + r, -hh)
+  shape.lineTo(hw - r, -hh)
+  shape.quadraticCurveTo(hw, -hh, hw, -hh + r)
+  shape.lineTo(hw, hh - r)
+  shape.quadraticCurveTo(hw, hh, hw - r, hh)
+  shape.lineTo(-hw + r, hh)
+  shape.quadraticCurveTo(-hw, hh, -hw, hh - r)
+  shape.lineTo(-hw, -hh + r)
+  shape.quadraticCurveTo(-hw, -hh, -hw + r, -hh)
+
+  return new THREE.ShapeGeometry(shape)
 }
 
-const TALL_THRESHOLD = 1.2 // visualTopY above this → side bubble
+function bubbleTextSize(len: number): number {
+  if (len <= 8) return 0.09
+  if (len <= 20) return 0.076
+  return 0.064
+}
 
-function ChatBubble({ sessionId, visualTopY }: { sessionId: string; visualTopY: number }) {
-  const bubble = useChatStore((s) => s.bubbles.get(sessionId))
+const STACK_GAP = 0.12
+const FADE_MS = 800
+
+// ── Single bubble in the stack ──
+
+function SingleBubble({
+  bubble,
+  yOffset,
+  showTail,
+  useSide,
+  flipLeft,
+}: {
+  bubble: ChatBubbleData
+  yOffset: number
+  showTail: boolean
+  useSide: boolean
+  flipLeft: boolean
+}) {
+  const bgRef = useRef<THREE.Mesh>(null)
+  const tailRef = useRef<THREE.Mesh>(null)
+  const groupRef = useRef<THREE.Group>(null)
+  const animRef = useRef(0)
+  const bgBounds = useRef({ cx: 0, cy: 0, w: 0.1, h: 0.1 })
+
+  // Layer setup — runs every render to catch newly created meshes
+  useEffect(() => {
+    bgRef.current?.layers.set(1)
+    tailRef.current?.layers.set(1)
+  })
+
+  useFrame((_, delta) => {
+    if (!groupRef.current) return
+
+    // Pop-in
+    if (animRef.current < 1) {
+      animRef.current = Math.min(1, animRef.current + delta * 8)
+    }
+
+    // Shrink-out in last FADE_MS
+    const remaining = BUBBLE_DURATION - (Date.now() - bubble.timestamp)
+    const fadeScale = remaining < FADE_MS ? Math.max(0, remaining / FADE_MS) : 1
+
+    const ease = 1 - (1 - animRef.current) * (1 - animRef.current)
+    groupRef.current.scale.setScalar(ease * fadeScale)
+
+    // Tail position
+    if (tailRef.current) {
+      const { cx, cy, w, h } = bgBounds.current
+
+      if (useSide) {
+        tailRef.current.rotation.z = flipLeft ? -Math.PI / 2 : Math.PI / 2
+        tailRef.current.position.set(flipLeft ? cx + w / 2 : cx - w / 2, cy, 0)
+      } else {
+        tailRef.current.rotation.z = 0
+        tailRef.current.position.set(cx, cy - h / 2, 0)
+      }
+    }
+  })
+
+  const handleSync = useCallback((troika: THREE.Mesh) => {
+    troika.layers.set(1)
+
+    troika.geometry.computeBoundingBox()
+    const bb = troika.geometry.boundingBox
+    if (!bb || !bgRef.current) return
+
+    const w = bb.max.x - bb.min.x + BUBBLE_PAD_X * 2
+    const h = bb.max.y - bb.min.y + BUBBLE_PAD_Y * 2
+    const cx = (bb.min.x + bb.max.x) / 2
+    const cy = (bb.min.y + bb.max.y) / 2
+
+    bgBounds.current = { cx, cy, w, h }
+
+    bgRef.current.geometry.dispose()
+    bgRef.current.geometry = makeRoundedRect(w, h, BUBBLE_RADIUS)
+    bgRef.current.position.set(cx, cy, -0.003)
+  }, [])
+
+  const fontSize = bubbleTextSize(bubble.content.length)
+
+  return (
+    <group ref={groupRef} position={[0, yOffset, 0]} scale={0}>
+      <Text
+        fontSize={fontSize}
+        maxWidth={0.6}
+        color="#000000"
+        anchorX="center"
+        anchorY="bottom"
+        textAlign="center"
+        font="/fonts/courier-prime.woff"
+        onSync={handleSync}
+      >
+        {bubble.content}
+      </Text>
+
+      <mesh ref={bgRef} material={bubbleMat}>
+        <planeGeometry args={[0.1, 0.1]} />
+      </mesh>
+
+      {showTail && <mesh ref={tailRef} geometry={tailGeo} material={bubbleMat} />}
+    </group>
+  )
+}
+
+// ── Stacked bubble container — handles positioning, distance scaling, flip ──
+
+function ChatBubble({
+  sessionId,
+  visualTopY,
+  headTopY,
+}: {
+  sessionId: string
+  visualTopY: number
+  headTopY: number
+}) {
+  const bubbles = useChatStore((s) => s.bubbles.get(sessionId))
+  const outerRef = useRef<THREE.Group>(null)
   const markerRef = useRef<THREE.Group>(null)
   const { camera } = useThree()
   const [flipLeft, setFlipLeft] = useState(false)
@@ -34,84 +189,54 @@ function ChatBubble({ sessionId, visualTopY }: { sessionId: string; visualTopY: 
 
   const useSide = visualTopY > TALL_THRESHOLD
 
-  // Project character position to screen space every 4th frame (only for side bubbles)
-  useFrame(() => {
-    if (!useSide) return
+  // Enable layer 1 on camera so bubbles render when post-processing is off
+  useEffect(() => {
+    camera.layers.enable(1)
+  }, [camera])
 
-    frameCount.current++
-    if (frameCount.current % 4 !== 0) return
-    if (!markerRef.current || !bubble) return
+  // Distance scaling + screen-edge flip
+  useFrame(() => {
+    if (!outerRef.current || !markerRef.current || !bubbles?.length) return
 
     markerRef.current.getWorldPosition(tempVec.current)
-    tempVec.current.project(camera)
+    const dist = tempVec.current.distanceTo(camera.position)
+    const targetScale = Math.max(0.8, Math.min(2.5, dist / 4))
+    outerRef.current.scale.setScalar(targetScale)
 
-    const shouldFlip = tempVec.current.x > 0.3
-    if (shouldFlip !== flipLeft) setFlipLeft(shouldFlip)
+    // Screen-edge flip for side bubbles (every 4th frame)
+    if (useSide) {
+      frameCount.current++
+
+      if (frameCount.current % 4 === 0) {
+        tempVec.current.project(camera)
+        const shouldFlip = tempVec.current.x > 0.3
+        if (shouldFlip !== flipLeft) setFlipLeft(shouldFlip)
+      }
+    }
   })
 
-  const fontSize = bubble ? bubbleFontSize(bubble.content.length) : 6
+  if (!bubbles?.length) return <group ref={markerRef} />
 
-  // Short chars: above head. Tall chars: to the side.
   const position: [number, number, number] = useSide
-    ? [flipLeft ? -0.5 : 0.5, visualTopY * 0.85, 0]
-    : [0, visualTopY + 0.1, 0]
+    ? [flipLeft ? -0.5 : 0.5, headTopY, 0]
+    : [0, visualTopY + 0.15, 0]
 
   return (
     <>
       <group ref={markerRef} />
 
-      {bubble && (
-        <Html position={position} center distanceFactor={6} style={{ pointerEvents: 'none' }}>
-          <div
-            className="relative max-w-[140px] px-2 py-1 bg-white rounded-lg text-black font-mono leading-tight select-none shadow-md"
-            style={{
-              fontSize: `${fontSize}px`,
-              animation: 'bubble-in 0.2s ease-out both',
-            }}
-          >
-            {bubble.content}
-
-            {useSide ? (
-              // Side tail — on the edge facing the character
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  [flipLeft ? 'right' : 'left']: -5,
-                  marginTop: -4,
-                  width: 0,
-                  height: 0,
-                  borderTop: '4px solid transparent',
-                  borderBottom: '4px solid transparent',
-                  [flipLeft ? 'borderLeft' : 'borderRight']: '6px solid white',
-                }}
-              />
-            ) : (
-              // Bottom tail — centered below bubble, pointing down
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: -5,
-                  left: '50%',
-                  marginLeft: -4,
-                  width: 0,
-                  height: 0,
-                  borderLeft: '4px solid transparent',
-                  borderRight: '4px solid transparent',
-                  borderTop: '6px solid white',
-                }}
-              />
-            )}
-          </div>
-
-          <style>{`
-            @keyframes bubble-in {
-              0% { opacity: 0; transform: scale(0.5); }
-              100% { opacity: 1; transform: scale(1); }
-            }
-          `}</style>
-        </Html>
-      )}
+      <group ref={outerRef} position={position}>
+        {bubbles.map((bubble, i) => (
+          <SingleBubble
+            key={bubble.id}
+            bubble={bubble}
+            yOffset={i * STACK_GAP}
+            showTail={i === 0}
+            useSide={useSide}
+            flipLeft={flipLeft}
+          />
+        ))}
+      </group>
     </>
   )
 }
@@ -134,6 +259,7 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
   const [velX, setVelX] = useState(0)
   const [bbTwist, setBbTwist] = useState(0)
   const [visualTopY, setVisualTopY] = useState(1.1)
+  const [headTopY, setHeadTopY] = useState(1.1)
 
   const lastVisualX = useRef(0)
   const stopTimer = useRef(0)
@@ -260,12 +386,15 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
             speed={speed}
             velocityX={velX}
             billboardTwist={bbTwist}
-            onLayout={({ visualTopY: vt }) => setVisualTopY(vt)}
+            onLayout={({ visualTopY: vt, headTopY: ht }) => {
+              setVisualTopY(vt)
+              setHeadTopY(ht)
+            }}
           />
         </group>
 
         {/* Chat bubble */}
-        <ChatBubble sessionId={player.sessionId} visualTopY={visualTopY} />
+        <ChatBubble sessionId={player.sessionId} visualTopY={visualTopY} headTopY={headTopY} />
 
         {/* Nametag — below the character */}
         <Html position={[0, -0.15, 0]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>

@@ -232,7 +232,11 @@ export function PsxPostProcess() {
 
     gl.autoClear = true
 
-    // 1. Render scene to low-res target
+    // Save camera layer mask — ChatBubble enables layer 1 for when VHS is off
+    const savedMask = camera.layers.mask
+
+    // 1. Render scene (layer 0 only, excludes UI bubbles) to low-res target
+    camera.layers.disable(1)
     gl.setRenderTarget(target)
 
     if (!hasBg) {
@@ -247,6 +251,15 @@ export function PsxPostProcess() {
     material.uniforms.tDiffuse.value = target.texture
     gl.clear()
     render(quadScene, quadCamera)
+
+    // 3. Render UI layer (chat bubbles) clean, without post-processing
+    gl.autoClear = false
+    camera.layers.set(1)
+    gl.clearDepth()
+    render(scene, camera)
+
+    // Restore
+    camera.layers.mask = savedMask
 
     gl.autoClear = oldAutoClear
   }, 1)

@@ -385,6 +385,10 @@ export class NetworkManager {
     this.room?.send(Message.ROOM_QUEUE_PLAYLIST_REMOVE, { id })
   }
 
+  reorderQueuePlaylist(fromIndex: number, toIndex: number) {
+    this.room?.send(Message.ROOM_QUEUE_PLAYLIST_REORDER, { fromIndex, toIndex })
+  }
+
   // YouTube search (via server)
   async searchYouTube(query: string): Promise<any[]> {
     const res = await fetch(`${this.httpBaseUrl}/youtube/${encodeURIComponent(query)}`)

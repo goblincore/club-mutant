@@ -24,11 +24,11 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Dev server: port 5175 (`cd client-3d && pnpm dev`)
   - Characters: paper-doll rigs (flat textured planes on bone hierarchy) from rig editor export
   - Key dirs:
-    - `src/scene/` — Room (walls + DJ booth + occlusion), Camera (orbit + sway), PlayerEntity (lerp + chat bubbles), GameScene (Canvas + ClickPlane)
+    - `src/scene/` — Room (walls + DJ booth + occlusion), Camera (orbit + sway), PlayerEntity (lerp + 3D chat bubbles + nametags), GameScene (Canvas + ClickPlane)
     - `src/character/` — PaperDoll, CharacterLoader, DistortMaterial (PaRappa vertex warp), AnimationMixer
     - `src/network/` — NetworkManager (Colyseus client, player/chat/music/DJ queue wiring, YouTube search)
     - `src/stores/` — gameStore, chatStore (+ bubbles), musicStore, uiStore, boothStore (DJ booth + queue + video bg)
-    - `src/shaders/` — PsxPostProcess (VHS+bloom+fisheye post-processing, ¾-res render target, NearestFilter upscale), TvStaticFloor (animated TV noise floor material), TrippySky (Win95-style blue sky + animated procedural clouds skybox, drift speed 0.4), BrickWallMaterial (procedural brick wall shader)
+    - `src/shaders/` — PsxPostProcess (VHS+bloom+fisheye post-processing, ¾-res render target, NearestFilter upscale; **layer-based rendering**: layer 0 for scene with VHS, layer 1 for UI/chat bubbles rendered clean), TvStaticFloor (animated TV noise floor material), TrippySky (Win95-style blue sky + animated procedural clouds skybox, drift speed 0.4), BrickWallMaterial (procedural brick wall shader)
     - `src/input/` — usePlayerInput (WASD + click-to-move)
     - `src/ui/` — ChatPanel, PlaylistPanel (search + queue), NowPlaying (mini bar + video bg toggle), LobbyScreen, BoothPrompt (double-click booth confirmation)
   - Planning doc: `docs/ideas/client-3d-psx-multiplayer.md`
@@ -1282,6 +1282,10 @@ A single `DEBUG_MODE` flag in `client/src/config.ts` controls all debug keyboard
 - ~~Add new character (default3/Mutant) to lobby select + GameScene texture map~~ ✅ COMPLETED (Feb 2026)
 - ~~Fix: NowPlaying shows 'untitled' + time when no DJ/track; characters dance when no music~~ ✅ COMPLETED (Feb 2026)
 - ~~Switch Netlify deployment from 2D client to 3D client~~ ✅ COMPLETED (Feb 2026)
+- ~~3D chat bubbles (replace HTML overlay with Three.js geometry + troika text)~~ ✅ COMPLETED (Feb 2026)
+- ~~Layer-based VHS rendering (layer 0 scene + VHS, layer 1 UI rendered clean)~~ ✅ COMPLETED (Feb 2026)
+- ~~PaperDoll layout metrics (headTopY, visualTopY) for smart chat bubble positioning~~ ✅ COMPLETED (Feb 2026)
+- ~~Editor multi-select + batch parent/bone role assignment~~ ✅ COMPLETED (Feb 2026)
 - PSX geometry shaders (vertex snapping, affine texture mapping)
 - Textured DJ booth furniture
 - Sound effects (footsteps, UI clicks, punch impacts)
@@ -1326,7 +1330,45 @@ Four selectable characters in lobby (`LobbyScreen.tsx`):
 
 **Per-character scale override**: Add `"scale": 0.64` (or any multiplier) to a character's `manifest.json` top-level. Applied on top of the auto-normalization in `PaperDoll.tsx` (`computeCharacterLayout` normalizes all characters to `TARGET_HEIGHT_PX = 110`, then multiplies by `manifest.scale ?? 1`). No re-export needed — just edit the JSON.
 
-**Dynamic ground alignment**: `computeCharacterLayout` in `PaperDoll.tsx` computes per-character `groundOffsetY` from the actual bounding box so feet sit at Y=0 regardless of part layout or scale. It tracks `feetY = max(ay + pivot[1] * h)` across all parts (matching how `PartMesh` geometry is shifted by pivot), then shifts the root group up by `feetY * PX_SCALE * charScale`. Reports `worldHeight` to `PlayerEntity.tsx` for nametag/chat bubble positioning.
+**Dynamic ground alignment**: `computeCharacterLayout` in `PaperDoll.tsx` computes per-character `groundOffsetY` from the actual bounding box so feet sit at Y=0 regardless of part layout or scale. It tracks `feetY = max(ay + pivot[1] * h)` across all parts (matching how `PartMesh` geometry is shifted by pivot), then shifts the root group up by `feetY * PX_SCALE * charScale`. Reports layout metrics to `PlayerEntity.tsx` via `onLayout` callback:
+
+- `worldHeight` — total character height in world units
+- `headTopY` — Y position of top of head part (for chat bubble anchor)
+- `visualTopY` — Y position of highest point of any part (for top-positioned chat bubbles)
+
+### 3D Chat Bubbles + Layer-Based Rendering (Feb 2026)
+
+Chat bubbles were rewritten from HTML overlays (`<Html>` from drei) to native Three.js geometry for a consistent PSX aesthetic:
+
+**Bubble rendering**:
+
+- `Text` from `@react-three/drei` (troika-three-text) for crisp text at any distance
+- Rounded-rect background (`THREE.ShapeGeometry`) computed dynamically from text bounding box via `onSync`
+- Triangular tail pointing down (or sideways for tall characters)
+- Pop-in animation (scale 0→1 with ease) + shrink-out fade in last 800ms before expiry
+
+**Stacking**: Multiple bubbles stack vertically with `STACK_GAP = 0.12`. Most recent bubble at bottom with tail, older bubbles stacked above.
+
+**Smart positioning based on character height**:
+
+- Short characters (`visualTopY ≤ 1.2`): bubbles above head at `[0, visualTopY + 0.15, 0]`
+- Tall characters (`visualTopY > 1.2`): bubbles beside head at `[±0.5, headTopY, 0]`
+  - Side bubbles flip left/right based on screen position (`tempVec.project(camera).x > 0.3`)
+
+**Distance scaling**: Bubbles scale inversely with camera distance (`dist / 4`, clamped `0.8..2.5`) so they remain readable at all zoom levels.
+
+**Layer-based rendering** (avoids VHS post-processing on UI):
+
+- All bubble meshes (text, background, tail) use `layers.set(1)` — Three.js layer 1
+- `PsxPostProcess.tsx` renders in 3 passes:
+  1. Layer 0 only → low-res render target → VHS fullscreen quad
+  2. Layer 1 only → rendered clean directly to screen (no post-processing)
+  3. Restore camera layer mask
+- Camera has `layers.enable(1)` so bubbles also render when VHS is off
+
+**Nametags**: Moved from above character to below (`y = -0.15`) using `<Html>` overlay. Smaller text (`8px`) with subtle background.
+
+**Key files**: `PlayerEntity.tsx` (SingleBubble, ChatBubble components), `PsxPostProcess.tsx` (layer render passes), `chatStore.ts` (exports `BUBBLE_DURATION`, `ChatBubble` type)
 
 ### DJ Booth Overlap Fix
 
@@ -1356,6 +1398,8 @@ Character rig tool for building paper-doll characters used by `client-3d`:
 - Preset dance animation uses `rotation.y` on arms for z-axis twist effect (replaced earlier `scale.x`/`scale.y` approach which looked glitchy)
 - `AnimationTrack.property` union: `rotation.x/y/z | position.x/y/z | scale.x/y/z`
 - Stores `originalFilename` on each part so exported manifest references real filenames
+- **Multi-select + batch editing**: Cmd/Ctrl+click to select multiple parts, "select all" button in parts header. When multiple parts selected, Properties panel shows batch Parent and Bone Role dropdowns (shows "— mixed —" when values differ). Store uses `selectedPartIds: Set<string>` with `updateParts` batch action.
+- **Pivot indicator always on top**: Pivot dot rendered as ring+dot with `transparent`, `depthTest={false}`, `depthWrite={false}`, `renderOrder=999` — ensures it renders in the transparent pass after all part meshes
 
 ## YoutubePlayer Architecture (Feb 2026 refactor)
 

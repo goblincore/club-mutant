@@ -1,3 +1,4 @@
+import { getNetwork } from './network/NetworkManager'
 import { useGameStore } from './stores/gameStore'
 import { useUIStore } from './stores/uiStore'
 import { useBoothStore } from './stores/boothStore'
@@ -20,33 +21,63 @@ function MinimizedBoothBar() {
   const mySessionId = useGameStore((s) => s.mySessionId)
   const myQueuePos = djQueue.findIndex((e) => e.sessionId === mySessionId) + 1
 
+  const handleLeave = () => {
+    getNetwork().disconnectFromBooth()
+    getNetwork().leaveDJQueue()
+    useUIStore.getState().setPlaylistOpen(false)
+  }
+
   return (
     <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm border border-white/10 rounded-lg px-3 py-2">
-      <span className="text-[11px] font-mono text-white/70">dj booth</span>
-
-      {isInQueue && (
-        <span className="text-[9px] font-mono text-green-400">
-          {isCurrentDJ ? '● dj' : `● ${myQueuePos}/${djQueue.length}`}
-        </span>
-      )}
-
       <button
         onClick={() => useUIStore.getState().setPlaylistMinimized(false)}
-        className="text-[9px] font-mono px-2 py-0.5 bg-purple-500/20 border border-purple-500/30 rounded text-purple-300 hover:bg-purple-500/30 transition-colors"
+        className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white transition-colors rounded hover:bg-white/10 flex-shrink-0"
+        title="Expand panel"
       >
-        expand
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="15 3 21 3 21 9" />
+          <polyline points="9 21 3 21 3 15" />
+          <line x1="21" y1="3" x2="14" y2="10" />
+          <line x1="3" y1="21" x2="10" y2="14" />
+        </svg>
       </button>
 
+      <span className="text-[13px] font-mono text-green-400 flex-1">
+        {isCurrentDJ
+          ? '● you are the dj'
+          : isInQueue
+            ? `● queue ${myQueuePos}/${djQueue.length}`
+            : '● booth'}
+      </span>
+
       <button
-        onClick={() => {
-          const { getNetwork } = require('./network/NetworkManager')
-          getNetwork().disconnectFromBooth()
-          getNetwork().leaveDJQueue()
-          useUIStore.getState().setPlaylistOpen(false)
-        }}
-        className="text-[9px] font-mono px-2 py-0.5 bg-red-500/15 border border-red-500/30 rounded text-red-400 hover:bg-red-500/30 transition-colors"
+        onClick={handleLeave}
+        className="flex items-center gap-1 text-[11px] font-mono px-2.5 py-1 bg-red-500/15 border border-red-500/30 rounded text-red-400 hover:bg-red-500/30 transition-colors flex-shrink-0"
       >
         leave
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <polyline points="16 17 21 12 16 7" />
+          <line x1="21" y1="12" x2="9" y2="12" />
+        </svg>
       </button>
     </div>
   )
@@ -123,7 +154,7 @@ export function App() {
       >
         <button
           onClick={useUIStore.getState().togglePlaylist}
-          className="px-3 py-1.5 text-[10px] font-mono bg-black/60 border border-white/10 rounded text-white/60 hover:text-white hover:border-white/30 transition-colors"
+          className="px-3 py-1.5 text-[12px] font-mono bg-black/60 border border-white/10 rounded text-white/60 hover:text-white hover:border-white/30 transition-colors"
         >
           {playlistOpen ? 'hide playlist' : 'playlist'}
         </button>

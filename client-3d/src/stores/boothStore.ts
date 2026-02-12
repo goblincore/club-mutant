@@ -40,6 +40,7 @@ interface BoothState {
   setIsInQueue: (inQueue: boolean) => void
   setQueuePlaylist: (items: QueuePlaylistItem[]) => void
   toggleVideoBackground: () => void
+  reorderQueueTrack: (fromIndex: number, toIndex: number) => void
   setVideoBackground: (enabled: boolean) => void
   setVideoBgMode: (mode: VideoBgMode) => void
   setVideoBgLabel: (label: string) => void
@@ -67,6 +68,15 @@ export const useBoothStore = create<BoothState>((set) => ({
   setIsInQueue: (inQueue) => set({ isInQueue: inQueue }),
 
   setQueuePlaylist: (items) => set({ queuePlaylist: items }),
+
+  reorderQueueTrack: (fromIndex, toIndex) =>
+    set((s) => {
+      const items = [...s.queuePlaylist]
+      const [moved] = items.splice(fromIndex, 1)
+      items.splice(toIndex, 0, moved)
+
+      return { queuePlaylist: items }
+    }),
 
   toggleVideoBackground: () => set((s) => ({ videoBackgroundEnabled: !s.videoBackgroundEnabled })),
 

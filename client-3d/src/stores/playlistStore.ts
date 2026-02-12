@@ -25,6 +25,7 @@ interface PlaylistState {
   setActivePlaylist: (id: string | null) => void
   addTrack: (playlistId: string, track: PlaylistTrack) => void
   removeTrack: (playlistId: string, trackId: string) => void
+  reorderTrack: (playlistId: string, fromIndex: number, toIndex: number) => void
 }
 
 function loadPersisted(): { playlists: MyPlaylist[]; activePlaylistId: string | null } {
@@ -37,7 +38,8 @@ function loadPersisted(): { playlists: MyPlaylist[]; activePlaylistId: string | 
     if (!parsed || typeof parsed !== 'object') return { playlists: [], activePlaylistId: null }
 
     const playlists = Array.isArray(parsed.playlists) ? parsed.playlists : []
-    const activePlaylistId = typeof parsed.activePlaylistId === 'string' ? parsed.activePlaylistId : null
+    const activePlaylistId =
+      typeof parsed.activePlaylistId === 'string' ? parsed.activePlaylistId : null
 
     return { playlists, activePlaylistId }
   } catch {
@@ -47,10 +49,13 @@ function loadPersisted(): { playlists: MyPlaylist[]; activePlaylistId: string | 
 
 function persist(state: { playlists: MyPlaylist[]; activePlaylistId: string | null }) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      playlists: state.playlists,
-      activePlaylistId: state.activePlaylistId,
-    }))
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        playlists: state.playlists,
+        activePlaylistId: state.activePlaylistId,
+      })
+    )
   } catch {
     // localStorage full or unavailable
   }
@@ -80,9 +85,10 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
     set((s) => {
       const next = {
         playlists: s.playlists.filter((p) => p.id !== id),
-        activePlaylistId: s.activePlaylistId === id
-          ? (s.playlists.find((p) => p.id !== id)?.id ?? null)
-          : s.activePlaylistId,
+        activePlaylistId:
+          s.activePlaylistId === id
+            ? (s.playlists.find((p) => p.id !== id)?.id ?? null)
+            : s.activePlaylistId,
       }
 
       persist(next)
@@ -125,10 +131,28 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
     set((s) => {
       const next = {
         playlists: s.playlists.map((p) =>
-          p.id === playlistId
-            ? { ...p, items: p.items.filter((t) => t.id !== trackId) }
-            : p
+          p.id === playlistId ? { ...p, items: p.items.filter((t) => t.id !== trackId) } : p
         ),
+        activePlaylistId: s.activePlaylistId,
+      }
+
+      persist(next)
+      return next
+    })
+  },
+
+  reorderTrack: (playlistId, fromIndex, toIndex) => {
+    set((s) => {
+      const next = {
+        playlists: s.playlists.map((p) => {
+          if (p.id !== playlistId) return p
+
+          const items = [...p.items]
+          const [moved] = items.splice(fromIndex, 1)
+          items.splice(toIndex, 0, moved)
+
+          return { ...p, items }
+        }),
         activePlaylistId: s.activePlaylistId,
       }
 

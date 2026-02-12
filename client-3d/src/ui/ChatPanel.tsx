@@ -92,20 +92,32 @@ export function ChatPanel() {
         <>
           {/* Header */}
           <div className="pointer-events-auto bg-black/[0.35] backdrop-blur-md border border-white/[0.25] border-b-0 rounded-t-lg mx-4 mt-4 px-3 py-2 flex items-center justify-between">
-            <span className="text-[13px] font-mono text-white/80">chat</span>
+            <span className="text-base font-mono text-white/80">chat</span>
 
             <button
               onClick={toggleExpanded}
-              className="text-[10px] font-mono text-white/40 hover:text-white transition-colors"
+              className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white transition-colors rounded hover:bg-white/10"
             >
-              ✕
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
             </button>
           </div>
 
           {/* Messages */}
           <div
             ref={scrollRef}
-            className="pointer-events-auto flex-1 overflow-y-auto space-y-1 p-2 text-xs bg-black/[0.25] backdrop-blur-md border-x border-white/[0.25] mx-4"
+            className="pointer-events-auto flex-1 overflow-y-auto space-y-1 p-2 text-[13px] bg-black/[0.25] backdrop-blur-md border-x border-white/[0.25] mx-4"
           >
             {messages.map((msg) => (
               <div key={msg.id} className="leading-tight hover:bg-white/[0.08] px-1 rounded">
@@ -161,7 +173,7 @@ export function ChatPanel() {
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder="Press Enter to chat"
-          className="flex-1 bg-transparent py-2 pr-3 text-xs text-white font-mono placeholder-white/30 focus:outline-none"
+          className="flex-1 bg-transparent py-2 pr-3 text-[13px] text-white font-mono placeholder-white/30 focus:outline-none"
         />
       </div>
     </div>

@@ -180,6 +180,13 @@ Characters face the direction they're moving (left/right flip via scale.x = -1).
 - [x] Fisheye barrel distortion in VHS shader (`BARREL_STRENGTH = 0.5`)
 - [x] TV static floor shader (animated noise when no video playing, ported from 2D client)
 - [x] Skybox — Windows 95-style blue sky with procedural fluffy clouds (FBM noise, drifting)
+- [x] 3D chat bubbles — native Three.js geometry (troika text + rounded-rect bg + tail)
+  - Replaces HTML overlay `<Html>` for consistent look
+  - Layer-based rendering: layer 0 (scene + VHS), layer 1 (UI bubbles, rendered clean)
+  - Smart positioning (above head vs beside head based on character height)
+  - Distance scaling, pop-in/fade-out animations, bubble stacking
+- [x] PaperDoll layout metrics — `headTopY`, `visualTopY` for smart bubble/nametag positioning
+- [x] Nametags moved below character (smaller, subtler)
 - [ ] Textured DJ booth (custom texture via `useTexture` from drei)
 - [ ] Room furniture / decoration
 - [ ] Sound effects
@@ -243,12 +250,17 @@ playersProxy.onAdd((player, sessionId) => {
 - `wasCameraDrag` is exported from Camera and checked in ClickPlane
 - WASD input cancels any active click-to-move target
 
-### In-world chat bubbles
+### In-world chat bubbles (3D geometry + layer rendering)
 
-- Per-player bubble map in `chatStore.bubbles` (Map<sessionId, {content, timestamp}>)
-- Auto-clear after 5s via `setTimeout` with timer cleanup
-- Both local (immediate on send) and remote (on `ADD_CHAT_MESSAGE`) set bubbles
-- Rendered as `Html` overlay in `PlayerEntity` with white speech bubble + CSS tail
+- Per-player bubble array in `chatStore.bubbles` (Map<sessionId, ChatBubble[]>) with auto-clear timers
+- Rendered as native Three.js geometry (not HTML overlays) for consistent PSX aesthetic:
+  - `Text` from drei (troika) for text, `ShapeGeometry` rounded-rect background, triangular tail
+  - Pop-in/shrink-out animations, multiple bubbles stack vertically
+- Smart positioning: above head for short characters, beside head for tall characters (flips left/right based on screen position)
+- Distance-based scaling so bubbles stay readable at all zoom levels
+- **Layer 1 rendering**: all bubble meshes on Three.js layer 1, rendered clean (no VHS post-processing)
+- `PsxPostProcess` renders layer 0 with VHS, then layer 1 clean — camera enables both layers for non-VHS mode
+- Nametags moved below character (`y = -0.15`), smaller text
 
 ### DJ booth interaction
 
