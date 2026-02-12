@@ -105,10 +105,10 @@ const FADE_MS = 800
 
 // ── Nametag (troika Text + background mesh, layer 1) ──
 
-const NAME_FONT_SIZE = 0.04
-const NAME_PAD_X = 0.02
-const NAME_PAD_Y = 0.012
-const NAME_BG_RADIUS = 0.015
+const NAME_FONT_SIZE = 0.065
+const NAME_PAD_X = 0.03
+const NAME_PAD_Y = 0.018
+const NAME_BG_RADIUS = 0.02
 const nametagBgMat = new THREE.MeshBasicMaterial({
   color: 0x000000,
   transparent: true,

@@ -1,9 +1,10 @@
 import { Canvas, useThree } from '@react-three/fiber'
-import { Suspense, useRef, useCallback } from 'react'
+import { Suspense, useRef, useCallback, useEffect, useState } from 'react'
 import * as THREE from 'three'
 import { useBoothStore } from '../stores/boothStore'
 import { useUIStore } from '../stores/uiStore'
 import { PsxPostProcess } from '../shaders/PsxPostProcess'
+import { FpsCounter } from '../ui/FpsCounter'
 
 import { Room, BOOTH_WORLD_X, BOOTH_WORLD_Z } from './Room'
 import { FollowCamera, wasCameraDrag } from './Camera'
@@ -131,22 +132,72 @@ function SceneContent() {
 
 const MAX_HEIGHT = 540
 
+// Debug keyboard shortcuts for FPS and render quality
+function useDebugKeys() {
+  const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+
+      if (e.key === '`') {
+        useUIStore.getState().toggleFps()
+      }
+
+      if (e.key === '-' || e.key === '=') {
+        useUIStore.getState().cycleRenderScale()
+        const scale = useUIStore.getState().renderScale
+        setToast(`render ${Math.round(scale * 100)}%`)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  // Auto-clear toast
+  useEffect(() => {
+    if (!toast) return
+
+    const id = setTimeout(() => setToast(null), 1500)
+    return () => clearTimeout(id)
+  }, [toast])
+
+  return toast
+}
+
 export function GameScene() {
   usePlayerInput()
+  const toast = useDebugKeys()
+
+  const showFps = useUIStore((s) => s.showFps)
 
   // Cap renderer at 540p — compute dpr so rendered height never exceeds MAX_HEIGHT
   const dpr = Math.min(1, MAX_HEIGHT / window.innerHeight)
 
   return (
-    <Canvas
-      camera={{ position: [0, 8, 8], fov: 50, near: 0.1, far: 100 }}
-      gl={{ antialias: false, alpha: true }}
-      dpr={dpr}
-      style={{ width: '100%', height: '100%' }}
-    >
-      <Suspense fallback={null}>
-        <SceneContent />
-      </Suspense>
-    </Canvas>
+    <>
+      <Canvas
+        camera={{ position: [0, 8, 8], fov: 50, near: 0.1, far: 100 }}
+        gl={{ antialias: false, alpha: true }}
+        dpr={dpr}
+        style={{ width: '100%', height: '100%' }}
+      >
+        <Suspense fallback={null}>
+          <SceneContent />
+        </Suspense>
+      </Canvas>
+
+      {showFps && <FpsCounter />}
+
+      {toast && (
+        <div
+          className="fixed top-2 left-1/2 -translate-x-1/2 font-mono text-[12px] px-3 py-1.5 rounded bg-black/80 border border-white/15 text-yellow-300 pointer-events-none select-none"
+          style={{ zIndex: 9999 }}
+        >
+          {toast}
+        </div>
+      )}
+    </>
   )
 }

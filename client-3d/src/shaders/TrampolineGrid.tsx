@@ -2,49 +2,30 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
-import { getRippleVec4s, getRippleCount, getTime, TRAMPOLINE } from '../scene/TrampolineRipples'
+import { bakeDisplacement, getDisplacementTexture } from './DisplacementBaker'
 
 // Custom deforming grid overlay that rides the trampoline ripples.
 // Replaces drei <Grid> which can't deform with vertex displacement.
 
-const GRID_SEGMENTS = 96
+const GRID_SEGMENTS = 48
 
 const gridVertexShader = `
 varying vec2 vWorldXZ;
 
-#define MAX_RIPPLES 16
+uniform sampler2D uDisplacementMap;
+uniform float uRoomSize;
 
-uniform vec4 uRipples[MAX_RIPPLES];
-uniform int uRippleCount;
-uniform float uTime;
-
-const float WAVE_SPEED = ${TRAMPOLINE.WAVE_SPEED};
-const float WAVE_FREQ = ${TRAMPOLINE.WAVE_FREQ};
-const float DECAY_TIME = ${TRAMPOLINE.DECAY_TIME};
-const float DIST_DECAY = ${TRAMPOLINE.DIST_DECAY};
-const float LIFETIME = ${TRAMPOLINE.LIFETIME};
+// PSX-style stepped displacement — snaps to discrete height levels
+const float DISP_STEPS = 10.0;
 
 float getDisplacement(vec2 worldXZ) {
-  float totalDisp = 0.0;
+  vec2 uv = (worldXZ + uRoomSize * 0.5) / uRoomSize;
+  uv = clamp(uv, 0.0, 1.0);
 
-  for (int i = 0; i < MAX_RIPPLES; i++) {
-    if (i >= uRippleCount) break;
+  float d = texture2D(uDisplacementMap, uv).r;
 
-    vec2 center = uRipples[i].xy;
-    float birthTime = uRipples[i].z;
-    float amplitude = uRipples[i].w;
-
-    float age = uTime - birthTime;
-    if (age < 0.0 || age > LIFETIME) continue;
-
-    float dist = distance(worldXZ, center);
-    float decay = exp(-age * DECAY_TIME) * exp(-dist * DIST_DECAY);
-    float phase = dist * WAVE_FREQ - age * WAVE_SPEED * WAVE_FREQ;
-
-    totalDisp += sin(phase) * amplitude * decay;
-  }
-
-  return totalDisp;
+  // Quantize to discrete levels for blocky PSX feel
+  return floor(d * DISP_STEPS + 0.5) / DISP_STEPS;
 }
 
 void main() {
@@ -107,10 +88,6 @@ void main() {
 }
 `
 
-function makeRippleUniforms(): THREE.Vector4[] {
-  return Array.from({ length: 16 }, () => new THREE.Vector4(0, 0, 0, 0))
-}
-
 interface TrampolineGridProps {
   roomSize: number
 }
@@ -120,11 +97,9 @@ export function TrampolineGrid({ roomSize }: TrampolineGridProps) {
 
   const uniforms = useMemo(
     () => ({
-      uTime: { value: 0 },
       uRoomSize: { value: roomSize },
       uFadeDistance: { value: 20 },
-      uRipples: { value: makeRippleUniforms() },
-      uRippleCount: { value: 0 },
+      uDisplacementMap: { value: getDisplacementTexture() },
     }),
     [roomSize]
   )
@@ -132,17 +107,9 @@ export function TrampolineGrid({ roomSize }: TrampolineGridProps) {
   useFrame(() => {
     if (!matRef.current) return
 
-    const t = getTime()
+    bakeDisplacement()
 
-    matRef.current.uniforms.uTime.value = t
-    matRef.current.uniforms.uRippleCount.value = getRippleCount()
-
-    const vecs = getRippleVec4s()
-    const uRipples = matRef.current.uniforms.uRipples.value as THREE.Vector4[]
-
-    for (let i = 0; i < 16; i++) {
-      uRipples[i].copy(vecs[i])
-    }
+    matRef.current.uniforms.uDisplacementMap.value = getDisplacementTexture()
   })
 
   return (

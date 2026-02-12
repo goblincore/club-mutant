@@ -2,48 +2,35 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
-import { getRippleVec4s, getRippleCount, getTime, TRAMPOLINE } from '../scene/TrampolineRipples'
+import { getTime } from '../scene/TrampolineRipples'
+import { bakeDisplacement, getDisplacementTexture, DISP_ROOM_SIZE } from './DisplacementBaker'
 
 // Animated TV static floor material — ported from 2D client's TvStaticPostFxPipeline
 // Renders per-pixel noise with frame jitter and subtle color tinting
 
+// Shared GLSL block: sample displacement from baked texture + PSX integer stepping
+const DISPLACEMENT_SAMPLE_GLSL = `
+uniform sampler2D uDisplacementMap;
+uniform float uRoomSize;
+
+// PSX-style stepped displacement — snaps to discrete height levels
+const float DISP_STEPS = 10.0;
+
+float getDisplacement(vec2 worldXZ) {
+  vec2 uv = (worldXZ + uRoomSize * 0.5) / uRoomSize;
+  uv = clamp(uv, 0.0, 1.0);
+
+  float d = texture2D(uDisplacementMap, uv).r;
+
+  // Quantize to discrete levels for blocky PSX feel
+  return floor(d * DISP_STEPS + 0.5) / DISP_STEPS;
+}
+`
+
 const vertexShader = `
 varying vec2 vUv;
 
-#define MAX_RIPPLES 16
-
-uniform vec4 uRipples[MAX_RIPPLES]; // xy = world xz position, z = birthTime, w = amplitude
-uniform int uRippleCount;
-uniform float uTime;
-
-const float WAVE_SPEED = ${TRAMPOLINE.WAVE_SPEED};
-const float WAVE_FREQ = ${TRAMPOLINE.WAVE_FREQ};
-const float DECAY_TIME = ${TRAMPOLINE.DECAY_TIME};
-const float DIST_DECAY = ${TRAMPOLINE.DIST_DECAY};
-const float LIFETIME = ${TRAMPOLINE.LIFETIME};
-
-float getDisplacement(vec2 worldXZ) {
-  float totalDisp = 0.0;
-
-  for (int i = 0; i < MAX_RIPPLES; i++) {
-    if (i >= uRippleCount) break;
-
-    vec2 center = uRipples[i].xy;
-    float birthTime = uRipples[i].z;
-    float amplitude = uRipples[i].w;
-
-    float age = uTime - birthTime;
-    if (age < 0.0 || age > LIFETIME) continue;
-
-    float dist = distance(worldXZ, center);
-    float decay = exp(-age * DECAY_TIME) * exp(-dist * DIST_DECAY);
-    float phase = dist * WAVE_FREQ - age * WAVE_SPEED * WAVE_FREQ;
-
-    totalDisp += sin(phase) * amplitude * decay;
-  }
-
-  return totalDisp;
-}
+${DISPLACEMENT_SAMPLE_GLSL}
 
 void main() {
   vUv = uv;
@@ -112,51 +99,13 @@ void main() {
 }
 `
 
-export const FLOOR_SEGMENTS = 96
+export const FLOOR_SEGMENTS = 48
 
-// Shared ripple displacement GLSL block (reused by grid shader too)
-export const RIPPLE_DISPLACEMENT_GLSL = `
-#define MAX_RIPPLES 16
-
-uniform vec4 uRipples[MAX_RIPPLES];
-uniform int uRippleCount;
-uniform float uTime;
-
-const float WAVE_SPEED = ${TRAMPOLINE.WAVE_SPEED};
-const float WAVE_FREQ = ${TRAMPOLINE.WAVE_FREQ};
-const float DECAY_TIME = ${TRAMPOLINE.DECAY_TIME};
-const float DIST_DECAY = ${TRAMPOLINE.DIST_DECAY};
-const float LIFETIME = ${TRAMPOLINE.LIFETIME};
-
-float getDisplacement(vec2 worldXZ) {
-  float totalDisp = 0.0;
-
-  for (int i = 0; i < MAX_RIPPLES; i++) {
-    if (i >= uRippleCount) break;
-
-    vec2 center = uRipples[i].xy;
-    float birthTime = uRipples[i].z;
-    float amplitude = uRipples[i].w;
-
-    float age = uTime - birthTime;
-    if (age < 0.0 || age > LIFETIME) continue;
-
-    float dist = distance(worldXZ, center);
-    float decay = exp(-age * DECAY_TIME) * exp(-dist * DIST_DECAY);
-    float phase = dist * WAVE_FREQ - age * WAVE_SPEED * WAVE_FREQ;
-
-    totalDisp += sin(phase) * amplitude * decay;
-  }
-
-  return totalDisp;
-}
-`
-
-// Video texture vertex shader — same displacement, passes UV for texture sampling
+// Video texture vertex shader — same displacement texture sampling
 const videoVertexShader = `
 varying vec2 vUv;
 
-${RIPPLE_DISPLACEMENT_GLSL}
+${DISPLACEMENT_SAMPLE_GLSL}
 
 void main() {
   vUv = uv;
@@ -182,25 +131,12 @@ void main() {
 }
 `
 
-// Build initial ripple uniform array (vec4 x 16)
-function makeRippleUniforms(): THREE.Vector4[] {
-  return Array.from({ length: 16 }, () => new THREE.Vector4(0, 0, 0, 0))
-}
+// Helper to update displacement texture uniform on a shader material.
+function updateDisplacementUniforms(mat: THREE.ShaderMaterial) {
+  bakeDisplacement()
 
-// Helper to update ripple uniforms on a shader material ref.
-// Uses getTime() from TrampolineRipples so uTime matches ripple birthTimes exactly.
-function updateRippleUniforms(mat: THREE.ShaderMaterial) {
-  const t = getTime()
-
-  mat.uniforms.uTime.value = t
-  mat.uniforms.uRippleCount.value = getRippleCount()
-
-  const vecs = getRippleVec4s()
-  const uRipples = mat.uniforms.uRipples.value as THREE.Vector4[]
-
-  for (let i = 0; i < 16; i++) {
-    uRipples[i].copy(vecs[i])
-  }
+  mat.uniforms.uTime.value = getTime()
+  mat.uniforms.uDisplacementMap.value = getDisplacementTexture()
 }
 
 // Video texture material with ripple displacement
@@ -209,17 +145,17 @@ export function TrampolineVideoMaterial({ videoTexture }: { videoTexture: THREE.
 
   const uniforms = useMemo(
     () => ({
-      uTime: { value: 0 },
       uVideoMap: { value: videoTexture },
-      uRipples: { value: makeRippleUniforms() },
-      uRippleCount: { value: 0 },
+      uDisplacementMap: { value: getDisplacementTexture() },
+      uRoomSize: { value: DISP_ROOM_SIZE },
+      uTime: { value: 0 },
     }),
     [videoTexture]
   )
 
   useFrame(() => {
     if (!matRef.current) return
-    updateRippleUniforms(matRef.current)
+    updateDisplacementUniforms(matRef.current)
   })
 
   return (
@@ -239,15 +175,15 @@ export function TvStaticFloorMaterial() {
     () => ({
       uTime: { value: 0 },
       uScale: { value: new THREE.Vector2(120, 120) },
-      uRipples: { value: makeRippleUniforms() },
-      uRippleCount: { value: 0 },
+      uDisplacementMap: { value: getDisplacementTexture() },
+      uRoomSize: { value: DISP_ROOM_SIZE },
     }),
     []
   )
 
   useFrame(() => {
     if (!matRef.current) return
-    updateRippleUniforms(matRef.current)
+    updateDisplacementUniforms(matRef.current)
   })
 
   return (

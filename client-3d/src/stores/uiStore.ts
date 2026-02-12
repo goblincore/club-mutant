@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 
+const RENDER_SCALES = [0.75, 0.5, 0.35] as const
+
 interface UIState {
   chatExpanded: boolean
   playlistOpen: boolean
@@ -8,6 +10,8 @@ interface UIState {
   showNametags: boolean
   boothPromptOpen: boolean
   muted: boolean
+  showFps: boolean
+  renderScale: number
 
   toggleChatExpanded: () => void
   togglePlaylist: () => void
@@ -16,6 +20,8 @@ interface UIState {
   toggleNametags: () => void
   setBoothPromptOpen: (open: boolean) => void
   toggleMuted: () => void
+  toggleFps: () => void
+  cycleRenderScale: () => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -26,6 +32,8 @@ export const useUIStore = create<UIState>((set) => ({
   showNametags: true,
   boothPromptOpen: false,
   muted: false,
+  showFps: false,
+  renderScale: 0.75,
 
   toggleChatExpanded: () => set((s) => ({ chatExpanded: !s.chatExpanded })),
   togglePlaylist: () => set((s) => ({ playlistOpen: !s.playlistOpen })),
@@ -34,4 +42,13 @@ export const useUIStore = create<UIState>((set) => ({
   toggleNametags: () => set((s) => ({ showNametags: !s.showNametags })),
   setBoothPromptOpen: (open) => set({ boothPromptOpen: open }),
   toggleMuted: () => set((s) => ({ muted: !s.muted })),
+
+  toggleFps: () => set((s) => ({ showFps: !s.showFps })),
+
+  cycleRenderScale: () =>
+    set((s) => {
+      const idx = RENDER_SCALES.indexOf(s.renderScale as (typeof RENDER_SCALES)[number])
+      const next = RENDER_SCALES[(idx + 1) % RENDER_SCALES.length]!
+      return { renderScale: next }
+    }),
 }))

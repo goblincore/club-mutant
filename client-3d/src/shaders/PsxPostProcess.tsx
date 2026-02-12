@@ -1,6 +1,7 @@
 import { useRef, useMemo, useEffect } from 'react'
 import { useThree, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { useUIStore } from '../stores/uiStore'
 
 /**
  * VHS + PSX post-processing pass (WebGL2 / GLSL3).
@@ -138,39 +139,31 @@ const VHS_FRAGMENT = /* glsl */ `
   }
 `
 
-const RES_SCALE = 0.75 // three-quarter resolution
 const BLOOM_SCALE = 0.5 // bloom at half the scene RT resolution
 
 export function PsxPostProcess() {
   const { gl, scene, camera, size } = useThree()
+  const renderScale = useUIStore((s) => s.renderScale)
 
   const originalRenderRef = useRef<typeof gl.render | null>(null)
   const timeRef = useRef(0)
 
   // Low-res render target with nearest-neighbor filtering
   const target = useMemo(() => {
-    return new THREE.WebGLRenderTarget(
-      Math.max(1, Math.floor(size.width * RES_SCALE)),
-      Math.max(1, Math.floor(size.height * RES_SCALE)),
-      {
-        minFilter: THREE.NearestFilter,
-        magFilter: THREE.NearestFilter,
-        format: THREE.RGBAFormat,
-      }
-    )
+    return new THREE.WebGLRenderTarget(1, 1, {
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      format: THREE.RGBAFormat,
+    })
   }, [])
 
   // Half-res bloom target — LinearFilter gives free blur on downsample
   const bloomTarget = useMemo(() => {
-    return new THREE.WebGLRenderTarget(
-      Math.max(1, Math.floor(size.width * RES_SCALE * BLOOM_SCALE)),
-      Math.max(1, Math.floor(size.height * RES_SCALE * BLOOM_SCALE)),
-      {
-        minFilter: THREE.LinearFilter,
-        magFilter: THREE.LinearFilter,
-        format: THREE.RGBAFormat,
-      }
-    )
+    return new THREE.WebGLRenderTarget(1, 1, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      format: THREE.RGBAFormat,
+    })
   }, [])
 
   // Simple blit shader for downsampling scene → bloom RT
@@ -242,10 +235,10 @@ export function PsxPostProcess() {
     }
   }, [gl])
 
-  // Resize render targets when window resizes
+  // Resize render targets when window resizes or renderScale changes
   useEffect(() => {
-    const w = Math.max(1, Math.floor(size.width * RES_SCALE))
-    const h = Math.max(1, Math.floor(size.height * RES_SCALE))
+    const w = Math.max(1, Math.floor(size.width * renderScale))
+    const h = Math.max(1, Math.floor(size.height * renderScale))
     const bw = Math.max(1, Math.floor(w * BLOOM_SCALE))
     const bh = Math.max(1, Math.floor(h * BLOOM_SCALE))
 
@@ -253,7 +246,7 @@ export function PsxPostProcess() {
     bloomTarget.setSize(bw, bh)
     material.uniforms.u_resolution.value.set(w, h)
     material.uniforms.u_bloomResolution.value.set(bw, bh)
-  }, [size, target, bloomTarget, material])
+  }, [size, renderScale, target, bloomTarget, material])
 
   // Cleanup render targets on unmount
   useEffect(() => {
