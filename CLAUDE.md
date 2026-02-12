@@ -29,7 +29,7 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
     - `src/network/` — NetworkManager (Colyseus client, player/chat/music/DJ queue wiring, YouTube search)
     - `src/stores/` — gameStore, chatStore (+ bubbles), musicStore, uiStore, boothStore (DJ booth + queue + video bg)
     - `src/shaders/` — PsxPostProcess (VHS+bloom+fisheye post-processing, ¾-res render target, NearestFilter upscale; **layer-based rendering**: layer 0 for scene with VHS, layer 1 for UI/chat bubbles rendered clean), TvStaticFloor (animated TV noise floor material + ripple vertex displacement via uniform arrays, also exports `TrampolineVideoMaterial` for video texture with displacement and `FLOOR_SEGMENTS`), TrampolineGrid (custom deforming grid shader replacing drei Grid, rides ripple waves), TrippySky (Win95-style blue sky + animated procedural clouds skybox, drift speed 0.4), BrickWallMaterial (procedural brick wall shader)
-    - `src/scene/TrampolineRipples.ts` — Module-level ripple state manager (max 16 analytical ripples). Provides CPU-side `getDisplacementAt(x,z)` for player/furniture Y offset and GPU-side `getRippleVec4s()`/`getRippleCount()` for shader uniforms. Shared by floor shader, grid shader, PlayerEntity, and Room furniture.
+    - `src/scene/TrampolineRipples.ts` — Module-level ripple state manager (max 16 analytical ripples). Has its own `performance.now()`-based clock (`getTime()`) — no dependency on r3f clock or useFrame ordering. Provides CPU-side `getDisplacementAt(x,z)` for player/furniture Y offset and GPU-side `getRippleVec4s()`/`getRippleCount()` for shader uniforms. Shader `uTime` must use `getTime()` to match ripple birthTimes. Shared by floor shader, grid shader, PlayerEntity, Room furniture, and NetworkManager (remote jump ripples).
     - `src/input/` — usePlayerInput (WASD + click-to-move + spacebar jump with cooldown)
     - `src/ui/` — ChatPanel, PlaylistPanel (search + queue), NowPlaying (mini bar + video bg toggle), LobbyScreen, BoothPrompt (double-click booth confirmation)
   - Planning doc: `docs/ideas/client-3d-psx-multiplayer.md`
@@ -52,6 +52,14 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
 - `types/`
   - Shared types workspace package (`@club-mutant/types`)
   - Imported via pnpm workspace (no copying needed)
+
+## r3f / Three.js pitfalls (learned the hard way)
+
+- **Never use inline `uniforms={{...}}` on `<shaderMaterial>`** — creates a new object every render, r3f reapplies it and resets values set by `useFrame`. Always `useMemo` the uniforms object.
+- **Zustand selectors returning objects trigger re-renders** — `useMusicStore((s) => s.stream)` re-renders on ANY stream property change (new object ref). Use granular selectors: `(s) => s.stream.isPlaying`.
+- **useFrame execution order is not guaranteed** — hooks run in component mount order. Don't rely on one component's useFrame running before another's. For shared state (like ripple timing), use a self-contained time source (e.g., `performance.now()`) rather than passing values between useFrame hooks.
+- **Colyseus `listen()` fires immediately** with the current value on registration. Guard against stale initial values (e.g., server 2D default positions) overriding client-side state.
+- **Video background is local-only** — `boothStore.videoBackgroundEnabled` is a per-client toggle, NOT synced from server. The server's `musicStream.videoBackgroundEnabled` schema field is legacy (2D client only).
 
 ## How to run
 
@@ -1287,6 +1295,8 @@ A single `DEBUG_MODE` flag in `client/src/config.ts` controls all debug keyboard
 - ~~Layer-based VHS rendering (layer 0 scene + VHS, layer 1 UI rendered clean)~~ ✅ COMPLETED (Feb 2026)
 - ~~PaperDoll layout metrics (headTopY, visualTopY) for smart chat bubble positioning~~ ✅ COMPLETED (Feb 2026)
 - ~~Editor multi-select + batch parent/bone role assignment~~ ✅ COMPLETED (Feb 2026)
+- **Performance & Sync Audit** (Feb 2026) — see `docs/performance-sync-audit.md` for full findings and status
+  - Schema cleanup (remove legacy fields), music clock sync, client rendering optimizations
 - PSX geometry shaders (vertex snapping, affine texture mapping)
 - Textured DJ booth furniture
 - Sound effects (footsteps, UI clicks, punch impacts)

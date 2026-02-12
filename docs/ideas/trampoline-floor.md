@@ -30,6 +30,16 @@
 - **Jump state in refs** — no Zustand/React state for per-frame physics (avoids re-renders)
 - **Multiplayer sync is cosmetic** — server broadcasts PLAYER_JUMP, no validation needed
 
+### Bugs fixed & lessons learned (Feb 2026)
+
+- **GLSL float literals**: JS `Number.toString()` drops trailing zeros (`5.0` → `"5"`), which is invalid in GLSL ES 1.0. Added a `glf()` helper in TrampolineRipples.ts to always include a decimal point.
+- **Remote player spawn position**: Colyseus `listen()` fires immediately with the current value on registration. The server's 2D default (705, 500) would override the 3D client's (0, 0) spawn. Fix: detect default position and guard with a `freshRemotes` timeout. Existing players with real positions use their actual server coords; only players at the 2D default get overridden to (0, 0).
+- **Self-contained ripple clock**: Originally relied on `setGlobalTime()` being called by `useFrame` hooks, but execution order between PlayerEntity and shader `useFrame` hooks isn't guaranteed — ripple `birthTime` could mismatch the shader's `uTime`. Fix: TrampolineRipples.ts now uses its own `performance.now()`-based clock via `getTime()`. All callers (addRipple, getDisplacementAt, shader uTime) use this single time source. No useFrame ordering dependency.
+- **Remote jump ripple reliability**: Remote player takeoff ripples are now created immediately in the NetworkManager's `PLAYER_JUMP` handler (using the player's store position), not deferred to the remote PlayerEntity's useFrame. This avoids timing gaps.
+- **Shader uniform reset on re-render**: Inline `uniforms={{...}}` in `<shaderMaterial>` JSX creates a new object every render. When parent components re-render (e.g., music store changes), r3f reapplies the uniforms prop, resetting values to zero. Fix: all shader uniforms are now `useMemo`'d so they're created once and reused.
+- **Granular Zustand subscriptions**: `useVideoBackground` previously subscribed to the entire `useMusicStore((s) => s.stream)` object. Any stream property change triggered a re-render cascade through SceneContent → Room → all shader materials. Fix: subscribe to individual properties (`s.stream.isPlaying`, `s.stream.currentLink`, `s.stream.startTime`).
+- **Video background is local-only**: `videoBackgroundEnabled` was originally a synced server state (set by the DJ, broadcast to all clients). It's now a **local toggle** in `boothStore` — each player decides independently whether to show the video floor. The `musicStore.stream.videoBackgroundEnabled` field has been removed from the 3D client. (Server schema field remains for backward compat with 2D client.)
+
 ### Actual constants (tuned)
 
 ```typescript
