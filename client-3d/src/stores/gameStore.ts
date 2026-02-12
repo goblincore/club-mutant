@@ -3,11 +3,39 @@ import { create } from 'zustand'
 export interface PlayerState {
   sessionId: string
   name: string
-  x: number
-  y: number
   textureId: number
   animId: number
   scale: number
+}
+
+// ── Mutable position map (outside React state for hot-path perf) ──
+// Written by NetworkManager every tick, read by PlayerEntity.useFrame.
+// Never triggers React re-renders.
+
+export interface PlayerPosition {
+  x: number
+  y: number
+}
+
+const _playerPositions = new Map<string, PlayerPosition>()
+
+export function getPlayerPosition(sessionId: string): PlayerPosition | undefined {
+  return _playerPositions.get(sessionId)
+}
+
+export function setPlayerPosition(sessionId: string, x: number, y: number) {
+  const existing = _playerPositions.get(sessionId)
+
+  if (existing) {
+    existing.x = x
+    existing.y = y
+  } else {
+    _playerPositions.set(sessionId, { x, y })
+  }
+}
+
+export function deletePlayerPosition(sessionId: string) {
+  _playerPositions.delete(sessionId)
 }
 
 export interface GameState {
@@ -58,6 +86,7 @@ export const useGameStore = create<GameState>((set) => ({
     set((s) => {
       const next = new Map(s.players)
       next.delete(sessionId)
+      deletePlayerPosition(sessionId)
       return { players: next }
     }),
 

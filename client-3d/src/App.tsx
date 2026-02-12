@@ -92,12 +92,13 @@ export function App() {
   const muted = useUIStore((s) => s.muted)
   const videoBackgroundEnabled = useBoothStore((s) => s.videoBackgroundEnabled)
   const videoBgMode = useBoothStore((s) => s.videoBgMode)
-  const stream = useMusicStore((s) => s.stream)
+  const streamIsPlaying = useMusicStore((s) => s.stream.isPlaying)
+  const streamCurrentLink = useMusicStore((s) => s.stream.currentLink)
   const currentDjSessionId = useBoothStore((s) => s.currentDjSessionId)
   const mySessionId = useGameStore((s) => s.mySessionId)
 
   const showIframe =
-    videoBackgroundEnabled && videoBgMode === 'iframe' && stream.isPlaying && !!stream.currentLink
+    videoBackgroundEnabled && videoBgMode === 'iframe' && streamIsPlaying && !!streamCurrentLink
 
   if (!connected) {
     return <LobbyScreen />
@@ -108,7 +109,7 @@ export function App() {
 
   // NowPlaying is visible when something is playing OR the current user is the DJ
   const isCurrentDJ = currentDjSessionId === mySessionId
-  const nowPlayingVisible = (stream.isPlaying && !!stream.currentLink) || isCurrentDJ
+  const nowPlayingVisible = (streamIsPlaying && !!streamCurrentLink) || isCurrentDJ
 
   // Playlist panel starts below NowPlaying when visible, otherwise full height
   const playlistTop = nowPlayingVisible ? 68 : 0

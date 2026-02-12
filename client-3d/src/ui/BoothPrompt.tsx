@@ -1,6 +1,6 @@
 import { useUIStore } from '../stores/uiStore'
 import { useBoothStore } from '../stores/boothStore'
-import { useGameStore } from '../stores/gameStore'
+import { useGameStore, setPlayerPosition } from '../stores/gameStore'
 import { getNetwork } from '../network/NetworkManager'
 import { BOOTH_WORLD_Z, getDJBoothWorldX } from '../scene/Room'
 
@@ -36,7 +36,7 @@ export function BoothPrompt() {
     state.setLocalPosition(serverX, BEHIND_BOOTH_SERVER_Y)
 
     if (state.mySessionId) {
-      state.updatePlayer(state.mySessionId, { x: serverX, y: BEHIND_BOOTH_SERVER_Y })
+      setPlayerPosition(state.mySessionId, serverX, BEHIND_BOOTH_SERVER_Y)
     }
 
     getNetwork().sendPosition(serverX, BEHIND_BOOTH_SERVER_Y, 'idle')

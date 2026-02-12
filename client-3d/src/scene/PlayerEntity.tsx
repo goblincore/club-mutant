@@ -5,6 +5,7 @@ import * as THREE from 'three'
 
 import { PaperDoll } from '../character/PaperDoll'
 import type { PlayerState } from '../stores/gameStore'
+import { getPlayerPosition } from '../stores/gameStore'
 import {
   useChatStore,
   BUBBLE_DURATION,
@@ -123,11 +124,11 @@ function SingleBubble({
   const animRef = useRef(0)
   const bgBounds = useRef({ cx: 0, cy: 0, w: 0.1, h: 0.1 })
 
-  // Layer setup — runs every render to catch newly created meshes
+  // Layer setup — runs on mount
   useEffect(() => {
     bgRef.current?.layers.set(1)
     tailRef.current?.layers.set(1)
-  })
+  }, [])
 
   useFrame((_, delta) => {
     if (!groupRef.current) return
@@ -320,8 +321,9 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
 
     if (!groupRef.current) return
 
-    const targetX = player.x * WORLD_SCALE
-    const targetZ = -player.y * WORLD_SCALE
+    const pos = getPlayerPosition(player.sessionId)
+    const targetX = (pos?.x ?? 0) * WORLD_SCALE
+    const targetZ = -(pos?.y ?? 0) * WORLD_SCALE
 
     const curX = groupRef.current.position.x
     const curZ = groupRef.current.position.z

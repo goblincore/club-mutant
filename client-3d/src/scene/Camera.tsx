@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 
-import { useGameStore } from '../stores/gameStore'
+import { useGameStore, getPlayerPosition } from '../stores/gameStore'
 
 const WORLD_SCALE = 0.01
 const LERP_SPEED = 5
@@ -115,7 +115,9 @@ export function FollowCamera() {
     if (!me) return
 
     // Target = player world position, raised to character center height
-    targetRef.current.set(me.x * WORLD_SCALE, 0.7, -me.y * WORLD_SCALE)
+    const pos = getPlayerPosition(myId)
+    if (!pos) return
+    targetRef.current.set(pos.x * WORLD_SCALE, 0.7, -pos.y * WORLD_SCALE)
 
     // Idle sway: oscillate azimuth when user hasn't interacted recently
     const now = performance.now() / 1000

@@ -3,7 +3,7 @@ import type { IOfficeState, IPlayer } from '@club-mutant/types/IOfficeState'
 import { Message } from '@club-mutant/types/Messages'
 import { RoomType } from '@club-mutant/types/Rooms'
 
-import { useGameStore } from '../stores/gameStore'
+import { useGameStore, setPlayerPosition, getPlayerPosition } from '../stores/gameStore'
 import { useChatStore } from '../stores/chatStore'
 import { useMusicStore } from '../stores/musicStore'
 import { useBoothStore } from '../stores/boothStore'
@@ -124,7 +124,8 @@ export class NetworkManager {
           return
         }
 
-        useGameStore.getState().updatePlayer(sessionId, { x: clampPos(value) })
+        const pos = getPlayerPosition(sessionId)
+        if (pos) pos.x = clampPos(value)
       })
 
       playerProxy.listen('y', (value: number) => {
@@ -135,7 +136,8 @@ export class NetworkManager {
           return
         }
 
-        useGameStore.getState().updatePlayer(sessionId, { y: clampPos(value) })
+        const pos = getPlayerPosition(sessionId)
+        if (pos) pos.y = clampPos(value)
       })
 
       // Use (0,0) for local player and freshly-spawned remotes at the 2D default.
@@ -143,11 +145,11 @@ export class NetworkManager {
       const spawnX = isLocal || isDefault2dSpawn ? 0 : cx
       const spawnY = isLocal || isDefault2dSpawn ? 0 : cy
 
+      setPlayerPosition(sessionId, spawnX, spawnY)
+
       gameStore.addPlayer(sessionId, {
         sessionId,
         name: player.name,
-        x: spawnX,
-        y: spawnY,
         textureId: player.textureId,
         animId: player.animId,
         scale: player.scale,
@@ -327,15 +329,12 @@ export class NetworkManager {
           if (entry.sessionId === myId) {
             // Reposition local player
             gameState.setLocalPosition(serverX, behindBoothY)
-
-            if (myId) {
-              gameState.updatePlayer(myId, { x: serverX, y: behindBoothY })
-            }
+            if (myId) setPlayerPosition(myId, serverX, behindBoothY)
 
             this.sendPosition(serverX, behindBoothY, 'idle')
           } else {
             // Reposition remote players
-            gameState.updatePlayer(entry.sessionId, { x: serverX, y: behindBoothY })
+            setPlayerPosition(entry.sessionId, serverX, behindBoothY)
           }
         }
       }
@@ -364,11 +363,11 @@ export class NetworkManager {
       // This avoids timing issues where the PlayerEntity's useFrame hasn't run yet.
       const WORLD_SCALE = 0.01
       const TAKEOFF_RIPPLE_AMP = 0.08
-      const p = useGameStore.getState().players.get(data.sessionId)
+      const pos = getPlayerPosition(data.sessionId)
 
-      if (p) {
-        const wx = p.x * WORLD_SCALE
-        const wz = -p.y * WORLD_SCALE
+      if (pos) {
+        const wx = pos.x * WORLD_SCALE
+        const wz = -pos.y * WORLD_SCALE
         addRipple(wx, wz, TAKEOFF_RIPPLE_AMP)
       }
     })

@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 
-import { useGameStore } from '../stores/gameStore'
+import { useGameStore, getPlayerPosition } from '../stores/gameStore'
 import {
   TvStaticFloorMaterial,
   TrampolineVideoMaterial,
@@ -42,6 +42,7 @@ const OCCLUDE_OPACITY = 0.08 // near-invisible when blocking
 
 const raycaster = new THREE.Raycaster()
 const playerWorldPos = new THREE.Vector3()
+const _scratchDir = new THREE.Vector3()
 
 // DJ booth — foldable table with laptop, mixer, and amp stacks
 function DJBooth({
@@ -765,10 +766,12 @@ export function Room({ videoTexture, onBoothDoubleClick }: RoomProps) {
     if (!me) return
 
     // Player world position
-    playerWorldPos.set(me.x * WORLD_SCALE, 0.5, -me.y * WORLD_SCALE)
+    const pos = getPlayerPosition(myId)
+    if (!pos) return
+    playerWorldPos.set(pos.x * WORLD_SCALE, 0.5, -pos.y * WORLD_SCALE)
 
     // Direction from camera to player
-    const dir = playerWorldPos.clone().sub(camera.position).normalize()
+    const dir = _scratchDir.copy(playerWorldPos).sub(camera.position).normalize()
     raycaster.set(camera.position, dir)
 
     const distToPlayer = camera.position.distanceTo(playerWorldPos)

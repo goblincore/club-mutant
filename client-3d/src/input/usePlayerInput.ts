@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-import { useGameStore } from '../stores/gameStore'
+import { useGameStore, setPlayerPosition } from '../stores/gameStore'
 import { useBoothStore } from '../stores/boothStore'
 import { getNetwork } from '../network/NetworkManager'
 
@@ -124,7 +124,7 @@ export function usePlayerInput() {
         state.setLocalPosition(newX, newY)
 
         if (state.mySessionId) {
-          state.updatePlayer(state.mySessionId, { x: newX, y: newY })
+          setPlayerPosition(state.mySessionId, newX, newY)
         }
 
         getNetwork().sendPosition(newX, newY, 'walk')
