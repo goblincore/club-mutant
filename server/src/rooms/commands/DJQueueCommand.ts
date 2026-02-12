@@ -242,7 +242,7 @@ export class DJSkipTurnCommand extends Command<ClubMutant, Payload> {
 
       // Notify client so their playlist UI updates
       client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
-        items: player.roomQueuePlaylist.toArray(),
+        items: [...player.roomQueuePlaylist],
       })
     }
 
@@ -327,7 +327,7 @@ export class DJTurnCompleteCommand extends Command<ClubMutant, Payload> {
 
     // Notify client so their playlist UI updates
     client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
-      items: player.roomQueuePlaylist.toArray(),
+      items: [...player.roomQueuePlaylist],
     })
 
     // ALWAYS advance to next DJ after playing one track

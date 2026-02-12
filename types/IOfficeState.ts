@@ -8,7 +8,6 @@ export interface IPlayer extends Schema {
   animId: number
   scale: number
   readyToConnect: boolean
-  roomQueuePlaylist: ArraySchema<IRoomQueuePlaylistItem>
 }
 
 export interface IDJUserInfo extends Schema {
@@ -24,15 +23,6 @@ export interface IChatMessage extends Schema {
   author: string
   createdAt: number
   content: string
-}
-
-export interface IRoomQueuePlaylistItem extends Schema {
-  id: string
-  title: string
-  link: string
-  duration: number
-  addedAtMs: number
-  played: boolean
 }
 
 export interface IDJQueueEntry extends Schema {

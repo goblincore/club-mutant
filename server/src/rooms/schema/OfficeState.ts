@@ -1,14 +1,14 @@
 import { Schema, ArraySchema, MapSchema, type } from '@colyseus/schema'
 import { TEXTURE_IDS, packDirectionalAnimId } from '@club-mutant/types/AnimationCodec'
 
-// Per-player room queue playlist item for DJ rotation
-export class RoomQueuePlaylistItem extends Schema {
-  @type('string') id = ''
-  @type('string') title = ''
-  @type('string') link = ''
-  @type('number') duration = 0
-  @type('number') addedAtMs = 0
-  @type('boolean') played = false // Track if this item has been played
+// Per-player room queue playlist item for DJ rotation (server-only, not synced to clients)
+export class RoomQueuePlaylistItem {
+  id = ''
+  title = ''
+  link = ''
+  duration = 0
+  addedAtMs = 0
+  played = false
 }
 
 // NEW: DJ Queue Entry for tracking rotation
@@ -29,7 +29,7 @@ export class Player extends Schema {
   @type('uint8') animId: number = packDirectionalAnimId('idle', 'down')
   @type('uint8') scale = 100 // Scale where 100 = 1.0x, 50 = 0.5x, etc.
   @type('boolean') readyToConnect = false
-  @type([RoomQueuePlaylistItem]) roomQueuePlaylist = new ArraySchema<RoomQueuePlaylistItem>()
+  roomQueuePlaylist: RoomQueuePlaylistItem[] = [] // Server-only, not synced (clients use targeted messages)
 }
 
 export class ChatMessage extends Schema {

@@ -56,13 +56,7 @@ export class RoomQueuePlaylistAddCommand extends Command<ClubMutant, AddPayload>
 
     if (isCurrentlyPlaying) {
       // Insert at index 1 (right after currently playing track)
-      // ArraySchema doesn't support splice with insertCount > deleteCount, so we rebuild
-      const items = player.roomQueuePlaylist.toArray()
-      items.splice(1, 0, playlistItem)
-      player.roomQueuePlaylist.splice(0, player.roomQueuePlaylist.length)
-      for (const item of items) {
-        player.roomQueuePlaylist.push(item)
-      }
+      player.roomQueuePlaylist.splice(1, 0, playlistItem)
     } else {
       // Insert at the top
       player.roomQueuePlaylist.unshift(playlistItem)
@@ -77,7 +71,7 @@ export class RoomQueuePlaylistAddCommand extends Command<ClubMutant, AddPayload>
 
     // Notify client of update
     client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
-      items: player.roomQueuePlaylist.toArray(),
+      items: [...player.roomQueuePlaylist],
     })
   }
 }
@@ -106,7 +100,7 @@ export class RoomQueuePlaylistRemoveCommand extends Command<ClubMutant, RemovePa
 
     // Notify client of update
     client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
-      items: player.roomQueuePlaylist.toArray(),
+      items: [...player.roomQueuePlaylist],
     })
   }
 }
@@ -133,15 +127,10 @@ export class RoomQueuePlaylistReorderCommand extends Command<ClubMutant, Reorder
       }
     }
 
-    // ArraySchema doesn't support splice with insertCount > deleteCount, so we rebuild
-    const items = player.roomQueuePlaylist.toArray()
-    const [item] = items.splice(fromIndex, 1)
+    const [item] = player.roomQueuePlaylist.splice(fromIndex, 1)
+
     if (item) {
-      items.splice(toIndex, 0, item)
-      player.roomQueuePlaylist.splice(0, player.roomQueuePlaylist.length)
-      for (const itm of items) {
-        player.roomQueuePlaylist.push(itm)
-      }
+      player.roomQueuePlaylist.splice(toIndex, 0, item)
       console.log(
         '[RoomQueuePlaylist] Reordered: moved from',
         fromIndex,
@@ -154,7 +143,7 @@ export class RoomQueuePlaylistReorderCommand extends Command<ClubMutant, Reorder
 
     // Notify client of update
     client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
-      items: player.roomQueuePlaylist.toArray(),
+      items: [...player.roomQueuePlaylist],
     })
   }
 }

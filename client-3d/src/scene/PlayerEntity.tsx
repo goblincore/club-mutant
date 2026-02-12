@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Html, Text } from '@react-three/drei'
+import { Text } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { PaperDoll } from '../character/PaperDoll'
@@ -102,6 +102,81 @@ function bubbleTextSize(len: number): number {
 
 const STACK_GAP = 0.12
 const FADE_MS = 800
+
+// ── Nametag (troika Text + background mesh, layer 1) ──
+
+const NAME_FONT_SIZE = 0.04
+const NAME_PAD_X = 0.02
+const NAME_PAD_Y = 0.012
+const NAME_BG_RADIUS = 0.015
+const nametagBgMat = new THREE.MeshBasicMaterial({
+  color: 0x000000,
+  transparent: true,
+  opacity: 0.5,
+})
+
+function makeNametagRect(w: number, h: number, r: number): THREE.ShapeGeometry {
+  r = Math.min(r, w / 2, h / 2)
+  const shape = new THREE.Shape()
+  const hw = w / 2
+  const hh = h / 2
+
+  shape.moveTo(-hw + r, -hh)
+  shape.lineTo(hw - r, -hh)
+  shape.quadraticCurveTo(hw, -hh, hw, -hh + r)
+  shape.lineTo(hw, hh - r)
+  shape.quadraticCurveTo(hw, hh, hw - r, hh)
+  shape.lineTo(-hw + r, hh)
+  shape.quadraticCurveTo(-hw, hh, -hw, hh - r)
+  shape.lineTo(-hw, -hh + r)
+  shape.quadraticCurveTo(-hw, -hh, -hw + r, -hh)
+
+  return new THREE.ShapeGeometry(shape)
+}
+
+function Nametag({ name }: { name: string }) {
+  const bgRef = useRef<THREE.Mesh>(null)
+
+  useEffect(() => {
+    bgRef.current?.layers.set(1)
+  }, [])
+
+  const handleSync = useCallback((troika: THREE.Mesh) => {
+    troika.layers.set(1)
+
+    troika.geometry.computeBoundingBox()
+    const bb = troika.geometry.boundingBox
+    if (!bb || !bgRef.current) return
+
+    const w = bb.max.x - bb.min.x + NAME_PAD_X * 2
+    const h = bb.max.y - bb.min.y + NAME_PAD_Y * 2
+    const cx = (bb.min.x + bb.max.x) / 2
+    const cy = (bb.min.y + bb.max.y) / 2
+
+    bgRef.current.geometry.dispose()
+    bgRef.current.geometry = makeNametagRect(w, h, NAME_BG_RADIUS)
+    bgRef.current.position.set(cx, cy, -0.001)
+  }, [])
+
+  return (
+    <group position={[0, -0.15, 0]}>
+      <Text
+        fontSize={NAME_FONT_SIZE}
+        color="#ffffffcc"
+        anchorX="center"
+        anchorY="middle"
+        font="/fonts/courier-prime.woff"
+        onSync={handleSync}
+      >
+        {name}
+      </Text>
+
+      <mesh ref={bgRef} material={nametagBgMat}>
+        <planeGeometry args={[0.1, 0.1]} />
+      </mesh>
+    </group>
+  )
+}
 
 // ── Single bubble in the stack ──
 
@@ -548,11 +623,7 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
         <ChatBubble sessionId={player.sessionId} visualTopY={visualTopY} headTopY={headTopY} />
 
         {/* Nametag — below the character */}
-        <Html position={[0, -0.15, 0]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
-          <div className="text-[8px] font-mono text-white/80 bg-black/50 px-1 py-0.5 rounded whitespace-nowrap select-none">
-            {player.name}
-          </div>
-        </Html>
+        <Nametag name={player.name} />
       </group>
     </group>
   )

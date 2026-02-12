@@ -24,11 +24,9 @@ These fields were synced to every client but unused by the DJ Queue system:
 
 ### A2. Per-player `roomQueuePlaylist` syncs to ALL clients
 
-**Status**: Deferred
+**Status**: ✅ Implemented
 
-`Player.roomQueuePlaylist` is on the `Player` schema, meaning every player's DJ queue playlist is serialized and sent to every connected client. Only the owning client needs it.
-
-**Fix**: Remove `@type` decorator from `roomQueuePlaylist`. Keep it as a server-side-only plain array. Continue using `ROOM_QUEUE_PLAYLIST_UPDATED` targeted messages (already sent via `client.send()`, not broadcast).
+`RoomQueuePlaylistItem` is now a plain class (no `extends Schema`, no `@type` decorators). `Player.roomQueuePlaylist` is a plain `RoomQueuePlaylistItem[]` — server-only, never serialized to clients. Clients continue receiving targeted `ROOM_QUEUE_PLAYLIST_UPDATED` messages via `client.send()`. Simplified array operations in `RoomQueuePlaylistCommand.ts` (no more ArraySchema splice-rebuild workarounds).
 
 ### A3. `IOfficeState` interface drift
 
@@ -80,9 +78,9 @@ If the current DJ's client crashes mid-track, no one sends `DJ_TURN_COMPLETE`. S
 
 ### B4. Late-join race condition
 
-**Status**: Deferred
+**Status**: ✅ Implemented
 
-`NetworkManager.wireRoomListeners()` reads `roomState.musicStream` immediately after wiring listeners. Colyseus state may not be fully patched yet. Use `listen()` pattern or a small delay.
+Music stream late-join sync now deferred until `TimeSync.onReady()` fires (ensures correct seek offset). Added `streamId` dedup so it skips if `START_MUSIC_STREAM` message arrived first. Also added initial DJ queue sync from schema state immediately on join.
 
 ### B5. `handleEnded` can fire multiple times
 
@@ -104,17 +102,15 @@ Mutable `_playerPositions` map in `gameStore.ts` (outside Zustand). Written by `
 
 ### C3. `<Html>` nametags are expensive DOM overlays
 
-**Status**: Deferred
+**Status**: ✅ Implemented
 
-Every player has a drei `<Html>` creating a DOM node repositioned via CSS transform each frame. Expensive for many players.
-
-**Fix**: Replace with troika `<Text>` on layer 1 (already used for chat bubbles).
+Replaced `<Html>` DOM overlay with troika `<Text>` + background mesh on layer 1 (same pattern as chat bubbles). Eliminates per-player DOM node creation and CSS transform repositioning every frame.
 
 ### C4. VHS bloom does 64 texture samples per pixel
 
-**Status**: Deferred (low priority)
+**Status**: ✅ Implemented
 
-8 directions × 8 scales = 64 taps per pixel. At ¾-res manageable, but options exist: reduce to 16 taps, separable blur, or ½-res bloom target.
+Added half-res bloom render target (`BLOOM_SCALE = 0.5` of scene RT, so ~0.375x native) with `LinearFilter` for free bilinear blur on downsample. Pipeline: scene → sceneRT → blit downsample → bloomRT → VHS shader samples `tBloom` for bloom, `tDiffuse` for main color. Reduced from 8 iterations × 8 directions (64 taps) to 4 iterations × 4 cardinal directions (16 taps). Net ~16x reduction in bloom texture work.
 
 ### C5. Wall occlusion allocates per frame
 
@@ -132,22 +128,22 @@ Every player has a drei `<Html>` creating a DOM node repositioned via CSS transf
 
 ## Priority Table
 
-| Priority | Item                                             | Impact                         | Effort |
-| -------- | ------------------------------------------------ | ------------------------------ | ------ |
-| ✅       | A1 — Remove legacy schema fields                 | High bandwidth savings         | Low    |
-| ✅       | B1 — Add clock sync to 3D client                 | Correct music playback         | Medium |
-| ✅       | C1 — Refs for player positions                   | Eliminates hot-path re-renders | Medium |
-| ⏳       | A2 — Remove roomQueuePlaylist from schema        | Bandwidth reduction            | Low    |
-| ✅       | B2 — Server-side track duration watchdog         | Prevents stuck streams         | Low    |
-| ✅       | C2 — Per-player selectors (resolved by C1)       | Fewer re-renders               | Low    |
-| ✅       | C7 — Granular music store selectors              | Fewer App re-renders           | Low    |
-| ✅       | A4 — Batch x/y position updates (resolved by C1) | Halves Map clones              | Low    |
-| ⏳       | C3 — Replace Html nametags with Text             | DOM overhead reduction         | Low    |
-| ✅       | B3 — Use streamId for dedup                      | Correctness                    | Low    |
-| ✅       | B5 — Guard handleEnded                           | Prevents double advance        | Low    |
-| ⏳       | C4 — Optimize bloom taps                         | GPU perf                       | Medium |
-| ✅       | A3 — Fix IOfficeState drift                      | Type safety                    | Low    |
-| ✅       | A5 — DRY playTrackForCurrentDJ                   | Code quality                   | Low    |
-| ✅       | A6 — Trim chatMessages on server (already done)  | Memory                         | Low    |
-| ✅       | C5 — Pre-alloc wall occlusion vec                | Micro-opt                      | Low    |
-| ✅       | C6 — Fix bubble useEffect deps                   | Micro-opt                      | Low    |
+| Status | Item                                             | Impact                         | Effort |
+| ------ | ------------------------------------------------ | ------------------------------ | ------ |
+| ✅     | A1 — Remove legacy schema fields                 | High bandwidth savings         | Low    |
+| ✅     | B1 — Add clock sync to 3D client                 | Correct music playback         | Medium |
+| ✅     | C1 — Refs for player positions                   | Eliminates hot-path re-renders | Medium |
+| ✅     | A2 — Remove roomQueuePlaylist from schema        | Bandwidth reduction            | Low    |
+| ✅     | B2 — Server-side track duration watchdog         | Prevents stuck streams         | Low    |
+| ✅     | C2 — Per-player selectors (resolved by C1)       | Fewer re-renders               | Low    |
+| ✅     | C7 — Granular music store selectors              | Fewer App re-renders           | Low    |
+| ✅     | A4 — Batch x/y position updates (resolved by C1) | Halves Map clones              | Low    |
+| ✅     | C3 — Replace Html nametags with Text             | DOM overhead reduction         | Low    |
+| ✅     | B3 — Use streamId for dedup                      | Correctness                    | Low    |
+| ✅     | B5 — Guard handleEnded                           | Prevents double advance        | Low    |
+| ✅     | C4 — Optimize bloom (half-res RT + 16 taps)      | GPU perf                       | Medium |
+| ✅     | A3 — Fix IOfficeState drift                      | Type safety                    | Low    |
+| ✅     | A5 — DRY playTrackForCurrentDJ                   | Code quality                   | Low    |
+| ✅     | A6 — Trim chatMessages on server (already done)  | Memory                         | Low    |
+| ✅     | C5 — Pre-alloc wall occlusion vec                | Micro-opt                      | Low    |
+| ✅     | C6 — Fix bubble useEffect deps                   | Micro-opt                      | Low    |

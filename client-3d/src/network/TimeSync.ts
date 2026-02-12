@@ -33,6 +33,7 @@ export class TimeSync {
   private _ready = false
   private periodicTimer: ReturnType<typeof setInterval> | null = null
   private pendingSentAt: number | null = null
+  private _onReadyCallbacks: (() => void)[] = []
 
   constructor(room: Room) {
     this.room = room
@@ -108,6 +109,15 @@ export class TimeSync {
     )
   }
 
+  /** Register a callback that fires once TimeSync has at least one sample. */
+  onReady(cb: () => void) {
+    if (this._ready) {
+      cb()
+    } else {
+      this._onReadyCallbacks.push(cb)
+    }
+  }
+
   private recalculate() {
     if (this.samples.length === 0) return
 
@@ -115,7 +125,15 @@ export class TimeSync {
     const mid = Math.floor(this.samples.length / 2)
     this._offset = this.samples[mid].offset
     this._rtt = this.samples[mid].rtt
+
+    const wasReady = this._ready
     this._ready = true
+
+    // Fire onReady callbacks exactly once
+    if (!wasReady && this._onReadyCallbacks.length > 0) {
+      for (const cb of this._onReadyCallbacks) cb()
+      this._onReadyCallbacks.length = 0
+    }
   }
 
   private runBurst() {

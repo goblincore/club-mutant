@@ -280,27 +280,47 @@ export class NetworkManager {
       }
     )
 
-    // Sync music state from room on join (late-join)
+    // Late-join: sync DJ queue from schema immediately (no TimeSync needed)
     const roomState = this.room.state as any
-    if (
-      roomState.musicStream?.status === 'playing' &&
-      roomState.musicStream?.currentLink &&
-      !roomState.musicStream?.isAmbient
-    ) {
-      const ms = roomState.musicStream
+    const djQueue = roomState.djQueue
 
-      const clientStartTime = this._timeSync?.ready
-        ? this._timeSync.toClientTime(ms.startTime ?? 0)
-        : (ms.startTime ?? 0)
+    if (djQueue && djQueue.length > 0) {
+      const entries = Array.from(djQueue as Iterable<any>).map((e: any) => ({
+        sessionId: e.sessionId as string,
+        name: e.name as string,
+        position: (e.queuePosition ?? 0) as number,
+      }))
 
-      useMusicStore.getState().setStream({
-        currentLink: ms.currentLink,
-        currentTitle: ms.currentTitle ?? null,
-        currentDjName: ms.currentDj?.name ?? null,
-        startTime: clientStartTime,
-        duration: ms.duration ?? 0,
-        isPlaying: true,
-        streamId: ms.streamId ?? 0,
+      const booth = useBoothStore.getState()
+      booth.setDJQueue(entries, roomState.currentDjSessionId ?? null)
+
+      const myId = this.room?.sessionId
+      const inQueue = entries.some((e) => e.sessionId === myId)
+      booth.setIsInQueue(inQueue)
+    }
+
+    // Late-join: sync music state AFTER TimeSync is ready (correct seek offset)
+    if (this._timeSync) {
+      this._timeSync.onReady(() => {
+        const rs = this.room?.state as any
+        const ms = rs?.musicStream
+        if (!ms || ms.status !== 'playing' || !ms.currentLink || ms.isAmbient) return
+
+        // Skip if START_MUSIC_STREAM message already set this stream
+        const store = useMusicStore.getState()
+        if (store.stream.isPlaying && store.stream.streamId === (ms.streamId ?? 0)) return
+
+        const clientStartTime = this._timeSync!.toClientTime(ms.startTime ?? 0)
+
+        store.setStream({
+          currentLink: ms.currentLink,
+          currentTitle: ms.currentTitle ?? null,
+          currentDjName: ms.currentDj?.name ?? null,
+          startTime: clientStartTime,
+          duration: ms.duration ?? 0,
+          isPlaying: true,
+          streamId: ms.streamId ?? 0,
+        })
       })
     }
 
