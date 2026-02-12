@@ -18,6 +18,7 @@ export function createDistortMaterial(texture: THREE.Texture): THREE.MeshBasicMa
     uVelocityX: { value: 0 }, // horizontal velocity direction (-1..1)
     uBoundsY: { value: new THREE.Vector2(-0.5, 0.5) }, // min/max Y of the geometry
     uBillboardTwist: { value: 0 }, // angular velocity of billboard rotation (rad/s)
+    uVertexFisheye: { value: 0 }, // clip-space barrel distortion intensity
   }
 
   material.onBeforeCompile = (shader) => {
@@ -28,6 +29,7 @@ export function createDistortMaterial(texture: THREE.Texture): THREE.MeshBasicMa
     shader.uniforms.uVelocityX = uniforms.uVelocityX
     shader.uniforms.uBoundsY = uniforms.uBoundsY
     shader.uniforms.uBillboardTwist = uniforms.uBillboardTwist
+    shader.uniforms.uVertexFisheye = uniforms.uVertexFisheye
 
     // Inject uniform declarations before main()
     shader.vertexShader = shader.vertexShader.replace(
@@ -38,6 +40,7 @@ export function createDistortMaterial(texture: THREE.Texture): THREE.MeshBasicMa
       uniform float uVelocityX;
       uniform vec2 uBoundsY;
       uniform float uBillboardTwist;
+      uniform float uVertexFisheye;
 
       void main() {
       `
@@ -94,6 +97,22 @@ export function createDistortMaterial(texture: THREE.Texture): THREE.MeshBasicMa
       transformed.x += twistH * bTwist * 0.12;
       `
     )
+
+    // Inject clip-space barrel distortion after projection
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <project_vertex>',
+      `
+      #include <project_vertex>
+
+      // Vertex-level fisheye: warp clip-space positions outward from center
+      if (uVertexFisheye > 0.0) {
+        vec2 ndc = gl_Position.xy / gl_Position.w;
+        float r2 = dot(ndc, ndc);
+        float barrel = 1.0 + r2 * uVertexFisheye * 0.4 + r2 * r2 * uVertexFisheye * 0.15;
+        gl_Position.xy *= barrel;
+      }
+      `
+    )
   }
 
   // Force shader recompilation
@@ -117,6 +136,14 @@ export function updateDistortUniforms(
   u.uSpeed.value = speed
   u.uVelocityX.value = velocityX
   u.uBillboardTwist.value = billboardTwist
+}
+
+// Set the vertex-level fisheye intensity (0 = off)
+export function setVertexFisheye(material: THREE.MeshBasicMaterial, intensity: number) {
+  const u = material.userData.uniforms
+  if (!u) return
+
+  u.uVertexFisheye.value = intensity
 }
 
 // Set the Y bounds for proper height normalization

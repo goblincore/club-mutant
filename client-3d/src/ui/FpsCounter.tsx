@@ -12,6 +12,7 @@ export function FpsCounter() {
 
   const renderScale = useUIStore((s) => s.renderScale)
   const fisheyeOverride = useUIStore((s) => s.fisheyeOverride)
+  const vertexFisheye = useUIStore((s) => s.vertexFisheye)
 
   useEffect(() => {
     let rafId: number
@@ -42,6 +43,10 @@ export function FpsCounter() {
 
   const resetFisheye = useCallback(() => {
     useUIStore.getState().setFisheyeOverride(null)
+  }, [])
+
+  const handleVertexFisheyeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    useUIStore.getState().setVertexFisheye(parseFloat(e.target.value))
   }, [])
 
   return (
@@ -82,6 +87,22 @@ export function FpsCounter() {
         <div className="text-white/30 tabular-nums text-center">
           {fisheyeOverride !== null ? fisheyeOverride.toFixed(2) : 'auto'}
         </div>
+      </div>
+
+      <div className="flex flex-col gap-0.5">
+        <span className="text-white/40">vertex fisheye</span>
+
+        <input
+          type="range"
+          min="0"
+          max="3"
+          step="0.05"
+          value={vertexFisheye}
+          onChange={handleVertexFisheyeChange}
+          className="w-full h-1 accent-pink-500 cursor-pointer"
+        />
+
+        <div className="text-white/30 tabular-nums text-center">{vertexFisheye.toFixed(2)}</div>
       </div>
     </div>
   )

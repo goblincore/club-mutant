@@ -5,7 +5,13 @@ import * as THREE from 'three'
 import type { LoadedCharacter, ManifestPart } from './CharacterLoader'
 import { loadCharacterCached } from './CharacterLoader'
 import { applyAnimation, resetBones } from './AnimationMixer'
-import { createDistortMaterial, updateDistortUniforms, setDistortBounds } from './DistortMaterial'
+import {
+  createDistortMaterial,
+  updateDistortUniforms,
+  setDistortBounds,
+  setVertexFisheye,
+} from './DistortMaterial'
+import { useUIStore } from '../stores/uiStore'
 
 const PX_SCALE = 0.01
 const PLANE_SEGMENTS = 8 // subdivisions for smooth vertex distortion
@@ -274,8 +280,11 @@ export function PaperDoll({
     // Update distortion uniforms on all part materials
     distortTimeRef.current += delta
 
+    const vFisheye = useUIStore.getState().vertexFisheye
+
     for (const mat of materialsRef.current) {
       updateDistortUniforms(mat, distortTimeRef.current, speed, velocityX, billboardTwist)
+      setVertexFisheye(mat, vFisheye)
     }
   })
 
