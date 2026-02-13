@@ -144,11 +144,15 @@ export function InteractableObject({
     // Gentle pulse when hovered
     const pulse = isHovered.current ? 0.7 + 0.3 * Math.sin(performance.now() * PULSE_SPEED) : 1
 
-    // Export intensity for PsxPostProcess to read
-    highlightIntensity = currentOpacity.current * pulse
-
     // Toggle highlight layer on child meshes only (not the hitbox)
     const shouldHighlight = currentOpacity.current > 0.01
+
+    // Export intensity for PsxPostProcess to read.
+    // Only write when this object is actively highlighted or fading out —
+    // prevents non-hovered objects from zeroing out another object's highlight.
+    if (shouldHighlight || isHighlighted.current) {
+      highlightIntensity = currentOpacity.current * pulse
+    }
 
     if (shouldHighlight !== isHighlighted.current) {
       childrenGroupRef.current.traverse((child) => {

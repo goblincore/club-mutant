@@ -144,7 +144,7 @@ function DJSlotOrb({
   if (occupied) return null
 
   return (
-    <InteractableObject interactDistance={2.2} onInteract={handleInteract} hitboxPad={0.05}>
+    <InteractableObject interactDistance={2.2} onInteract={handleInteract} hitboxPad={0.1}>
       <group position={[xOffset, 0, ORB_BEHIND_Z]}>
         <mesh ref={meshRef} position={[0, baseY, 0]}>
           <sphereGeometry args={[0.2, 20, 16]} />
