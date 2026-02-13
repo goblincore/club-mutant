@@ -900,15 +900,19 @@ export function Room({ videoTexture, slideshowTexture }: RoomProps) {
         ;(mat as THREE.MeshStandardMaterial).opacity = wallOpacities.current[i]
       }
 
-      // Fade wall-mounted objects (TV, picture frames, door) to match
+      // Fade wall-mounted objects (TV, picture frames, door) to match.
+      // Disable depthWrite when faded so characters behind them remain visible.
       const attachments = wallAttachmentRefs.current[i]
       if (attachments) {
         const opacity = wallOpacities.current[i]
+        const faded = opacity < 0.99
+
         attachments.traverse((child) => {
           if (child instanceof THREE.Mesh && child.material) {
             const m = child.material as THREE.MeshStandardMaterial | THREE.MeshBasicMaterial
             m.transparent = true
             m.opacity = opacity
+            m.depthWrite = !faded
           }
         })
       }
