@@ -24,7 +24,7 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Dev server: port 5175 (`cd client-3d && pnpm dev`)
   - Characters: paper-doll rigs (flat textured planes on bone hierarchy) from rig editor export
   - Key dirs:
-    - `src/scene/` — Room (walls + DJ booth + wall occlusion with `depthWrite` fix for attachments), Camera (orbit + sway + **follow lerp delay** `FOLLOW_LERP=4` for trailing camera feel, exports `cameraDistance` + `cameraAzimuth` for fisheye scaling + camera-relative WASD), PlayerEntity (lerp + 3D chat bubbles + troika Text nametags on layer 1), GameScene (Canvas + ClickPlane + debug keyboard shortcuts: `` ` `` for FPS, `-`/`=` for render scale cycle), InteractableObject (proximity + hover highlight + cursor + click; see **Interactable object outline** below)
+    - `src/scene/` — Room (walls + DJ booth + wall occlusion with `depthWrite` fix for attachments), Camera (orbit + sway + **follow lerp delay** `FOLLOW_LERP=4` for trailing camera feel, exports `cameraDistance` + `cameraAzimuth` for fisheye scaling + camera-relative WASD), PlayerEntity (lerp + 3D chat bubbles + troika Text nametags on layer 1), GameScene (Canvas + ClickPlane + debug keyboard shortcuts: `` ` `` for FPS, `-`/`=` for render scale cycle), InteractableObject (proximity + hover highlight + cursor + click; see **Interactable object outline** below), **GLBModel** (reusable GLB loader component via drei's `useGLTF`, clones scene per instance, supports preload; see **GLB model pipeline** below)
     - `src/character/` — PaperDoll, CharacterLoader, DistortMaterial (PaRappa vertex warp + clip-space vertex fisheye via `uVertexFisheye`), AnimationMixer
     - `src/network/` — NetworkManager (Colyseus client, player/chat/music/DJ queue wiring, YouTube search, late-join sync for music + DJ queue from **schema-only callbacks** — `onAdd`/`onRemove`/`listen`, no separate `DJ_QUEUE_UPDATED` message handler), TimeSync (client-server clock sync with `onReady` callback for deferred operations)
     - `src/stores/` — gameStore, chatStore (+ bubbles), musicStore, uiStore (+ debug: `showFps`, `renderScale` [0.75/0.5/0.35], `fisheyeOverride`, `vertexFisheye`), boothStore (DJ booth + queue + video bg)
@@ -53,6 +53,45 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
 - `types/`
   - Shared types workspace package (`@club-mutant/types`)
   - Imported via pnpm workspace (no copying needed)
+
+## GLB model pipeline (Feb 2026)
+
+Hybrid approach: procedural JSX geometry for simple/structural things, **GLB files** for detailed objects.
+
+### Loading in the scene
+
+```tsx
+import { GLBModel } from './GLBModel'
+
+// Preload at module level to avoid pop-in
+GLBModel.preload('/models/old-computer-desk.glb')
+
+// In JSX — same props as <group>
+<GLBModel src="/models/old-computer-desk.glb" position={[x, y, z]} rotation={[0, r, 0]} />
+```
+
+`GLBModel` uses drei's `useGLTF` (cached after first fetch) and clones the scene so multiple instances are independent.
+
+### Creating models
+
+**Option A: Blender** (preferred for artist-made models)
+
+1. Model in Blender with low-poly PSX style (50–200 faces, flat shading)
+2. Export as `.glb` (File → Export → glTF 2.0, format GLB)
+3. Drop into `client-3d/public/models/`
+
+**Option B: Programmatic** (code → GLB via `@gltf-transform/core`)
+
+1. Define geometry in `scripts/build-models.mjs` using helper functions (`boxGeometry`, `cylinderGeometry`, `sphereGeometry`)
+2. Run `pnpm build:models` → outputs to `client-3d/public/models/`
+3. Useful for converting existing procedural JSX to static assets
+
+### Key files
+
+- `scripts/build-models.mjs` — Node.js script that programmatically builds GLB files using `@gltf-transform/core`
+- `client-3d/src/scene/GLBModel.tsx` — Reusable loader component (useGLTF + clone + preload)
+- `client-3d/public/models/` — GLB asset directory (served statically by Vite)
+- Currently converted: `old-computer-desk.glb` (49 KB, ~25 meshes)
 
 ## r3f / Three.js pitfalls (learned the hard way)
 
