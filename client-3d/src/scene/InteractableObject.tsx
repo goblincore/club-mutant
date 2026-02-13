@@ -78,6 +78,11 @@ export function InteractableObject({
     // Lazy hitbox computation — keeps trying each frame until geometry is available.
     // Measures ONLY the children group (not the hitbox mesh) to get the correct bounds.
     if (!hitboxReady.current) {
+      // Ensure the full ancestor chain has up-to-date world matrices before
+      // measuring. Without this, objects inside rotated/positioned parents
+      // (like DJ eggs inside the 180°-rotated booth) get a stale matrixWorld.
+      childrenGroupRef.current.updateWorldMatrix(true, true)
+
       const box = new THREE.Box3().setFromObject(childrenGroupRef.current)
       if (box.isEmpty()) return
 
@@ -88,6 +93,7 @@ export function InteractableObject({
 
       // Convert world-space center to the parent group's local space
       if (groupRef.current) {
+        groupRef.current.updateWorldMatrix(true, false)
         groupRef.current.worldToLocal(center)
       }
 
