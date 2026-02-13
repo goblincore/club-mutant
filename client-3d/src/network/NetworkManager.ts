@@ -302,44 +302,17 @@ export class NetworkManager {
       booth.setIsInQueue(entries.some((e) => e.sessionId === myId))
     }
 
-    // Schema callbacks for late-join sync (fires when Colyseus delivers initial state).
-    // Wrapped in try/catch — if the schema proxy doesn't support these, we fall back
-    // to the DJ_QUEUE_UPDATED message handler below.
+    // Schema callbacks — sole mechanism for DJ queue sync.
+    // Fires on late-join (initial state delivery) AND on every live mutation
+    // (join/leave/skip/rotation). No separate message handler needed.
     try {
       const djQueueProxy = stateProxy.djQueue
       djQueueProxy.onAdd(() => syncDJQueueFromSchema())
       djQueueProxy.onRemove(() => syncDJQueueFromSchema())
       stateProxy.listen('currentDjSessionId', () => syncDJQueueFromSchema())
     } catch (err) {
-      console.warn(
-        '[network] Schema callbacks for djQueue failed, relying on message handler:',
-        err
-      )
+      console.warn('[network] Schema callbacks for djQueue failed:', err)
     }
-
-    // Primary DJ queue sync via broadcast message (proven mechanism).
-    // This fires on every join/leave/skip/rotation and is the authoritative live-update path.
-    this.room.onMessage(
-      Message.DJ_QUEUE_UPDATED,
-      (payload: { djQueue: any[]; currentDjSessionId: string | null }) => {
-        const booth = useBoothStore.getState()
-
-        const entries: import('../stores/boothStore').DJQueueEntry[] = payload.djQueue.map(
-          (e: any) => ({
-            sessionId: e.sessionId as string,
-            name: e.name as string,
-            position: (e.queuePosition ?? 0) as number,
-            slotIndex: (e.slotIndex ?? 0) as number,
-          })
-        )
-
-        booth.setDJQueue(entries, payload.currentDjSessionId)
-
-        const myId = this.room?.sessionId
-        const inQueue = entries.some((e) => e.sessionId === myId)
-        booth.setIsInQueue(inQueue)
-      }
-    )
 
     // Late-join: sync music state AFTER TimeSync is ready (correct seek offset)
     if (this._timeSync) {
