@@ -77,7 +77,7 @@ export function FpsCounter() {
         <input
           type="range"
           min="0"
-          max="5"
+          max="15"
           step="0.05"
           value={fisheyeOverride ?? 1}
           onChange={handleFisheyeChange}
