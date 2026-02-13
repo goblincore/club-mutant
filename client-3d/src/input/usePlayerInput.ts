@@ -9,6 +9,38 @@ const SPEED = 150 // pixels per second (server coordinates)
 const CLICK_ARRIVE_THRESHOLD = 3 // server pixels — close enough to stop
 const JUMP_COOLDOWN = 0.3 // seconds between jump triggers
 
+// ── Collision (server coordinates) ──
+
+const ROOM_HALF = 580 // room boundary with character radius padding
+
+// DJ booth: table (2.8w × 0.7d) + speakers (±1.85 x, 0.65w × 0.55d)
+// Combined AABB with ~15px padding for character radius
+const BOOTH_BOX = { minX: -230, maxX: 230, minY: 305, maxY: 395 }
+
+function clampPosition(x: number, y: number): [number, number] {
+  // Room boundaries
+  x = Math.max(-ROOM_HALF, Math.min(ROOM_HALF, x))
+  y = Math.max(-ROOM_HALF, Math.min(ROOM_HALF, y))
+
+  // DJ booth — push out along shortest axis
+  const b = BOOTH_BOX
+
+  if (x > b.minX && x < b.maxX && y > b.minY && y < b.maxY) {
+    const pushL = x - b.minX
+    const pushR = b.maxX - x
+    const pushD = y - b.minY
+    const pushU = b.maxY - y
+    const min = Math.min(pushL, pushR, pushD, pushU)
+
+    if (min === pushL) x = b.minX
+    else if (min === pushR) x = b.maxX
+    else if (min === pushD) y = b.minY
+    else y = b.maxY
+  }
+
+  return [x, y]
+}
+
 // Shared click target — set by ClickPlane (in GameScene), consumed by tick loop
 let clickTarget: { x: number; y: number } | null = null
 
@@ -133,8 +165,7 @@ export function usePlayerInput() {
         }
 
         const state = useGameStore.getState()
-        const newX = state.localX + dx
-        const newY = state.localY + dy
+        const [newX, newY] = clampPosition(state.localX + dx, state.localY + dy)
 
         state.setLocalPosition(newX, newY)
 

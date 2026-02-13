@@ -6,6 +6,7 @@ import { useGameStore, getPlayerPosition } from '../stores/gameStore'
 
 const WORLD_SCALE = 0.01
 const LERP_SPEED = 5
+const FOLLOW_LERP = 8 // how fast the camera target follows the player (lower = more trailing)
 
 // Spherical camera defaults
 const DEFAULT_DISTANCE = 6
@@ -120,10 +121,18 @@ export function FollowCamera() {
     const me = state.players.get(myId)
     if (!me) return
 
-    // Target = player world position, raised to character center height
+    // Target = player world position, raised to character center height.
+    // Lerp toward player for a subtle trailing delay.
     const pos = getPlayerPosition(myId)
     if (!pos) return
-    targetRef.current.set(pos.x * WORLD_SCALE, 0.7, -pos.y * WORLD_SCALE)
+
+    const px = pos.x * WORLD_SCALE
+    const pz = -pos.y * WORLD_SCALE
+    const ft = Math.min(delta * FOLLOW_LERP, 1)
+
+    targetRef.current.x += (px - targetRef.current.x) * ft
+    targetRef.current.y += (0.7 - targetRef.current.y) * ft
+    targetRef.current.z += (pz - targetRef.current.z) * ft
 
     // Idle sway: oscillate azimuth when user hasn't interacted recently
     const now = performance.now() / 1000
