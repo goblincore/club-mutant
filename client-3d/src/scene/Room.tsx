@@ -29,20 +29,20 @@ export const BOOTH_WORLD_Z = -(HALF - 2.5)
 export const BOOTH_WORLD_X = 0
 
 // 3 fixed DJ slot positions (world-X offsets from booth center)
-// Slot 0 = left, Slot 1 = center, Slot 2 = right
-export const DJ_SLOT_OFFSETS_X = [-1.0, 0, 1.0] as const
+// Slot 0 = right, Slot 1 = center, Slot 2 = left (from audience perspective)
+export const DJ_SLOT_OFFSETS_X = [1.0, 0, -1.0] as const
 export const MAX_DJ_SLOTS = 3
 
 // Spot colors per egg (different color spots on each white egg)
 const EGG_SPOT_COLORS = ['#22aa44', '#cc3388', '#3388dd'] as const
 
-// Z offset behind booth for the orbs (booth is rotated 180°, so +Z local = behind = toward back wall)
-const ORB_BEHIND_Z = 0.8
+// Z offset behind booth for the orbs (-Z = toward back wall = behind the booth)
+const ORB_BEHIND_Z = -0.8
 const ORB_FLOAT_Y = 0.25
 
-// Returns world-X offset for teleporting. Booth is rotated 180° so local X is negated in world space.
+// Returns world-X offset for teleporting. Booth faces room directly — no rotation.
 export function getDJSlotWorldX(slotIndex: number): number {
-  return -(DJ_SLOT_OFFSETS_X[slotIndex] ?? 0)
+  return DJ_SLOT_OFFSETS_X[slotIndex] ?? 0
 }
 
 const FADE_SPEED = 6 // opacity lerp speed
@@ -65,7 +65,7 @@ function Laptop({
   const TABLE_Y = 0.38
 
   return (
-    <group position={[xOffset, TABLE_Y + 0.01, 0.02]}>
+    <group position={[xOffset, TABLE_Y + 0.01, -0.02]}>
       {/* Base / palmrest */}
       <mesh>
         <boxGeometry args={[0.36, 0.015, 0.25]} />
@@ -73,13 +73,13 @@ function Laptop({
       </mesh>
 
       {/* Keyboard inset */}
-      <mesh position={[0, 0.009, 0.02]}>
+      <mesh position={[0, 0.009, -0.02]}>
         <boxGeometry args={[0.28, 0.002, 0.14]} />
         <meshStandardMaterial color="#1a1a1a" />
       </mesh>
 
       {/* Screen lid — hinged at the rear edge, angled ~105° open */}
-      <group position={[0, 0.008, -0.12]} rotation={[-0.5, 0, 0]}>
+      <group position={[0, 0.008, 0.12]} rotation={[0.5, 0, 0]}>
         {/* Lid back */}
         <mesh position={[0, 0.11, 0]}>
           <boxGeometry args={[0.36, 0.22, 0.012]} />
@@ -87,7 +87,7 @@ function Laptop({
         </mesh>
 
         {/* Screen face */}
-        <mesh position={[0, 0.11, 0.007]}>
+        <mesh position={[0, 0.11, -0.007]}>
           <planeGeometry args={[0.3, 0.18]} />
           <meshStandardMaterial
             color={screenColor}
@@ -195,12 +195,12 @@ function DJBooth({ position }: { position: [number, number, number] }) {
       </mesh>
 
       {/* === 3 Laptops (left, center, right) === */}
-      <Laptop xOffset={-0.85} screenColor="#3344aa" />
-      <Laptop xOffset={0.35} screenColor="#3344aa" bodyColor="#c0c0c8" />
-      <Laptop xOffset={1.1} screenColor="#3344aa" />
+      <Laptop xOffset={0.85} screenColor="#3344aa" />
+      <Laptop xOffset={-0.35} screenColor="#3344aa" bodyColor="#c0c0c8" />
+      <Laptop xOffset={-1.1} screenColor="#3344aa" />
 
-      {/* === Mixer — on the desk, left side === */}
-      <group position={[-0.2, 0, 0]}>
+      {/* === Mixer — on the desk === */}
+      <group position={[0.2, 0, 0]}>
         <mesh position={[0, TABLE_Y + 0.03, 0]}>
           <boxGeometry args={[0.35, 0.04, 0.28]} />
           <meshStandardMaterial color="#1a1a2e" />
@@ -216,11 +216,11 @@ function DJBooth({ position }: { position: [number, number, number] }) {
 
         {/* Mixer knobs */}
         {[
-          [-0.1, 0.1],
-          [0, 0.1],
-          [0.1, 0.1],
-          [-0.1, -0.08],
-          [0.1, -0.08],
+          [-0.1, -0.1],
+          [0, -0.1],
+          [0.1, -0.1],
+          [-0.1, 0.08],
+          [0.1, 0.08],
         ].map(([kx, kz], i) => (
           <mesh
             key={`knob-${i}`}
@@ -233,64 +233,64 @@ function DJBooth({ position }: { position: [number, number, number] }) {
         ))}
       </group>
 
-      {/* === Headphones (draped on right table edge) === */}
-      <mesh position={[-1.15, TABLE_Y + 0.05, 0.12]} rotation={[0, 0.3, Math.PI / 2]}>
+      {/* === Headphones (draped on table edge) === */}
+      <mesh position={[1.15, TABLE_Y + 0.05, -0.12]} rotation={[0, -0.3, Math.PI / 2]}>
         <torusGeometry args={[0.07, 0.01, 8, 12, Math.PI]} />
         <meshStandardMaterial color="#222222" />
       </mesh>
 
-      <mesh position={[-1.15, TABLE_Y + 0.01, 0.05]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[1.15, TABLE_Y + 0.01, -0.05]} rotation={[-Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.035, 0.035, 0.02, 8]} />
         <meshStandardMaterial color="#1a1a1a" />
       </mesh>
 
-      <mesh position={[-1.15, TABLE_Y + 0.01, 0.19]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[1.15, TABLE_Y + 0.01, -0.19]} rotation={[-Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.035, 0.035, 0.02, 8]} />
         <meshStandardMaterial color="#1a1a1a" />
       </mesh>
 
       {/* === Speaker amp stack (left) === */}
       {/* Bottom cabinet (larger) */}
-      <mesh position={[-AMP_X, 0.35, 0]}>
-        <boxGeometry args={[0.65, 0.7, AMP_D]} />
-        <meshStandardMaterial color="#0d0d1a" />
-      </mesh>
-
-      {/* Top cabinet (smaller) */}
-      <mesh position={[-AMP_X, 0.85, 0]}>
-        <boxGeometry args={[0.65, 0.4, AMP_D]} />
-        <meshStandardMaterial color="#111122" />
-      </mesh>
-
-      {/* Speaker cones — bottom cab */}
-      <mesh position={[-AMP_X, 0.35, AMP_D / 2 + 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.2, 0.24, 0.03, 12]} />
-        <meshStandardMaterial color="#1a1a2e" />
-      </mesh>
-
-      {/* Speaker cone — top cab */}
-      <mesh position={[-AMP_X, 0.85, AMP_D / 2 + 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.12, 0.15, 0.03, 12]} />
-        <meshStandardMaterial color="#1a1a2e" />
-      </mesh>
-
-      {/* === Speaker amp stack (right) === */}
       <mesh position={[AMP_X, 0.35, 0]}>
         <boxGeometry args={[0.65, 0.7, AMP_D]} />
         <meshStandardMaterial color="#0d0d1a" />
       </mesh>
 
+      {/* Top cabinet (smaller) */}
       <mesh position={[AMP_X, 0.85, 0]}>
         <boxGeometry args={[0.65, 0.4, AMP_D]} />
         <meshStandardMaterial color="#111122" />
       </mesh>
 
-      <mesh position={[AMP_X, 0.35, AMP_D / 2 + 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
+      {/* Speaker cones — bottom cab */}
+      <mesh position={[AMP_X, 0.35, -(AMP_D / 2 + 0.01)]} rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.2, 0.24, 0.03, 12]} />
         <meshStandardMaterial color="#1a1a2e" />
       </mesh>
 
-      <mesh position={[AMP_X, 0.85, AMP_D / 2 + 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
+      {/* Speaker cone — top cab */}
+      <mesh position={[AMP_X, 0.85, -(AMP_D / 2 + 0.01)]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.12, 0.15, 0.03, 12]} />
+        <meshStandardMaterial color="#1a1a2e" />
+      </mesh>
+
+      {/* === Speaker amp stack (right) === */}
+      <mesh position={[-AMP_X, 0.35, 0]}>
+        <boxGeometry args={[0.65, 0.7, AMP_D]} />
+        <meshStandardMaterial color="#0d0d1a" />
+      </mesh>
+
+      <mesh position={[-AMP_X, 0.85, 0]}>
+        <boxGeometry args={[0.65, 0.4, AMP_D]} />
+        <meshStandardMaterial color="#111122" />
+      </mesh>
+
+      <mesh position={[-AMP_X, 0.35, -(AMP_D / 2 + 0.01)]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.2, 0.24, 0.03, 12]} />
+        <meshStandardMaterial color="#1a1a2e" />
+      </mesh>
+
+      <mesh position={[-AMP_X, 0.85, -(AMP_D / 2 + 0.01)]} rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.12, 0.15, 0.03, 12]} />
         <meshStandardMaterial color="#1a1a2e" />
       </mesh>
@@ -998,11 +998,9 @@ export function Room({ videoTexture, slideshowTexture }: RoomProps) {
         <Door position={[0, 0, half - 0.01]} />
       </group>
 
-      {/* DJ Booth — forward from back wall, rotated to face room */}
+      {/* DJ Booth — forward from back wall, facing room directly (no rotation) */}
       <BobbingGroup baseX={0} baseZ={-(half - 2.5)}>
-        <group position={[0, 0, -(half - 2.5)]} rotation={[0, Math.PI, 0]}>
-          <DJBooth position={[0, 0, 0]} />
-        </group>
+        <DJBooth position={[0, 0, -(half - 2.5)]} />
       </BobbingGroup>
 
       {/* Sofa — along right wall, facing inward */}
