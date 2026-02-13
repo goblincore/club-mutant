@@ -1029,6 +1029,7 @@ export function Room({ videoTexture, slideshowTexture }: RoomProps) {
         <InteractableObject
           interactDistance={2.5}
           onInteract={() => console.log('[Interactable] Computer desk clicked!')}
+          occludeHighlight
         >
           <OldComputerDesk
             position={[-(half - 1.2), 0, -(half - 0.8)]}
