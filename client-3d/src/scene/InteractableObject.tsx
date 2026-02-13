@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
@@ -43,53 +43,14 @@ export function InteractableObject({
   onInteract,
 }: InteractableObjectProps) {
   const groupRef = useRef<THREE.Group>(null)
+  const hitboxRef = useRef<THREE.Mesh>(null)
+  const hitboxGroupRef = useRef<THREE.Group>(null)
 
-  const [hitboxData, setHitboxData] = useState<{
-    size: [number, number, number]
-    center: [number, number, number]
-  } | null>(null)
-
+  const hitboxReady = useRef(false)
   const inRange = useRef(false)
   const currentOpacity = useRef(0)
   const isHovered = useRef(false)
   const isHighlighted = useRef(false)
-
-  // Compute hitbox after children mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!groupRef.current) {
-        console.warn('[Interactable] groupRef is null after 200ms')
-        return
-      }
-
-      const box = new THREE.Box3().setFromObject(groupRef.current)
-      if (box.isEmpty()) {
-        console.warn('[Interactable] Box3 is empty — children have no geometry')
-        return
-      }
-
-      const size = new THREE.Vector3()
-      const center = new THREE.Vector3()
-      box.getSize(size)
-      box.getCenter(center)
-
-      groupRef.current.worldToLocal(center)
-
-      const hb = {
-        size: [size.x + HITBOX_PAD * 2, size.y + HITBOX_PAD * 2, size.z + HITBOX_PAD * 2] as [
-          number,
-          number,
-          number,
-        ],
-        center: [center.x, center.y, center.z] as [number, number, number],
-      }
-
-      console.log('[Interactable] hitbox computed', hb)
-      setHitboxData(hb)
-    }, 200)
-
-    return () => clearTimeout(timer)
-  }, [])
 
   // Cleanup on unmount: disable highlight layer + reset globals
   useEffect(() => {
@@ -106,11 +67,41 @@ export function InteractableObject({
     }
   }, [])
 
-  // Per-frame: proximity check, intensity animation, layer toggle, cursor
+  // Per-frame: hitbox computation (retries until ready), proximity check,
+  // intensity animation, layer toggle, cursor
   useFrame((_, rawDelta) => {
     const delta = Math.min(rawDelta, 0.1)
 
-    if (!groupRef.current || !hitboxData) return
+    if (!groupRef.current) return
+
+    // Lazy hitbox computation — keeps trying each frame until geometry is available.
+    // This replaces the old useEffect+setTimeout(200) approach which was fragile
+    // and failed on production when groupRef wasn't set in time.
+    if (!hitboxReady.current) {
+      const box = new THREE.Box3().setFromObject(groupRef.current)
+      if (box.isEmpty()) return
+
+      const size = new THREE.Vector3()
+      const center = new THREE.Vector3()
+      box.getSize(size)
+      box.getCenter(center)
+
+      groupRef.current.worldToLocal(center)
+
+      // Update the hitbox mesh geometry and position directly (no React re-render)
+      if (hitboxRef.current && hitboxGroupRef.current) {
+        hitboxRef.current.geometry.dispose()
+        hitboxRef.current.geometry = new THREE.BoxGeometry(
+          size.x + HITBOX_PAD * 2,
+          size.y + HITBOX_PAD * 2,
+          size.z + HITBOX_PAD * 2
+        )
+        hitboxGroupRef.current.position.set(center.x, center.y, center.z)
+        hitboxReady.current = true
+      }
+
+      return
+    }
 
     const state = useGameStore.getState()
     const myId = state.mySessionId
@@ -122,7 +113,10 @@ export function InteractableObject({
     const playerX = pos.x * WORLD_SCALE
     const playerZ = -pos.y * WORLD_SCALE
 
-    _worldCenter.set(hitboxData.center[0], hitboxData.center[1], hitboxData.center[2])
+    const hgp = hitboxGroupRef.current
+    if (!hgp) return
+
+    _worldCenter.set(hgp.position.x, hgp.position.y, hgp.position.z)
     groupRef.current.localToWorld(_worldCenter)
 
     const dx = playerX - _worldCenter.x
@@ -163,7 +157,6 @@ export function InteractableObject({
   })
 
   const handlePointerOver = useCallback(() => {
-    console.log('[Interactable] pointerOver, inRange:', inRange.current)
     isHovered.current = true
     if (inRange.current) document.body.style.cursor = 'pointer'
   }, [])
@@ -175,12 +168,6 @@ export function InteractableObject({
 
   const handleClick = useCallback(
     (e: { stopPropagation: () => void }) => {
-      console.log(
-        '[Interactable] clicked, inRange:',
-        inRange.current,
-        'hasOnInteract:',
-        !!onInteract
-      )
       if (inRange.current && onInteract) {
         e.stopPropagation()
         onInteract()
@@ -193,20 +180,20 @@ export function InteractableObject({
     <group ref={groupRef}>
       {children}
 
-      {hitboxData && (
-        <group position={hitboxData.center}>
-          {/* Invisible hitbox for pointer events (follows DJ booth pattern) */}
-          <mesh
-            visible={false}
-            onClick={handleClick}
-            onPointerOver={handlePointerOver}
-            onPointerOut={handlePointerOut}
-          >
-            <boxGeometry args={hitboxData.size} />
-            <meshBasicMaterial />
-          </mesh>
-        </group>
-      )}
+      {/* Hitbox is always rendered — geometry + position set imperatively in useFrame
+          once children have geometry. This avoids the fragile useEffect+setTimeout. */}
+      <group ref={hitboxGroupRef}>
+        <mesh
+          ref={hitboxRef}
+          visible={false}
+          onClick={handleClick}
+          onPointerOver={handlePointerOver}
+          onPointerOut={handlePointerOut}
+        >
+          <boxGeometry args={[0.01, 0.01, 0.01]} />
+          <meshBasicMaterial />
+        </mesh>
+      </group>
     </group>
   )
 }
