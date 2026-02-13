@@ -10,6 +10,7 @@ import { LobbyScreen } from './ui/LobbyScreen'
 import { NowPlaying } from './ui/NowPlaying'
 import { IframeVideoBackground } from './ui/IframeVideoBackground'
 import { BoothPrompt } from './ui/BoothPrompt'
+import { ToastContainer } from './ui/ToastContainer'
 
 const PLAYLIST_WIDTH = 360
 
@@ -211,6 +212,9 @@ export function App() {
           </svg>
         )}
       </button>
+
+      {/* Toast notifications */}
+      <ToastContainer />
 
       {/* Booth prompt popup */}
       <BoothPrompt />

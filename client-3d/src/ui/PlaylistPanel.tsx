@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 
 import { getNetwork } from '../network/NetworkManager'
+import { useToastStore } from '../stores/toastStore'
 import { useBoothStore } from '../stores/boothStore'
 import { useGameStore } from '../stores/gameStore'
 import { useMusicStore } from '../stores/musicStore'
@@ -56,6 +57,21 @@ export function PlaylistPanel() {
   const [newPlaylistName, setNewPlaylistName] = useState('')
   const [creating, setCreating] = useState(false)
 
+  // Inline feedback: tracks recently added (shows checkmark briefly)
+  const [recentlyAdded, setRecentlyAdded] = useState<Set<string>>(new Set())
+
+  const markAdded = useCallback((key: string) => {
+    setRecentlyAdded((prev) => new Set(prev).add(key))
+
+    setTimeout(() => {
+      setRecentlyAdded((prev) => {
+        const next = new Set(prev)
+        next.delete(key)
+        return next
+      })
+    }, 1800)
+  }, [])
+
   // Drag-and-drop state
   const dragSrc = useRef<number | null>(null)
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
@@ -100,8 +116,13 @@ export function PlaylistPanel() {
         link,
         duration: result.duration ?? 0,
       })
+
+      const pl = usePlaylistStore.getState().playlists.find((p) => p.id === targetId)
+
+      markAdded(`search-${result.videoId}`)
+      useToastStore.getState().addToast(`added to ${pl?.name ?? 'playlist'}`)
     },
-    [viewingPlaylistId, activePlaylistId]
+    [viewingPlaylistId, activePlaylistId, markAdded]
   )
 
   const handleAddLink = useCallback(() => {
@@ -123,6 +144,9 @@ export function PlaylistPanel() {
       duration: 0,
     })
 
+    const pl = usePlaylistStore.getState().playlists.find((p) => p.id === targetId)
+
+    useToastStore.getState().addToast(`link added to ${pl?.name ?? 'playlist'}`)
     setLinkInput('')
   }, [linkInput, viewingPlaylistId, activePlaylistId])
 
@@ -138,16 +162,22 @@ export function PlaylistPanel() {
   // Add a single track from playlist to DJ queue
   const handleAddTrackToQueue = (track: PlaylistTrack) => {
     getNetwork().addToQueuePlaylist(track.title, track.link, track.duration)
+
+    markAdded(`queue-${track.id}`)
+    useToastStore.getState().addToast(`added to dj queue`)
   }
 
   // Add all tracks from a playlist to DJ queue
   const handleAddAllToQueue = (playlistId: string) => {
     const pl = playlists.find((p) => p.id === playlistId)
-    if (!pl) return
+    if (!pl || pl.items.length === 0) return
 
     for (const track of pl.items) {
       getNetwork().addToQueuePlaylist(track.title, track.link, track.duration)
     }
+
+    markAdded(`all-${playlistId}`)
+    useToastStore.getState().addToast(`added ${pl.items.length} tracks to dj queue`)
   }
 
   const handleRemoveQueueTrack = useCallback((id: string) => {
@@ -203,9 +233,15 @@ export function PlaylistPanel() {
           {isConnected && viewingPlaylist.items.length > 0 && (
             <button
               onClick={() => handleAddAllToQueue(viewingPlaylist.id)}
-              className="mb-2 w-full py-1.5 text-[12px] font-mono bg-green-500/15 border border-green-500/25 rounded text-green-400 hover:bg-green-500/25 transition-colors"
+              className={`mb-2 w-full py-1.5 text-[12px] font-mono border rounded transition-colors ${
+                recentlyAdded.has(`all-${viewingPlaylist.id}`)
+                  ? 'bg-green-500/25 border-green-500/40 text-green-300'
+                  : 'bg-green-500/15 border-green-500/25 text-green-400 hover:bg-green-500/25'
+              }`}
             >
-              + add all to queue
+              {recentlyAdded.has(`all-${viewingPlaylist.id}`)
+                ? '✓ added to queue'
+                : '+ add all to queue'}
             </button>
           )}
 
@@ -273,10 +309,14 @@ export function PlaylistPanel() {
                 {isConnected && (
                   <button
                     onClick={() => handleAddTrackToQueue(track)}
-                    className="w-6 h-6 flex items-center justify-center text-[13px] text-white/45 hover:text-green-400 transition-colors"
+                    className={`w-6 h-6 flex items-center justify-center text-[13px] transition-colors ${
+                      recentlyAdded.has(`queue-${track.id}`)
+                        ? 'text-green-400'
+                        : 'text-white/45 hover:text-green-400'
+                    }`}
                     title="Add to DJ queue"
                   >
-                    +
+                    {recentlyAdded.has(`queue-${track.id}`) ? '✓' : '+'}
                   </button>
                 )}
               </div>
@@ -344,9 +384,13 @@ export function PlaylistPanel() {
 
                 <button
                   onClick={() => handleAddFromSearch(result)}
-                  className="text-[12px] font-mono px-2 py-1 bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 hover:bg-purple-500/30 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                  className={`text-[12px] font-mono px-2 py-1 border rounded transition-colors flex-shrink-0 ${
+                    recentlyAdded.has(`search-${result.videoId}`)
+                      ? 'bg-green-500/20 border-green-500/30 text-green-400 opacity-100'
+                      : 'bg-purple-500/20 border-purple-500/30 text-purple-400 hover:bg-purple-500/30 opacity-0 group-hover:opacity-100'
+                  }`}
                 >
-                  +
+                  {recentlyAdded.has(`search-${result.videoId}`) ? '✓' : '+'}
                 </button>
               </div>
             ))}
@@ -417,9 +461,13 @@ export function PlaylistPanel() {
                   e.stopPropagation()
                   handleAddAllToQueue(pl.id)
                 }}
-                className="text-[12px] font-mono px-1.5 py-0.5 text-green-400/60 hover:text-green-400 transition-colors opacity-0 group-hover:opacity-100"
+                className={`text-[12px] font-mono px-1.5 py-0.5 transition-colors ${
+                  recentlyAdded.has(`all-${pl.id}`)
+                    ? 'text-green-400 opacity-100'
+                    : 'text-green-400/60 hover:text-green-400 opacity-0 group-hover:opacity-100'
+                }`}
               >
-                +all
+                {recentlyAdded.has(`all-${pl.id}`) ? '✓ added' : '+all'}
               </button>
             )}
 

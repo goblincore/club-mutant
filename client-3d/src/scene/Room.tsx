@@ -12,6 +12,7 @@ import { InteractableObject } from './InteractableObject'
 
 interface RoomProps {
   videoTexture?: THREE.VideoTexture | null
+  slideshowTexture?: THREE.Texture | null
   onBoothDoubleClick?: () => void
 }
 
@@ -615,14 +616,18 @@ function OldComputerDesk({
 function VideoDisplay({
   position,
   videoTexture,
+  slideshowTexture,
 }: {
   position: [number, number, number]
   videoTexture?: THREE.VideoTexture | null
+  slideshowTexture?: THREE.Texture | null
 }) {
   const SCREEN_W = 4.0
   const SCREEN_H = SCREEN_W * (9 / 16)
   const BEZEL = 0.1
   const FRAME_DEPTH = 0.08
+
+  const displayTexture = videoTexture ?? slideshowTexture
 
   return (
     <group position={position}>
@@ -635,8 +640,8 @@ function VideoDisplay({
       {/* Screen surface */}
       <mesh position={[0, 0, 0.001]}>
         <planeGeometry args={[SCREEN_W, SCREEN_H]} />
-        {videoTexture ? (
-          <meshBasicMaterial map={videoTexture} toneMapped={false} />
+        {displayTexture ? (
+          <meshBasicMaterial map={displayTexture} toneMapped={false} />
         ) : (
           <meshStandardMaterial color="#080812" emissive="#060610" emissiveIntensity={0.3} />
         )}
@@ -775,7 +780,7 @@ function BobbingGroup({
   return <group ref={groupRef}>{children}</group>
 }
 
-export function Room({ videoTexture, onBoothDoubleClick }: RoomProps) {
+export function Room({ videoTexture, slideshowTexture, onBoothDoubleClick }: RoomProps) {
   const half = ROOM_SIZE / 2
   const { camera } = useThree()
 
@@ -852,7 +857,11 @@ export function Room({ videoTexture, onBoothDoubleClick }: RoomProps) {
       </mesh>
 
       {/* Video display on back wall, above DJ booth */}
-      <VideoDisplay position={[0, WALL_HEIGHT * 0.55, -half + 0.02]} videoTexture={videoTexture} />
+      <VideoDisplay
+        position={[0, WALL_HEIGHT * 0.55, -half + 0.02]}
+        videoTexture={videoTexture}
+        slideshowTexture={slideshowTexture}
+      />
 
       {/* Left wall (-X) */}
       <mesh

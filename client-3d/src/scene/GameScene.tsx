@@ -12,6 +12,7 @@ import { PlayerEntity } from './PlayerEntity'
 import { useGameStore } from '../stores/gameStore'
 import { usePlayerInput, setClickTarget } from '../input/usePlayerInput'
 import { useVideoBackground } from '../hooks/useVideoBackground'
+import { useSlideshowTexture } from '../hooks/useSlideshowTexture'
 
 const WORLD_SCALE = 0.01
 
@@ -98,6 +99,7 @@ const BOOTH_INTERACT_DIST = 1.8 // world units — how close you need to be to i
 
 function SceneContent() {
   const videoTexture = useVideoBackground()
+  const slideshowTexture = useSlideshowTexture(!videoTexture)
 
   const handleBoothDoubleClick = useCallback(() => {
     const booth = useBoothStore.getState()
@@ -121,7 +123,11 @@ function SceneContent() {
   return (
     <>
       <DynamicBackground />
-      <Room videoTexture={videoTexture} onBoothDoubleClick={handleBoothDoubleClick} />
+      <Room
+        videoTexture={videoTexture}
+        slideshowTexture={slideshowTexture}
+        onBoothDoubleClick={handleBoothDoubleClick}
+      />
       <ClickPlane />
       <Players />
       <FollowCamera />
