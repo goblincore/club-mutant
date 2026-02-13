@@ -91,7 +91,26 @@ GLBModel.preload('/models/old-computer-desk.glb')
 - `scripts/build-models.mjs` — Node.js script that programmatically builds GLB files using `@gltf-transform/core`
 - `client-3d/src/scene/GLBModel.tsx` — Reusable loader component (useGLTF + clone + preload)
 - `client-3d/public/models/` — GLB asset directory (served statically by Vite)
-- Currently converted: `old-computer-desk.glb` (49 KB, ~25 meshes)
+- Currently converted: `old-computer-desk.glb` (38 KB, 16 meshes after merge), `dj-booth.glb` (43 KB, 12 meshes after merge)
+- Optimization pipeline: `dedup` (merge duplicate materials) → `flatten` (collapse hierarchy) → `join` (merge meshes by material). Runs automatically in `buildAndWrite()`.
+
+## Fisheye auto-scale experiment (reverted, revisit later)
+
+At extreme fisheye values (10–15), barrel distortion shrinks the visible frame into a small bubble. Attempted fix in commit `cf9b336` (reverted `510856d`): normalize `barrelDistort()` output by the distortion factor at the edge midpoint so the frame always fills the screen.
+
+```glsl
+// In barrelDistort() — after computing distort:
+float edgeR2 = 0.25;
+float edgeScale = 1.0 + edgeR2 * k1 + edgeR2 * edgeR2 * k2;
+return centered * (distort / edgeScale) + 0.5;
+```
+
+Works mathematically but visual feel needs more tuning. **Alternatives to explore**:
+
+- Use a reference point between edge and corner (e.g., `r²=0.3`) for partial fill that keeps some vignette
+- Only apply compensation above a threshold (e.g., `u_fisheye > 3`), blend smoothly
+- Render the scene at a wider camera FOV when fisheye is cranked, instead of post-process compensation
+- Combine with a circular vignette mask for a cleaner globe border
 
 ## r3f / Three.js pitfalls (learned the hard way)
 
