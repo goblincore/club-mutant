@@ -844,11 +844,16 @@ export function Room({ videoTexture, slideshowTexture }: RoomProps) {
 
   const wallRefs = useRef<THREE.Mesh[]>([])
   const wallOpacities = useRef<number[]>([1, 1, 1, 1])
+  const wallAttachmentRefs = useRef<(THREE.Group | null)[]>([null, null, null, null])
 
   const setWallRef = (index: number) => (mesh: THREE.Mesh | null) => {
     if (mesh) {
       wallRefs.current[index] = mesh
     }
+  }
+
+  const setWallAttachmentRef = (index: number) => (group: THREE.Group | null) => {
+    wallAttachmentRefs.current[index] = group
   }
 
   useFrame((_, delta) => {
@@ -894,6 +899,19 @@ export function Room({ videoTexture, slideshowTexture }: RoomProps) {
       } else {
         ;(mat as THREE.MeshStandardMaterial).opacity = wallOpacities.current[i]
       }
+
+      // Fade wall-mounted objects (TV, picture frames, door) to match
+      const attachments = wallAttachmentRefs.current[i]
+      if (attachments) {
+        const opacity = wallOpacities.current[i]
+        attachments.traverse((child) => {
+          if (child instanceof THREE.Mesh && child.material) {
+            const m = child.material as THREE.MeshStandardMaterial | THREE.MeshBasicMaterial
+            m.transparent = true
+            m.opacity = opacity
+          }
+        })
+      }
     }
   })
 
@@ -914,12 +932,14 @@ export function Room({ videoTexture, slideshowTexture }: RoomProps) {
         <BrickWallMaterial repeat={[8, 4]} />
       </mesh>
 
-      {/* Video display on back wall, above DJ booth */}
-      <VideoDisplay
-        position={[0, WALL_HEIGHT * 0.55, -half + 0.02]}
-        videoTexture={videoTexture}
-        slideshowTexture={slideshowTexture}
-      />
+      {/* Wall-mounted objects on back wall */}
+      <group ref={setWallAttachmentRef(0)}>
+        <VideoDisplay
+          position={[0, WALL_HEIGHT * 0.55, -half + 0.02]}
+          videoTexture={videoTexture}
+          slideshowTexture={slideshowTexture}
+        />
+      </group>
 
       {/* Left wall (-X) */}
       <mesh
@@ -931,6 +951,22 @@ export function Room({ videoTexture, slideshowTexture }: RoomProps) {
         <BrickWallMaterial repeat={[8, 4]} />
       </mesh>
 
+      {/* Wall-mounted objects on left wall */}
+      <group ref={setWallAttachmentRef(1)}>
+        <PictureFrame
+          position={[-half + 0.01, WALL_HEIGHT * 0.6, -2]}
+          rotation={[0, Math.PI / 2, 0]}
+          size={[1.2, 0.9]}
+          imagePath="/textures/frames/frame1.png"
+        />
+        <PictureFrame
+          position={[-half + 0.01, WALL_HEIGHT * 0.6, 2]}
+          rotation={[0, Math.PI / 2, 0]}
+          size={[1.2, 0.9]}
+          imagePath="/textures/frames/frame2.png"
+        />
+      </group>
+
       {/* Right wall (+X) */}
       <mesh
         ref={setWallRef(2)}
@@ -941,34 +977,26 @@ export function Room({ videoTexture, slideshowTexture }: RoomProps) {
         <BrickWallMaterial repeat={[8, 4]} />
       </mesh>
 
+      {/* Wall-mounted objects on right wall */}
+      <group ref={setWallAttachmentRef(2)}>
+        <PictureFrame
+          position={[half - 0.01, WALL_HEIGHT * 0.6, 0]}
+          rotation={[0, -Math.PI / 2, 0]}
+          size={[1.5, 1.0]}
+          imagePath="/textures/frames/frame3.png"
+        />
+      </group>
+
       {/* Front wall (+Z) — has a door */}
       <mesh ref={setWallRef(3)} position={[0, WALL_HEIGHT / 2, half]}>
         <planeGeometry args={[ROOM_SIZE, WALL_HEIGHT]} />
         <BrickWallMaterial repeat={[8, 4]} />
       </mesh>
 
-      {/* Door on front wall */}
-      <Door position={[0, 0, half - 0.01]} />
-
-      {/* Picture frames */}
-      <PictureFrame
-        position={[-half + 0.01, WALL_HEIGHT * 0.6, -2]}
-        rotation={[0, Math.PI / 2, 0]}
-        size={[1.2, 0.9]}
-        imagePath="/textures/frames/frame1.png"
-      />
-      <PictureFrame
-        position={[-half + 0.01, WALL_HEIGHT * 0.6, 2]}
-        rotation={[0, Math.PI / 2, 0]}
-        size={[1.2, 0.9]}
-        imagePath="/textures/frames/frame2.png"
-      />
-      <PictureFrame
-        position={[half - 0.01, WALL_HEIGHT * 0.6, 0]}
-        rotation={[0, -Math.PI / 2, 0]}
-        size={[1.5, 1.0]}
-        imagePath="/textures/frames/frame3.png"
-      />
+      {/* Wall-mounted objects on front wall */}
+      <group ref={setWallAttachmentRef(3)}>
+        <Door position={[0, 0, half - 0.01]} />
+      </group>
 
       {/* DJ Booth — forward from back wall, rotated to face room */}
       <BobbingGroup baseX={0} baseZ={-(half - 2.5)}>
