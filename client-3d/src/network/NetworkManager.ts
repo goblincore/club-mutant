@@ -54,12 +54,13 @@ export class NetworkManager {
         ...(textureId != null ? { textureId } : {}),
       })
 
-      gameStore.setConnected(true, this.room.sessionId)
-
       this._timeSync = new TimeSync(this.room as Room)
       this._timeSync.start()
 
       this.wireRoomListeners()
+
+      // Only mark connected AFTER listeners are wired — prevents half-initialized state
+      gameStore.setConnected(true, this.room.sessionId)
     } catch (err) {
       console.error('[network] Failed to join room:', err)
       throw err
@@ -279,10 +280,8 @@ export class NetworkManager {
       }
     )
 
-    // Reactive DJ queue sync via schema callbacks.
-    // Fires on initial state sync (late-join) AND on every subsequent change,
-    // so egg visibility is always correct.
-    const syncDJQueue = () => {
+    // Helper to sync DJ queue from schema state into boothStore
+    const syncDJQueueFromSchema = () => {
       const rs = this.room?.state as any
       if (!rs) return
 
@@ -303,13 +302,44 @@ export class NetworkManager {
       booth.setIsInQueue(entries.some((e) => e.sessionId === myId))
     }
 
-    // Listen for any change to the djQueue ArraySchema
-    const djQueueProxy = stateProxy.djQueue
-    djQueueProxy.onAdd(() => syncDJQueue())
-    djQueueProxy.onRemove(() => syncDJQueue())
+    // Schema callbacks for late-join sync (fires when Colyseus delivers initial state).
+    // Wrapped in try/catch — if the schema proxy doesn't support these, we fall back
+    // to the DJ_QUEUE_UPDATED message handler below.
+    try {
+      const djQueueProxy = stateProxy.djQueue
+      djQueueProxy.onAdd(() => syncDJQueueFromSchema())
+      djQueueProxy.onRemove(() => syncDJQueueFromSchema())
+      stateProxy.listen('currentDjSessionId', () => syncDJQueueFromSchema())
+    } catch (err) {
+      console.warn(
+        '[network] Schema callbacks for djQueue failed, relying on message handler:',
+        err
+      )
+    }
 
-    // Also listen for currentDjSessionId changes
-    stateProxy.listen('currentDjSessionId', () => syncDJQueue())
+    // Primary DJ queue sync via broadcast message (proven mechanism).
+    // This fires on every join/leave/skip/rotation and is the authoritative live-update path.
+    this.room.onMessage(
+      Message.DJ_QUEUE_UPDATED,
+      (payload: { djQueue: any[]; currentDjSessionId: string | null }) => {
+        const booth = useBoothStore.getState()
+
+        const entries: import('../stores/boothStore').DJQueueEntry[] = payload.djQueue.map(
+          (e: any) => ({
+            sessionId: e.sessionId as string,
+            name: e.name as string,
+            position: (e.queuePosition ?? 0) as number,
+            slotIndex: (e.slotIndex ?? 0) as number,
+          })
+        )
+
+        booth.setDJQueue(entries, payload.currentDjSessionId)
+
+        const myId = this.room?.sessionId
+        const inQueue = entries.some((e) => e.sessionId === myId)
+        booth.setIsInQueue(inQueue)
+      }
+    )
 
     // Late-join: sync music state AFTER TimeSync is ready (correct seek offset)
     if (this._timeSync) {
