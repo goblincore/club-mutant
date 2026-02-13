@@ -216,9 +216,9 @@ export function PsxPostProcess() {
     })
   }, [])
 
-  // Flat white override material for mask color pass
+  // Flat white override material for mask color pass (no depth test — full silhouette)
   const maskMaterial = useMemo(() => {
-    return new THREE.MeshBasicMaterial({ color: 0xffffff })
+    return new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false })
   }, [])
 
   // Simple blit shader for downsampling scene → bloom RT
@@ -355,23 +355,12 @@ export function PsxPostProcess() {
       gl.setClearColor(0x000000, 0)
       gl.clear()
 
-      // 0a. Render full scene with ORIGINAL materials to populate the depth
-      //     buffer. This respects character alpha/alphaTest so transparent
-      //     pixels don't write depth (no override material).
-      camera.layers.mask = savedMask
-      camera.layers.disable(1)
-      gl.autoClear = false
-      render(scene, camera)
-
-      // 0b. Clear ONLY color to black — preserve the depth buffer from 0a.
-      gl.clear(true, false, false)
-
-      // 0c. Render highlighted objects (layer 2) as flat white, depth-tested
-      //     against 0a. Only visible parts of the object write white.
+      // Render highlighted objects (layer 2) as flat white, no depth test.
+      // Full silhouette renders even when partially behind other geometry
+      // (e.g. DJ eggs behind the booth table).
       camera.layers.set(HIGHLIGHT_LAYER)
       scene.overrideMaterial = maskMaterial
       render(scene, camera)
-      gl.autoClear = true
 
       scene.overrideMaterial = null
       material.uniforms.tMask.value = maskTarget.texture
