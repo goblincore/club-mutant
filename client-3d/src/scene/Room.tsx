@@ -192,12 +192,6 @@ function DJBooth({ position }: { position: [number, number, number] }) {
         </mesh>
       ))}
 
-      {/* Cross brace under table */}
-      <mesh position={[0, TABLE_Y * 0.3, 0]}>
-        <boxGeometry args={[TABLE_W - 0.2, 0.02, 0.02]} />
-        <meshStandardMaterial color="#888888" metalness={0.4} roughness={0.5} />
-      </mesh>
-
       {/* === 3 Laptops (left, center, right) === */}
       <Laptop xOffset={0.85} screenColor="#3344aa" />
       <Laptop xOffset={-0.35} screenColor="#3344aa" bodyColor="#c0c0c8" />
