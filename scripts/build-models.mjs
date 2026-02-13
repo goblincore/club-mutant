@@ -10,7 +10,8 @@
  * GLB from Blender and drop into client-3d/public/models/.
  */
 
-import { Document, NodeIO } from '@gltf-transform/core'
+import { Document, NodeIO, PropertyType } from '@gltf-transform/core'
+import { dedup, flatten, join } from '@gltf-transform/functions'
 import { writeFileSync, mkdirSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -29,7 +30,9 @@ function hexToRGBA(hex) {
 
 /** Generate box vertex data (24 verts, 36 indices) centered at origin. */
 function boxGeometry(w, h, d) {
-  const hw = w / 2, hh = h / 2, hd = d / 2
+  const hw = w / 2,
+    hh = h / 2,
+    hd = d / 2
 
   // prettier-ignore
   const positions = new Float32Array([
@@ -178,23 +181,11 @@ function sphereGeometry(radius, wSeg = 8, hSeg = 6) {
 // ── GLTF builder helpers ──
 
 function createMeshPrimitive(doc, buffer, geo, material) {
-  const posAccessor = doc
-    .createAccessor()
-    .setBuffer(buffer)
-    .setType('VEC3')
-    .setArray(geo.positions)
+  const posAccessor = doc.createAccessor().setBuffer(buffer).setType('VEC3').setArray(geo.positions)
 
-  const normAccessor = doc
-    .createAccessor()
-    .setBuffer(buffer)
-    .setType('VEC3')
-    .setArray(geo.normals)
+  const normAccessor = doc.createAccessor().setBuffer(buffer).setType('VEC3').setArray(geo.normals)
 
-  const idxAccessor = doc
-    .createAccessor()
-    .setBuffer(buffer)
-    .setType('SCALAR')
-    .setArray(geo.indices)
+  const idxAccessor = doc.createAccessor().setBuffer(buffer).setType('SCALAR').setArray(geo.indices)
 
   return doc
     .createPrimitive()
@@ -265,7 +256,16 @@ function buildOldComputerDesk(doc) {
   const casterMat = makeMaterial(doc, 'caster', '#333333')
 
   // ── Desk ──
-  addMeshNode(doc, buffer, scene, root, boxGeometry(DESK_W, 0.03, DESK_D), deskTop, [0, DESK_H, 0], 'desk-top')
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(DESK_W, 0.03, DESK_D),
+    deskTop,
+    [0, DESK_H, 0],
+    'desk-top'
+  )
 
   // Desk legs
   const legOffsets = [
@@ -276,45 +276,234 @@ function buildOldComputerDesk(doc) {
   ]
 
   legOffsets.forEach(([lx, lz], i) => {
-    addMeshNode(doc, buffer, scene, root, boxGeometry(0.04, DESK_H, 0.04), deskLeg, [lx, DESK_H / 2, lz], `desk-leg-${i}`)
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      root,
+      boxGeometry(0.04, DESK_H, 0.04),
+      deskLeg,
+      [lx, DESK_H / 2, lz],
+      `desk-leg-${i}`
+    )
   })
 
   // ── Dell Tower ──
-  addMeshNode(doc, buffer, scene, root, boxGeometry(0.2, 0.56, 0.45), beige, [DESK_W / 2 + 0.2, 0.28, 0], 'tower')
-  addMeshNode(doc, buffer, scene, root, boxGeometry(0.16, 0.3, 0.005), beigePanel, [DESK_W / 2 + 0.2, 0.35, 0.226], 'tower-panel')
-  addMeshNode(doc, buffer, scene, root, boxGeometry(0.12, 0.015, 0.005), metalGrey, [DESK_W / 2 + 0.2, 0.48, 0.227], 'floppy-slot')
-  addMeshNode(doc, buffer, scene, root, boxGeometry(0.12, 0.02, 0.005), driveSlot, [DESK_W / 2 + 0.2, 0.42, 0.227], 'cd-slot')
-  addMeshNode(doc, buffer, scene, root, cylinderGeometry(0.015, 0.015, 0.005, 8), darkGrey, [DESK_W / 2 + 0.2, 0.52, 0.228], 'power-btn')
-  addMeshNode(doc, buffer, scene, root, cylinderGeometry(0.006, 0.006, 0.005, 6), powerLed, [DESK_W / 2 + 0.2, 0.5, 0.228], 'power-led')
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(0.2, 0.56, 0.45),
+    beige,
+    [DESK_W / 2 + 0.2, 0.28, 0],
+    'tower'
+  )
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(0.16, 0.3, 0.005),
+    beigePanel,
+    [DESK_W / 2 + 0.2, 0.35, 0.226],
+    'tower-panel'
+  )
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(0.12, 0.015, 0.005),
+    metalGrey,
+    [DESK_W / 2 + 0.2, 0.48, 0.227],
+    'floppy-slot'
+  )
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(0.12, 0.02, 0.005),
+    driveSlot,
+    [DESK_W / 2 + 0.2, 0.42, 0.227],
+    'cd-slot'
+  )
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    cylinderGeometry(0.015, 0.015, 0.005, 8),
+    darkGrey,
+    [DESK_W / 2 + 0.2, 0.52, 0.228],
+    'power-btn'
+  )
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    cylinderGeometry(0.006, 0.006, 0.005, 6),
+    powerLed,
+    [DESK_W / 2 + 0.2, 0.5, 0.228],
+    'power-led'
+  )
 
   // ── CRT Monitor ──
-  addMeshNode(doc, buffer, scene, root, boxGeometry(0.45, 0.38, 0.38), monitorBody, [0, DESK_H + 0.2, -0.05], 'monitor')
-  addMeshNode(doc, buffer, scene, root, boxGeometry(0.42, 0.34, 0.02), bezel, [0, DESK_H + 0.22, 0.14], 'bezel')
-  addMeshNode(doc, buffer, scene, root, boxGeometry(0.34, 0.26, 0.005), screen, [0, DESK_H + 0.22, 0.151], 'screen')
-  addMeshNode(doc, buffer, scene, root, sphereGeometry(0.2, 8, 6), crtHump, [0, DESK_H + 0.2, -0.28], 'crt-hump')
-  addMeshNode(doc, buffer, scene, root, boxGeometry(0.28, 0.03, 0.25), stand, [0, DESK_H + 0.015, 0], 'monitor-stand')
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(0.45, 0.38, 0.38),
+    monitorBody,
+    [0, DESK_H + 0.2, -0.05],
+    'monitor'
+  )
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(0.42, 0.34, 0.02),
+    bezel,
+    [0, DESK_H + 0.22, 0.14],
+    'bezel'
+  )
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(0.34, 0.26, 0.005),
+    screen,
+    [0, DESK_H + 0.22, 0.151],
+    'screen'
+  )
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    sphereGeometry(0.2, 8, 6),
+    crtHump,
+    [0, DESK_H + 0.2, -0.28],
+    'crt-hump'
+  )
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(0.28, 0.03, 0.25),
+    stand,
+    [0, DESK_H + 0.015, 0],
+    'monitor-stand'
+  )
 
   // ── Keyboard + Mouse ──
-  addMeshNode(doc, buffer, scene, root, boxGeometry(0.38, 0.02, 0.12), beige, [0, DESK_H + 0.02, 0.2], 'keyboard')
-  addMeshNode(doc, buffer, scene, root, boxGeometry(0.34, 0.005, 0.09), stand, [0, DESK_H + 0.031, 0.2], 'keys')
-  addMeshNode(doc, buffer, scene, root, boxGeometry(0.05, 0.02, 0.08), beige, [0.28, DESK_H + 0.015, 0.2], 'mouse')
-  addMeshNode(doc, buffer, scene, root, boxGeometry(0.04, 0.005, 0.002), bezel, [0.28, DESK_H + 0.026, 0.18], 'mouse-btn')
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(0.38, 0.02, 0.12),
+    beige,
+    [0, DESK_H + 0.02, 0.2],
+    'keyboard'
+  )
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(0.34, 0.005, 0.09),
+    stand,
+    [0, DESK_H + 0.031, 0.2],
+    'keys'
+  )
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(0.05, 0.02, 0.08),
+    beige,
+    [0.28, DESK_H + 0.015, 0.2],
+    'mouse'
+  )
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(0.04, 0.005, 0.002),
+    bezel,
+    [0.28, DESK_H + 0.026, 0.18],
+    'mouse-btn'
+  )
 
   // ── Office Chair ──
-  addMeshNode(doc, buffer, scene, root, boxGeometry(0.4, 0.06, 0.38), chairBlack, [0, 0.42, 0.45], 'chair-seat')
-  addMeshNode(doc, buffer, scene, root, boxGeometry(0.38, 0.5, 0.04), chairBlack, [0, 0.7, 0.62], 'chair-back')
-  addMeshNode(doc, buffer, scene, root, cylinderGeometry(0.025, 0.025, 0.36, 6), chairMetal, [0, 0.24, 0.45], 'chair-post')
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(0.4, 0.06, 0.38),
+    chairBlack,
+    [0, 0.42, 0.45],
+    'chair-seat'
+  )
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(0.38, 0.5, 0.04),
+    chairBlack,
+    [0, 0.7, 0.62],
+    'chair-back'
+  )
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    cylinderGeometry(0.025, 0.025, 0.36, 6),
+    chairMetal,
+    [0, 0.24, 0.45],
+    'chair-post'
+  )
 
   // Chair base legs
   for (let i = 0; i < 5; i++) {
     const angle = (i * Math.PI * 2) / 5
-    addMeshNode(doc, buffer, scene, root, boxGeometry(0.03, 0.03, 0.2), chairMetal, [Math.sin(angle) * 0.18, 0.04, 0.45 + Math.cos(angle) * 0.18], `chair-leg-${i}`)
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      root,
+      boxGeometry(0.03, 0.03, 0.2),
+      chairMetal,
+      [Math.sin(angle) * 0.18, 0.04, 0.45 + Math.cos(angle) * 0.18],
+      `chair-leg-${i}`
+    )
   }
 
   // Casters
   for (let i = 0; i < 5; i++) {
     const angle = (i * Math.PI * 2) / 5
-    addMeshNode(doc, buffer, scene, root, sphereGeometry(0.02, 6, 4), casterMat, [Math.sin(angle) * 0.22, 0.015, 0.45 + Math.cos(angle) * 0.22], `caster-${i}`)
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      root,
+      sphereGeometry(0.02, 6, 4),
+      casterMat,
+      [Math.sin(angle) * 0.22, 0.015, 0.45 + Math.cos(angle) * 0.22],
+      `caster-${i}`
+    )
   }
 
   return doc
@@ -322,11 +511,28 @@ function buildOldComputerDesk(doc) {
 
 // ── Main ──
 
+/** Optimize a document by deduplicating materials, flattening hierarchy, and joining meshes. */
+async function optimizeDocument(doc) {
+  const meshesBefore = doc.getRoot().listMeshes().length
+
+  await doc.transform(
+    dedup({ propertyTypes: [PropertyType.MATERIAL, PropertyType.ACCESSOR] }),
+    flatten(),
+    join({ keepNamed: false })
+  )
+
+  const meshesAfter = doc.getRoot().listMeshes().length
+  console.log(`  meshes: ${meshesBefore} → ${meshesAfter} (merged by material)`)
+}
+
 async function main() {
   mkdirSync(OUT_DIR, { recursive: true })
 
   console.log('Building OldComputerDesk...')
   const deskDoc = buildOldComputerDesk(new Document())
+
+  await optimizeDocument(deskDoc)
+
   const io = new NodeIO()
   const glb = await io.writeBinary(deskDoc)
   const outPath = resolve(OUT_DIR, 'old-computer-desk.glb')
