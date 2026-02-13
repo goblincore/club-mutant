@@ -54,6 +54,7 @@ function advanceRotation(room: ClubMutant) {
     newEntry.name = currentEntry.name
     newEntry.joinedAtMs = Date.now()
     newEntry.queuePosition = room.state.djQueue.length
+    newEntry.slotIndex = currentEntry.slotIndex
     room.state.djQueue.push(newEntry)
     console.log('[DJQueue] Moved DJ to end of queue:', currentEntry.sessionId)
   } else {
