@@ -112,17 +112,25 @@ const VHS_FRAGMENT = /* glsl */ `
     vec2 texel = 1.0 / u_resolution;
     float center = texture2D(tMask, uv).r;
 
-    // Dilate the mask outward with soft falloff (3 radii × 4 cardinal = 12 taps)
+    // Dilate the mask outward with soft falloff (3 radii × 8 directions = 24 taps)
     float dilated = center;
 
     for (int r = 1; r <= 3; r++) {
       float fr = float(r);
       float w = 1.0 - fr / 4.0;
+      float wd = w * 0.707; // diagonal weight (shorter effective radius)
 
+      // Cardinal directions
       dilated = max(dilated, texture2D(tMask, uv + vec2( texel.x * fr, 0.0)).r * w);
       dilated = max(dilated, texture2D(tMask, uv + vec2(-texel.x * fr, 0.0)).r * w);
       dilated = max(dilated, texture2D(tMask, uv + vec2(0.0,  texel.y * fr)).r * w);
       dilated = max(dilated, texture2D(tMask, uv + vec2(0.0, -texel.y * fr)).r * w);
+
+      // Diagonal directions (rounder outline)
+      dilated = max(dilated, texture2D(tMask, uv + vec2( texel.x * fr,  texel.y * fr)).r * wd);
+      dilated = max(dilated, texture2D(tMask, uv + vec2(-texel.x * fr,  texel.y * fr)).r * wd);
+      dilated = max(dilated, texture2D(tMask, uv + vec2( texel.x * fr, -texel.y * fr)).r * wd);
+      dilated = max(dilated, texture2D(tMask, uv + vec2(-texel.x * fr, -texel.y * fr)).r * wd);
     }
 
     // Outline = dilated region minus the interior
