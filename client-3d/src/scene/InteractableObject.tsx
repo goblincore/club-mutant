@@ -43,6 +43,7 @@ export function InteractableObject({
   onInteract,
 }: InteractableObjectProps) {
   const groupRef = useRef<THREE.Group>(null)
+  const childrenGroupRef = useRef<THREE.Group>(null)
   const hitboxRef = useRef<THREE.Mesh>(null)
   const hitboxGroupRef = useRef<THREE.Group>(null)
 
@@ -55,8 +56,8 @@ export function InteractableObject({
   // Cleanup on unmount: disable highlight layer + reset globals
   useEffect(() => {
     return () => {
-      if (groupRef.current && isHighlighted.current) {
-        groupRef.current.traverse((child) => {
+      if (childrenGroupRef.current && isHighlighted.current) {
+        childrenGroupRef.current.traverse((child) => {
           if (child instanceof THREE.Mesh) child.layers.disable(HIGHLIGHT_LAYER)
         })
       }
@@ -72,13 +73,12 @@ export function InteractableObject({
   useFrame((_, rawDelta) => {
     const delta = Math.min(rawDelta, 0.1)
 
-    if (!groupRef.current) return
+    if (!childrenGroupRef.current) return
 
     // Lazy hitbox computation — keeps trying each frame until geometry is available.
-    // This replaces the old useEffect+setTimeout(200) approach which was fragile
-    // and failed on production when groupRef wasn't set in time.
+    // Measures ONLY the children group (not the hitbox mesh) to get the correct bounds.
     if (!hitboxReady.current) {
-      const box = new THREE.Box3().setFromObject(groupRef.current)
+      const box = new THREE.Box3().setFromObject(childrenGroupRef.current)
       if (box.isEmpty()) return
 
       const size = new THREE.Vector3()
@@ -86,7 +86,10 @@ export function InteractableObject({
       box.getSize(size)
       box.getCenter(center)
 
-      groupRef.current.worldToLocal(center)
+      // Convert world-space center to the parent group's local space
+      if (groupRef.current) {
+        groupRef.current.worldToLocal(center)
+      }
 
       // Update the hitbox mesh geometry and position directly (no React re-render)
       if (hitboxRef.current && hitboxGroupRef.current) {
@@ -114,7 +117,7 @@ export function InteractableObject({
     const playerZ = -pos.y * WORLD_SCALE
 
     const hgp = hitboxGroupRef.current
-    if (!hgp) return
+    if (!hgp || !groupRef.current) return
 
     _worldCenter.set(hgp.position.x, hgp.position.y, hgp.position.z)
     groupRef.current.localToWorld(_worldCenter)
@@ -136,11 +139,11 @@ export function InteractableObject({
     // Export intensity for PsxPostProcess to read
     highlightIntensity = currentOpacity.current * pulse
 
-    // Toggle highlight layer on child meshes
+    // Toggle highlight layer on child meshes only (not the hitbox)
     const shouldHighlight = currentOpacity.current > 0.01
 
     if (shouldHighlight !== isHighlighted.current) {
-      groupRef.current.traverse((child) => {
+      childrenGroupRef.current.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           if (shouldHighlight) child.layers.enable(HIGHLIGHT_LAYER)
           else child.layers.disable(HIGHLIGHT_LAYER)
@@ -178,7 +181,8 @@ export function InteractableObject({
 
   return (
     <group ref={groupRef}>
-      {children}
+      {/* Children in a separate group so Box3 measures only actual content */}
+      <group ref={childrenGroupRef}>{children}</group>
 
       {/* Hitbox is always rendered — geometry + position set imperatively in useFrame
           once children have geometry. This avoids the fragile useEffect+setTimeout. */}
