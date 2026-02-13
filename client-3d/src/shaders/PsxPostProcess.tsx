@@ -60,7 +60,13 @@ const VHS_FRAGMENT = /* glsl */ `
     float k1 = 0.6 * u_fisheye;  // r² term
     float k2 = 0.4 * u_fisheye;  // r⁴ term
     float distort = 1.0 + r2 * k1 + r2 * r2 * k2;
-    return centered * distort + 0.5;
+
+    // Compensate so edge midpoint (r²=0.25) always fills the screen.
+    // Corners still clip to a circle at extreme values.
+    float edgeR2 = 0.25;
+    float edgeScale = 1.0 + edgeR2 * k1 + edgeR2 * edgeR2 * k2;
+
+    return centered * (distort / edgeScale) + 0.5;
   }
 
   // ---- film grain (gold noise) ----
