@@ -6,7 +6,8 @@
   "scripts": {
     "start": "cd server && npm run start",
     "heroku-postbuild": "npm i && cd types && npm i && cd ../server && tsc --project tsconfig.server.json",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:models": "node scripts/build-models.mjs"
   },
   "repository": {
     "type": "git",
@@ -20,6 +21,7 @@
   },
   "homepage": "https://github.com/goblincore/club-mutant/#readme",
   "devDependencies": {
+    "@gltf-transform/core": "^4.3.0",
     "@types/bcrypt": "^5.0.0",
     "@types/cors": "^2.8.6",
     "@types/express": "^5.0.0",

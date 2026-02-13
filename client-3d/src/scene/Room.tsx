@@ -11,7 +11,11 @@ import { TrippySky } from '../shaders/TrippySky'
 import { BrickWallMaterial } from '../shaders/BrickWallMaterial'
 import { getDisplacementAt } from './TrampolineRipples'
 import { InteractableObject } from './InteractableObject'
+import { GLBModel } from './GLBModel'
 import './SpottedEggMaterial'
+
+// Preload GLB models to avoid pop-in
+GLBModel.preload('/models/old-computer-desk.glb')
 
 interface RoomProps {
   videoTexture?: THREE.VideoTexture | null
@@ -1035,7 +1039,8 @@ export function Room({ videoTexture, slideshowTexture }: RoomProps) {
           onInteract={() => console.log('[Interactable] Computer desk clicked!')}
           occludeHighlight
         >
-          <OldComputerDesk
+          <GLBModel
+            src="/models/old-computer-desk.glb"
             position={[-(half - 1.2), 0, -(half - 0.8)]}
             rotation={[0, Math.PI / 4, 0]}
           />
