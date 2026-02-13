@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import { useGameStore, setPlayerPosition } from '../stores/gameStore'
 import { useBoothStore } from '../stores/boothStore'
 import { getNetwork } from '../network/NetworkManager'
+import { cameraAzimuth } from '../scene/Camera'
 
 const SPEED = 150 // pixels per second (server coordinates)
 const CLICK_ARRIVE_THRESHOLD = 3 // server pixels — close enough to stop
@@ -84,13 +85,27 @@ export function usePlayerInput() {
       let dx = 0
       let dy = 0
 
-      // WASD input
-      if (keys.has('w') || keys.has('arrowup')) dy += 1
-      if (keys.has('s') || keys.has('arrowdown')) dy -= 1
-      if (keys.has('a') || keys.has('arrowleft')) dx -= 1
-      if (keys.has('d') || keys.has('arrowright')) dx += 1
+      // WASD input (camera-relative)
+      let rawDx = 0
+      let rawDy = 0
 
-      const hasKeyInput = dx !== 0 || dy !== 0
+      if (keys.has('w') || keys.has('arrowup')) rawDy += 1
+      if (keys.has('s') || keys.has('arrowdown')) rawDy -= 1
+      if (keys.has('a') || keys.has('arrowleft')) rawDx -= 1
+      if (keys.has('d') || keys.has('arrowright')) rawDx += 1
+
+      const hasKeyInput = rawDx !== 0 || rawDy !== 0
+
+      // Rotate WASD by camera azimuth so movement is relative to where the camera faces.
+      // Camera convention: azimuth=0 → camera behind +Z looking toward -Z → "forward" = server +Y.
+      // Rotation: server_dx = rawDx*cos(θ) - rawDy*sin(θ), server_dy = rawDx*sin(θ) + rawDy*cos(θ)
+      if (hasKeyInput) {
+        const cosA = Math.cos(cameraAzimuth)
+        const sinA = Math.sin(cameraAzimuth)
+
+        dx = rawDx * cosA - rawDy * sinA
+        dy = rawDx * sinA + rawDy * cosA
+      }
 
       // Click-to-move input
       if (!hasKeyInput && clickTarget) {

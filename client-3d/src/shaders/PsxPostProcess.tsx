@@ -3,6 +3,7 @@ import { useThree, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useUIStore } from '../stores/uiStore'
 import { cameraDistance } from '../scene/Camera'
+import { HIGHLIGHT_LAYER, highlightIntensity } from '../scene/InteractableObject'
 
 /**
  * VHS + PSX post-processing pass (WebGL2 / GLSL3).
@@ -38,8 +39,10 @@ const VHS_VERTEX = /* glsl */ `
 // Three.js (GLSL3 mode) injects: varying→in, texture2D→texture, gl_FragColor→out
 const VHS_FRAGMENT = /* glsl */ `
   uniform sampler2D tDiffuse;
+  uniform sampler2D tMask;
   uniform vec2 u_resolution;
   uniform float u_time;
+  uniform float u_highlightIntensity;
 
   varying vec2 vUv;
 
@@ -104,6 +107,28 @@ const VHS_FRAGMENT = /* glsl */ `
     return sum / totalW;
   }
 
+  // ---- screen-space silhouette outline from highlight mask ----
+  float outlineGlow(vec2 uv) {
+    vec2 texel = 1.0 / u_resolution;
+    float center = texture2D(tMask, uv).r;
+
+    // Dilate the mask outward with soft falloff (3 radii × 4 cardinal = 12 taps)
+    float dilated = center;
+
+    for (int r = 1; r <= 3; r++) {
+      float fr = float(r);
+      float w = 1.0 - fr / 4.0;
+
+      dilated = max(dilated, texture2D(tMask, uv + vec2( texel.x * fr, 0.0)).r * w);
+      dilated = max(dilated, texture2D(tMask, uv + vec2(-texel.x * fr, 0.0)).r * w);
+      dilated = max(dilated, texture2D(tMask, uv + vec2(0.0,  texel.y * fr)).r * w);
+      dilated = max(dilated, texture2D(tMask, uv + vec2(0.0, -texel.y * fr)).r * w);
+    }
+
+    // Outline = dilated region minus the interior
+    return max(0.0, dilated - center);
+  }
+
   void main() {
     // Apply fisheye distortion to UVs
     vec2 distUv = barrelDistort(vUv);
@@ -124,6 +149,12 @@ const VHS_FRAGMENT = /* glsl */ `
     // ---- VHS chroma bleed (subtle) ----
     vec3 chroma = chromaBleed(distUv);
     color = mix(color, chroma + glow * 0.35, 0.25);
+
+    // ---- highlight outline (screen-space silhouette glow) ----
+    if (u_highlightIntensity > 0.01) {
+      float outline = outlineGlow(distUv);
+      color += vec3(1.0) * outline * u_highlightIntensity * 2.0;
+    }
 
     // ---- brightness lift (push brighter than unfiltered) ----
     color = mix(color, vec3(1.0), 0.08);
@@ -168,6 +199,20 @@ export function PsxPostProcess() {
     })
   }, [])
 
+  // Highlight mask render target (same resolution as scene)
+  const maskTarget = useMemo(() => {
+    return new THREE.WebGLRenderTarget(1, 1, {
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      format: THREE.RGBAFormat,
+    })
+  }, [])
+
+  // Flat white override material for mask color pass
+  const maskMaterial = useMemo(() => {
+    return new THREE.MeshBasicMaterial({ color: 0xffffff })
+  }, [])
+
   // Simple blit shader for downsampling scene → bloom RT
   const { blitScene, blitCamera, blitMaterial } = useMemo(() => {
     const mat = new THREE.ShaderMaterial({
@@ -204,10 +249,12 @@ export function PsxPostProcess() {
       uniforms: {
         tDiffuse: { value: null },
         tBloom: { value: null },
+        tMask: { value: null },
         u_resolution: { value: new THREE.Vector2(160, 120) },
         u_bloomResolution: { value: new THREE.Vector2(80, 60) },
         u_time: { value: 0 },
         u_fisheye: { value: 1.0 },
+        u_highlightIntensity: { value: 0 },
       },
       transparent: true,
       depthTest: false,
@@ -247,19 +294,22 @@ export function PsxPostProcess() {
 
     target.setSize(w, h)
     bloomTarget.setSize(bw, bh)
+    maskTarget.setSize(w, h)
     material.uniforms.u_resolution.value.set(w, h)
     material.uniforms.u_bloomResolution.value.set(bw, bh)
-  }, [size, renderScale, target, bloomTarget, material])
+  }, [size, renderScale, target, bloomTarget, maskTarget, material])
 
   // Cleanup render targets on unmount
   useEffect(() => {
     return () => {
       target.dispose()
       bloomTarget.dispose()
+      maskTarget.dispose()
+      maskMaterial.dispose()
       material.dispose()
       blitMaterial.dispose()
     }
-  }, [target, bloomTarget, material, blitMaterial])
+  }, [target, bloomTarget, maskTarget, maskMaterial, material, blitMaterial])
 
   // Custom render loop: scene → low-res target → VHS shader → screen
   useFrame((_, delta) => {
@@ -288,7 +338,45 @@ export function PsxPostProcess() {
     // Save camera layer mask — ChatBubble enables layer 1 for when VHS is off
     const savedMask = camera.layers.mask
 
+    // 0. Render highlight mask (layer 2 only) — flat white silhouette
+    const intensity = highlightIntensity
+    material.uniforms.u_highlightIntensity.value = intensity
+
+    if (intensity > 0.01) {
+      gl.setRenderTarget(maskTarget)
+      gl.setClearColor(0x000000, 0)
+      gl.clear()
+
+      // 0a. Render full scene with ORIGINAL materials to populate the depth
+      //     buffer. This respects character alpha/alphaTest so transparent
+      //     pixels don't write depth (no override material).
+      camera.layers.mask = savedMask
+      camera.layers.disable(1)
+      gl.autoClear = false
+      render(scene, camera)
+
+      // 0b. Clear ONLY color to black — preserve the depth buffer from 0a.
+      gl.clear(true, false, false)
+
+      // 0c. Render highlighted objects (layer 2) as flat white, depth-tested
+      //     against 0a. Only visible parts of the object write white.
+      camera.layers.set(HIGHLIGHT_LAYER)
+      scene.overrideMaterial = maskMaterial
+      render(scene, camera)
+      gl.autoClear = true
+
+      scene.overrideMaterial = null
+      material.uniforms.tMask.value = maskTarget.texture
+    } else {
+      // Clear mask when nothing is highlighted
+      gl.setRenderTarget(maskTarget)
+      gl.setClearColor(0x000000, 0)
+      gl.clear()
+      material.uniforms.tMask.value = maskTarget.texture
+    }
+
     // 1. Render scene (layer 0 only, excludes UI bubbles) to low-res target
+    camera.layers.mask = savedMask
     camera.layers.disable(1)
     gl.setRenderTarget(target)
 

@@ -8,6 +8,7 @@ import { TrampolineGrid } from '../shaders/TrampolineGrid'
 import { TrippySky } from '../shaders/TrippySky'
 import { BrickWallMaterial } from '../shaders/BrickWallMaterial'
 import { getDisplacementAt } from './TrampolineRipples'
+import { InteractableObject } from './InteractableObject'
 
 interface RoomProps {
   videoTexture?: THREE.VideoTexture | null
@@ -932,10 +933,15 @@ export function Room({ videoTexture, onBoothDoubleClick }: RoomProps) {
 
       {/* Old Dell computer desk — back-left corner, facing into room */}
       <BobbingGroup baseX={-(half - 1.2)} baseZ={-(half - 0.8)}>
-        <OldComputerDesk
-          position={[-(half - 1.2), 0, -(half - 0.8)]}
-          rotation={[0, Math.PI / 4, 0]}
-        />
+        <InteractableObject
+          interactDistance={2.5}
+          onInteract={() => console.log('[Interactable] Computer desk clicked!')}
+        >
+          <OldComputerDesk
+            position={[-(half - 1.2), 0, -(half - 0.8)]}
+            rotation={[0, Math.PI / 4, 0]}
+          />
+        </InteractableObject>
       </BobbingGroup>
 
       {/* Skybox */}

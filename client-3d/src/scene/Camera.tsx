@@ -32,6 +32,9 @@ export let wasCameraDrag = false
 // Current camera distance — readable by other systems (e.g. fisheye scaling)
 export let cameraDistance = DEFAULT_DISTANCE
 
+// Current camera azimuth (includes sway) — used by input system for camera-relative movement
+export let cameraAzimuth = DEFAULT_AZIMUTH
+
 // Orbit camera: follows player, hold-drag to rotate, scroll to zoom
 export function FollowCamera() {
   const { camera, gl } = useThree()
@@ -150,6 +153,7 @@ export function FollowCamera() {
     camera.lookAt(targetRef.current)
 
     cameraDistance = r
+    cameraAzimuth = theta
   })
 
   return null
