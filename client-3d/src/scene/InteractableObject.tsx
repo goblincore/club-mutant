@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { useGameStore, getPlayerPosition } from '../stores/gameStore'
 
 const WORLD_SCALE = 0.01
-const HITBOX_PAD = 0.15
+const DEFAULT_HITBOX_PAD = 0.15
 const GLOW_FADE_SPEED = 6
 const PULSE_SPEED = 0.003
 
@@ -35,12 +35,14 @@ interface InteractableObjectProps {
   children: React.ReactNode
   interactDistance: number
   onInteract?: () => void
+  hitboxPad?: number
 }
 
 export function InteractableObject({
   children,
   interactDistance,
   onInteract,
+  hitboxPad = DEFAULT_HITBOX_PAD,
 }: InteractableObjectProps) {
   const groupRef = useRef<THREE.Group>(null)
   const childrenGroupRef = useRef<THREE.Group>(null)
@@ -101,9 +103,9 @@ export function InteractableObject({
       if (hitboxRef.current && hitboxGroupRef.current) {
         hitboxRef.current.geometry.dispose()
         hitboxRef.current.geometry = new THREE.BoxGeometry(
-          size.x + HITBOX_PAD * 2,
-          size.y + HITBOX_PAD * 2,
-          size.z + HITBOX_PAD * 2
+          size.x + hitboxPad * 2,
+          size.y + hitboxPad * 2,
+          size.z + hitboxPad * 2
         )
         hitboxGroupRef.current.position.set(center.x, center.y, center.z)
         hitboxReady.current = true

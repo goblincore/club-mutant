@@ -144,7 +144,7 @@ function DJSlotOrb({
   if (occupied) return null
 
   return (
-    <InteractableObject interactDistance={2.2} onInteract={handleInteract}>
+    <InteractableObject interactDistance={2.2} onInteract={handleInteract} hitboxPad={0.05}>
       <group position={[xOffset, 0, ORB_BEHIND_Z]}>
         <mesh ref={meshRef} position={[0, baseY, 0]}>
           <sphereGeometry args={[0.2, 20, 16]} />
@@ -263,13 +263,13 @@ function DJBooth({ position }: { position: [number, number, number] }) {
       </mesh>
 
       {/* Speaker cones — bottom cab */}
-      <mesh position={[AMP_X, 0.35, -(AMP_D / 2 + 0.01)]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh position={[AMP_X, 0.35, AMP_D / 2 + 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.2, 0.24, 0.03, 12]} />
         <meshStandardMaterial color="#1a1a2e" />
       </mesh>
 
       {/* Speaker cone — top cab */}
-      <mesh position={[AMP_X, 0.85, -(AMP_D / 2 + 0.01)]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh position={[AMP_X, 0.85, AMP_D / 2 + 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.12, 0.15, 0.03, 12]} />
         <meshStandardMaterial color="#1a1a2e" />
       </mesh>
@@ -285,12 +285,12 @@ function DJBooth({ position }: { position: [number, number, number] }) {
         <meshStandardMaterial color="#111122" />
       </mesh>
 
-      <mesh position={[-AMP_X, 0.35, -(AMP_D / 2 + 0.01)]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh position={[-AMP_X, 0.35, AMP_D / 2 + 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.2, 0.24, 0.03, 12]} />
         <meshStandardMaterial color="#1a1a2e" />
       </mesh>
 
-      <mesh position={[-AMP_X, 0.85, -(AMP_D / 2 + 0.01)]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh position={[-AMP_X, 0.85, AMP_D / 2 + 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.12, 0.15, 0.03, 12]} />
         <meshStandardMaterial color="#1a1a2e" />
       </mesh>
