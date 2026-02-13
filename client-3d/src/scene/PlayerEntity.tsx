@@ -162,7 +162,7 @@ function Nametag({ name }: { name: string }) {
     <group position={[0, -0.15, 0]}>
       <Text
         fontSize={NAME_FONT_SIZE}
-        color="#ffffffcc"
+        color="#ffffff"
         anchorX="center"
         anchorY="middle"
         font="/fonts/courier-prime.woff"

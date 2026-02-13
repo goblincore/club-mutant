@@ -57,10 +57,16 @@ export function InteractableObject({
   // Compute hitbox after children mount
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (!groupRef.current) return
+      if (!groupRef.current) {
+        console.warn('[Interactable] groupRef is null after 200ms')
+        return
+      }
 
       const box = new THREE.Box3().setFromObject(groupRef.current)
-      if (box.isEmpty()) return
+      if (box.isEmpty()) {
+        console.warn('[Interactable] Box3 is empty — children have no geometry')
+        return
+      }
 
       const size = new THREE.Vector3()
       const center = new THREE.Vector3()
@@ -69,10 +75,17 @@ export function InteractableObject({
 
       groupRef.current.worldToLocal(center)
 
-      setHitboxData({
-        size: [size.x + HITBOX_PAD * 2, size.y + HITBOX_PAD * 2, size.z + HITBOX_PAD * 2],
-        center: [center.x, center.y, center.z],
-      })
+      const hb = {
+        size: [size.x + HITBOX_PAD * 2, size.y + HITBOX_PAD * 2, size.z + HITBOX_PAD * 2] as [
+          number,
+          number,
+          number,
+        ],
+        center: [center.x, center.y, center.z] as [number, number, number],
+      }
+
+      console.log('[Interactable] hitbox computed', hb)
+      setHitboxData(hb)
     }, 200)
 
     return () => clearTimeout(timer)
@@ -150,6 +163,7 @@ export function InteractableObject({
   })
 
   const handlePointerOver = useCallback(() => {
+    console.log('[Interactable] pointerOver, inRange:', inRange.current)
     isHovered.current = true
     if (inRange.current) document.body.style.cursor = 'pointer'
   }, [])
@@ -161,6 +175,12 @@ export function InteractableObject({
 
   const handleClick = useCallback(
     (e: { stopPropagation: () => void }) => {
+      console.log(
+        '[Interactable] clicked, inRange:',
+        inRange.current,
+        'hasOnInteract:',
+        !!onInteract
+      )
       if (inRange.current && onInteract) {
         e.stopPropagation()
         onInteract()
