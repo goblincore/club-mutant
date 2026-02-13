@@ -4,6 +4,7 @@ export interface DJQueueEntry {
   sessionId: string
   name: string
   position: number
+  slotIndex: number
 }
 
 export interface QueuePlaylistItem {

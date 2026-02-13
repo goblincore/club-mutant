@@ -370,8 +370,11 @@ export class ClubMutant extends Room {
     })
 
     // DJ Queue Management
-    this.onMessage(Message.DJ_QUEUE_JOIN, (client) => {
-      this.dispatcher.dispatch(new DJQueueJoinCommand(), { client })
+    this.onMessage(Message.DJ_QUEUE_JOIN, (client, message) => {
+      this.dispatcher.dispatch(new DJQueueJoinCommand(), {
+        client,
+        slotIndex: message?.slotIndex ?? 0,
+      })
     })
 
     this.onMessage(Message.DJ_QUEUE_LEAVE, (client) => {

@@ -1,8 +1,7 @@
 import { useUIStore } from '../stores/uiStore'
-import { useBoothStore } from '../stores/boothStore'
 import { useGameStore, setPlayerPosition } from '../stores/gameStore'
 import { getNetwork } from '../network/NetworkManager'
-import { BOOTH_WORLD_Z, getDJBoothWorldX } from '../scene/Room'
+import { BOOTH_WORLD_Z, getDJSlotWorldX } from '../scene/Room'
 
 const WORLD_SCALE = 0.01
 
@@ -15,19 +14,17 @@ export function BoothPrompt() {
   if (!open) return null
 
   const handleConfirm = () => {
+    const slotIndex = useUIStore.getState().boothPromptSlotIndex
+
     useUIStore.getState().setBoothPromptOpen(false)
 
-    const booth = useBoothStore.getState()
-    const queueCount = booth.djQueue.length // current DJs before we join
-    const myIndex = queueCount // we'll be appended at the end
-
-    // Connect to booth + join queue
+    // Connect to booth + join queue with chosen slot
     getNetwork().connectToBooth(0)
-    getNetwork().joinDJQueue()
+    getNetwork().joinDJQueue(slotIndex)
     useUIStore.getState().setPlaylistOpen(true)
 
-    // Compute X offset based on queue position (accounting for the new total)
-    const offsetX = getDJBoothWorldX(myIndex, queueCount + 1)
+    // Teleport to the slot position the player clicked
+    const offsetX = getDJSlotWorldX(slotIndex)
     const serverX = offsetX / WORLD_SCALE
 
     // Move player behind the booth

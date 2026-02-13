@@ -7,7 +7,6 @@ import { useGameStore, setPlayerPosition, getPlayerPosition } from '../stores/ga
 import { useChatStore } from '../stores/chatStore'
 import { useMusicStore } from '../stores/musicStore'
 import { useBoothStore } from '../stores/boothStore'
-import { getDJBoothWorldX, BOOTH_WORLD_Z } from '../scene/Room'
 import { triggerRemoteJump } from '../scene/PlayerEntity'
 import { addRipple } from '../scene/TrampolineRipples'
 import { TimeSync } from './TimeSync'
@@ -280,24 +279,37 @@ export class NetworkManager {
       }
     )
 
-    // Late-join: sync DJ queue from schema immediately (no TimeSync needed)
-    const roomState = this.room.state as any
-    const djQueue = roomState.djQueue
+    // Reactive DJ queue sync via schema callbacks.
+    // Fires on initial state sync (late-join) AND on every subsequent change,
+    // so egg visibility is always correct.
+    const syncDJQueue = () => {
+      const rs = this.room?.state as any
+      if (!rs) return
 
-    if (djQueue && djQueue.length > 0) {
-      const entries = Array.from(djQueue as Iterable<any>).map((e: any) => ({
-        sessionId: e.sessionId as string,
-        name: e.name as string,
-        position: (e.queuePosition ?? 0) as number,
-      }))
+      const dq = rs.djQueue
+      const entries: import('../stores/boothStore').DJQueueEntry[] = dq
+        ? Array.from(dq as Iterable<any>).map((e: any) => ({
+            sessionId: e.sessionId as string,
+            name: e.name as string,
+            position: (e.queuePosition ?? 0) as number,
+            slotIndex: (e.slotIndex ?? 0) as number,
+          }))
+        : []
 
       const booth = useBoothStore.getState()
-      booth.setDJQueue(entries, roomState.currentDjSessionId ?? null)
+      booth.setDJQueue(entries, rs.currentDjSessionId ?? null)
 
       const myId = this.room?.sessionId
-      const inQueue = entries.some((e) => e.sessionId === myId)
-      booth.setIsInQueue(inQueue)
+      booth.setIsInQueue(entries.some((e) => e.sessionId === myId))
     }
+
+    // Listen for any change to the djQueue ArraySchema
+    const djQueueProxy = stateProxy.djQueue
+    djQueueProxy.onAdd(() => syncDJQueue())
+    djQueueProxy.onRemove(() => syncDJQueue())
+
+    // Also listen for currentDjSessionId changes
+    stateProxy.listen('currentDjSessionId', () => syncDJQueue())
 
     // Late-join: sync music state AFTER TimeSync is ready (correct seek offset)
     if (this._timeSync) {
@@ -323,42 +335,6 @@ export class NetworkManager {
         })
       })
     }
-
-    // DJ Queue updates
-    this.room.onMessage(
-      Message.DJ_QUEUE_UPDATED,
-      (payload: { djQueue: any[]; currentDjSessionId: string | null }) => {
-        const booth = useBoothStore.getState()
-        booth.setDJQueue(payload.djQueue, payload.currentDjSessionId)
-
-        const myId = this.room?.sessionId
-        const inQueue = payload.djQueue.some((e) => e.sessionId === myId)
-        booth.setIsInQueue(inQueue)
-
-        // Reposition all DJs behind the booth based on their queue index
-        const WORLD_SCALE = 0.01
-        const behindBoothY = -(BOOTH_WORLD_Z - 0.8) / WORLD_SCALE
-        const queueCount = payload.djQueue.length
-        const gameState = useGameStore.getState()
-
-        for (let i = 0; i < queueCount; i++) {
-          const entry = payload.djQueue[i]
-          const offsetX = getDJBoothWorldX(i, queueCount)
-          const serverX = offsetX / WORLD_SCALE
-
-          if (entry.sessionId === myId) {
-            // Reposition local player
-            gameState.setLocalPosition(serverX, behindBoothY)
-            if (myId) setPlayerPosition(myId, serverX, behindBoothY)
-
-            this.sendPosition(serverX, behindBoothY, 'idle')
-          } else {
-            // Reposition remote players
-            setPlayerPosition(entry.sessionId, serverX, behindBoothY)
-          }
-        }
-      }
-    )
 
     // Per-player queue playlist updates
     this.room.onMessage(Message.ROOM_QUEUE_PLAYLIST_UPDATED, (payload: { items: any[] }) => {
@@ -451,8 +427,8 @@ export class NetworkManager {
   }
 
   // DJ queue
-  joinDJQueue() {
-    this.room?.send(Message.DJ_QUEUE_JOIN, {})
+  joinDJQueue(slotIndex: number = 0) {
+    this.room?.send(Message.DJ_QUEUE_JOIN, { slotIndex })
   }
 
   leaveDJQueue() {

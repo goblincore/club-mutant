@@ -9,6 +9,7 @@ interface UIState {
   psxEnabled: boolean
   showNametags: boolean
   boothPromptOpen: boolean
+  boothPromptSlotIndex: number
   muted: boolean
   showFps: boolean
   renderScale: number
@@ -20,7 +21,7 @@ interface UIState {
   setPlaylistOpen: (open: boolean) => void
   setPlaylistMinimized: (minimized: boolean) => void
   toggleNametags: () => void
-  setBoothPromptOpen: (open: boolean) => void
+  setBoothPromptOpen: (open: boolean, slotIndex?: number) => void
   toggleMuted: () => void
   toggleFps: () => void
   cycleRenderScale: () => void
@@ -35,6 +36,7 @@ export const useUIStore = create<UIState>((set) => ({
   psxEnabled: true,
   showNametags: true,
   boothPromptOpen: false,
+  boothPromptSlotIndex: 0,
   muted: false,
   showFps: false,
   renderScale: 0.75,
@@ -46,7 +48,8 @@ export const useUIStore = create<UIState>((set) => ({
   setPlaylistOpen: (open) => set({ playlistOpen: open, playlistMinimized: false }),
   setPlaylistMinimized: (minimized) => set({ playlistMinimized: minimized }),
   toggleNametags: () => set((s) => ({ showNametags: !s.showNametags })),
-  setBoothPromptOpen: (open) => set({ boothPromptOpen: open }),
+  setBoothPromptOpen: (open, slotIndex) =>
+    set({ boothPromptOpen: open, boothPromptSlotIndex: slotIndex ?? 0 }),
   toggleMuted: () => set((s) => ({ muted: !s.muted })),
 
   toggleFps: () => set((s) => ({ showFps: !s.showFps })),

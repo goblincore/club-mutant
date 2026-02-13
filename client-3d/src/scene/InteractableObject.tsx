@@ -118,13 +118,13 @@ export function InteractableObject({
 
     inRange.current = dist < interactDistance
 
-    // Smooth exponential fade
-    const target = inRange.current ? 1 : 0
+    // Highlight triggers on hover, not proximity
+    const hoverTarget = isHovered.current ? 1 : 0
     const t = 1 - Math.exp(-GLOW_FADE_SPEED * delta)
-    currentOpacity.current += (target - currentOpacity.current) * t
+    currentOpacity.current += (hoverTarget - currentOpacity.current) * t
 
-    // Gentle pulse when in range
-    const pulse = inRange.current ? 0.7 + 0.3 * Math.sin(performance.now() * PULSE_SPEED) : 1
+    // Gentle pulse when hovered
+    const pulse = isHovered.current ? 0.7 + 0.3 * Math.sin(performance.now() * PULSE_SPEED) : 1
 
     // Export intensity for PsxPostProcess to read
     highlightIntensity = currentOpacity.current * pulse

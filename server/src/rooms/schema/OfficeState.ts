@@ -17,6 +17,7 @@ export class DJQueueEntry extends Schema {
   @type('string') name = ''
   @type('number') joinedAtMs = 0
   @type('number') queuePosition = 0 // Visual position (0 = current DJ)
+  @type('number') slotIndex = 0 // Which physical orb/seat the player chose (0, 1, or 2)
 }
 
 export class Player extends Schema {

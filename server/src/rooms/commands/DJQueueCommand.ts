@@ -7,6 +7,7 @@ import { playTrackForCurrentDJ } from './djHelpers'
 
 type Payload = {
   client: Client
+  slotIndex?: number
 }
 
 // Helper function to find next DJ with tracks
@@ -178,6 +179,8 @@ function removeDJFromQueue(room: ClubMutant, sessionId: string) {
   })
 }
 
+export const MAX_DJ_QUEUE_SIZE = 3
+
 export class DJQueueJoinCommand extends Command<ClubMutant, Payload> {
   execute(data: Payload) {
     const { client } = data
@@ -190,12 +193,32 @@ export class DJQueueJoinCommand extends Command<ClubMutant, Payload> {
     )
     if (existingIndex >= 0) return
 
+    // Enforce max queue size
+    if (this.state.djQueue.length >= MAX_DJ_QUEUE_SIZE) {
+      console.log('[DJQueue] Queue full, rejecting:', client.sessionId)
+      return
+    }
+
+    // Validate slotIndex (0, 1, or 2) and ensure it's not already taken
+    const slot =
+      typeof data.slotIndex === 'number' && data.slotIndex >= 0 && data.slotIndex <= 2
+        ? data.slotIndex
+        : 0
+
+    const slotTaken = this.state.djQueue.some((e) => e.slotIndex === slot)
+
+    if (slotTaken) {
+      console.log('[DJQueue] Slot', slot, 'already taken, rejecting:', client.sessionId)
+      return
+    }
+
     // Add to queue
     const entry = new DJQueueEntry()
     entry.sessionId = client.sessionId
     entry.name = player.name
     entry.joinedAtMs = Date.now()
     entry.queuePosition = this.state.djQueue.length
+    entry.slotIndex = slot
 
     this.state.djQueue.push(entry)
 
