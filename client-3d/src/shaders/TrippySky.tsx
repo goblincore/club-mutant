@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
@@ -120,6 +120,13 @@ void main() {
 export function TrippySky() {
   const matRef = useRef<THREE.ShaderMaterial>(null)
 
+  const uniforms = useMemo(
+    () => ({
+      uTime: { value: 0 },
+    }),
+    []
+  )
+
   useFrame(({ clock }) => {
     if (matRef.current) {
       matRef.current.uniforms.uTime.value = clock.getElapsedTime()
@@ -133,9 +140,7 @@ export function TrippySky() {
         ref={matRef}
         vertexShader={vertexShader}
         fragmentShader={fragmentShader}
-        uniforms={{
-          uTime: { value: 0 },
-        }}
+        uniforms={uniforms}
         side={THREE.BackSide}
         depthWrite={false}
       />

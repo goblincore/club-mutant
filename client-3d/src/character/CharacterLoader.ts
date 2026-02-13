@@ -77,15 +77,27 @@ export async function loadCharacter(basePath: string): Promise<LoadedCharacter> 
   return { manifest, textures }
 }
 
-// Cache loaded characters
+// Cache loaded characters — keeps successful loads, evicts failures
 const cache = new Map<string, Promise<LoadedCharacter>>()
 
 export function loadCharacterCached(basePath: string): Promise<LoadedCharacter> {
-  // During dev, always reload to avoid caching failed loads
-  cache.delete(basePath)
+  const existing = cache.get(basePath)
+
+  if (existing) return existing
 
   const promise = loadCharacter(basePath)
+
   cache.set(basePath, promise)
 
+  // Evict on failure so next attempt retries
+  promise.catch(() => {
+    cache.delete(basePath)
+  })
+
   return promise
+}
+
+// Preload a character into the cache (fire-and-forget, used by lobby)
+export function preloadCharacter(basePath: string): void {
+  loadCharacterCached(basePath)
 }

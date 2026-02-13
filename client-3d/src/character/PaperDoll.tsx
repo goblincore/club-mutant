@@ -306,7 +306,17 @@ export function PaperDoll({
     }
   }, [loaded, layout.worldHeight, layout.headTopY, layout.visualTopY, onLayout])
 
-  if (!loaded) return null
+  // Subtle placeholder while character assets are loading
+  if (!loaded) {
+    return (
+      <group position={[0, 0.55, 0]}>
+        <mesh>
+          <capsuleGeometry args={[0.18, 0.5, 4, 8]} />
+          <meshBasicMaterial color="#888" transparent opacity={0.25} />
+        </mesh>
+      </group>
+    )
+  }
 
   const rootParts = loaded.manifest.parts.filter((p) => p.parent === null)
 

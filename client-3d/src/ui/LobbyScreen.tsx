@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 import { getNetwork } from '../network/NetworkManager'
 import { useGameStore } from '../stores/gameStore'
+import { preloadCharacter } from '../character/CharacterLoader'
 
 // Character roster — add new entries here as characters are created.
 // Placeholder entries use the default character until real assets exist.
@@ -40,6 +41,13 @@ export function LobbyScreen() {
   const [name, setName] = useState('')
   const [selectedId, setSelectedId] = useState(CHARACTERS[0]!.id)
   const [connecting, setConnecting] = useState(false)
+
+  // Preload the selected character's assets so they're cached before entering the room
+  useEffect(() => {
+    const char = CHARACTERS.find((c) => c.id === selectedId)
+
+    if (char) preloadCharacter(char.path)
+  }, [selectedId])
   const [error, setError] = useState<string | null>(null)
 
   const handleJoin = async () => {
