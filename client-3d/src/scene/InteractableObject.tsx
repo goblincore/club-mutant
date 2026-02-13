@@ -31,11 +31,16 @@ export const HIGHLIGHT_LAYER = 2
 // Global outline intensity — written by InteractableObject, read by PsxPostProcess
 export let highlightIntensity = 0
 
+// When true, PsxPostProcess does a depth pre-pass so the outline respects scene occlusion.
+export let highlightNeedsOcclusion = false
+
 interface InteractableObjectProps {
   children: React.ReactNode
   interactDistance: number
   onInteract?: () => void
   hitboxPad?: number
+  /** When true, the highlight outline is clipped by scene geometry (depth-tested). */
+  occludeHighlight?: boolean
 }
 
 export function InteractableObject({
@@ -43,6 +48,7 @@ export function InteractableObject({
   interactDistance,
   onInteract,
   hitboxPad = DEFAULT_HITBOX_PAD,
+  occludeHighlight = false,
 }: InteractableObjectProps) {
   const groupRef = useRef<THREE.Group>(null)
   const childrenGroupRef = useRef<THREE.Group>(null)
@@ -136,8 +142,8 @@ export function InteractableObject({
 
     inRange.current = dist < interactDistance
 
-    // Highlight triggers on hover, not proximity
-    const hoverTarget = isHovered.current ? 1 : 0
+    // Highlight requires both hover AND proximity
+    const hoverTarget = isHovered.current && inRange.current ? 1 : 0
     const t = 1 - Math.exp(-GLOW_FADE_SPEED * delta)
     currentOpacity.current += (hoverTarget - currentOpacity.current) * t
 
@@ -152,6 +158,7 @@ export function InteractableObject({
     // prevents non-hovered objects from zeroing out another object's highlight.
     if (shouldHighlight || isHighlighted.current) {
       highlightIntensity = currentOpacity.current * pulse
+      highlightNeedsOcclusion = occludeHighlight
     }
 
     if (shouldHighlight !== isHighlighted.current) {

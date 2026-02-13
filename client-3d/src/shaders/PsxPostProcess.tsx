@@ -3,7 +3,11 @@ import { useThree, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useUIStore } from '../stores/uiStore'
 import { cameraDistance } from '../scene/Camera'
-import { HIGHLIGHT_LAYER, highlightIntensity } from '../scene/InteractableObject'
+import {
+  HIGHLIGHT_LAYER,
+  highlightIntensity,
+  highlightNeedsOcclusion,
+} from '../scene/InteractableObject'
 
 /**
  * VHS + PSX post-processing pass (WebGL2 / GLSL3).
@@ -216,9 +220,14 @@ export function PsxPostProcess() {
     })
   }, [])
 
-  // Flat white override material for mask color pass (no depth test — full silhouette)
-  const maskMaterial = useMemo(() => {
+  // Flat white override material for mask color pass
+  const maskMaterialNoDepth = useMemo(() => {
     return new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false })
+  }, [])
+
+  // Depth-tested variant for objects that want occlusion-aware outlines
+  const maskMaterialDepth = useMemo(() => {
+    return new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: true })
   }, [])
 
   // Simple blit shader for downsampling scene → bloom RT
@@ -313,11 +322,20 @@ export function PsxPostProcess() {
       target.dispose()
       bloomTarget.dispose()
       maskTarget.dispose()
-      maskMaterial.dispose()
+      maskMaterialNoDepth.dispose()
+      maskMaterialDepth.dispose()
       material.dispose()
       blitMaterial.dispose()
     }
-  }, [target, bloomTarget, maskTarget, maskMaterial, material, blitMaterial])
+  }, [
+    target,
+    bloomTarget,
+    maskTarget,
+    maskMaterialNoDepth,
+    maskMaterialDepth,
+    material,
+    blitMaterial,
+  ])
 
   // Custom render loop: scene → low-res target → VHS shader → screen
   useFrame((_, delta) => {
@@ -355,13 +373,27 @@ export function PsxPostProcess() {
       gl.setClearColor(0x000000, 0)
       gl.clear()
 
-      // Render highlighted objects (layer 2) as flat white, no depth test.
-      // Full silhouette renders even when partially behind other geometry
-      // (e.g. DJ eggs behind the booth table).
-      camera.layers.set(HIGHLIGHT_LAYER)
-      scene.overrideMaterial = maskMaterial
-      render(scene, camera)
+      if (highlightNeedsOcclusion) {
+        // Depth pre-pass: render full scene to populate depth buffer,
+        // then clear color and render highlight with depth testing.
+        camera.layers.mask = savedMask
+        camera.layers.disable(1)
+        gl.autoClear = false
+        render(scene, camera)
 
+        gl.clear(true, false, false)
+
+        camera.layers.set(HIGHLIGHT_LAYER)
+        scene.overrideMaterial = maskMaterialDepth
+        render(scene, camera)
+      } else {
+        // No occlusion: full silhouette renders through geometry.
+        camera.layers.set(HIGHLIGHT_LAYER)
+        scene.overrideMaterial = maskMaterialNoDepth
+        render(scene, camera)
+      }
+
+      gl.autoClear = true
       scene.overrideMaterial = null
       material.uniforms.tMask.value = maskTarget.texture
     } else {
