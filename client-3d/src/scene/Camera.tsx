@@ -6,7 +6,7 @@ import { useGameStore, getPlayerPosition } from '../stores/gameStore'
 
 const WORLD_SCALE = 0.01
 const LERP_SPEED = 5
-const FOLLOW_LERP = 8 // how fast the camera target follows the player (lower = more trailing)
+const FOLLOW_LERP = 4 // how fast the camera target follows the player (lower = more trailing)
 
 // Spherical camera defaults
 const DEFAULT_DISTANCE = 6
