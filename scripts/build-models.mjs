@@ -142,14 +142,14 @@ function cylinderGeometry(radiusTop, radiusBot, height, segments = 8) {
   }
 }
 
-/** Generate a low-poly sphere (UV sphere). */
-function sphereGeometry(radius, wSeg = 8, hSeg = 6) {
+/** Generate a low-poly sphere (UV sphere). thetaStart/thetaLength control vertical range (0→PI = full, 0→PI/2 = top half). */
+function sphereGeometry(radius, wSeg = 8, hSeg = 6, thetaStart = 0, thetaLength = Math.PI) {
   const positions = []
   const normals = []
   const indices = []
 
   for (let y = 0; y <= hSeg; y++) {
-    const phi = (y / hSeg) * Math.PI
+    const phi = thetaStart + (y / hSeg) * thetaLength
 
     for (let x = 0; x <= wSeg; x++) {
       const theta = (x / wSeg) * Math.PI * 2
@@ -178,6 +178,65 @@ function sphereGeometry(radius, wSeg = 8, hSeg = 6) {
   }
 }
 
+/** Generate a torus (or partial torus for arc < 2PI). */
+function torusGeometry(radius, tube, radialSeg = 8, tubularSeg = 12, arc = Math.PI * 2) {
+  const positions = []
+  const normals = []
+  const indices = []
+
+  for (let j = 0; j <= radialSeg; j++) {
+    for (let i = 0; i <= tubularSeg; i++) {
+      const u = (i / tubularSeg) * arc
+      const v = (j / radialSeg) * Math.PI * 2
+
+      const x = (radius + tube * Math.cos(v)) * Math.cos(u)
+      const y = (radius + tube * Math.cos(v)) * Math.sin(u)
+      const z = tube * Math.sin(v)
+
+      positions.push(x, y, z)
+
+      const cx = radius * Math.cos(u)
+      const cy = radius * Math.sin(u)
+      const nx = x - cx,
+        ny = y - cy,
+        nz = z
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1
+      normals.push(nx / len, ny / len, nz / len)
+    }
+  }
+
+  for (let j = 0; j < radialSeg; j++) {
+    for (let i = 0; i < tubularSeg; i++) {
+      const a = j * (tubularSeg + 1) + i
+      const b = a + tubularSeg + 1
+      indices.push(a, b, a + 1, b, b + 1, a + 1)
+    }
+  }
+
+  return {
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+    indices: new Uint16Array(indices),
+  }
+}
+
+/** Convert Euler angles (XYZ order) to quaternion [x, y, z, w]. */
+function eulerToQuat(rx, ry, rz) {
+  const cx = Math.cos(rx / 2),
+    sx = Math.sin(rx / 2)
+  const cy = Math.cos(ry / 2),
+    sy = Math.sin(ry / 2)
+  const cz = Math.cos(rz / 2),
+    sz = Math.sin(rz / 2)
+
+  return [
+    sx * cy * cz + cx * sy * sz,
+    cx * sy * cz - sx * cy * sz,
+    cx * cy * sz + sx * sy * cz,
+    cx * cy * cz - sx * sy * sz,
+  ]
+}
+
 // ── GLTF builder helpers ──
 
 function createMeshPrimitive(doc, buffer, geo, material) {
@@ -195,11 +254,32 @@ function createMeshPrimitive(doc, buffer, geo, material) {
     .setMaterial(material)
 }
 
-function addMeshNode(doc, buffer, scene, parent, geo, material, translation, name) {
+function addMeshNode(doc, buffer, scene, parent, geo, material, translation, name, rotation) {
   const prim = createMeshPrimitive(doc, buffer, geo, material)
   const mesh = doc.createMesh(name).addPrimitive(prim)
 
   const node = doc.createNode(name).setMesh(mesh).setTranslation(translation)
+
+  if (rotation) {
+    node.setRotation(eulerToQuat(rotation[0], rotation[1], rotation[2]))
+  }
+
+  if (parent) {
+    parent.addChild(node)
+  } else {
+    scene.addChild(node)
+  }
+
+  return node
+}
+
+/** Create an empty group node (no mesh) — for nesting rotated sub-groups. */
+function addGroupNode(doc, scene, parent, translation, name, rotation) {
+  const node = doc.createNode(name).setTranslation(translation)
+
+  if (rotation) {
+    node.setRotation(eulerToQuat(rotation[0], rotation[1], rotation[2]))
+  }
 
   if (parent) {
     parent.addChild(node)
@@ -386,7 +466,7 @@ function buildOldComputerDesk(doc) {
     buffer,
     scene,
     root,
-    sphereGeometry(0.2, 8, 6),
+    sphereGeometry(0.2, 8, 6, 0, Math.PI / 2),
     crtHump,
     [0, DESK_H + 0.2, -0.28],
     'crt-hump'
@@ -509,6 +589,293 @@ function buildOldComputerDesk(doc) {
   return doc
 }
 
+function buildDJBooth(doc) {
+  const buffer = doc.createBuffer()
+  const scene = doc.createScene('DJBooth')
+  const root = doc.createNode('Root')
+  scene.addChild(root)
+
+  const TABLE_Y = 0.38
+  const TABLE_W = 2.8
+  const TABLE_D = 0.7
+  const AMP_X = 1.85
+  const AMP_D = 0.55
+
+  // Materials
+  const tableTop = makeMaterial(doc, 'table-top', '#b0b0b0', { roughness: 0.6, metallic: 0.05 })
+  const tableLeg = makeMaterial(doc, 'table-leg', '#777777', { metallic: 0.3, roughness: 0.6 })
+  const laptopBlack = makeMaterial(doc, 'laptop-black', '#222222', {
+    metallic: 0.3,
+    roughness: 0.6,
+  })
+  const laptopSilver = makeMaterial(doc, 'laptop-silver', '#c0c0c8', {
+    metallic: 0.3,
+    roughness: 0.6,
+  })
+  const laptopKeys = makeMaterial(doc, 'laptop-keys', '#1a1a1a')
+  const laptopScreen = makeMaterial(doc, 'laptop-screen', '#3344aa', { emissive: '#3344aa' })
+  const mixerBody = makeMaterial(doc, 'mixer-body', '#1a1a2e')
+  const mixerFader = makeMaterial(doc, 'mixer-fader', '#444466')
+  const mixerKnob = makeMaterial(doc, 'mixer-knob', '#666688', { metallic: 0.5, roughness: 0.3 })
+  const headphoneBlack = makeMaterial(doc, 'hp-black', '#222222')
+  const earCup = makeMaterial(doc, 'ear-cup', '#1a1a1a')
+  const ampBottom = makeMaterial(doc, 'amp-bottom', '#0d0d1a')
+  const ampTop = makeMaterial(doc, 'amp-top', '#111122')
+  const speakerCone = makeMaterial(doc, 'speaker-cone', '#1a1a2e')
+
+  // ── Table ──
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(TABLE_W, 0.03, TABLE_D),
+    tableTop,
+    [0, TABLE_Y, 0],
+    'table-top'
+  )
+
+  const legPositions = [
+    [-TABLE_W / 2 + 0.06, -TABLE_D / 2 + 0.06],
+    [TABLE_W / 2 - 0.06, -TABLE_D / 2 + 0.06],
+    [-TABLE_W / 2 + 0.06, TABLE_D / 2 - 0.06],
+    [TABLE_W / 2 - 0.06, TABLE_D / 2 - 0.06],
+  ]
+
+  legPositions.forEach(([lx, lz], i) => {
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      root,
+      boxGeometry(0.04, TABLE_Y, 0.04),
+      tableLeg,
+      [lx, TABLE_Y / 2, lz],
+      `table-leg-${i}`
+    )
+  })
+
+  // ── Laptops ──
+  const laptopConfigs = [
+    { xOff: 0.85, body: laptopBlack },
+    { xOff: -0.35, body: laptopSilver },
+    { xOff: -1.1, body: laptopBlack },
+  ]
+
+  laptopConfigs.forEach(({ xOff, body }, li) => {
+    const laptopGroup = addGroupNode(
+      doc,
+      scene,
+      root,
+      [xOff, TABLE_Y + 0.01, -0.02],
+      `laptop-${li}`
+    )
+
+    // Base / palmrest
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      laptopGroup,
+      boxGeometry(0.36, 0.015, 0.25),
+      body,
+      [0, 0, 0],
+      `laptop-base-${li}`
+    )
+
+    // Keyboard inset
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      laptopGroup,
+      boxGeometry(0.28, 0.002, 0.14),
+      laptopKeys,
+      [0, 0.009, -0.02],
+      `laptop-keys-${li}`
+    )
+
+    // Screen lid group (hinged, angled open)
+    const lidGroup = addGroupNode(
+      doc,
+      scene,
+      laptopGroup,
+      [0, 0.008, 0.12],
+      `laptop-lid-${li}`,
+      [0.5, 0, 0]
+    )
+
+    // Lid back
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      lidGroup,
+      boxGeometry(0.36, 0.22, 0.012),
+      body,
+      [0, 0.11, 0],
+      `laptop-lid-back-${li}`
+    )
+
+    // Screen face
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      lidGroup,
+      boxGeometry(0.3, 0.18, 0.003),
+      laptopScreen,
+      [0, 0.11, -0.007],
+      `laptop-screen-${li}`
+    )
+  })
+
+  // ── Mixer ──
+  const mixerGroup = addGroupNode(doc, scene, root, [0.2, 0, 0], 'mixer-group')
+
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    mixerGroup,
+    boxGeometry(0.35, 0.04, 0.28),
+    mixerBody,
+    [0, TABLE_Y + 0.03, 0],
+    'mixer-body'
+  )
+
+  // Faders
+  ;[-0.07, 0, 0.07].forEach((fx, i) => {
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      mixerGroup,
+      boxGeometry(0.025, 0.006, 0.18),
+      mixerFader,
+      [fx, TABLE_Y + 0.054, 0],
+      `fader-${i}`
+    )
+  })
+
+  // Knobs
+  const knobPositions = [
+    [-0.1, -0.1],
+    [0, -0.1],
+    [0.1, -0.1],
+    [-0.1, 0.08],
+    [0.1, 0.08],
+  ]
+
+  knobPositions.forEach(([kx, kz], i) => {
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      mixerGroup,
+      cylinderGeometry(0.015, 0.015, 0.012, 8),
+      mixerKnob,
+      [kx, TABLE_Y + 0.058, kz],
+      `knob-${i}`,
+      [-Math.PI / 2, 0, 0]
+    )
+  })
+
+  // ── Headphones ──
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    torusGeometry(0.07, 0.01, 8, 12, Math.PI),
+    headphoneBlack,
+    [1.15, TABLE_Y + 0.05, -0.12],
+    'hp-band',
+    [0, -0.3, Math.PI / 2]
+  )
+
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    cylinderGeometry(0.035, 0.035, 0.02, 8),
+    earCup,
+    [1.15, TABLE_Y + 0.01, -0.05],
+    'hp-ear-l',
+    [-Math.PI / 2, 0, 0]
+  )
+
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    cylinderGeometry(0.035, 0.035, 0.02, 8),
+    earCup,
+    [1.15, TABLE_Y + 0.01, -0.19],
+    'hp-ear-r',
+    [-Math.PI / 2, 0, 0]
+  )
+
+  // ── Speaker stacks ──
+  ;[AMP_X, -AMP_X].forEach((ampX, si) => {
+    const side = si === 0 ? 'L' : 'R'
+
+    // Bottom cabinet
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      root,
+      boxGeometry(0.65, 0.7, AMP_D),
+      ampBottom,
+      [ampX, 0.35, 0],
+      `amp-bot-${side}`
+    )
+
+    // Top cabinet
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      root,
+      boxGeometry(0.65, 0.4, AMP_D),
+      ampTop,
+      [ampX, 0.85, 0],
+      `amp-top-${side}`
+    )
+
+    // Bottom speaker cone
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      root,
+      cylinderGeometry(0.2, 0.24, 0.03, 12),
+      speakerCone,
+      [ampX, 0.35, AMP_D / 2 + 0.01],
+      `cone-bot-${side}`,
+      [-Math.PI / 2, 0, 0]
+    )
+
+    // Top speaker cone
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      root,
+      cylinderGeometry(0.12, 0.15, 0.03, 12),
+      speakerCone,
+      [ampX, 0.85, AMP_D / 2 + 0.01],
+      `cone-top-${side}`,
+      [-Math.PI / 2, 0, 0]
+    )
+  })
+
+  return doc
+}
+
 // ── Main ──
 
 /** Optimize a document by deduplicating materials, flattening hierarchy, and joining meshes. */
@@ -525,21 +892,25 @@ async function optimizeDocument(doc) {
   console.log(`  meshes: ${meshesBefore} → ${meshesAfter} (merged by material)`)
 }
 
-async function main() {
-  mkdirSync(OUT_DIR, { recursive: true })
-
-  console.log('Building OldComputerDesk...')
-  const deskDoc = buildOldComputerDesk(new Document())
-
-  await optimizeDocument(deskDoc)
+async function buildAndWrite(name, buildFn, filename) {
+  console.log(`Building ${name}...`)
+  const doc = buildFn(new Document())
+  await optimizeDocument(doc)
 
   const io = new NodeIO()
-  const glb = await io.writeBinary(deskDoc)
-  const outPath = resolve(OUT_DIR, 'old-computer-desk.glb')
+  const glb = await io.writeBinary(doc)
+  const outPath = resolve(OUT_DIR, filename)
   writeFileSync(outPath, Buffer.from(glb))
 
   const sizeKB = (glb.byteLength / 1024).toFixed(1)
   console.log(`  → ${outPath} (${sizeKB} KB)`)
+}
+
+async function main() {
+  mkdirSync(OUT_DIR, { recursive: true })
+
+  await buildAndWrite('OldComputerDesk', buildOldComputerDesk, 'old-computer-desk.glb')
+  await buildAndWrite('DJBooth', buildDJBooth, 'dj-booth.glb')
 
   console.log('Done!')
 }

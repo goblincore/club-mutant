@@ -16,6 +16,7 @@ import './SpottedEggMaterial'
 
 // Preload GLB models to avoid pop-in
 GLBModel.preload('/models/old-computer-desk.glb')
+GLBModel.preload('/models/dj-booth.glb')
 
 interface RoomProps {
   videoTexture?: THREE.VideoTexture | null
@@ -159,139 +160,15 @@ function DJSlotOrb({
   )
 }
 
-// DJ booth — light gray desk with 3 laptops, mixer, speaker amp stacks, spotted egg slot orbs
+// DJ booth — GLB static furniture + dynamic spotted egg slot orbs
 function DJBooth({ position }: { position: [number, number, number] }) {
-  const TABLE_Y = 0.38
-  const TABLE_W = 2.8
-  const TABLE_D = 0.7
-
-  const AMP_X = 1.85 // amp stacks placed outside the table
-  const AMP_D = 0.55
-
   const djQueue = useBoothStore((s) => s.djQueue)
   const occupiedSlots = new Set(djQueue.map((e) => e.slotIndex))
 
   return (
     <group position={position}>
-      {/* === Foldable table (light gray) === */}
-      <mesh position={[0, TABLE_Y, 0]}>
-        <boxGeometry args={[TABLE_W, 0.03, TABLE_D]} />
-        <meshStandardMaterial color="#b0b0b0" roughness={0.6} metalness={0.05} />
-      </mesh>
-
-      {/* Table legs */}
-      {[
-        [-TABLE_W / 2 + 0.06, 0, -TABLE_D / 2 + 0.06],
-        [TABLE_W / 2 - 0.06, 0, -TABLE_D / 2 + 0.06],
-        [-TABLE_W / 2 + 0.06, 0, TABLE_D / 2 - 0.06],
-        [TABLE_W / 2 - 0.06, 0, TABLE_D / 2 - 0.06],
-      ].map(([lx, _, lz], i) => (
-        <mesh key={`leg-${i}`} position={[lx, TABLE_Y / 2, lz]}>
-          <boxGeometry args={[0.04, TABLE_Y, 0.04]} />
-          <meshStandardMaterial color="#777777" metalness={0.3} roughness={0.6} />
-        </mesh>
-      ))}
-
-      {/* === 3 Laptops (left, center, right) === */}
-      <Laptop xOffset={0.85} screenColor="#3344aa" />
-      <Laptop xOffset={-0.35} screenColor="#3344aa" bodyColor="#c0c0c8" />
-      <Laptop xOffset={-1.1} screenColor="#3344aa" />
-
-      {/* === Mixer — on the desk === */}
-      <group position={[0.2, 0, 0]}>
-        <mesh position={[0, TABLE_Y + 0.03, 0]}>
-          <boxGeometry args={[0.35, 0.04, 0.28]} />
-          <meshStandardMaterial color="#1a1a2e" />
-        </mesh>
-
-        {/* Mixer faders */}
-        {[-0.07, 0, 0.07].map((fx, i) => (
-          <mesh key={`fader-${i}`} position={[fx, TABLE_Y + 0.054, 0]}>
-            <boxGeometry args={[0.025, 0.006, 0.18]} />
-            <meshStandardMaterial color="#444466" />
-          </mesh>
-        ))}
-
-        {/* Mixer knobs */}
-        {[
-          [-0.1, -0.1],
-          [0, -0.1],
-          [0.1, -0.1],
-          [-0.1, 0.08],
-          [0.1, 0.08],
-        ].map(([kx, kz], i) => (
-          <mesh
-            key={`knob-${i}`}
-            position={[kx, TABLE_Y + 0.058, kz]}
-            rotation={[-Math.PI / 2, 0, 0]}
-          >
-            <cylinderGeometry args={[0.015, 0.015, 0.012, 8]} />
-            <meshStandardMaterial color="#666688" metalness={0.5} roughness={0.3} />
-          </mesh>
-        ))}
-      </group>
-
-      {/* === Headphones (draped on table edge) === */}
-      <mesh position={[1.15, TABLE_Y + 0.05, -0.12]} rotation={[0, -0.3, Math.PI / 2]}>
-        <torusGeometry args={[0.07, 0.01, 8, 12, Math.PI]} />
-        <meshStandardMaterial color="#222222" />
-      </mesh>
-
-      <mesh position={[1.15, TABLE_Y + 0.01, -0.05]} rotation={[-Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.035, 0.035, 0.02, 8]} />
-        <meshStandardMaterial color="#1a1a1a" />
-      </mesh>
-
-      <mesh position={[1.15, TABLE_Y + 0.01, -0.19]} rotation={[-Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.035, 0.035, 0.02, 8]} />
-        <meshStandardMaterial color="#1a1a1a" />
-      </mesh>
-
-      {/* === Speaker amp stack (left) === */}
-      {/* Bottom cabinet (larger) */}
-      <mesh position={[AMP_X, 0.35, 0]}>
-        <boxGeometry args={[0.65, 0.7, AMP_D]} />
-        <meshStandardMaterial color="#0d0d1a" />
-      </mesh>
-
-      {/* Top cabinet (smaller) */}
-      <mesh position={[AMP_X, 0.85, 0]}>
-        <boxGeometry args={[0.65, 0.4, AMP_D]} />
-        <meshStandardMaterial color="#111122" />
-      </mesh>
-
-      {/* Speaker cones — bottom cab */}
-      <mesh position={[AMP_X, 0.35, AMP_D / 2 + 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.2, 0.24, 0.03, 12]} />
-        <meshStandardMaterial color="#1a1a2e" />
-      </mesh>
-
-      {/* Speaker cone — top cab */}
-      <mesh position={[AMP_X, 0.85, AMP_D / 2 + 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.12, 0.15, 0.03, 12]} />
-        <meshStandardMaterial color="#1a1a2e" />
-      </mesh>
-
-      {/* === Speaker amp stack (right) === */}
-      <mesh position={[-AMP_X, 0.35, 0]}>
-        <boxGeometry args={[0.65, 0.7, AMP_D]} />
-        <meshStandardMaterial color="#0d0d1a" />
-      </mesh>
-
-      <mesh position={[-AMP_X, 0.85, 0]}>
-        <boxGeometry args={[0.65, 0.4, AMP_D]} />
-        <meshStandardMaterial color="#111122" />
-      </mesh>
-
-      <mesh position={[-AMP_X, 0.35, AMP_D / 2 + 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.2, 0.24, 0.03, 12]} />
-        <meshStandardMaterial color="#1a1a2e" />
-      </mesh>
-
-      <mesh position={[-AMP_X, 0.85, AMP_D / 2 + 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.12, 0.15, 0.03, 12]} />
-        <meshStandardMaterial color="#1a1a2e" />
-      </mesh>
+      {/* Static furniture (table, legs, laptops, mixer, headphones, speakers) */}
+      <GLBModel src="/models/dj-booth.glb" />
 
       {/* === Spotted egg DJ slot markers (behind booth) === */}
       {DJ_SLOT_OFFSETS_X.map((xOff, i) => (
