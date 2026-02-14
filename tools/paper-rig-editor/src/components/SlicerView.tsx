@@ -28,12 +28,14 @@ export function SlicerView() {
   const sourceHeight = useEditorStore((s) => s.slicerSourceHeight)
   const regions = useEditorStore((s) => s.slicerRegions)
   const tolerance = useEditorStore((s) => s.slicerTolerance)
+  const bgRemovalEnabled = useEditorStore((s) => s.slicerBgRemovalEnabled)
   const selectedRegionId = useEditorStore((s) => s.slicerSelectedRegionId)
   const drawingRole = useEditorStore((s) => s.slicerDrawingRole)
 
   const setSlicerSource = useEditorStore((s) => s.setSlicerSource)
   const setSlicerProcessedUrl = useEditorStore((s) => s.setSlicerProcessedUrl)
   const setSlicerTolerance = useEditorStore((s) => s.setSlicerTolerance)
+  const setSlicerBgRemovalEnabled = useEditorStore((s) => s.setSlicerBgRemovalEnabled)
   const setSlicerSelectedRegionId = useEditorStore((s) => s.setSlicerSelectedRegionId)
   const setSlicerDrawingRole = useEditorStore((s) => s.setSlicerDrawingRole)
   const addPointToRegion = useEditorStore((s) => s.addPointToRegion)
@@ -45,18 +47,23 @@ export function SlicerView() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [processing, setProcessing] = useState(false)
   const [slicing, setSlicing] = useState(false)
-  const [scale, setScale] = useState(1)
+  const [baseScale, setBaseScale] = useState(1)
+  const [zoom, setZoom] = useState(1)
   const [mousePos, setMousePos] = useState<[number, number] | null>(null)
   const processedCanvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  const scale = baseScale * zoom
+  const MIN_ZOOM = 0.25
+  const MAX_ZOOM = 8
 
   // The region currently being drawn (if drawingRole is set)
   const drawingRegion = drawingRole ? (regions.find((r) => r.id === drawingRole) ?? null) : null
 
-  // Compute display scale to fit image in container
+  // Compute base scale to fit image in container
   useEffect(() => {
     if (!containerRef.current || !sourceWidth || !sourceHeight) return
 
-    const updateScale = () => {
+    const updateBase = () => {
       const container = containerRef.current
       if (!container) return
 
@@ -66,18 +73,27 @@ export function SlicerView() {
       const sx = cw / sourceWidth
       const sy = ch / sourceHeight
 
-      setScale(Math.min(sx, sy, 1))
+      setBaseScale(Math.min(sx, sy, 1))
     }
 
-    updateScale()
+    updateBase()
 
-    const observer = new ResizeObserver(updateScale)
+    const observer = new ResizeObserver(updateBase)
     observer.observe(containerRef.current)
 
     return () => observer.disconnect()
   }, [sourceWidth, sourceHeight])
 
-  // Process background removal when source or tolerance changes
+  // Scroll-wheel zoom
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault()
+
+    const delta = e.deltaY > 0 ? 0.9 : 1.1
+
+    setZoom((prev) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev * delta)))
+  }, [])
+
+  // Process image — either remove background or pass through as-is
   useEffect(() => {
     if (!sourceUrl) return
 
@@ -88,7 +104,8 @@ export function SlicerView() {
     void (async () => {
       try {
         const canvas = await imageUrlToCanvas(sourceUrl)
-        const processed = removeBackground(canvas, tolerance)
+
+        const processed = bgRemovalEnabled ? removeBackground(canvas, tolerance) : canvas
 
         if (cancelled) return
 
@@ -100,7 +117,7 @@ export function SlicerView() {
 
         setSlicerProcessedUrl(url)
       } catch (err) {
-        console.error('[Slicer] Background removal failed:', err)
+        console.error('[Slicer] Image processing failed:', err)
       } finally {
         if (!cancelled) setProcessing(false)
       }
@@ -109,7 +126,7 @@ export function SlicerView() {
     return () => {
       cancelled = true
     }
-  }, [sourceUrl, tolerance, setSlicerProcessedUrl])
+  }, [sourceUrl, tolerance, bgRemovalEnabled, setSlicerProcessedUrl])
 
   // Draw polygon overlays on the canvas
   useEffect(() => {
@@ -347,11 +364,33 @@ export function SlicerView() {
 
       img.onload = () => {
         setSlicerSource(url, img.width, img.height)
+
+        // Auto-detect if image already has transparency → disable bg removal
+        const testCanvas = document.createElement('canvas')
+        testCanvas.width = img.width
+        testCanvas.height = img.height
+
+        const ctx = testCanvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0)
+
+        const data = ctx.getImageData(0, 0, img.width, img.height).data
+        let transparentPixels = 0
+
+        for (let i = 3; i < data.length; i += 4) {
+          if (data[i]! < 10) transparentPixels++
+        }
+
+        const transparentRatio = transparentPixels / (img.width * img.height)
+
+        // If >5% of pixels are already transparent, likely a pre-cut PNG
+        if (transparentRatio > 0.05) {
+          setSlicerBgRemovalEnabled(false)
+        }
       }
 
       img.src = url
     },
-    [setSlicerSource]
+    [setSlicerSource, setSlicerBgRemovalEnabled]
   )
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -398,7 +437,7 @@ export function SlicerView() {
           <p className="text-white/50 text-sm mb-2">Drop a character image here</p>
 
           <p className="text-white/30 text-xs">
-            PNG, JPG, or WebP — the background will be auto-removed
+            PNG, JPG, or WebP — transparent PNGs are detected automatically
           </p>
         </div>
       </div>
@@ -412,18 +451,35 @@ export function SlicerView() {
     <div className="w-full h-full flex flex-col">
       {/* Tolerance + controls bar */}
       <div className="flex items-center gap-4 px-4 py-2 bg-black/30 border-b border-white/10">
-        <label className="text-xs text-white/50 flex items-center gap-2">
-          BG Tolerance
+        <label className="text-xs text-white/50 flex items-center gap-1.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={bgRemovalEnabled}
+            onChange={(e) => setSlicerBgRemovalEnabled(e.target.checked)}
+            className="accent-green-400"
+          />
+          BG Removal
+        </label>
+
+        <label
+          className={`text-xs flex items-center gap-2 transition-opacity ${bgRemovalEnabled ? 'text-white/50' : 'text-white/20 pointer-events-none'}`}
+        >
+          Tolerance
           <input
             type="range"
             min={0}
             max={120}
             step={1}
             value={tolerance}
+            disabled={!bgRemovalEnabled}
             onChange={(e) => setSlicerTolerance(parseInt(e.target.value))}
             className="w-32 accent-green-400"
           />
-          <span className="text-white/70 font-mono w-8 text-right">{tolerance}</span>
+          <span
+            className={`font-mono w-8 text-right ${bgRemovalEnabled ? 'text-white/70' : 'text-white/20'}`}
+          >
+            {tolerance}
+          </span>
         </label>
 
         {processing && <span className="text-xs text-yellow-300 animate-pulse">Processing...</span>}
@@ -436,6 +492,15 @@ export function SlicerView() {
         )}
 
         <div className="flex-1" />
+
+        <span className="text-[10px] text-white/40 font-mono">{Math.round(zoom * 100)}%</span>
+
+        <button
+          className="px-2 py-0.5 rounded text-[10px] font-mono border border-white/15 text-white/40 hover:text-white/70 transition-colors"
+          onClick={() => setZoom(1)}
+        >
+          fit
+        </button>
 
         <button
           className="px-3 py-1 rounded text-xs font-mono border border-green-400/50 text-green-300 bg-green-400/10 hover:bg-green-400/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -450,6 +515,7 @@ export function SlicerView() {
       <div
         ref={containerRef}
         className="flex-1 overflow-auto flex items-center justify-center bg-[#1a1a2e]"
+        onWheel={handleWheel}
       >
         <div className="relative" style={{ width: displayW, height: displayH }}>
           {/* Checkerboard background for transparency */}

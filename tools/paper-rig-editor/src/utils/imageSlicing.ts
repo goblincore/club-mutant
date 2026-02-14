@@ -125,14 +125,15 @@ function extractPolygonRegion(
 /**
  * Default pivot positions per bone role.
  * Normalized (0–1) relative to the trimmed part.
+ * Coordinate system matches Three.js: X: 0=left, 1=right. Y: 0=bottom, 1=top.
  */
 const DEFAULT_PIVOTS: Record<BoneRole, [number, number]> = {
-  head: [0.5, 1.0],
-  torso: [0.5, 0.2],
-  arm_l: [0.15, 0.08],
-  arm_r: [0.85, 0.08],
-  leg_l: [0.3, 0.08],
-  leg_r: [0.7, 0.08],
+  head: [0.5, 0.0],
+  torso: [0.5, 0.8],
+  arm_l: [0.85, 0.92],
+  arm_r: [0.15, 0.92],
+  leg_l: [0.7, 0.92],
+  leg_r: [0.3, 0.92],
 }
 
 /**
@@ -197,8 +198,9 @@ export async function sliceImageIntoParts(
     const zIndex = DEFAULT_Z[region.boneRole] ?? 0
 
     // Pivot point in image-space (pixel coords)
+    // pivot Y is in 3D coords (0=bottom, 1=top), flip for image space (0=top, 1=bottom)
     const pivotImageX = extracted.offsetX + pivot[0] * extracted.canvas.width
-    const pivotImageY = extracted.offsetY + pivot[1] * extracted.canvas.height
+    const pivotImageY = extracted.offsetY + (1 - pivot[1]) * extracted.canvas.height
 
     // Offset: relative to parent pivot (torso for limbs/head, image center for torso)
     let offsetX: number
@@ -210,13 +212,13 @@ export async function sliceImageIntoParts(
     } else {
       // Limb/head offset from torso centroid
       const torsoPivot = DEFAULT_PIVOTS.torso
-      const torsoPivotX = torsoRegion
-        ? polygonBounds(torsoRegion.points).minX +
-          torsoPivot[0] * polygonBounds(torsoRegion.points).width
+      const torsoBounds = torsoRegion ? polygonBounds(torsoRegion.points) : null
+
+      const torsoPivotX = torsoBounds
+        ? torsoBounds.minX + torsoPivot[0] * torsoBounds.width
         : torsoCenterX
-      const torsoPivotY = torsoRegion
-        ? polygonBounds(torsoRegion.points).minY +
-          torsoPivot[1] * polygonBounds(torsoRegion.points).height
+      const torsoPivotY = torsoBounds
+        ? torsoBounds.minY + (1 - torsoPivot[1]) * torsoBounds.height
         : torsoCenterY
 
       offsetX = pivotImageX - torsoPivotX

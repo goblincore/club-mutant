@@ -43,14 +43,11 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Schema state: `server/src/rooms/schema/OfficeState.ts`
   - Commands: `server/src/rooms/commands/*`
 - `tools/`
-  - `paper-rig-editor/` — Vite + React + r3f character rig editor for building paper-doll characters
-    - Drop PNGs, set pivots/offsets/bone roles, preview animations, export zip
-    - Export: `manifest.json` + all image files (zipped via JSZip)
-    - Preset animations: idle, wave, walk, dance (with advanced scale.x/scale.y distortion on arms)
-    - Character manifest format matches `client-3d/src/character/CharacterLoader.ts`
-    - Run: `cd tools/paper-rig-editor && npm run dev`
-    - **Custom character system roadmap**: `docs/ideas/custom-character-system.md` — plan for user-uploaded avatars (schema change `textureId` → `characterUrl`, upload endpoint, lobby upload flow, fallback/validation)
-    - **Image slicer mode roadmap**: `docs/ideas/editor-image-slicer.md` — plan for loading a full character image, removing background, overlaying bone regions, and auto-slicing into parts
+  - `paper-rig-editor/` — Vite + React + r3f character rig editor for building paper-doll characters. See `tools/paper-rig-editor/README.md` for full docs.
+    - Two modes: **Slicer** (drop full image → auto BG removal → draw polygon regions → slice into parts) and **Rig** (arrange parts, set pivots/offsets/parents, preview animations, export zip)
+    - Export: `manifest.json` + PNGs, format matches `client-3d/src/character/CharacterLoader.ts`
+    - Run: `cd tools/paper-rig-editor && npm run dev` (port 5174)
+    - Roadmaps: `docs/ideas/custom-character-system.md`, `docs/ideas/editor-image-slicer.md`
 - `types/`
   - Shared types workspace package (`@club-mutant/types`)
   - Imported via pnpm workspace (no copying needed)

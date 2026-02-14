@@ -1,6 +1,5 @@
 import express from 'express'
-import { defineServer, defineRoom, LobbyRoom, matchMaker } from 'colyseus'
-import { listen } from '@colyseus/tools'
+import { defineServer, defineRoom, LobbyRoom, matchMaker, logger } from 'colyseus'
 import { uWebSocketsTransport } from '@colyseus/uwebsockets-transport'
 
 // Allowed CORS origins
@@ -144,5 +143,9 @@ const server = defineServer({
   },
 })
 
-// Use @colyseus/tools listen() which handles CORS automatically
-listen(server)
+// Call server.listen() directly — avoids @colyseus/tools' listen() which can
+// create a duplicate @colyseus/core singleton under pnpm, causing rooms to not register.
+const port = Number(process.env.PORT || 2567)
+server.listen(port).then(() => {
+  logger.info(`⚔️  Listening on http://localhost:${port}`)
+})

@@ -16,6 +16,9 @@ interface EditorState {
   isPlaying: boolean
   animationTime: number
 
+  // Character metadata
+  characterName: string
+
   // PSX effects toggle
   psxEnabled: boolean
 
@@ -27,6 +30,7 @@ interface EditorState {
   slicerSourceHeight: number
   slicerRegions: BoneRegion[]
   slicerTolerance: number
+  slicerBgRemovalEnabled: boolean
   slicerSelectedRegionId: string | null
   slicerDrawingRole: string | null // bone role currently being drawn
 
@@ -35,12 +39,15 @@ interface EditorState {
   setSlicerSource: (url: string, width: number, height: number) => void
   setSlicerProcessedUrl: (url: string | null) => void
   setSlicerTolerance: (tolerance: number) => void
+  setSlicerBgRemovalEnabled: (enabled: boolean) => void
   updateSlicerRegion: (id: string, updates: Partial<BoneRegion>) => void
   setSlicerSelectedRegionId: (id: string | null) => void
   setSlicerDrawingRole: (role: string | null) => void
   addPointToRegion: (id: string, point: [number, number]) => void
   removeLastPointFromRegion: (id: string) => void
   resetSlicer: () => void
+  resetAll: () => void
+  setCharacterName: (name: string) => void
   addPart: (part: CharacterPart) => void
   removePart: (id: string) => void
   updatePart: (id: string, updates: Partial<CharacterPart>) => void
@@ -79,6 +86,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isPlaying: false,
   animationTime: 0,
 
+  characterName: '',
+
   psxEnabled: true,
 
   mode: 'rig' as EditorMode,
@@ -88,6 +97,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   slicerSourceHeight: 0,
   slicerRegions: [],
   slicerTolerance: 30,
+  slicerBgRemovalEnabled: true,
   slicerSelectedRegionId: null,
   slicerDrawingRole: null,
 
@@ -106,6 +116,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSlicerProcessedUrl: (url) => set({ slicerProcessedUrl: url }),
 
   setSlicerTolerance: (tolerance) => set({ slicerTolerance: tolerance }),
+
+  setSlicerBgRemovalEnabled: (enabled) => set({ slicerBgRemovalEnabled: enabled }),
 
   updateSlicerRegion: (id, updates) =>
     set((s) => ({
@@ -138,9 +150,33 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       slicerSourceHeight: 0,
       slicerRegions: [],
       slicerTolerance: 30,
+      slicerBgRemovalEnabled: true,
       slicerSelectedRegionId: null,
       slicerDrawingRole: null,
     }),
+
+  resetAll: () =>
+    set({
+      parts: [],
+      selectedPartIds: new Set<string>(),
+      activeTool: 'select',
+      activeAnimationName: null,
+      isPlaying: false,
+      animationTime: 0,
+      characterName: '',
+      mode: 'slicer' as EditorMode,
+      slicerSourceUrl: null,
+      slicerProcessedUrl: null,
+      slicerSourceWidth: 0,
+      slicerSourceHeight: 0,
+      slicerRegions: [],
+      slicerTolerance: 30,
+      slicerBgRemovalEnabled: true,
+      slicerSelectedRegionId: null,
+      slicerDrawingRole: null,
+    }),
+
+  setCharacterName: (name) => set({ characterName: name }),
 
   addPart: (part) => set((s) => ({ parts: [...s.parts, part] })),
 
@@ -197,10 +233,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setPsxEnabled: (enabled) => set({ psxEnabled: enabled }),
 
   exportManifest: () => {
-    const { parts, animations } = get()
+    const { parts, animations, characterName } = get()
 
     const manifest = {
-      name: 'untitled',
+      name: characterName || 'untitled',
       parts: parts.map((p) => ({
         id: p.id,
         texture: p.originalFilename,
