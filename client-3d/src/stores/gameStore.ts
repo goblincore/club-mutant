@@ -38,9 +38,12 @@ export function deletePlayerPosition(sessionId: string) {
   _playerPositions.delete(sessionId)
 }
 
+export type ConnectionStatus = 'disconnected' | 'connected' | 'reconnecting'
+
 export interface GameState {
   // Connection
   connected: boolean
+  connectionStatus: ConnectionStatus
   mySessionId: string | null
 
   // Players
@@ -55,6 +58,7 @@ export interface GameState {
 
   // Actions
   setConnected: (connected: boolean, sessionId?: string) => void
+  setConnectionStatus: (status: ConnectionStatus) => void
   addPlayer: (sessionId: string, player: PlayerState) => void
   removePlayer: (sessionId: string) => void
   updatePlayer: (sessionId: string, updates: Partial<PlayerState>) => void
@@ -64,6 +68,7 @@ export interface GameState {
 
 export const useGameStore = create<GameState>((set) => ({
   connected: false,
+  connectionStatus: 'disconnected' as ConnectionStatus,
   mySessionId: null,
 
   players: new Map(),
@@ -73,7 +78,15 @@ export const useGameStore = create<GameState>((set) => ({
 
   selectedCharacterPath: '/characters/default',
 
-  setConnected: (connected, sessionId) => set({ connected, mySessionId: sessionId ?? null }),
+  setConnected: (connected, sessionId) =>
+    set({
+      connected,
+      connectionStatus: connected ? 'connected' : 'disconnected',
+      mySessionId: sessionId ?? null,
+    }),
+
+  setConnectionStatus: (status) =>
+    set({ connectionStatus: status, connected: status === 'connected' }),
 
   addPlayer: (sessionId, player) =>
     set((s) => {

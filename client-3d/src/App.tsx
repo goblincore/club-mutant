@@ -11,6 +11,7 @@ import { NowPlaying } from './ui/NowPlaying'
 import { IframeVideoBackground } from './ui/IframeVideoBackground'
 import { BoothPrompt } from './ui/BoothPrompt'
 import { ToastContainer } from './ui/ToastContainer'
+import { DisconnectedOverlay } from './ui/DisconnectedOverlay'
 
 const PLAYLIST_WIDTH = 360
 
@@ -85,7 +86,8 @@ function MinimizedBoothBar() {
 }
 
 export function App() {
-  const connected = useGameStore((s) => s.connected)
+  const connectionStatus = useGameStore((s) => s.connectionStatus)
+  const mySessionId = useGameStore((s) => s.mySessionId)
   const playlistOpen = useUIStore((s) => s.playlistOpen)
   const playlistMinimized = useUIStore((s) => s.playlistMinimized)
   const isAtBooth = useBoothStore((s) => s.isConnected)
@@ -96,12 +98,14 @@ export function App() {
   const streamIsPlaying = useMusicStore((s) => s.stream.isPlaying)
   const streamCurrentLink = useMusicStore((s) => s.stream.currentLink)
   const currentDjSessionId = useBoothStore((s) => s.currentDjSessionId)
-  const mySessionId = useGameStore((s) => s.mySessionId)
 
   const showIframe =
     videoBackgroundEnabled && videoBgMode === 'iframe' && streamIsPlaying && !!streamCurrentLink
 
-  if (!connected) {
+  // Never connected yet — show lobby
+  const neverConnected = connectionStatus === 'disconnected' && !mySessionId
+
+  if (neverConnected) {
     return <LobbyScreen />
   }
 
@@ -218,6 +222,9 @@ export function App() {
 
       {/* Booth prompt popup */}
       <BoothPrompt />
+
+      {/* Reconnection / disconnection overlay */}
+      <DisconnectedOverlay />
     </div>
   )
 }

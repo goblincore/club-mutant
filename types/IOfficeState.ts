@@ -8,6 +8,7 @@ export interface IPlayer extends Schema {
   animId: number
   scale: number
   readyToConnect: boolean
+  connected: boolean
 }
 
 export interface IDJUserInfo extends Schema {

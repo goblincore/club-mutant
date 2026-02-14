@@ -498,18 +498,32 @@ export class ClubMutant extends Room {
     console.log('////onJoin, musicStream.status', musicStream.status)
   }
 
-  async onLeave(client: Client, code: number) {
-    const consented = code === CloseCode.CONSENTED
+  onDrop(client: Client, code: number) {
+    console.log(`[onDrop] client ${client.sessionId} dropped, code=${code}`)
 
-    // Reconnection disabled for easier debugging — re-enable later if needed
-    // if (!consented) {
-    //   try {
-    //     await this.allowReconnection(client, 60)
-    //     return
-    //   } catch (_e) {
-    //     // fallthrough: timed out, proceed to cleanup
-    //   }
-    // }
+    // Allow 60 seconds for reconnection
+    this.allowReconnection(client, 60)
+
+    // Mark player as disconnected so other clients can show visual feedback
+    const player = this.state.players.get(client.sessionId)
+
+    if (player) {
+      player.connected = false
+    }
+  }
+
+  onReconnect(client: Client) {
+    console.log(`[onReconnect] client ${client.sessionId} reconnected!`)
+
+    const player = this.state.players.get(client.sessionId)
+
+    if (player) {
+      player.connected = true
+    }
+  }
+
+  async onLeave(client: Client, code: number) {
+    console.log(`[onLeave] client ${client.sessionId} left, code=${code}`)
 
     this.lastPlayerActionAtMsBySessionId.delete(client.sessionId)
 

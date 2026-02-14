@@ -54,6 +54,10 @@ export class NetworkManager {
         ...(textureId != null ? { textureId } : {}),
       })
 
+      // Configure reconnection: max 10 retries, up to 8s delay
+      this.room.reconnection.maxRetries = 10
+      this.room.reconnection.maxDelay = 8000
+
       this._timeSync = new TimeSync(this.room as Room)
       this._timeSync.start()
 
@@ -371,10 +375,26 @@ export class NetworkManager {
       }
     })
 
-    // Room leave
+    // Reconnection: connection dropped unexpectedly
+    this.room.onDrop((code: number, reason?: string) => {
+      console.log(`[network] Connection dropped! code=${code} reason=${reason}`)
+      useGameStore.getState().setConnectionStatus('reconnecting')
+    })
+
+    // Reconnection: successfully reconnected
+    this.room.onReconnect(() => {
+      console.log('[network] Reconnected successfully!')
+      useGameStore.getState().setConnectionStatus('connected')
+
+      // Re-sync TimeSync after reconnection
+      this._timeSync?.start()
+    })
+
+    // Room leave — permanent (either consented or failed to reconnect)
     this.room.onLeave((code: number) => {
       console.log('[network] Left room, code:', code)
-      useGameStore.getState().setConnected(false)
+
+      useGameStore.getState().setConnectionStatus('disconnected')
       useMusicStore.getState().clearStream()
       useBoothStore.getState().setBoothConnected(false)
       useBoothStore.getState().setIsInQueue(false)
