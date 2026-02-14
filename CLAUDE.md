@@ -26,12 +26,12 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Key dirs:
     - `src/scene/` — Room (walls + DJ booth + wall occlusion with `depthWrite` fix for attachments), Camera (orbit + sway + **follow lerp delay** `FOLLOW_LERP=4` for trailing camera feel, exports `cameraDistance` + `cameraAzimuth` for fisheye scaling + camera-relative WASD), PlayerEntity (lerp + 3D chat bubbles + troika Text nametags on layer 1), GameScene (Canvas + ClickPlane + debug keyboard shortcuts: `` ` `` for FPS, `-`/`=` for render scale cycle), InteractableObject (proximity + hover highlight + cursor + click; see **Interactable object outline** below), **GLBModel** (reusable GLB loader component via drei's `useGLTF`, clones scene per instance, supports preload; see **GLB model pipeline** below)
     - `src/character/` — PaperDoll, CharacterLoader, DistortMaterial (PaRappa vertex warp + clip-space vertex fisheye via `uVertexFisheye`), AnimationMixer
-    - `src/network/` — NetworkManager (Colyseus client, player/chat/music/DJ queue wiring, YouTube search, late-join sync for music + DJ queue from **schema-only callbacks** — `onAdd`/`onRemove`/`listen`, no separate `DJ_QUEUE_UPDATED` message handler), TimeSync (client-server clock sync with `onReady` callback for deferred operations)
-    - `src/stores/` — gameStore, chatStore (+ bubbles), musicStore, uiStore (+ debug: `showFps`, `renderScale` [0.75/0.5/0.35], `fisheyeOverride`, `vertexFisheye`), boothStore (DJ booth + queue + video bg)
+    - `src/network/` — NetworkManager (Colyseus client, player/chat/music/DJ queue wiring, YouTube search, late-join sync for music + DJ queue from **schema-only callbacks** — `onAdd`/`onRemove`/`listen`, no separate `DJ_QUEUE_UPDATED` message handler; **reconnection**: `room.onDrop` → status `'reconnecting'`, `room.onReconnect` → status `'connected'` + TimeSync restart, `room.onLeave` → status `'disconnected'`; reconnection config: `maxRetries=10`, `maxDelay=8000`), TimeSync (client-server clock sync with `onReady` callback for deferred operations)
+    - `src/stores/` — gameStore (+ `connectionStatus`: `'disconnected'` | `'connected'` | `'reconnecting'`), chatStore (+ bubbles), musicStore, uiStore (+ debug: `showFps`, `renderScale` [0.75/0.5/0.35], `fisheyeOverride`, `vertexFisheye`), boothStore (DJ booth + queue + video bg)
     - `src/shaders/` — PsxPostProcess (VHS+bloom+fisheye post-processing, **dynamic fisheye** via `u_fisheye` uniform scaled by camera zoom distance [closer = stronger], configurable `renderScale` from uiStore [0.75/0.5/0.35] replaces hardcoded `RES_SCALE`; **half-res bloom**: scene RT downsampled to `BLOOM_SCALE=0.5` RT with LinearFilter, 16-tap bloom sampling (4 iterations × 4 cardinal); **layer-based rendering**: layer 0 for scene with VHS, layer 1 for UI/chat bubbles/nametags rendered clean, layer 2 for highlight mask; **screen-space outline**: mask RT + dilation in VHS shader, see **Interactable object outline** below), TvStaticFloor (animated TV noise floor material, `FLOOR_SEGMENTS=48`, samples baked displacement texture + PSX integer stepping via `DISP_STEPS=10`, also exports `TrampolineVideoMaterial`), TrampolineGrid (`GRID_SEGMENTS=48`, same displacement texture sampling + integer stepping), **DisplacementBaker.ts** (bakes ripple displacement from `getDisplacementAt` into 64×64 Float32 `DataTexture` each frame, frame-deduplicated, short-circuits when no ripples active; sampled by floor+grid vertex shaders instead of per-vertex ripple loops), TrippySky (Win95-style blue sky + animated procedural clouds skybox, drift speed 0.4), BrickWallMaterial (procedural brick wall shader)
     - `src/scene/TrampolineRipples.ts` — Module-level ripple state manager (max 16 analytical ripples). Has its own `performance.now()`-based clock (`getTime()`) — no dependency on r3f clock or useFrame ordering. Provides CPU-side `getDisplacementAt(x,z)` used by DisplacementBaker (baked to texture) and directly by PlayerEntity/Room furniture for Y offset. `getRippleVec4s()`/`getRippleCount()` still available but no longer used by shaders (replaced by texture sampling). Shared by DisplacementBaker, PlayerEntity, Room furniture, and NetworkManager (remote jump ripples).
     - `src/input/` — usePlayerInput (WASD camera-relative + click-to-move + spacebar jump with cooldown + **collision detection**: room boundary clamp at ±580 server px + DJ booth AABB push-out via `clampPosition()`)
-    - `src/ui/` — ChatPanel, PlaylistPanel (search + queue), NowPlaying (mini bar + video bg toggle), LobbyScreen, BoothPrompt (double-click booth confirmation), FpsCounter (debug overlay: FPS readout + render scale display + post-process fisheye slider [0–15, purple, with auto/reset] + vertex fisheye slider [0–3, pink])
+    - `src/ui/` — ChatPanel, PlaylistPanel (search + queue), NowPlaying (mini bar + video bg toggle), LobbyScreen, BoothPrompt (double-click booth confirmation), FpsCounter (debug overlay: FPS readout + render scale display + post-process fisheye slider [0–15, purple, with auto/reset] + vertex fisheye slider [0–3, pink]), **DisconnectedOverlay** (reconnecting spinner overlay + disconnected screen with Refresh button)
   - Planning doc: `docs/ideas/client-3d-psx-multiplayer.md`
   - Status: M1 + M1.5 + M2 + M2.5 + M3 mostly complete. VHS shader, character select (4 characters with per-manifest scale override), auto-scaling, TV static floor, animated Win95 cloud skybox, full DJ queue UI (playlist panel + NowPlaying mini player), DJ booth overlap fix (2 DJs sit left/right), ambient stream filtering all done. **Trampoline floor** (Feb 2026): spacebar jump with moon-bounce physics, ripple vertex displacement on floor+grid, double jump, chain reaction launches, furniture bobbing, multiplayer sync via PLAYER_JUMP message. **Rendering optimizations** (Feb 2026): displacement baking (64×64 Float32 texture replaces per-vertex ripple loops), segment reduction (96→48 for floor+grid), PSX integer-stepped displacement (`DISP_STEPS=10`), dynamic fisheye (zoom-linked + debug slider), vertex fisheye (clip-space barrel distortion on characters), configurable render scale (75%/50%/35%), debug FPS overlay with shader sliders. **Interactable object outline** (Feb 2026): screen-space silhouette glow system. `InteractableObject` component wraps any scene object with props: `interactDistance`, `onInteract`, `hitboxPad` (default 0.15, eggs use 0.1), `occludeHighlight` (default false). Requires **both hover AND proximity** to highlight (not hover-from-anywhere). Exports module-level `highlightIntensity` and `highlightNeedsOcclusion` — only written by the actively highlighted object (race condition fix: non-hovered objects don't touch globals). Hitbox uses `useFrame` polling (not `useEffect`+`setTimeout` — fragile in production). Children separated into `childrenGroupRef` so `Box3.setFromObject` doesn't include the invisible hitbox mesh. `updateWorldMatrix(true, true)` called before Box3 for correct bounds in nested transforms. `PsxPostProcess` mask render: two paths based on `highlightNeedsOcclusion` — (a) `occludeHighlight=true`: depth pre-pass with full scene, then layer 2 with `depthTest: true` (desk), (b) `occludeHighlight=false`: just layer 2 with `depthTest: false` for full silhouette through geometry (eggs behind booth table). `outlineGlow()` dilates mask (3 radii × 8 directions = 24 taps, cardinal + diagonal with 0.707 weight for round outlines). Applied to OldComputerDesk (`occludeHighlight`) and DJ eggs (no occlusion, `hitboxPad=0.1`) in Room.tsx. DJ booth built facing room directly (no 180° rotation — removed to fix stale `matrixWorld` issues). Remaining: textured booth furniture, sound, mobile, trampoline polish (screen shake, particles, sound).
 - `server/`
@@ -121,6 +121,7 @@ Works mathematically but visual feel needs more tuning. **Alternatives to explor
 - **`depthWrite` on transparent objects** — When wall attachments (TV, speakers) are faded via wall occlusion, they still write to the depth buffer by default. Characters behind them become invisible. Fix: set `m.depthWrite = !faded` when `opacity < 0.99`.
 - **`useEffect` + `setTimeout` for DOM/ref measurement is fragile in production** — Refs may not be populated within the timeout. Use `useFrame` polling that retries each frame until the ref is ready — robust against any timing.
 - **`Box3.setFromObject` needs fresh world matrices** — In nested/rotated groups (like the old 180°-rotated DJ booth), `matrixWorld` can be stale. Always call `updateWorldMatrix(true, true)` before measuring bounding boxes.
+- **Server speed validation rejects client-side teleports** — `UPDATE_PLAYER_ACTION` has a speed check (`maxSpeedPxPerSec * dt + buffer`). If the client teleports a player (e.g., behind the DJ booth on queue join), the large position jump gets rejected when `dtMs` is small. Fix: set position server-authoritatively in the relevant command (e.g., `DJQueueJoinCommand` sets `player.x`/`player.y` directly). This also ensures late-joining clients see the correct position.
 
 ## How to run
 
@@ -185,6 +186,7 @@ Restructured the server to match the [colyseus/tutorial-phaser](https://github.c
 ### Server API changes (0.16 → 0.17)
 
 - **Room definition**: Use `defineServer()` + `defineRoom()` instead of `gameServer.define()`
+- **Room lifecycle**: `onDrop(client, code)` + `onReconnect(client)` + `onLeave(client, code)` (see **Reconnection** below)
 - **Room.onLeave signature**: `(client, consented: boolean)` → `(client, code: number)`
   - Check `code === CloseCode.CONSENTED` for intentional leaves
 - **Client SDK**: Import from `@colyseus/sdk` instead of `colyseus.js`
@@ -242,6 +244,32 @@ express: (app) => {
   - **Switched from 2D client (`client/`) to 3D client (`client-3d/`) in Feb 2026**
   - Env vars set in `netlify.toml`: `VITE_WS_ENDPOINT`, `VITE_HTTP_ENDPOINT`, `VITE_YOUTUBE_SERVICE_URL`
   - The 3D client reads `VITE_WS_ENDPOINT` (not `VITE_SERVER_URL`) for the Colyseus server URL
+
+## Reconnection (Feb 2026)
+
+Uses Colyseus 0.17's `onDrop`/`onReconnect` lifecycle for graceful reconnection after network interruptions (e.g., laptop sleep).
+
+### Server (`ClubMutant.ts`)
+
+- **`onDrop(client, code)`** — Called on abnormal disconnection. Calls `allowReconnection(client, 60)` (60s window). Sets `player.connected = false` (synced to other clients via schema).
+- **`onReconnect(client)`** — Called when client reconnects within the window. Sets `player.connected = true`.
+- **`onLeave(client, code)`** — Called only for permanent leaves (consented or reconnection timeout). Cleans up player, booth, DJ queue.
+- **`Player.connected`** — `@type('boolean')` schema field, default `true`. Can be used by other clients to dim/ghost disconnected players.
+
+### Client (`NetworkManager.ts`)
+
+- **`room.reconnection.maxRetries = 10`**, **`maxDelay = 8000`** — Stops retrying after 10 attempts with max 8s backoff (prevents infinite retry loops from the old behavior).
+- **`room.onDrop`** → sets `gameStore.connectionStatus` to `'reconnecting'`
+- **`room.onReconnect`** → sets status to `'connected'`, restarts `TimeSync`
+- **`room.onLeave`** → sets status to `'disconnected'`, clears music/booth state
+
+### Client UI (`DisconnectedOverlay.tsx` + `App.tsx`)
+
+- **`connectionStatus`** in `gameStore`: `'disconnected'` | `'connected'` | `'reconnecting'`
+- **App routing**: `disconnected` + no `mySessionId` → LobbyScreen (never connected). Otherwise renders game scene.
+- **`DisconnectedOverlay`**: Renders on top of game (z-50) when status is not `'connected'`:
+  - `'reconnecting'` → spinner + "Reconnecting..." message
+  - `'disconnected'` (after having been connected) → "Disconnected" + "Refresh" button (`window.location.reload()`)
 
 ## YouTube Video Resolution (rusty-ytdl-hybrid)
 

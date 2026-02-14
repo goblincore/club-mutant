@@ -223,7 +223,21 @@ export class DJQueueJoinCommand extends Command<ClubMutant, Payload> {
 
     this.state.djQueue.push(entry)
 
-    console.log('[DJQueue] Joined:', client.sessionId, 'Position:', entry.queuePosition)
+    // Teleport player behind the booth (must be server-authoritative so late-joining
+    // clients see the correct position — client sendPosition can be rejected by speed check)
+    const DJ_SLOT_SERVER_X = [100, 0, -100]
+    const BEHIND_BOOTH_SERVER_Y = 430
+
+    player.x = DJ_SLOT_SERVER_X[slot] ?? 0
+    player.y = BEHIND_BOOTH_SERVER_Y
+
+    console.log(
+      '[DJQueue] Joined:',
+      client.sessionId,
+      'Position:',
+      entry.queuePosition,
+      `teleported to (${player.x}, ${player.y})`
+    )
 
     // If first DJ, set as current (playback requires explicit DJ_PLAY)
     if (this.state.djQueue.length === 1) {
