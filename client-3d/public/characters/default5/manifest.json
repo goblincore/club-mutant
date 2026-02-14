@@ -1,124 +1,124 @@
 {
-  "name": "untitled",
+  "name": "rogerrabbi",
   "parts": [
     {
-      "id": "rarm_1",
-      "texture": "rarm.png",
-      "pivot": [
-        0,
-        1
-      ],
-      "size": [
-        15,
-        38
-      ],
-      "parent": "torso_4",
-      "offset": [
-        3,
-        -12,
-        1
-      ],
-      "zIndex": 0,
-      "boneRole": "arm_r"
-    },
-    {
-      "id": "larm_2",
-      "texture": "larm.png",
-      "pivot": [
-        1,
-        1
-      ],
-      "size": [
-        15,
-        38
-      ],
-      "parent": "torso_4",
-      "offset": [
-        -2,
-        -13,
-        0
-      ],
-      "zIndex": 0,
-      "boneRole": "arm_l"
-    },
-    {
-      "id": "lleg_3",
-      "texture": "lleg.png",
-      "pivot": [
-        1,
-        1
-      ],
-      "size": [
-        23,
-        38
-      ],
-      "parent": "torso_4",
-      "offset": [
-        0,
-        10,
-        0
-      ],
-      "zIndex": 0,
-      "boneRole": "leg_l"
-    },
-    {
-      "id": "torso_4",
+      "id": "torso",
       "texture": "torso.png",
       "pivot": [
         0.5,
-        0.5
+        0.8
       ],
       "size": [
-        25,
-        36
+        22,
+        37
       ],
       "parent": null,
       "offset": [
         0,
-        0,
+        44.400000000000006,
         0
       ],
       "zIndex": 0,
       "boneRole": "torso"
     },
     {
-      "id": "head_5",
+      "id": "head",
       "texture": "head.png",
       "pivot": [
         0.5,
         0
       ],
       "size": [
-        85,
-        76
+        149,
+        130
       ],
-      "parent": "torso_4",
+      "parent": "torso",
       "offset": [
-        0,
-        -6,
-        1
+        -9.032628402593588,
+        -4.961784839083492,
+        0
       ],
-      "zIndex": 0,
+      "zIndex": 2,
       "boneRole": "head"
     },
     {
-      "id": "rleg_6",
-      "texture": "rleg.png",
+      "id": "arm_l",
+      "texture": "arm_l.png",
       "pivot": [
-        0,
-        1
+        0.85,
+        0.92
       ],
       "size": [
-        23,
-        38
+        16,
+        31
       ],
-      "parent": "torso_4",
+      "parent": "torso",
       "offset": [
-        0,
-        11,
+        -7.932628402593593,
+        2.5182151609164976,
         0
       ],
-      "zIndex": 0,
+      "zIndex": -1,
+      "boneRole": "arm_l"
+    },
+    {
+      "id": "arm_r",
+      "texture": "arm_r.png",
+      "pivot": [
+        0.15,
+        0.92
+      ],
+      "size": [
+        18,
+        34
+      ],
+      "parent": "torso",
+      "offset": [
+        8.167371597406415,
+        -0.24178483908349335,
+        0
+      ],
+      "zIndex": -1,
+      "boneRole": "arm_r"
+    },
+    {
+      "id": "leg_l",
+      "texture": "leg_l.png",
+      "pivot": [
+        0.7,
+        0.92
+      ],
+      "size": [
+        24,
+        34
+      ],
+      "parent": "torso",
+      "offset": [
+        -6.7326284025935905,
+        23.758215160916507,
+        0
+      ],
+      "zIndex": -2,
+      "boneRole": "leg_l"
+    },
+    {
+      "id": "leg_r",
+      "texture": "leg_r.png",
+      "pivot": [
+        0.3,
+        0.92
+      ],
+      "size": [
+        24,
+        35
+      ],
+      "parent": "torso",
+      "offset": [
+        7.667371597406415,
+        22.83821516091652,
+        0
+      ],
+      "zIndex": -2,
       "boneRole": "leg_r"
     }
   ],

@@ -2,59 +2,33 @@ import { useState, useEffect } from 'react'
 
 import { getNetwork } from '../network/NetworkManager'
 import { useGameStore } from '../stores/gameStore'
-import { preloadCharacter } from '../character/CharacterLoader'
-
-// Character roster — add new entries here as characters are created.
-// Placeholder entries use the default character until real assets exist.
-const CHARACTERS = [
-  {
-    id: 'parappa',
-    name: 'PaRappa',
-    path: '/characters/default',
-    thumbnail: '/characters/default/head.png',
-    textureId: 0,
-  },
-  {
-    id: 'default2',
-    name: 'Ramona',
-    path: '/characters/default2',
-    thumbnail: '/characters/default2/head.png',
-    textureId: 1,
-  },
-  {
-    id: 'default3',
-    name: 'Mutant',
-    path: '/characters/default3',
-    thumbnail: '/characters/default3/head.png',
-    textureId: 2,
-  },
-  {
-    id: 'default4',
-    name: 'default4',
-    path: '/characters/default4',
-    thumbnail: '/characters/default4/head.png',
-    textureId: 3,
-  },
-]
+import { getCharacters, type CharacterEntry } from '../character/characterRegistry'
 
 export function LobbyScreen() {
+  const [characters, setCharacters] = useState<CharacterEntry[]>([])
   const [name, setName] = useState('')
-  const [selectedId, setSelectedId] = useState(CHARACTERS[0]!.id)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
-
-  // Preload the selected character's assets so they're cached before entering the room
-  useEffect(() => {
-    const char = CHARACTERS.find((c) => c.id === selectedId)
-
-    if (char) preloadCharacter(char.path)
-  }, [selectedId])
   const [error, setError] = useState<string | null>(null)
+
+  // Discover available characters on mount
+  useEffect(() => {
+    getCharacters().then((chars) => {
+      setCharacters(chars)
+
+      if (chars.length > 0 && !selectedId) {
+        setSelectedId(chars[0]!.id)
+      }
+    })
+  }, [])
 
   const handleJoin = async () => {
     const trimmed = name.trim()
     if (!trimmed) return
 
-    const character = CHARACTERS.find((c) => c.id === selectedId) ?? CHARACTERS[0]!
+    const character = characters.find((c) => c.id === selectedId) ?? characters[0]
+
+    if (!character) return
 
     useGameStore.getState().setSelectedCharacterPath(character.path)
 
@@ -89,7 +63,7 @@ export function LobbyScreen() {
 
         {/* Character select grid */}
         <div className="flex gap-3">
-          {CHARACTERS.map((char) => {
+          {characters.map((char) => {
             const isSelected = char.id === selectedId
 
             return (
