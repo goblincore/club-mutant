@@ -64,6 +64,18 @@ export interface AnimationClip {
 // Editor tool modes
 export type EditorTool = 'select' | 'pivot' | 'offset'
 
+// Editor top-level mode
+export type EditorMode = 'rig' | 'slicer'
+
+// A bone region polygon in the slicer view (pixel coords relative to source image)
+export interface BoneRegion {
+  id: string
+  boneRole: BoneRole
+  // Polygon vertices as [x, y] pairs in image-pixel space
+  points: [number, number][]
+  enabled: boolean
+}
+
 // Character manifest for export
 export interface CharacterManifest {
   name: string

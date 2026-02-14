@@ -7,6 +7,8 @@ export function Toolbar() {
   const setPsxEnabled = useEditorStore((s) => s.setPsxEnabled)
   const exportManifest = useEditorStore((s) => s.exportManifest)
   const parts = useEditorStore((s) => s.parts)
+  const mode = useEditorStore((s) => s.mode)
+  const setMode = useEditorStore((s) => s.setMode)
 
   const handleExport = async () => {
     const json = exportManifest()
@@ -48,26 +50,51 @@ export function Toolbar() {
       </div>
 
       <div className="flex items-center gap-2">
-        {/* PSX toggle */}
-        <button
-          className={`px-3 py-1 rounded text-xs font-mono border transition-colors ${
-            psxEnabled
-              ? 'border-green-400/50 text-green-300 bg-green-400/10'
-              : 'border-white/20 text-white/40 hover:border-white/40'
-          }`}
-          onClick={() => setPsxEnabled(!psxEnabled)}
-        >
-          psx {psxEnabled ? 'on' : 'off'}
-        </button>
+        {/* Mode toggle */}
+        <div className="flex rounded border border-white/20 overflow-hidden mr-2">
+          <button
+            className={`px-3 py-1 text-xs font-mono transition-colors ${
+              mode === 'rig' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/60'
+            }`}
+            onClick={() => setMode('rig')}
+          >
+            rig
+          </button>
 
-        {/* Export */}
-        <button
-          className="px-3 py-1 rounded text-xs font-mono border border-white/20 text-white/60 hover:border-white/40 hover:text-white/80 transition-colors"
-          onClick={handleExport}
-          disabled={parts.length === 0}
-        >
-          export zip
-        </button>
+          <button
+            className={`px-3 py-1 text-xs font-mono transition-colors border-l border-white/20 ${
+              mode === 'slicer' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/60'
+            }`}
+            onClick={() => setMode('slicer')}
+          >
+            slicer
+          </button>
+        </div>
+
+        {/* PSX toggle (rig mode only) */}
+        {mode === 'rig' && (
+          <button
+            className={`px-3 py-1 rounded text-xs font-mono border transition-colors ${
+              psxEnabled
+                ? 'border-green-400/50 text-green-300 bg-green-400/10'
+                : 'border-white/20 text-white/40 hover:border-white/40'
+            }`}
+            onClick={() => setPsxEnabled(!psxEnabled)}
+          >
+            psx {psxEnabled ? 'on' : 'off'}
+          </button>
+        )}
+
+        {/* Export (rig mode only) */}
+        {mode === 'rig' && (
+          <button
+            className="px-3 py-1 rounded text-xs font-mono border border-white/20 text-white/60 hover:border-white/40 hover:text-white/80 transition-colors"
+            onClick={handleExport}
+            disabled={parts.length === 0}
+          >
+            export zip
+          </button>
+        )}
       </div>
     </div>
   )

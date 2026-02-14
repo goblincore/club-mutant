@@ -50,6 +50,7 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
     - Character manifest format matches `client-3d/src/character/CharacterLoader.ts`
     - Run: `cd tools/paper-rig-editor && npm run dev`
     - **Custom character system roadmap**: `docs/ideas/custom-character-system.md` — plan for user-uploaded avatars (schema change `textureId` → `characterUrl`, upload endpoint, lobby upload flow, fallback/validation)
+    - **Image slicer mode roadmap**: `docs/ideas/editor-image-slicer.md` — plan for loading a full character image, removing background, overlaying bone regions, and auto-slicing into parts
 - `types/`
   - Shared types workspace package (`@club-mutant/types`)
   - Imported via pnpm workspace (no copying needed)

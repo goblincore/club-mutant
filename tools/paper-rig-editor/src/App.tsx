@@ -3,8 +3,13 @@ import { Viewport } from './components/Viewport'
 import { PartsPanel } from './components/PartsPanel'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { AnimationPanel } from './components/AnimationPanel'
+import { SlicerView } from './components/SlicerView'
+import { SlicerPanel } from './components/SlicerPanel'
+import { useEditorStore } from './store'
 
 export function App() {
+  const mode = useEditorStore((s) => s.mode)
+
   return (
     <div className="flex flex-col h-screen w-screen bg-neutral-950 text-white font-mono">
       {/* Top toolbar */}
@@ -12,24 +17,40 @@ export function App() {
 
       {/* Main layout: left sidebar | viewport | right sidebar */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left sidebar — Parts list */}
-        <div className="w-56 border-r border-white/10 bg-black/20 p-3 overflow-y-auto">
-          <PartsPanel />
-        </div>
+        {mode === 'rig' ? (
+          <>
+            {/* Left sidebar — Parts list */}
+            <div className="w-56 border-r border-white/10 bg-black/20 p-3 overflow-y-auto">
+              <PartsPanel />
+            </div>
 
-        {/* Center — 3D viewport */}
-        <div className="flex-1">
-          <Viewport />
-        </div>
+            {/* Center — 3D viewport */}
+            <div className="flex-1">
+              <Viewport />
+            </div>
 
-        {/* Right sidebar — Properties + Animations */}
-        <div className="w-64 border-l border-white/10 bg-black/20 p-3 overflow-y-auto space-y-6">
-          <PropertiesPanel />
+            {/* Right sidebar — Properties + Animations */}
+            <div className="w-64 border-l border-white/10 bg-black/20 p-3 overflow-y-auto space-y-6">
+              <PropertiesPanel />
 
-          <div className="border-t border-white/10 pt-4">
-            <AnimationPanel />
-          </div>
-        </div>
+              <div className="border-t border-white/10 pt-4">
+                <AnimationPanel />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Left sidebar — Region list + controls */}
+            <div className="w-56 border-r border-white/10 bg-black/20 p-3 overflow-y-auto">
+              <SlicerPanel />
+            </div>
+
+            {/* Center — 2D slicer view */}
+            <div className="flex-1">
+              <SlicerView />
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

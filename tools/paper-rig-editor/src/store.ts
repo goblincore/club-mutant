@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
-import type { AnimationClip, CharacterPart, EditorTool } from './types'
+import type { AnimationClip, BoneRegion, CharacterPart, EditorMode, EditorTool } from './types'
+import { BONE_ROLES } from './types'
 import { PRESET_ANIMATIONS } from './presets'
 
 interface EditorState {
@@ -18,7 +19,28 @@ interface EditorState {
   // PSX effects toggle
   psxEnabled: boolean
 
+  // Slicer mode
+  mode: EditorMode
+  slicerSourceUrl: string | null
+  slicerProcessedUrl: string | null
+  slicerSourceWidth: number
+  slicerSourceHeight: number
+  slicerRegions: BoneRegion[]
+  slicerTolerance: number
+  slicerSelectedRegionId: string | null
+  slicerDrawingRole: string | null // bone role currently being drawn
+
   // Actions
+  setMode: (mode: EditorMode) => void
+  setSlicerSource: (url: string, width: number, height: number) => void
+  setSlicerProcessedUrl: (url: string | null) => void
+  setSlicerTolerance: (tolerance: number) => void
+  updateSlicerRegion: (id: string, updates: Partial<BoneRegion>) => void
+  setSlicerSelectedRegionId: (id: string | null) => void
+  setSlicerDrawingRole: (role: string | null) => void
+  addPointToRegion: (id: string, point: [number, number]) => void
+  removeLastPointFromRegion: (id: string) => void
+  resetSlicer: () => void
   addPart: (part: CharacterPart) => void
   removePart: (id: string) => void
   updatePart: (id: string, updates: Partial<CharacterPart>) => void
@@ -38,6 +60,15 @@ interface EditorState {
   exportManifest: () => string
 }
 
+function createEmptyRegions(): BoneRegion[] {
+  return BONE_ROLES.map((role) => ({
+    id: role,
+    boneRole: role,
+    points: [],
+    enabled: true,
+  }))
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   parts: [],
   selectedPartIds: new Set(),
@@ -49,6 +80,67 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   animationTime: 0,
 
   psxEnabled: true,
+
+  mode: 'rig' as EditorMode,
+  slicerSourceUrl: null,
+  slicerProcessedUrl: null,
+  slicerSourceWidth: 0,
+  slicerSourceHeight: 0,
+  slicerRegions: [],
+  slicerTolerance: 30,
+  slicerSelectedRegionId: null,
+  slicerDrawingRole: null,
+
+  setMode: (mode) => set({ mode }),
+
+  setSlicerSource: (url, width, height) =>
+    set({
+      slicerSourceUrl: url,
+      slicerSourceWidth: width,
+      slicerSourceHeight: height,
+      slicerRegions: createEmptyRegions(),
+      slicerSelectedRegionId: null,
+      slicerDrawingRole: null,
+    }),
+
+  setSlicerProcessedUrl: (url) => set({ slicerProcessedUrl: url }),
+
+  setSlicerTolerance: (tolerance) => set({ slicerTolerance: tolerance }),
+
+  updateSlicerRegion: (id, updates) =>
+    set((s) => ({
+      slicerRegions: s.slicerRegions.map((r) => (r.id === id ? { ...r, ...updates } : r)),
+    })),
+
+  setSlicerSelectedRegionId: (id) => set({ slicerSelectedRegionId: id }),
+
+  setSlicerDrawingRole: (role) => set({ slicerDrawingRole: role }),
+
+  addPointToRegion: (id, point) =>
+    set((s) => ({
+      slicerRegions: s.slicerRegions.map((r) =>
+        r.id === id ? { ...r, points: [...r.points, point] } : r
+      ),
+    })),
+
+  removeLastPointFromRegion: (id) =>
+    set((s) => ({
+      slicerRegions: s.slicerRegions.map((r) =>
+        r.id === id ? { ...r, points: r.points.slice(0, -1) } : r
+      ),
+    })),
+
+  resetSlicer: () =>
+    set({
+      slicerSourceUrl: null,
+      slicerProcessedUrl: null,
+      slicerSourceWidth: 0,
+      slicerSourceHeight: 0,
+      slicerRegions: [],
+      slicerTolerance: 30,
+      slicerSelectedRegionId: null,
+      slicerDrawingRole: null,
+    }),
 
   addPart: (part) => set((s) => ({ parts: [...s.parts, part] })),
 
