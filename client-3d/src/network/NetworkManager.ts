@@ -485,7 +485,7 @@ export class NetworkManager {
   }
 
   removeFromQueuePlaylist(id: string) {
-    this.room?.send(Message.ROOM_QUEUE_PLAYLIST_REMOVE, { id })
+    this.room?.send(Message.ROOM_QUEUE_PLAYLIST_REMOVE, { itemId: id })
   }
 
   reorderQueuePlaylist(fromIndex: number, toIndex: number) {

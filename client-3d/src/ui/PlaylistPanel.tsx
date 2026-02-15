@@ -47,11 +47,16 @@ export function PlaylistPanel() {
   const [viewingPlaylistId, setViewingPlaylistId] = useState<string | null>(null)
   const [detailTab, setDetailTab] = useState<PlaylistDetailTab>('tracks')
 
-  // Search
+  // Search (playlist detail tab)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const [linkInput, setLinkInput] = useState('')
+
+  // Queue search (DJ Queue tab — searches playlists + YouTube)
+  const [queueSearchQuery, setQueueSearchQuery] = useState('')
+  const [queueSearchYTResults, setQueueSearchYTResults] = useState<SearchResult[]>([])
+  const [queueSearching, setQueueSearching] = useState(false)
 
   // Playlist management
   const [newPlaylistName, setNewPlaylistName] = useState('')
@@ -77,6 +82,76 @@ export function PlaylistPanel() {
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
 
   const viewingPlaylist = playlists.find((p) => p.id === viewingPlaylistId) ?? null
+
+  // Queue search: searches user playlists locally + YouTube remotely
+  const handleQueueSearch = useCallback(async () => {
+    const q = queueSearchQuery.trim()
+    if (!q) {
+      setQueueSearchYTResults([])
+      return
+    }
+
+    setQueueSearching(true)
+
+    try {
+      const results = await getNetwork().searchYouTube(q)
+
+      setQueueSearchYTResults(
+        results.map((r: any) => ({
+          title: r.title ?? r.Title ?? 'Unknown',
+          videoId: r.id ?? r.Id ?? r.videoId ?? '',
+          duration: r.duration ?? r.Duration ?? 0,
+          thumbnail: extractThumbnail(r.thumbnail ?? r.Thumbnail),
+        }))
+      )
+    } catch (err) {
+      console.error('Queue search failed:', err)
+    } finally {
+      setQueueSearching(false)
+    }
+  }, [queueSearchQuery])
+
+  // Local playlist matches for the queue search
+  const queueSearchLocalMatches: { playlistName: string; track: PlaylistTrack }[] = (() => {
+    const q = queueSearchQuery.trim().toLowerCase()
+    if (!q) return []
+
+    const matches: { playlistName: string; track: PlaylistTrack }[] = []
+
+    for (const pl of playlists) {
+      for (const track of pl.items) {
+        if (track.title.toLowerCase().includes(q)) {
+          matches.push({ playlistName: pl.name, track })
+        }
+      }
+    }
+
+    return matches.slice(0, 10)
+  })()
+
+  // Add a search result directly to the DJ queue (from queue search)
+  const handleAddSearchResultToQueue = useCallback(
+    (result: SearchResult) => {
+      const link = `https://www.youtube.com/watch?v=${result.videoId}`
+
+      getNetwork().addToQueuePlaylist(result.title, link, result.duration ?? 0)
+
+      markAdded(`qsearch-${result.videoId}`)
+      useToastStore.getState().addToast('added to dj queue')
+    },
+    [markAdded]
+  )
+
+  // Add a local playlist track directly to the DJ queue (from queue search)
+  const handleAddLocalTrackToQueue = useCallback(
+    (track: PlaylistTrack) => {
+      getNetwork().addToQueuePlaylist(track.title, track.link, track.duration)
+
+      markAdded(`qlocal-${track.id}`)
+      useToastStore.getState().addToast('added to dj queue')
+    },
+    [markAdded]
+  )
 
   const handleSearch = useCallback(async () => {
     const q = searchQuery.trim()
@@ -602,135 +677,237 @@ export function PlaylistPanel() {
                   : 'text-white/60 hover:text-white/80'
               }`}
             >
-              {t === 'queue' ? 'DJ Queue' : 'My Playlists'}
+              {t === 'queue'
+                ? `DJ Queue (${queuePlaylist.filter((tr) => !tr.played).length})`
+                : 'My Playlists'}
             </button>
           ))}
         </div>
 
         {/* Tab content */}
         {boothTab === 'queue' ? (
-          <div className="flex-1 overflow-y-auto px-3 py-2">
-            {djQueue.length > 0 && (
-              <div className="mb-3">
-                <div className="text-[11px] font-mono text-white/50 uppercase tracking-wider mb-1">
-                  dj rotation
-                </div>
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Queue search bar */}
+            <div className="px-3 py-2 border-b border-white/[0.1]">
+              <div className="flex gap-1">
+                <input
+                  type="text"
+                  value={queueSearchQuery}
+                  onChange={(e) => setQueueSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleQueueSearch()
+                    if (e.key === 'Escape') {
+                      setQueueSearchQuery('')
+                      setQueueSearchYTResults([])
+                    }
+                  }}
+                  placeholder="search to add tracks..."
+                  className="flex-1 bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-[12px] text-white placeholder-white/30 focus:border-purple-400/50 focus:outline-none font-mono"
+                />
 
-                {djQueue.map((entry, i) => (
-                  <div
-                    key={entry.sessionId}
-                    className={`flex items-center gap-2 py-1 ${
-                      entry.sessionId === currentDjSessionId ? 'text-green-400' : 'text-white/80'
-                    }`}
-                  >
-                    <span className="text-[12px] font-mono w-5">{i + 1}.</span>
-
-                    <span className="text-[12px] font-mono truncate">
-                      {entry.name}
-                      {entry.sessionId === mySessionId && ' (you)'}
-                    </span>
-
-                    {entry.sessionId === currentDjSessionId && (
-                      <span className="text-[10px] font-mono text-green-400/60 ml-auto">DJ</span>
-                    )}
-                  </div>
-                ))}
-
-                {isCurrentDJ && (
+                {queueSearchQuery.trim() ? (
                   <button
-                    onClick={() => getNetwork().djSkipTurn()}
-                    className="mt-2 px-2.5 py-1 text-[11px] font-mono bg-white/10 border border-white/20 rounded text-white/70 hover:text-white transition-colors"
+                    onClick={() => {
+                      setQueueSearchQuery('')
+                      setQueueSearchYTResults([])
+                    }}
+                    className="px-2 py-1.5 text-[12px] font-mono text-white/50 hover:text-white transition-colors"
+                    title="Clear search"
                   >
-                    skip my turn
+                    ✕
                   </button>
-                )}
-              </div>
-            )}
+                ) : null}
 
-            <div className="text-[11px] font-mono text-white/50 uppercase tracking-wider mb-1">
-              my queue ({queuePlaylist.filter((t) => !t.played).length} tracks)
+                <button
+                  onClick={handleQueueSearch}
+                  disabled={queueSearching}
+                  className="px-2.5 py-1.5 text-[12px] font-mono bg-white/10 border border-white/20 rounded text-white/80 hover:text-white transition-colors disabled:opacity-30"
+                >
+                  {queueSearching ? '...' : 'go'}
+                </button>
+              </div>
             </div>
 
-            {queuePlaylist.length === 0 && (
-              <p className="text-white/40 text-[12px] font-mono mt-2">
-                no tracks — go to My Playlists to add tracks
-              </p>
-            )}
+            {/* Search results (shown when there's a query) */}
+            {queueSearchQuery.trim() &&
+            (queueSearchLocalMatches.length > 0 || queueSearchYTResults.length > 0) ? (
+              <div className="flex-1 overflow-y-auto px-3 py-1">
+                {/* Playlist matches */}
+                {queueSearchLocalMatches.length > 0 && (
+                  <div className="mb-2">
+                    <div className="text-[10px] font-mono text-white/50 uppercase tracking-wider mb-1 mt-1">
+                      from your playlists
+                    </div>
 
-            {queuePlaylist.map((track, i) => {
-              // First unplayed track is "now playing" when music is active
-              const firstUnplayedIdx = queuePlaylist.findIndex((t) => !t.played)
-              const isNowPlaying = isCurrentDJ && stream.isPlaying && i === firstUnplayedIdx
-              const isLocked = track.played || isNowPlaying
+                    {queueSearchLocalMatches.map(({ playlistName, track }) => (
+                      <div
+                        key={`local-${track.id}`}
+                        className="flex items-center gap-2 py-1.5 border-b border-white/[0.05] group"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[12px] font-mono text-white/90 truncate">
+                            {track.title}
+                          </div>
 
-              return (
-                <div
-                  key={track.id}
-                  draggable={!isLocked}
-                  onDragStart={(e) => {
-                    if (isLocked) {
-                      e.preventDefault()
-                      return
-                    }
-                    dragSrc.current = i
-                    e.dataTransfer.effectAllowed = 'move'
-                  }}
-                  onDragOver={(e) => {
-                    if (isLocked) return
-                    e.preventDefault()
-                    e.dataTransfer.dropEffect = 'move'
-                    setDragOverIdx(i)
-                  }}
-                  onDragLeave={() => setDragOverIdx(null)}
-                  onDrop={(e) => {
-                    e.preventDefault()
-                    const from = dragSrc.current
-                    if (from !== null && from !== i && !isLocked) {
-                      useBoothStore.getState().reorderQueueTrack(from, i)
-                      getNetwork().reorderQueuePlaylist(from, i)
-                    }
-                    dragSrc.current = null
-                    setDragOverIdx(null)
-                  }}
-                  onDragEnd={() => {
-                    dragSrc.current = null
-                    setDragOverIdx(null)
-                  }}
-                  className={`flex items-center justify-between py-1 ${
-                    track.played ? 'opacity-40' : ''
-                  } ${isNowPlaying ? 'opacity-70' : ''} ${
-                    !isLocked ? 'cursor-grab active:cursor-grabbing' : ''
-                  } ${
-                    dragOverIdx === i && !isLocked
-                      ? 'border-b border-purple-400/60 bg-purple-500/10'
-                      : ''
-                  }`}
-                >
-                  {/* Drag handle or lock indicator */}
-                  {!isLocked ? (
-                    <span className="text-[10px] text-white/40 mr-1.5 flex-shrink-0 select-none">
-                      ⠿
-                    </span>
-                  ) : (
-                    <span className="w-[14px] mr-1.5 flex-shrink-0" />
-                  )}
+                          <div className="text-[10px] font-mono text-white/40 truncate">
+                            {playlistName}
+                            {track.duration > 0 && ` · ${formatDuration(track.duration)}`}
+                          </div>
+                        </div>
 
-                  <div className="text-[12px] font-mono text-white/90 truncate flex-1 mr-2">
-                    {i + 1}. {track.title}
-                    {isNowPlaying && <span className="text-green-400/60 ml-1">♪</span>}
+                        <button
+                          onClick={() => handleAddLocalTrackToQueue(track)}
+                          className={`text-[12px] font-mono px-2 py-1 border rounded transition-colors flex-shrink-0 ${
+                            recentlyAdded.has(`qlocal-${track.id}`)
+                              ? 'bg-green-500/20 border-green-500/30 text-green-400 opacity-100'
+                              : 'bg-green-500/15 border-green-500/25 text-green-400 hover:bg-green-500/25 opacity-0 group-hover:opacity-100'
+                          }`}
+                        >
+                          {recentlyAdded.has(`qlocal-${track.id}`) ? '✓' : '+'}
+                        </button>
+                      </div>
+                    ))}
                   </div>
+                )}
 
-                  {!track.played && (
-                    <button
-                      onClick={() => handleRemoveQueueTrack(track.id)}
-                      className="text-[12px] text-white/50 hover:text-red-400 transition-colors flex-shrink-0"
+                {/* YouTube results */}
+                {queueSearchYTResults.length > 0 && (
+                  <div className="mb-2">
+                    <div className="text-[10px] font-mono text-white/50 uppercase tracking-wider mb-1 mt-1">
+                      from youtube
+                    </div>
+
+                    {queueSearchYTResults.map((result) => (
+                      <div
+                        key={`yt-${result.videoId}`}
+                        className="flex items-center gap-2 py-1.5 border-b border-white/[0.05] group"
+                      >
+                        {result.thumbnail && (
+                          <img
+                            src={result.thumbnail}
+                            alt=""
+                            className="w-10 h-7 rounded object-cover flex-shrink-0"
+                          />
+                        )}
+
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[12px] font-mono text-white/90 truncate">
+                            {result.title}
+                          </div>
+
+                          {result.duration ? (
+                            <div className="text-[10px] font-mono text-white/50">
+                              {formatDuration(result.duration)}
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <button
+                          onClick={() => handleAddSearchResultToQueue(result)}
+                          className={`text-[12px] font-mono px-2 py-1 border rounded transition-colors flex-shrink-0 ${
+                            recentlyAdded.has(`qsearch-${result.videoId}`)
+                              ? 'bg-green-500/20 border-green-500/30 text-green-400 opacity-100'
+                              : 'bg-green-500/15 border-green-500/25 text-green-400 hover:bg-green-500/25 opacity-0 group-hover:opacity-100'
+                          }`}
+                        >
+                          {recentlyAdded.has(`qsearch-${result.videoId}`) ? '✓' : '+'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {queueSearching && (
+                  <p className="text-white/40 text-[12px] font-mono text-center mt-2">
+                    searching youtube...
+                  </p>
+                )}
+              </div>
+            ) : (
+              /* Queue track list (default view) */
+              <div className="flex-1 overflow-y-auto px-3 py-2">
+                {queuePlaylist.length === 0 && (
+                  <p className="text-white/40 text-[12px] font-mono mt-2">
+                    no tracks — use the search bar above to add tracks
+                  </p>
+                )}
+
+                {queuePlaylist.map((track, i) => {
+                  // First unplayed track is "now playing" when music is active
+                  const firstUnplayedIdx = queuePlaylist.findIndex((t) => !t.played)
+                  const isNowPlaying = isCurrentDJ && stream.isPlaying && i === firstUnplayedIdx
+                  const isLocked = track.played || isNowPlaying
+
+                  return (
+                    <div
+                      key={track.id}
+                      draggable={!isLocked}
+                      onDragStart={(e) => {
+                        if (isLocked) {
+                          e.preventDefault()
+                          return
+                        }
+                        dragSrc.current = i
+                        e.dataTransfer.effectAllowed = 'move'
+                      }}
+                      onDragOver={(e) => {
+                        if (isLocked) return
+                        e.preventDefault()
+                        e.dataTransfer.dropEffect = 'move'
+                        setDragOverIdx(i)
+                      }}
+                      onDragLeave={() => setDragOverIdx(null)}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        const from = dragSrc.current
+                        if (from !== null && from !== i && !isLocked) {
+                          useBoothStore.getState().reorderQueueTrack(from, i)
+                          getNetwork().reorderQueuePlaylist(from, i)
+                        }
+                        dragSrc.current = null
+                        setDragOverIdx(null)
+                      }}
+                      onDragEnd={() => {
+                        dragSrc.current = null
+                        setDragOverIdx(null)
+                      }}
+                      className={`flex items-center justify-between py-1 ${
+                        track.played ? 'opacity-40' : ''
+                      } ${isNowPlaying ? 'opacity-70' : ''} ${
+                        !isLocked ? 'cursor-grab active:cursor-grabbing' : ''
+                      } ${
+                        dragOverIdx === i && !isLocked
+                          ? 'border-b border-purple-400/60 bg-purple-500/10'
+                          : ''
+                      }`}
                     >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              )
-            })}
+                      {/* Drag handle or lock indicator */}
+                      {!isLocked ? (
+                        <span className="text-[10px] text-white/40 mr-1.5 flex-shrink-0 select-none">
+                          ⠿
+                        </span>
+                      ) : (
+                        <span className="w-[14px] mr-1.5 flex-shrink-0" />
+                      )}
+
+                      <div className="text-[12px] font-mono text-white/90 truncate flex-1 mr-2">
+                        {i + 1}. {track.title}
+                        {isNowPlaying && <span className="text-green-400/60 ml-1">♪</span>}
+                      </div>
+
+                      {!track.played && (
+                        <button
+                          onClick={() => handleRemoveQueueTrack(track.id)}
+                          className="text-[12px] text-white/50 hover:text-red-400 transition-colors flex-shrink-0"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         ) : (
           myPlaylistsContent
