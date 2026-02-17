@@ -1,7 +1,5 @@
 import { useRef, useEffect, useState, useCallback, useMemo, memo } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useDrag } from '@use-gesture/react'
-import * as THREE from 'three'
 import type { CharacterManifest, ManifestPart, ManifestTrack } from '../../character/CharacterLoader'
 
 interface CharacterEntry {
@@ -18,11 +16,11 @@ interface TurntableCarouselProps {
 }
 
 const AUTO_ROTATE_SPEED = 4000
-const RADIUS = 3.5
+const RADIUS = 220 // px
 
 /**
- * Three.js-based 3D Turntable Carousel
- * Much more performant than CSS transforms - everything runs on GPU
+ * CSS 3D Turntable Carousel with full body characters
+ * Uses CSS transforms (GPU accelerated) with composited character previews
  */
 export function TurntableCarousel({ 
   characters, 
@@ -33,6 +31,10 @@ export function TurntableCarousel({
   const autoRotateRef = useRef<NodeJS.Timeout | null>(null)
   const rotationRef = useRef(0)
   const targetRotationRef = useRef(0)
+  const animationFrameRef = useRef<number>(0)
+  
+  // Calculate angle per character
+  const anglePerChar = (Math.PI * 2) / Math.min(characters.length, 12)
   
   // Auto-rotate logic
   const startAutoRotate = useCallback(() => {
@@ -42,7 +44,6 @@ export function TurntableCarousel({
       if (!isDragging && characters.length > 1) {
         const nextIndex = (selectedIndex + 1) % characters.length
         onSelect(nextIndex)
-        targetRotationRef.current = -(nextIndex * (Math.PI * 2 / characters.length))
       }
     }, AUTO_ROTATE_SPEED)
   }, [isDragging, characters.length, selectedIndex, onSelect])
@@ -51,13 +52,36 @@ export function TurntableCarousel({
     startAutoRotate()
     return () => {
       if (autoRotateRef.current) clearInterval(autoRotateRef.current)
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
     }
   }, [startAutoRotate])
   
   // Update target rotation when selectedIndex changes
   useEffect(() => {
-    targetRotationRef.current = -(selectedIndex * (Math.PI * 2 / characters.length))
-  }, [selectedIndex, characters.length])
+    targetRotationRef.current = -(selectedIndex * anglePerChar)
+  }, [selectedIndex, characters.length, anglePerChar])
+  
+  // Animation loop for smooth rotation
+  useEffect(() => {
+    const animate = () => {
+      // Lerp towards target rotation
+      const diff = targetRotationRef.current - rotationRef.current
+      if (Math.abs(diff) > 0.001) {
+        rotationRef.current += diff * 0.1
+        // Trigger re-render
+        setRotationState(rotationRef.current)
+      }
+      animationFrameRef.current = requestAnimationFrame(animate)
+    }
+    
+    animationFrameRef.current = requestAnimationFrame(animate)
+    return () => {
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+    }
+  }, [])
+  
+  // Force re-render state
+  const [, setRotationState] = useState(0)
   
   // Drag gesture
   const bind = useDrag(({ movement: [x], down }) => {
@@ -65,11 +89,9 @@ export function TurntableCarousel({
     
     if (down) {
       if (autoRotateRef.current) clearInterval(autoRotateRef.current)
-      // Direct control during drag
-      rotationRef.current = targetRotationRef.current + x * 0.01
+      rotationRef.current = targetRotationRef.current + x * 0.005
+      setRotationState(rotationRef.current)
     } else {
-      // Release - snap to nearest character
-      const anglePerChar = (Math.PI * 2) / characters.length
       const charOffset = Math.round((rotationRef.current - targetRotationRef.current) / anglePerChar)
       let newIndex = selectedIndex - charOffset
       newIndex = ((newIndex % characters.length) + characters.length) % characters.length
@@ -79,46 +101,86 @@ export function TurntableCarousel({
     }
   }, {
     axis: 'x',
-    bounds: { left: -200, right: 200 },
+    bounds: { left: -300, right: 300 },
     rubberband: true,
   })
   
   if (characters.length === 0) return null
   
+  // Calculate visible characters (show 7 at a time)
+  const visibleCount = Math.min(7, characters.length)
+  const halfVisible = Math.floor(visibleCount / 2)
+  
+  const visibleCharacters = []
+  for (let i = -halfVisible; i <= halfVisible; i++) {
+    const index = ((selectedIndex + i + characters.length) % characters.length)
+    const angle = (i / characters.length) * Math.PI * 2
+    visibleCharacters.push({
+      character: characters[index],
+      index,
+      offset: i,
+      angle,
+    })
+  }
+  
   return (
     <div 
-      className="relative w-full h-64 cursor-grab active:cursor-grabbing"
+      className="relative w-full h-80 cursor-grab active:cursor-grabbing"
+      style={{ perspective: '1000px' }}
       {...bind()}
     >
-      <Canvas
-        camera={{ position: [0, 0, 8], fov: 50 }}
-        gl={{ antialias: false, alpha: true }}
-        style={{ background: 'transparent' }}
+      <div 
+        className="absolute inset-0 flex items-center justify-center"
+        style={{
+          transformStyle: 'preserve-3d',
+          transform: `rotateY(${rotationRef.current}rad)`,
+        }}
       >
-        <ambientLight intensity={0.8} />
-        <pointLight position={[10, 10, 10]} intensity={0.5} />
-        <CarouselGroup
-          characters={characters}
-          selectedIndex={selectedIndex}
-          rotationRef={rotationRef}
-          targetRotationRef={targetRotationRef}
-          onSelect={onSelect}
-          isDragging={isDragging}
-        />
-      </Canvas>
-      
-      {/* Name label below canvas */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-center">
-        <span 
-          className="text-sm font-mono"
-          style={{
-            color: '#39ff14',
-            textShadow: '0 0 10px rgba(57, 255, 20, 0.5)',
-          }}
-        >
-          {characters[selectedIndex]?.name}
-        </span>
+        {visibleCharacters.map(({ character, index, offset, angle }) => {
+          const isCenter = offset === 0
+          const x = Math.sin(angle) * RADIUS
+          const z = Math.cos(angle) * RADIUS - RADIUS
+          const scale = isCenter ? 1.3 : 0.85 - Math.abs(offset) * 0.08
+          const opacity = isCenter ? 1 : 0.4 - Math.abs(offset) * 0.08
+          
+          return (
+            <div
+              key={`${character.id}-${offset}`}
+              className="absolute flex flex-col items-center"
+              style={{
+                transform: `
+                  translateX(${x}px) 
+                  translateZ(${z}px)
+                  scale(${scale})
+                `,
+                opacity: Math.max(0.15, opacity),
+                zIndex: isCenter ? 10 : 5 - Math.abs(offset),
+                transition: isDragging ? 'none' : 'opacity 0.3s ease',
+                filter: isCenter ? 'drop-shadow(0 0 20px rgba(57, 255, 20, 0.6))' : 'none',
+              }}
+              onClick={() => {
+                if (!isDragging && !isCenter) {
+                  onSelect(index)
+                }
+              }}
+            >
+              <CharacterPreview 
+                characterPath={character.path}
+                isActive={isCenter}
+                size={isCenter ? 140 : 100}
+              />
+            </div>
+          )
+        })}
       </div>
+      
+      {/* Floor reflection */}
+      <div 
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 w-96 h-px opacity-30"
+        style={{
+          background: 'linear-gradient(90deg, transparent, #39ff14, transparent)',
+        }}
+      />
       
       {/* Selection dots */}
       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
@@ -141,171 +203,6 @@ export function TurntableCarousel({
   )
 }
 
-interface CarouselGroupProps {
-  characters: CharacterEntry[]
-  selectedIndex: number
-  rotationRef: React.MutableRefObject<number>
-  targetRotationRef: React.MutableRefObject<number>
-  onSelect: (index: number) => void
-  isDragging: boolean
-}
-
-function CarouselGroup({ 
-  characters, 
-  selectedIndex, 
-  rotationRef, 
-  targetRotationRef,
-}: CarouselGroupProps) {
-  const groupRef = useRef<THREE.Group>(null)
-  const { viewport } = useThree()
-  
-  // Smooth rotation animation
-  useFrame(() => {
-    if (!groupRef.current) return
-    
-    // Lerp towards target rotation
-    const diff = targetRotationRef.current - rotationRef.current
-    rotationRef.current += diff * 0.08
-    
-    groupRef.current.rotation.y = rotationRef.current
-  })
-  
-  // Calculate positions for visible characters only (show 7 at a time)
-  const visibleCount = Math.min(7, characters.length)
-  const halfVisible = Math.floor(visibleCount / 2)
-  
-  const visibleCharacters = useMemo(() => {
-    const result = []
-    for (let i = -halfVisible; i <= halfVisible; i++) {
-      const index = ((selectedIndex + i + characters.length) % characters.length)
-      result.push({
-        character: characters[index],
-        index,
-        offset: i,
-        angle: (i / characters.length) * Math.PI * 2,
-      })
-    }
-    return result
-  }, [characters, selectedIndex, halfVisible])
-  
-  return (
-    <group ref={groupRef}>
-      {visibleCharacters.map(({ character, index, offset, angle }) => {
-        const isCenter = offset === 0
-        const x = Math.sin(angle) * RADIUS
-        const z = Math.cos(angle) * RADIUS - RADIUS
-        const scale = isCenter ? 1.2 : 0.8 - Math.abs(offset) * 0.1
-        const opacity = isCenter ? 1 : 0.5 - Math.abs(offset) * 0.1
-        
-        return (
-          <CharacterCard
-            key={`${character.id}-${index}`}
-            character={character}
-            position={[x, 0, z]}
-            scale={scale}
-            opacity={Math.max(0.2, opacity)}
-            isCenter={isCenter}
-          />
-        )
-      })}
-      
-      {/* Floor reflection */}
-      <mesh position={[0, -2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[12, 8]} />
-        <meshBasicMaterial 
-          color={0x39ff14} 
-          transparent 
-          opacity={0.05}
-        />
-      </mesh>
-    </group>
-  )
-}
-
-interface CharacterCardProps {
-  character: CharacterEntry
-  position: [number, number, number]
-  scale: number
-  opacity: number
-  isCenter: boolean
-}
-
-function CharacterCard({ character, position, scale, opacity, isCenter }: CharacterCardProps) {
-  const meshRef = useRef<THREE.Mesh>(null)
-  const [texture, setTexture] = useState<THREE.Texture | null>(null)
-  
-  // Load character texture
-  useEffect(() => {
-    const loader = new THREE.TextureLoader()
-    loader.load(
-      `${character.path}/head.png`,
-      (tex) => {
-        tex.minFilter = THREE.NearestFilter
-        tex.magFilter = THREE.NearestFilter
-        setTexture(tex)
-      },
-      undefined,
-      () => {
-        // Try body if head fails
-        loader.load(
-          `${character.path}/body.png`,
-          (tex) => {
-            tex.minFilter = THREE.NearestFilter
-            tex.magFilter = THREE.NearestFilter
-            setTexture(tex)
-          }
-        )
-      }
-    )
-  }, [character.path])
-  
-  // Bobbing animation for center character
-  useFrame(({ clock }) => {
-    if (!meshRef.current || !isCenter) return
-    meshRef.current.position.y = position[1] + Math.sin(clock.getElapsedTime() * 2) * 0.1
-  })
-  
-  if (!texture) {
-    return (
-      <mesh position={position}>
-        <boxGeometry args={[1, 1, 0.1]} />
-        <meshBasicMaterial color={0x333333} />
-      </mesh>
-    )
-  }
-  
-  return (
-    <mesh 
-      ref={meshRef}
-      position={position}
-      scale={[scale, scale, scale]}
-    >
-      <planeGeometry args={[1.5, 1.5]} />
-      <meshBasicMaterial 
-        map={texture}
-        transparent
-        opacity={opacity}
-        side={THREE.DoubleSide}
-      />
-      
-      {/* Glow effect for center */}
-      {isCenter && (
-        <mesh position={[0, 0, -0.05]} scale={[1.3, 1.3, 1]}>
-          <planeGeometry args={[1.5, 1.5]} />
-          <meshBasicMaterial 
-            color={0x39ff14}
-            transparent
-            opacity={0.2}
-          />
-        </mesh>
-      )}
-    </mesh>
-  )
-}
-
-/**
- * Fallback CSS-based character preview (kept for compatibility)
- */
 interface CharacterPreviewProps {
   characterPath: string
   isActive: boolean
@@ -351,6 +248,8 @@ const CharacterPreview = memo(function CharacterPreview({
 
     const startTime = performance.now()
     isAnimatingRef.current = true
+    
+    // Frame skip: animate every 2nd frame for performance
     let frameCount = 0
 
     const tick = () => {
