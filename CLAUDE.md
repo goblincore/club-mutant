@@ -94,8 +94,38 @@ GLBModel.preload('/models/old-computer-desk.glb')
 - `scripts/build-models.mjs` — Node.js script that programmatically builds GLB files using `@gltf-transform/core`
 - `client-3d/src/scene/GLBModel.tsx` — Reusable loader component (useGLTF + clone + preload)
 - `client-3d/public/models/` — GLB asset directory (served statically by Vite)
-- Currently converted: `old-computer-desk.glb` (38 KB, 16 meshes after merge), `dj-booth.glb` (43 KB, 12 meshes after merge)
+- Currently converted: `old-computer-desk.glb` (38 KB, 16 meshes), `dj-booth.glb` (43 KB, 12 meshes), `magazine-rack.glb` (10 KB, 3 meshes)
 - Optimization pipeline: `dedup` (merge duplicate materials) → `flatten` (collapse hierarchy) → `join` (merge meshes by material). Runs automatically in `buildAndWrite()`.
+
+## Magazine rack (Feb 2026)
+
+Wooden 4-tier display shelf on the right wall. Loads a manifest-driven set of magazines with cover textures and an optional page reader.
+
+### How it works
+
+- **GLB model** (`magazine-rack.glb`): static wood structure built in `build-models.mjs` via `buildMagazineRack()`
+- **`MagazineRack.tsx`**: scene component — loads GLB + overlays textured cover planes on each shelf slot (3 per row × 4 rows = 12 max). Falls back to colored rectangles when covers aren't available.
+- **`MagazineReader.tsx`**: modal UI overlay (same chrome as ComputerBrowser). Cover grid → click → page viewer with arrow key / click navigation.
+- **Manifest**: `client-3d/public/textures/magazines/magazines.json`
+- **Textures**: `client-3d/public/textures/magazines/covers/` and `pages/`
+
+### Adding content
+
+```json
+// client-3d/public/textures/magazines/magazines.json
+{
+  "magazines": [
+    {
+      "id": "zine1",
+      "title": "Club Mutant Zine #1",
+      "cover": "covers/zine1.png",
+      "pages": ["pages/zine1-p1.png", "pages/zine1-p2.png"]
+    }
+  ]
+}
+```
+
+Drop images into the `covers/` and `pages/` folders, update the manifest, and they appear automatically on the rack and in the reader.
 
 ## Fisheye auto-scale experiment (reverted, revisit later)
 
