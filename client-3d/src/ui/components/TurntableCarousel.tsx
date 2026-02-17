@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback, useMemo, memo } from 'react'
+import { useRef, useEffect, useState, useMemo, memo } from 'react'
 import type { CharacterManifest, ManifestPart, ManifestTrack } from '../../character/CharacterLoader'
 
 interface CharacterEntry {
@@ -14,116 +14,163 @@ interface TurntableCarouselProps {
   onSelect: (index: number) => void
 }
 
-const AUTO_ROTATE_SPEED = 4000
-const RADIUS = 280
+// --- Constants ---
+const TWO_PI = Math.PI * 2
+const RADIUS = 250 // ring radius in px
+const AUTO_SPEED = 0.3 // radians/sec (~17 deg/s, full rotation ~21s)
+const SNAP_LERP = 8 // exponential approach factor
+const SNAP_THRESHOLD = 0.003 // rad — close enough to snap
+const RESUME_DELAY = 3000 // ms before auto-rotate resumes after user input
+const TILT_DEG = 8 // X-axis tilt for turntable perspective
+const DEPTH_FACTOR = 0.5 // Z scaling for perspective exaggeration
+const CHAR_SIZE = 140 // uniform size for all CharacterPreview instances
 
-export function TurntableCarousel({ 
-  characters, 
-  selectedIndex, 
-  onSelect 
+function shortestAngleDiff(from: number, to: number): number {
+  return ((to - from) % TWO_PI + TWO_PI + Math.PI) % TWO_PI - Math.PI
+}
+
+export function TurntableCarousel({
+  characters,
+  selectedIndex,
+  onSelect,
 }: TurntableCarouselProps) {
-  const autoRotateRef = useRef<NodeJS.Timeout | null>(null)
-  const [rotation, setRotation] = useState(0)
-  const targetRotationRef = useRef(0)
-  const animationRef = useRef<number | null>(null)
-  
-  const anglePerChar = 360 / characters.length
-  
-  // Update target rotation when selectedIndex changes
+  // --- Refs for animation (no React state in the hot path) ---
+  const angleRef = useRef(0)
+  const targetAngleRef = useRef<number | null>(null)
+  const lastFrameRef = useRef(0)
+  const autoResumeTsRef = useRef(0) // timestamp when auto-rotate can resume
+  const lastReportedIndexRef = useRef(-1)
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([])
+  const rafRef = useRef<number>(0)
+
+  // Keep fresh references for the rAF closure
+  const charsRef = useRef(characters)
+  charsRef.current = characters
+  const onSelectRef = useRef(onSelect)
+  onSelectRef.current = onSelect
+  const selectedIndexRef = useRef(selectedIndex)
+  selectedIndexRef.current = selectedIndex
+
+  // --- Selection sync: when parent changes selectedIndex, set snap target ---
   useEffect(() => {
-    const targetRotation = -(selectedIndex * anglePerChar)
-    targetRotationRef.current = targetRotation
-  }, [selectedIndex, anglePerChar])
-  
-  // Smooth animation loop
+    if (characters.length === 0) return
+    const target = -(selectedIndex * TWO_PI / characters.length)
+    targetAngleRef.current = target
+    autoResumeTsRef.current = performance.now() + RESUME_DELAY
+  }, [selectedIndex, characters.length])
+
+  // --- Main rAF animation loop (runs once, never restarts) ---
   useEffect(() => {
-    const animate = () => {
-      const diff = targetRotationRef.current - rotation
-      
-      if (Math.abs(diff) > 0.1) {
-        // Smooth lerp
-        const newRotation = rotation + diff * 0.08
-        setRotation(newRotation)
-      } else if (rotation !== targetRotationRef.current) {
-        setRotation(targetRotationRef.current)
+    if (characters.length === 0) return
+
+    // Initialize angle to show the selected character at front
+    angleRef.current = -(selectedIndex * TWO_PI / characters.length)
+    targetAngleRef.current = null
+    lastFrameRef.current = performance.now()
+    lastReportedIndexRef.current = selectedIndex
+
+    const animate = (now: number) => {
+      const dt = Math.min((now - lastFrameRef.current) / 1000, 0.1)
+      lastFrameRef.current = now
+
+      const N = charsRef.current.length
+      if (N === 0) {
+        rafRef.current = requestAnimationFrame(animate)
+        return
       }
-      
-      animationRef.current = requestAnimationFrame(animate)
+
+      const angleStep = TWO_PI / N
+
+      // --- Update angle ---
+      if (targetAngleRef.current !== null) {
+        // Snap mode: exponential approach to target
+        const diff = shortestAngleDiff(angleRef.current, targetAngleRef.current)
+        if (Math.abs(diff) < SNAP_THRESHOLD) {
+          angleRef.current = targetAngleRef.current
+          targetAngleRef.current = null
+        } else {
+          angleRef.current += diff * SNAP_LERP * dt
+        }
+      } else if (now > autoResumeTsRef.current) {
+        // Auto-rotate mode
+        angleRef.current += AUTO_SPEED * dt
+      }
+
+      // --- Position all character DOM elements ---
+      for (let i = 0; i < N; i++) {
+        const el = itemRefs.current[i]
+        if (!el) continue
+
+        const charAngle = angleRef.current + i * angleStep
+        const x = Math.sin(charAngle) * RADIUS
+        const z = Math.cos(charAngle) * RADIUS
+        const depth = (z + RADIUS) / (2 * RADIUS) // 0=back, 1=front
+
+        const scale = 0.5 + 0.7 * depth
+        const opacity = 0.3 + 0.7 * depth
+        const brightness = 0.4 + 0.6 * depth
+        const zIdx = Math.round(depth * 100)
+        const isFront = depth > 0.92
+
+        el.style.transform = `translateX(${x}px) translateZ(${z * DEPTH_FACTOR}px) scale(${scale})`
+        el.style.opacity = String(opacity)
+        el.style.zIndex = String(zIdx)
+        el.style.filter = isFront
+          ? `drop-shadow(0 0 20px rgba(57, 255, 20, 0.6)) brightness(${brightness})`
+          : `brightness(${brightness})`
+        el.style.pointerEvents = depth > 0.3 ? 'auto' : 'none'
+      }
+
+      // --- During auto-rotate, sync selectedIndex to front character ---
+      if (targetAngleRef.current === null && now > autoResumeTsRef.current) {
+        let bestI = 0
+        let bestDist = Infinity
+        for (let i = 0; i < N; i++) {
+          const charAngle = angleRef.current + i * angleStep
+          const normalized = ((charAngle % TWO_PI) + TWO_PI) % TWO_PI
+          const dist = Math.min(normalized, TWO_PI - normalized)
+          if (dist < bestDist) {
+            bestDist = dist
+            bestI = i
+          }
+        }
+        if (bestI !== lastReportedIndexRef.current) {
+          lastReportedIndexRef.current = bestI
+          onSelectRef.current(bestI)
+        }
+      }
+
+      rafRef.current = requestAnimationFrame(animate)
     }
-    
-    animationRef.current = requestAnimationFrame(animate)
-    
+
+    rafRef.current = requestAnimationFrame(animate)
+
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current)
-      }
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [rotation])
-  
-  // Auto-rotate logic
-  const startAutoRotate = useCallback(() => {
-    if (autoRotateRef.current) clearInterval(autoRotateRef.current)
-    
-    autoRotateRef.current = setInterval(() => {
-      if (characters.length > 1) {
-        onSelect((selectedIndex + 1) % characters.length)
-      }
-    }, AUTO_ROTATE_SPEED)
-  }, [characters.length, selectedIndex, onSelect])
-  
-  useEffect(() => {
-    startAutoRotate()
-    return () => {
-      if (autoRotateRef.current) clearInterval(autoRotateRef.current)
-      if (animationRef.current) cancelAnimationFrame(animationRef.current)
-    }
-  }, [startAutoRotate])
-  
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [characters.length > 0]) // only restart when chars become available
+
   const handlePrev = () => {
-    const newIndex = (selectedIndex - 1 + characters.length) % characters.length
-    onSelect(newIndex)
-    if (autoRotateRef.current) {
-      clearInterval(autoRotateRef.current)
-      startAutoRotate()
-    }
+    const N = characters.length
+    if (N === 0) return
+    onSelect((selectedIndex - 1 + N) % N)
   }
-  
+
   const handleNext = () => {
-    const newIndex = (selectedIndex + 1) % characters.length
-    onSelect(newIndex)
-    if (autoRotateRef.current) {
-      clearInterval(autoRotateRef.current)
-      startAutoRotate()
-    }
+    const N = characters.length
+    if (N === 0) return
+    onSelect((selectedIndex + 1) % N)
   }
-  
+
   if (characters.length === 0) return null
-  
-  // Calculate which characters to show
-  // We show all characters but position them based on current rotation
-  const currentIndexOffset = -rotation / anglePerChar
-  
-  // Get indices for visible characters (center and neighbors)
-  const visibleIndices = []
-  const visibleCount = Math.min(7, characters.length)
-  const halfVisible = Math.floor(visibleCount / 2)
-  
-  for (let i = -halfVisible; i <= halfVisible; i++) {
-    const rawIndex = Math.round(currentIndexOffset) + i
-    // Proper modulo that handles negative numbers
-    const index = ((rawIndex % characters.length) + characters.length) % characters.length
-    visibleIndices.push({
-      index,
-      offset: i + (currentIndexOffset - Math.round(currentIndexOffset)),
-    })
-  }
-  
+
   return (
     <div className="relative w-full">
       {/* Arrow buttons */}
       <button
         onClick={handlePrev}
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-14 h-14 
+        className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-14 h-14
                    flex items-center justify-center rounded-full
                    bg-black/60 border-2 border-white/40 text-white
                    hover:bg-white/30 hover:border-white/70 hover:scale-110
@@ -131,13 +178,13 @@ export function TurntableCarousel({
         style={{ backdropFilter: 'blur(4px)' }}
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="15 18 9 12 15 6"></polyline>
+          <polyline points="15 18 9 12 15 6" />
         </svg>
       </button>
-      
+
       <button
         onClick={handleNext}
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-14 h-14 
+        className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-14 h-14
                    flex items-center justify-center rounded-full
                    bg-black/60 border-2 border-white/40 text-white
                    hover:bg-white/30 hover:border-white/70 hover:scale-110
@@ -145,75 +192,57 @@ export function TurntableCarousel({
         style={{ backdropFilter: 'blur(4px)' }}
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="9 18 15 12 9 6"></polyline>
+          <polyline points="9 18 15 12 9 6" />
         </svg>
       </button>
-      
-      <div 
+
+      {/* 3D carousel container */}
+      <div
         className="relative w-full h-96"
-        style={{ perspective: '1000px' }}
+        style={{ perspective: '800px' }}
       >
-        <div 
+        <div
           className="absolute inset-0 flex items-center justify-center"
           style={{
             transformStyle: 'preserve-3d',
-            transform: `rotateY(${rotation}deg)`,
+            transform: `rotateX(${TILT_DEG}deg)`,
           }}
         >
-          {visibleIndices.map(({ index, offset }) => {
-            const character = characters[index]
-            if (!character) return null
-            
-            const isCenter = Math.abs(offset) < 0.5
-            const angle = (index * anglePerChar * Math.PI) / 180
-            const x = Math.sin(angle) * RADIUS
-            const z = Math.cos(angle) * RADIUS - RADIUS * 0.5
-            const scale = isCenter ? 1.5 : 1 - Math.abs(offset) * 0.08
-            const opacity = isCenter ? 1 : 0.8 - Math.abs(offset) * 0.08
-            
-            return (
-              <div
-                key={`${character.id}-${index}`}
-                className="absolute flex flex-col items-center"
-                style={{
-                  transform: `
-                    translateX(${x}px) 
-                    translateZ(${z}px)
-                    scale(${scale})
-                    rotateY(${-rotation}deg)
-                  `,
-                  opacity: Math.max(0.55, opacity),
-                  zIndex: isCenter ? 10 : 5 - Math.round(Math.abs(offset)),
-                  filter: isCenter ? 'drop-shadow(0 0 20px rgba(57, 255, 20, 0.6))' : 'none',
-                }}
-                onClick={() => {
-                  if (!isCenter) {
-                    onSelect(index)
-                  }
-                }}
+          {characters.map((char, i) => (
+            <div
+              key={char.id}
+              ref={(el) => { itemRefs.current[i] = el }}
+              className="absolute flex flex-col items-center cursor-pointer"
+              onClick={() => { if (i !== selectedIndex) onSelect(i) }}
+              style={{ willChange: 'transform, opacity' }}
+            >
+              <CharacterPreview
+                characterPath={char.path}
+                isActive={i === selectedIndex}
+                size={CHAR_SIZE}
+              />
+              <span
+                className="text-xs font-mono text-white/80 mt-1 text-center whitespace-nowrap"
+                style={{ textShadow: '0 0 6px rgba(0,0,0,0.8)' }}
               >
-                <CharacterPreview 
-                  characterPath={character.path}
-                  isActive={isCenter}
-                  size={isCenter ? 160 : 120}
-                />
-              </div>
-            )
-          })}
+                {char.name}
+              </span>
+            </div>
+          ))}
         </div>
-        
-        {/* Floor reflection */}
-        <div 
+
+        {/* Floor reflection line */}
+        <div
           className="absolute bottom-12 left-1/2 -translate-x-1/2 w-[400px] h-0.5 opacity-30"
           style={{
             background: 'linear-gradient(90deg, transparent, #39ff14, transparent)',
           }}
         />
-        
+
         {/* Selection dots */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-          {Array.from({ length: Math.min(characters.length, 10) }).map((_, i) => {
-            const isActive = i === selectedIndex % 10
+          {characters.map((_, i) => {
+            const isActive = i === selectedIndex
             return (
               <button
                 key={i}
@@ -232,16 +261,18 @@ export function TurntableCarousel({
   )
 }
 
+// ─── CharacterPreview (unchanged) ────────────────────────────────────
+
 interface CharacterPreviewProps {
   characterPath: string
   isActive: boolean
   size: number
 }
 
-const CharacterPreview = memo(function CharacterPreview({ 
-  characterPath, 
+const CharacterPreview = memo(function CharacterPreview({
+  characterPath,
   isActive,
-  size 
+  size,
 }: CharacterPreviewProps) {
   const [manifest, setManifest] = useState<CharacterManifest | null>(null)
   const partElsRef = useRef<Map<string, HTMLImageElement>>(new Map())
@@ -281,7 +312,7 @@ const CharacterPreview = memo(function CharacterPreview({
 
     const tick = () => {
       if (!isAnimatingRef.current) return
-      
+
       frameCount++
       if (frameCount % 2 === 0) {
         rafRef.current = requestAnimationFrame(tick)
