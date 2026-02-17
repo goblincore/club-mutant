@@ -1,44 +1,44 @@
 {
-  "name": "voodoodoll",
-  "scale": 0.65,
+  "name": "emobear",
+  "scale": 0.6,
   "parts": [
     {
       "id": "torso",
       "texture": "torso.png",
       "pivot": [0.5, 0.8],
-      "size": [42, 37],
+      "size": [59, 56],
       "parent": null,
-      "offset": [-1, 29.400000000000006, 0],
-      "zIndex": 1,
+      "offset": [2.5, 32.2, 0],
+      "zIndex": 0,
       "boneRole": "torso"
     },
     {
       "id": "head",
       "texture": "head.png",
       "pivot": [0.5, 0],
-      "size": [117, 114],
+      "size": [155, 117],
       "parent": "torso",
-      "offset": [-0.3726266171861141, -2.6318536569716713, 1],
+      "offset": [-2.2507348605017654, -4.615837143726566, 0],
       "zIndex": 2,
       "boneRole": "head"
     },
     {
       "id": "arm_l",
       "texture": "arm_l.png",
-      "pivot": [0.85, 0.63],
-      "size": [49, 40],
+      "pivot": [0.85, 0.92],
+      "size": [41, 54],
       "parent": "torso",
-      "offset": [-17.222626617186116, 0.568146343028332, -1],
+      "offset": [-24.900734860501764, -6.2958371437265725, 0],
       "zIndex": -1,
       "boneRole": "arm_l"
     },
     {
       "id": "arm_r",
       "texture": "arm_r.png",
-      "pivot": [0, 0.58],
-      "size": [52, 50],
+      "pivot": [0.15, 0.92],
+      "size": [42, 53],
       "parent": "torso",
-      "offset": [6.92737338281388, -2.63185365697167, 2],
+      "offset": [25.54926513949823, -7.375837143726571, 0],
       "zIndex": -1,
       "boneRole": "arm_r"
     },
@@ -46,9 +46,9 @@
       "id": "leg_l",
       "texture": "leg_l.png",
       "pivot": [0.7, 0.92],
-      "size": [33, 45],
+      "size": [25, 24],
       "parent": "torso",
-      "offset": [-8.77262661718612, 16.968146343028323, -1],
+      "offset": [-6.250734860501765, 34.30416285627342, 0],
       "zIndex": -2,
       "boneRole": "leg_l"
     },
@@ -56,9 +56,9 @@
       "id": "leg_r",
       "texture": "leg_r.png",
       "pivot": [0.3, 0.92],
-      "size": [33, 44],
+      "size": [23, 26],
       "parent": "torso",
-      "offset": [11.027373382813892, 17.88814634302834, -1],
+      "offset": [10.14926513949824, 32.46416285627345, 0],
       "zIndex": -2,
       "boneRole": "leg_r"
     }

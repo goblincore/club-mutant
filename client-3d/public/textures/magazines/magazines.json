@@ -3,19 +3,19 @@
     {
       "id": "zine1",
       "title": "Club Mutant Zine #1",
-      "cover": "covers/zine1.png",
-      "pages": []
+      "cover": "covers/mutantpeeflower.gif",
+      "pages": ["pages/z1p1.png", "pages/z1p2.png"]
     },
     {
       "id": "zine2",
-      "title": "Club Mutant Zine #2",
-      "cover": "covers/zine2.png",
+      "title": "The First Fifty Years",
+      "cover": "covers/firstfitty.png",
       "pages": []
     },
     {
       "id": "zine3",
-      "title": "Club Mutant Zine #3",
-      "cover": "covers/zine3.png",
+      "title": "Madame Bovary",
+      "cover": "covers/mbovary.jpg",
       "pages": []
     }
   ]

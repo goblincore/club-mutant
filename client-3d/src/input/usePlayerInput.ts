@@ -17,14 +17,15 @@ const ROOM_HALF = 580 // room boundary with character radius padding
 // Combined AABB with ~15px padding for character radius
 const BOOTH_BOX = { minX: -230, maxX: 230, minY: 305, maxY: 395 }
 
-function clampPosition(x: number, y: number): [number, number] {
-  // Room boundaries
-  x = Math.max(-ROOM_HALF, Math.min(ROOM_HALF, x))
-  y = Math.max(-ROOM_HALF, Math.min(ROOM_HALF, y))
+// Old Dell computer desk: world (-4.8, -5.2), rotated 45°, ~1.5m effective AABB
+const DESK_BOX = { minX: -560, maxX: -400, minY: 440, maxY: 600 }
 
-  // DJ booth — push out along shortest axis
-  const b = BOOTH_BOX
+// Magazine rack: world (5.4, -1.5), rotated -90°, 0.85w × 0.45d
+const RACK_BOX = { minX: 500, maxX: 580, minY: 90, maxY: 210 }
 
+const COLLISION_BOXES = [BOOTH_BOX, DESK_BOX, RACK_BOX]
+
+function pushOutOfBox(x: number, y: number, b: typeof BOOTH_BOX): [number, number] {
   if (x > b.minX && x < b.maxX && y > b.minY && y < b.maxY) {
     const pushL = x - b.minX
     const pushR = b.maxX - x
@@ -36,6 +37,19 @@ function clampPosition(x: number, y: number): [number, number] {
     else if (min === pushR) x = b.maxX
     else if (min === pushD) y = b.minY
     else y = b.maxY
+  }
+
+  return [x, y]
+}
+
+function clampPosition(x: number, y: number): [number, number] {
+  // Room boundaries
+  x = Math.max(-ROOM_HALF, Math.min(ROOM_HALF, x))
+  y = Math.max(-ROOM_HALF, Math.min(ROOM_HALF, y))
+
+  // Push out of all furniture collision boxes
+  for (const box of COLLISION_BOXES) {
+    ;[x, y] = pushOutOfBox(x, y, box)
   }
 
   return [x, y]

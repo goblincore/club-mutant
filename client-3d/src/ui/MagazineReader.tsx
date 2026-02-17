@@ -133,13 +133,15 @@ function PageViewer({ magazine, onBack }: { magazine: MagazineEntry; onBack: () 
       </div>
 
       {/* Page display */}
-      <div className="flex-1 flex items-center justify-center p-4 relative">
-        <img
-          src={currentSrc}
-          alt={`Page ${pageIndex + 1}`}
-          className="max-w-full max-h-full object-contain rounded"
-          style={{ imageRendering: 'auto' }}
-        />
+      <div className="flex-1 min-h-0 relative">
+        <div className="absolute inset-0 flex items-center justify-center p-4">
+          <img
+            src={currentSrc}
+            alt={`Page ${pageIndex + 1}`}
+            className="max-h-full max-w-full object-contain rounded"
+            style={{ imageRendering: 'auto' }}
+          />
+        </div>
 
         {/* Prev / Next click zones */}
         {pageIndex > 0 && (
@@ -227,8 +229,9 @@ export function MagazineReader() {
       <div
         className="relative flex flex-col rounded-xl overflow-hidden"
         style={{
-          width: 700,
-          height: 520,
+          width: '85vw',
+          maxWidth: 900,
+          height: '85vh',
           background: '#1e1e22',
           boxShadow: '0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)',
         }}
