@@ -15,7 +15,7 @@ interface TurntableCarouselProps {
 }
 
 const AUTO_ROTATE_SPEED = 4000
-const RADIUS = 300 // px - increased for bigger carousel
+const RADIUS = 280
 
 export function TurntableCarousel({ 
   characters, 
@@ -23,46 +23,32 @@ export function TurntableCarousel({
   onSelect 
 }: TurntableCarouselProps) {
   const autoRotateRef = useRef<NodeJS.Timeout | null>(null)
-  const [displayIndex, setDisplayIndex] = useState(selectedIndex)
+  const [rotation, setRotation] = useState(0)
+  const targetRotationRef = useRef(0)
   const animationRef = useRef<number | null>(null)
   
-  // Smooth animation between indices
+  const anglePerChar = 360 / characters.length
+  
+  // Update target rotation when selectedIndex changes
   useEffect(() => {
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current)
-    }
-    
-    const startIndex = displayIndex
-    const targetIndex = selectedIndex
-    
-    // Handle wrapping around for shortest path
-    let diff = targetIndex - startIndex
-    const totalChars = characters.length
-    
-    if (diff > totalChars / 2) {
-      diff -= totalChars
-    } else if (diff < -totalChars / 2) {
-      diff += totalChars
-    }
-    
-    const duration = 400 // ms
-    const startTime = performance.now()
-    
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime
-      const progress = Math.min(elapsed / duration, 1)
+    const targetRotation = -(selectedIndex * anglePerChar)
+    targetRotationRef.current = targetRotation
+  }, [selectedIndex, anglePerChar])
+  
+  // Smooth animation loop
+  useEffect(() => {
+    const animate = () => {
+      const diff = targetRotationRef.current - rotation
       
-      // Easing function for smooth deceleration
-      const easeOut = 1 - Math.pow(1 - progress, 3)
-      
-      const newIndex = startIndex + diff * easeOut
-      setDisplayIndex(newIndex)
-      
-      if (progress < 1) {
-        animationRef.current = requestAnimationFrame(animate)
-      } else {
-        setDisplayIndex(targetIndex)
+      if (Math.abs(diff) > 0.1) {
+        // Smooth lerp
+        const newRotation = rotation + diff * 0.08
+        setRotation(newRotation)
+      } else if (rotation !== targetRotationRef.current) {
+        setRotation(targetRotationRef.current)
       }
+      
+      animationRef.current = requestAnimationFrame(animate)
     }
     
     animationRef.current = requestAnimationFrame(animate)
@@ -72,7 +58,7 @@ export function TurntableCarousel({
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [selectedIndex, characters.length])
+  }, [rotation])
   
   // Auto-rotate logic
   const startAutoRotate = useCallback(() => {
@@ -113,26 +99,24 @@ export function TurntableCarousel({
   
   if (characters.length === 0) return null
   
-  // Calculate visible characters with smooth rotation
+  // Calculate which characters to show
+  // We show all characters but position them based on current rotation
+  const currentIndexOffset = -rotation / anglePerChar
+  
+  // Get indices for visible characters (center and neighbors)
+  const visibleIndices = []
   const visibleCount = Math.min(7, characters.length)
   const halfVisible = Math.floor(visibleCount / 2)
   
-  const visibleCharacters = []
   for (let i = -halfVisible; i <= halfVisible; i++) {
-    const index = Math.round(displayIndex + i + characters.length) % characters.length
-    const angleOffset = i + (displayIndex - Math.round(displayIndex))
-    const angle = (angleOffset / characters.length) * Math.PI * 2
-    
-    visibleCharacters.push({
-      character: characters[index],
+    const rawIndex = Math.round(currentIndexOffset) + i
+    // Proper modulo that handles negative numbers
+    const index = ((rawIndex % characters.length) + characters.length) % characters.length
+    visibleIndices.push({
       index,
-      offset: i,
-      angle,
+      offset: i + (currentIndexOffset - Math.round(currentIndexOffset)),
     })
   }
-  
-  // Calculate rotation for the carousel group to create circular perspective
-  const rotationAngle = -(displayIndex * (360 / characters.length))
   
   return (
     <div className="relative w-full">
@@ -167,37 +151,40 @@ export function TurntableCarousel({
       
       <div 
         className="relative w-full h-96"
-        style={{ perspective: '1200px' }}
+        style={{ perspective: '1000px' }}
       >
         <div 
           className="absolute inset-0 flex items-center justify-center"
           style={{
             transformStyle: 'preserve-3d',
-            transform: `rotateY(${rotationAngle}deg)`,
-            transition: 'transform 0.1s linear',
+            transform: `rotateY(${rotation}deg)`,
           }}
         >
-          {visibleCharacters.map(({ character, index, offset, angle }) => {
+          {visibleIndices.map(({ index, offset }) => {
+            const character = characters[index]
+            if (!character) return null
+            
             const isCenter = Math.abs(offset) < 0.5
+            const angle = (index * anglePerChar * Math.PI) / 180
             const x = Math.sin(angle) * RADIUS
-            const z = Math.cos(angle) * RADIUS - RADIUS * 0.3
-            const scale = isCenter ? 1.6 : 1.1 - Math.abs(offset) * 0.08
-            const opacity = isCenter ? 1 : 0.85 - Math.abs(offset) * 0.1
+            const z = Math.cos(angle) * RADIUS - RADIUS * 0.5
+            const scale = isCenter ? 1.5 : 1 - Math.abs(offset) * 0.08
+            const opacity = isCenter ? 1 : 0.8 - Math.abs(offset) * 0.08
             
             return (
               <div
                 key={`${character.id}-${index}`}
-                className="absolute flex flex-col items-center cursor-pointer"
+                className="absolute flex flex-col items-center"
                 style={{
                   transform: `
                     translateX(${x}px) 
                     translateZ(${z}px)
                     scale(${scale})
+                    rotateY(${-rotation}deg)
                   `,
-                  opacity: Math.max(0.5, opacity),
+                  opacity: Math.max(0.55, opacity),
                   zIndex: isCenter ? 10 : 5 - Math.round(Math.abs(offset)),
-                  transition: 'opacity 0.2s ease',
-                  filter: isCenter ? 'drop-shadow(0 0 25px rgba(57, 255, 20, 0.7))' : 'none',
+                  filter: isCenter ? 'drop-shadow(0 0 20px rgba(57, 255, 20, 0.6))' : 'none',
                 }}
                 onClick={() => {
                   if (!isCenter) {
@@ -208,7 +195,7 @@ export function TurntableCarousel({
                 <CharacterPreview 
                   characterPath={character.path}
                   isActive={isCenter}
-                  size={isCenter ? 180 : 130}
+                  size={isCenter ? 160 : 120}
                 />
               </div>
             )
@@ -217,24 +204,24 @@ export function TurntableCarousel({
         
         {/* Floor reflection */}
         <div 
-          className="absolute bottom-12 left-1/2 -translate-x-1/2 w-[500px] h-1 opacity-40"
+          className="absolute bottom-12 left-1/2 -translate-x-1/2 w-[400px] h-0.5 opacity-30"
           style={{
             background: 'linear-gradient(90deg, transparent, #39ff14, transparent)',
           }}
         />
         
         {/* Selection dots */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
           {Array.from({ length: Math.min(characters.length, 10) }).map((_, i) => {
             const isActive = i === selectedIndex % 10
             return (
-              <div
+              <button
                 key={i}
-                className="w-2 h-2 rounded-full"
+                onClick={() => onSelect(i)}
+                className="w-2 h-2 rounded-full transition-all duration-200 hover:scale-150"
                 style={{
                   backgroundColor: isActive ? '#39ff14' : 'rgba(255,255,255,0.3)',
-                  transform: isActive ? 'scale(1.4)' : 'scale(1)',
-                  transition: 'all 0.3s ease',
+                  transform: isActive ? 'scale(1.3)' : 'scale(1)',
                 }}
               />
             )
@@ -337,7 +324,7 @@ const CharacterPreview = memo(function CharacterPreview({
     function getAbsPos(part: ManifestPart): [number, number] {
       let x = part.offset[0]
       let y = part.offset[1]
-      let cur = part.parent ? byId.get(part.parent) : undefined
+      let cur: ManifestPart | undefined = part.parent ? byId.get(part.parent) : undefined
 
       while (cur) {
         x += cur.offset[0]
