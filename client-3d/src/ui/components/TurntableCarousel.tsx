@@ -15,24 +15,64 @@ interface TurntableCarouselProps {
 }
 
 const AUTO_ROTATE_SPEED = 4000
-const RADIUS = 220 // px
+const RADIUS = 300 // px - increased for bigger carousel
 
-/**
- * CSS 3D Turntable Carousel with full body characters
- * Uses CSS transforms (GPU accelerated) with composited character previews
- */
 export function TurntableCarousel({ 
   characters, 
   selectedIndex, 
   onSelect 
 }: TurntableCarouselProps) {
   const autoRotateRef = useRef<NodeJS.Timeout | null>(null)
-  const rotationRef = useRef(0)
-  const targetRotationRef = useRef(0)
-  const animationFrameRef = useRef<number>(0)
+  const [displayIndex, setDisplayIndex] = useState(selectedIndex)
+  const animationRef = useRef<number | null>(null)
   
-  // Calculate angle per character
-  const anglePerChar = (Math.PI * 2) / Math.min(characters.length, 12)
+  // Smooth animation between indices
+  useEffect(() => {
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current)
+    }
+    
+    const startIndex = displayIndex
+    const targetIndex = selectedIndex
+    
+    // Handle wrapping around for shortest path
+    let diff = targetIndex - startIndex
+    const totalChars = characters.length
+    
+    if (diff > totalChars / 2) {
+      diff -= totalChars
+    } else if (diff < -totalChars / 2) {
+      diff += totalChars
+    }
+    
+    const duration = 400 // ms
+    const startTime = performance.now()
+    
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      
+      // Easing function for smooth deceleration
+      const easeOut = 1 - Math.pow(1 - progress, 3)
+      
+      const newIndex = startIndex + diff * easeOut
+      setDisplayIndex(newIndex)
+      
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate)
+      } else {
+        setDisplayIndex(targetIndex)
+      }
+    }
+    
+    animationRef.current = requestAnimationFrame(animate)
+    
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+      }
+    }
+  }, [selectedIndex, characters.length])
   
   // Auto-rotate logic
   const startAutoRotate = useCallback(() => {
@@ -40,8 +80,7 @@ export function TurntableCarousel({
     
     autoRotateRef.current = setInterval(() => {
       if (characters.length > 1) {
-        const nextIndex = (selectedIndex + 1) % characters.length
-        onSelect(nextIndex)
+        onSelect((selectedIndex + 1) % characters.length)
       }
     }, AUTO_ROTATE_SPEED)
   }, [characters.length, selectedIndex, onSelect])
@@ -50,41 +89,13 @@ export function TurntableCarousel({
     startAutoRotate()
     return () => {
       if (autoRotateRef.current) clearInterval(autoRotateRef.current)
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+      if (animationRef.current) cancelAnimationFrame(animationRef.current)
     }
   }, [startAutoRotate])
-  
-  // Update target rotation when selectedIndex changes
-  useEffect(() => {
-    targetRotationRef.current = -(selectedIndex * anglePerChar)
-  }, [selectedIndex, characters.length, anglePerChar])
-  
-  // Animation loop for smooth rotation
-  useEffect(() => {
-    const animate = () => {
-      // Lerp towards target rotation
-      const diff = targetRotationRef.current - rotationRef.current
-      if (Math.abs(diff) > 0.001) {
-        rotationRef.current += diff * 0.1
-        // Trigger re-render
-        setRotationState(rotationRef.current)
-      }
-      animationFrameRef.current = requestAnimationFrame(animate)
-    }
-    
-    animationFrameRef.current = requestAnimationFrame(animate)
-    return () => {
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
-    }
-  }, [])
-  
-  // Force re-render state
-  const [, setRotationState] = useState(0)
   
   const handlePrev = () => {
     const newIndex = (selectedIndex - 1 + characters.length) % characters.length
     onSelect(newIndex)
-    // Reset auto-rotation timer
     if (autoRotateRef.current) {
       clearInterval(autoRotateRef.current)
       startAutoRotate()
@@ -94,7 +105,6 @@ export function TurntableCarousel({
   const handleNext = () => {
     const newIndex = (selectedIndex + 1) % characters.length
     onSelect(newIndex)
-    // Reset auto-rotation timer
     if (autoRotateRef.current) {
       clearInterval(autoRotateRef.current)
       startAutoRotate()
@@ -103,14 +113,16 @@ export function TurntableCarousel({
   
   if (characters.length === 0) return null
   
-  // Calculate visible characters (show 7 at a time)
+  // Calculate visible characters with smooth rotation
   const visibleCount = Math.min(7, characters.length)
   const halfVisible = Math.floor(visibleCount / 2)
   
   const visibleCharacters = []
   for (let i = -halfVisible; i <= halfVisible; i++) {
-    const index = ((selectedIndex + i + characters.length) % characters.length)
-    const angle = (i / characters.length) * Math.PI * 2
+    const index = Math.round(displayIndex + i + characters.length) % characters.length
+    const angleOffset = i + (displayIndex - Math.round(displayIndex))
+    const angle = (angleOffset / characters.length) * Math.PI * 2
+    
     visibleCharacters.push({
       character: characters[index],
       index,
@@ -119,58 +131,62 @@ export function TurntableCarousel({
     })
   }
   
+  // Calculate rotation for the carousel group to create circular perspective
+  const rotationAngle = -(displayIndex * (360 / characters.length))
+  
   return (
     <div className="relative w-full">
       {/* Arrow buttons */}
       <button
         onClick={handlePrev}
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 
+        className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-14 h-14 
                    flex items-center justify-center rounded-full
-                   bg-black/50 border-2 border-white/30 text-white
-                   hover:bg-white/20 hover:border-white/60
+                   bg-black/60 border-2 border-white/40 text-white
+                   hover:bg-white/30 hover:border-white/70 hover:scale-110
                    transition-all duration-200"
         style={{ backdropFilter: 'blur(4px)' }}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="15 18 9 12 15 6"></polyline>
         </svg>
       </button>
       
       <button
         onClick={handleNext}
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 
+        className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-14 h-14 
                    flex items-center justify-center rounded-full
-                   bg-black/50 border-2 border-white/30 text-white
-                   hover:bg-white/20 hover:border-white/60
+                   bg-black/60 border-2 border-white/40 text-white
+                   hover:bg-white/30 hover:border-white/70 hover:scale-110
                    transition-all duration-200"
         style={{ backdropFilter: 'blur(4px)' }}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="9 18 15 12 9 6"></polyline>
         </svg>
       </button>
       
       <div 
-        className="relative w-full h-80"
-        style={{ perspective: '1000px' }}
+        className="relative w-full h-96"
+        style={{ perspective: '1200px' }}
       >
         <div 
           className="absolute inset-0 flex items-center justify-center"
           style={{
             transformStyle: 'preserve-3d',
-            transform: `rotateY(${rotationRef.current}rad)`,
+            transform: `rotateY(${rotationAngle}deg)`,
+            transition: 'transform 0.1s linear',
           }}
         >
           {visibleCharacters.map(({ character, index, offset, angle }) => {
-            const isCenter = offset === 0
+            const isCenter = Math.abs(offset) < 0.5
             const x = Math.sin(angle) * RADIUS
-            const z = Math.cos(angle) * RADIUS - RADIUS
-            const scale = isCenter ? 1.3 : 0.9 - Math.abs(offset) * 0.05
-            const opacity = isCenter ? 1 : 0.7 - Math.abs(offset) * 0.08
+            const z = Math.cos(angle) * RADIUS - RADIUS * 0.3
+            const scale = isCenter ? 1.6 : 1.1 - Math.abs(offset) * 0.08
+            const opacity = isCenter ? 1 : 0.85 - Math.abs(offset) * 0.1
             
             return (
               <div
-                key={`${character.id}-${offset}`}
+                key={`${character.id}-${index}`}
                 className="absolute flex flex-col items-center cursor-pointer"
                 style={{
                   transform: `
@@ -178,10 +194,10 @@ export function TurntableCarousel({
                     translateZ(${z}px)
                     scale(${scale})
                   `,
-                  opacity: Math.max(0.3, opacity),
-                  zIndex: isCenter ? 10 : 5 - Math.abs(offset),
-                  transition: 'opacity 0.3s ease',
-                  filter: isCenter ? 'drop-shadow(0 0 20px rgba(57, 255, 20, 0.6))' : 'none',
+                  opacity: Math.max(0.5, opacity),
+                  zIndex: isCenter ? 10 : 5 - Math.round(Math.abs(offset)),
+                  transition: 'opacity 0.2s ease',
+                  filter: isCenter ? 'drop-shadow(0 0 25px rgba(57, 255, 20, 0.7))' : 'none',
                 }}
                 onClick={() => {
                   if (!isCenter) {
@@ -192,7 +208,7 @@ export function TurntableCarousel({
                 <CharacterPreview 
                   characterPath={character.path}
                   isActive={isCenter}
-                  size={isCenter ? 140 : 100}
+                  size={isCenter ? 180 : 130}
                 />
               </div>
             )
@@ -201,23 +217,23 @@ export function TurntableCarousel({
         
         {/* Floor reflection */}
         <div 
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 w-96 h-px opacity-30"
+          className="absolute bottom-12 left-1/2 -translate-x-1/2 w-[500px] h-1 opacity-40"
           style={{
             background: 'linear-gradient(90deg, transparent, #39ff14, transparent)',
           }}
         />
         
         {/* Selection dots */}
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-          {Array.from({ length: Math.min(characters.length, 8) }).map((_, i) => {
-            const isActive = i === selectedIndex % 8
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+          {Array.from({ length: Math.min(characters.length, 10) }).map((_, i) => {
+            const isActive = i === selectedIndex % 10
             return (
               <div
                 key={i}
-                className="w-1.5 h-1.5 rounded-full"
+                className="w-2 h-2 rounded-full"
                 style={{
                   backgroundColor: isActive ? '#39ff14' : 'rgba(255,255,255,0.3)',
-                  transform: isActive ? 'scale(1.3)' : 'scale(1)',
+                  transform: isActive ? 'scale(1.4)' : 'scale(1)',
                   transition: 'all 0.3s ease',
                 }}
               />
@@ -274,8 +290,6 @@ const CharacterPreview = memo(function CharacterPreview({
 
     const startTime = performance.now()
     isAnimatingRef.current = true
-    
-    // Frame skip: animate every 2nd frame for performance
     let frameCount = 0
 
     const tick = () => {
