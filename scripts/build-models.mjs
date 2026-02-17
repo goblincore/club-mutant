@@ -876,6 +876,119 @@ function buildDJBooth(doc) {
   return doc
 }
 
+function buildMagazineRack(doc) {
+  const buffer = doc.createBuffer()
+  const scene = doc.createScene('MagazineRack')
+  const root = doc.createNode('Root')
+  scene.addChild(root)
+
+  // Rack dimensions
+  const RACK_W = 0.85
+  const RACK_H = 1.15
+  const RACK_D = 0.45
+  const SIDE_T = 0.025
+  const BACK_T = 0.02
+  const SHELF_T = 0.02
+  const LIP_H = 0.06
+  const LIP_T = 0.015
+  const INNER_W = RACK_W - SIDE_T * 2
+
+  const BACK_Z = -RACK_D / 2 + BACK_T / 2
+
+  // Materials — warm wood tones
+  const woodDark = makeMaterial(doc, 'wood-dark', '#6B4226', { roughness: 0.75 })
+  const woodMed = makeMaterial(doc, 'wood-med', '#8B5E3C', { roughness: 0.7 })
+  const woodLight = makeMaterial(doc, 'wood-light', '#A0714F', { roughness: 0.65 })
+
+  // ── Side panels ──
+  const sideX = RACK_W / 2 - SIDE_T / 2
+
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(SIDE_T, RACK_H, RACK_D),
+    woodDark,
+    [-sideX, RACK_H / 2, 0],
+    'side-L'
+  )
+
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(SIDE_T, RACK_H, RACK_D),
+    woodDark,
+    [sideX, RACK_H / 2, 0],
+    'side-R'
+  )
+
+  // ── Back panel ──
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(RACK_W, RACK_H, BACK_T),
+    woodDark,
+    [0, RACK_H / 2, BACK_Z],
+    'back'
+  )
+
+  // ── Base ──
+  addMeshNode(
+    doc,
+    buffer,
+    scene,
+    root,
+    boxGeometry(RACK_W, 0.06, RACK_D),
+    woodDark,
+    [0, 0.03, 0],
+    'base'
+  )
+
+  // ── Shelf rows (4 tiers, stepping back progressively) ──
+  const shelfRows = [
+    { y: 0.1, frontZ: 0.18 },
+    { y: 0.36, frontZ: 0.1 },
+    { y: 0.62, frontZ: 0.01 },
+    { y: 0.88, frontZ: -0.08 },
+  ]
+
+  shelfRows.forEach(({ y, frontZ }, i) => {
+    const shelfDepth = frontZ - BACK_Z + BACK_T / 2
+    const shelfCenterZ = frontZ - shelfDepth / 2
+
+    // Shelf platform
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      root,
+      boxGeometry(INNER_W, SHELF_T, shelfDepth),
+      woodMed,
+      [0, y, shelfCenterZ],
+      `shelf-${i}`
+    )
+
+    // Lip at front edge
+    addMeshNode(
+      doc,
+      buffer,
+      scene,
+      root,
+      boxGeometry(INNER_W, LIP_H, LIP_T),
+      woodLight,
+      [0, y + LIP_H / 2, frontZ],
+      `lip-${i}`
+    )
+  })
+
+  return doc
+}
+
 // ── Main ──
 
 /** Optimize a document by deduplicating materials, flattening hierarchy, and joining meshes. */
@@ -911,6 +1024,7 @@ async function main() {
 
   await buildAndWrite('OldComputerDesk', buildOldComputerDesk, 'old-computer-desk.glb')
   await buildAndWrite('DJBooth', buildDJBooth, 'dj-booth.glb')
+  await buildAndWrite('MagazineRack', buildMagazineRack, 'magazine-rack.glb')
 
   console.log('Done!')
 }

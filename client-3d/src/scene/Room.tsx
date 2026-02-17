@@ -12,11 +12,13 @@ import { BrickWallMaterial } from '../shaders/BrickWallMaterial'
 import { getDisplacementAt } from './TrampolineRipples'
 import { InteractableObject } from './InteractableObject'
 import { GLBModel } from './GLBModel'
+import { MagazineRack } from './MagazineRack'
 import './SpottedEggMaterial'
 
 // Preload GLB models to avoid pop-in
 GLBModel.preload('/models/old-computer-desk.glb')
 GLBModel.preload('/models/dj-booth.glb')
+GLBModel.preload('/models/magazine-rack.glb')
 
 interface RoomProps {
   videoTexture?: THREE.VideoTexture | null
@@ -901,6 +903,17 @@ export function Room({ videoTexture, slideshowTexture }: RoomProps) {
       {/* Water station — left wall, toward front */}
       <BobbingGroup baseX={-half + 0.5} baseZ={2.5}>
         <WaterStation position={[-half + 0.5, 0, 2.5]} />
+      </BobbingGroup>
+
+      {/* Magazine rack — right wall, facing inward */}
+      <BobbingGroup baseX={half - 0.6} baseZ={-1.5}>
+        <InteractableObject
+          interactDistance={2.5}
+          onInteract={() => useUIStore.getState().setMagazineReaderOpen(true)}
+          occludeHighlight
+        >
+          <MagazineRack position={[half - 0.6, 0, -1.5]} rotation={[0, -Math.PI / 2, 0]} />
+        </InteractableObject>
       </BobbingGroup>
 
       {/* Old Dell computer desk — back-left corner, facing into room */}

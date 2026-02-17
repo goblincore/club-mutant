@@ -13,6 +13,7 @@ import { BoothPrompt } from './ui/BoothPrompt'
 import { ToastContainer } from './ui/ToastContainer'
 import { DisconnectedOverlay } from './ui/DisconnectedOverlay'
 import { ComputerBrowser } from './ui/ComputerBrowser'
+import { MagazineReader } from './ui/MagazineReader'
 
 const PLAYLIST_WIDTH = 360
 
@@ -226,6 +227,9 @@ export function App() {
 
       {/* Computer desk mini browser */}
       <ComputerBrowser />
+
+      {/* Magazine rack reader */}
+      <MagazineReader />
 
       {/* Reconnection / disconnection overlay */}
       <DisconnectedOverlay />

@@ -1,0 +1,22 @@
+{
+  "magazines": [
+    {
+      "id": "zine1",
+      "title": "Club Mutant Zine #1",
+      "cover": "covers/zine1.png",
+      "pages": []
+    },
+    {
+      "id": "zine2",
+      "title": "Club Mutant Zine #2",
+      "cover": "covers/zine2.png",
+      "pages": []
+    },
+    {
+      "id": "zine3",
+      "title": "Club Mutant Zine #3",
+      "cover": "covers/zine3.png",
+      "pages": []
+    }
+  ]
+}

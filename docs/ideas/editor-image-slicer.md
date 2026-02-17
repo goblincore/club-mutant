@@ -44,7 +44,7 @@ Add a "slicer mode" to the paper-rig-editor that lets users load a single full c
 ### Step 5: Polish
 
 - Allow re-entering slicer mode to re-adjust
-- Handle already-transparent PNGs (skip bg removal)
+- ~~Handle already-transparent PNGs (skip bg removal)~~ ✅ Auto-detected (>5% transparent pixels disables BG removal)
 - Allow custom bone regions beyond the standard 6
 
 ## Technical Notes
@@ -72,3 +72,7 @@ The slicer mode is fully implemented with polygon regions (not rectangles). Key 
 - **Image slicing**: Uses `ctx.clip()` with polygon path to extract each region, then trims transparent padding.
 - **Offset calculation**: Auto-computes pivot positions and parent offsets relative to torso centroid.
 - **Point-in-polygon**: Ray-casting algorithm for click-to-select existing polygons.
+- **Scroll-wheel zoom**: `baseScale` (fit-to-container) × `zoom` (user-controlled, 0.25×–8×). Zoom % display + fit button.
+- **Auto transparency detection**: On image drop, scans alpha channel. If >5% transparent → disables BG removal. Checkbox toggle to override.
+- **Character name + new button**: Name field used for zip filename + manifest name. "New" button resets all state.
+- **Pivot coordinate system**: Matches Three.js (Y: 0=bottom, 1=top). Correctly flipped when computing image-space positions.

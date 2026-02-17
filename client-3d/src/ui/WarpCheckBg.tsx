@@ -100,11 +100,18 @@ export function WarpCheckBg() {
     resize()
     window.addEventListener('resize', resize)
 
+    const FRAME_MS = 1000 / 15 // ~15fps cap
+    let lastDraw = 0
+
     const tick = (now: number) => {
+      raf = requestAnimationFrame(tick)
+
+      if (now - lastDraw < FRAME_MS) return
+      lastDraw = now
+
       gl.uniform1f(uTime, now * 0.001)
       gl.uniform2f(uRes, canvas.width, canvas.height)
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
-      raf = requestAnimationFrame(tick)
     }
 
     raf = requestAnimationFrame(tick)

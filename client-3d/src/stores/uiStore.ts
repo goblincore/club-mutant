@@ -17,6 +17,7 @@ interface UIState {
   vertexFisheye: number
   vortexOob: boolean
   computerIframeOpen: boolean
+  magazineReaderOpen: boolean
 
   toggleChatExpanded: () => void
   togglePlaylist: () => void
@@ -31,6 +32,7 @@ interface UIState {
   setVertexFisheye: (v: number) => void
   toggleVortexOob: () => void
   setComputerIframeOpen: (open: boolean) => void
+  setMagazineReaderOpen: (open: boolean) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -48,6 +50,7 @@ export const useUIStore = create<UIState>((set) => ({
   vertexFisheye: 0,
   vortexOob: false,
   computerIframeOpen: false,
+  magazineReaderOpen: false,
 
   toggleChatExpanded: () => set((s) => ({ chatExpanded: !s.chatExpanded })),
   togglePlaylist: () => set((s) => ({ playlistOpen: !s.playlistOpen })),
@@ -64,6 +67,7 @@ export const useUIStore = create<UIState>((set) => ({
   setVertexFisheye: (v) => set({ vertexFisheye: v }),
   toggleVortexOob: () => set((s) => ({ vortexOob: !s.vortexOob })),
   setComputerIframeOpen: (open) => set({ computerIframeOpen: open }),
+  setMagazineReaderOpen: (open) => set({ magazineReaderOpen: open }),
 
   cycleRenderScale: () =>
     set((s) => {
