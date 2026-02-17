@@ -84,12 +84,16 @@ type EncodedAnim = {
   animId: number
 }
 
+// Max texture ID accepted — matches client-3d characterRegistry MAX_PROBE (20 character folders).
+// IDs 0–4 map to legacy named characters; 5+ are dynamically-discovered 3D characters.
+const MAX_TEXTURE_ID = 19
+
 export const sanitizeTextureId = (textureId: unknown): number => {
   if (typeof textureId !== 'number' || !Number.isFinite(textureId)) return TEXTURE_IDS.mutant
 
   const tid = Math.trunc(textureId)
 
-  return textureNamesById[tid] ? tid : TEXTURE_IDS.mutant
+  return tid >= 0 && tid <= MAX_TEXTURE_ID ? tid : TEXTURE_IDS.mutant
 }
 
 export const sanitizeAnimId = (animId: unknown, textureId: number): number => {

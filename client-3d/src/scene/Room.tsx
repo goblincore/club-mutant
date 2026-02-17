@@ -907,7 +907,7 @@ export function Room({ videoTexture, slideshowTexture }: RoomProps) {
       <BobbingGroup baseX={-(half - 1.2)} baseZ={-(half - 0.8)}>
         <InteractableObject
           interactDistance={2.5}
-          onInteract={() => console.log('[Interactable] Computer desk clicked!')}
+          onInteract={() => useUIStore.getState().setComputerIframeOpen(true)}
           occludeHighlight
         >
           <GLBModel

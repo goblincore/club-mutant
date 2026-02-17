@@ -15,6 +15,8 @@ interface UIState {
   renderScale: number
   fisheyeOverride: number | null
   vertexFisheye: number
+  vortexOob: boolean
+  computerIframeOpen: boolean
 
   toggleChatExpanded: () => void
   togglePlaylist: () => void
@@ -27,6 +29,8 @@ interface UIState {
   cycleRenderScale: () => void
   setFisheyeOverride: (v: number | null) => void
   setVertexFisheye: (v: number) => void
+  toggleVortexOob: () => void
+  setComputerIframeOpen: (open: boolean) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -42,6 +46,8 @@ export const useUIStore = create<UIState>((set) => ({
   renderScale: 0.75,
   fisheyeOverride: null,
   vertexFisheye: 0,
+  vortexOob: false,
+  computerIframeOpen: false,
 
   toggleChatExpanded: () => set((s) => ({ chatExpanded: !s.chatExpanded })),
   togglePlaylist: () => set((s) => ({ playlistOpen: !s.playlistOpen })),
@@ -56,6 +62,8 @@ export const useUIStore = create<UIState>((set) => ({
 
   setFisheyeOverride: (v) => set({ fisheyeOverride: v }),
   setVertexFisheye: (v) => set({ vertexFisheye: v }),
+  toggleVortexOob: () => set((s) => ({ vortexOob: !s.vortexOob })),
+  setComputerIframeOpen: (open) => set({ computerIframeOpen: open }),
 
   cycleRenderScale: () =>
     set((s) => {

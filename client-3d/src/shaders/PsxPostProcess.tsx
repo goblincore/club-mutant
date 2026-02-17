@@ -141,13 +141,19 @@ const VHS_FRAGMENT = /* glsl */ `
     return max(0.0, dilated - center);
   }
 
+  // ---- vortex grid OOB fill (pre-rendered to tiny RT) ----
+  uniform sampler2D tVortex;
+  uniform float u_vortexEnabled;
+
   void main() {
     // Apply fisheye distortion to UVs
     vec2 distUv = barrelDistort(vUv);
 
-    // Black outside the distorted frame
+    // OOB pixels: vortex grid when enabled, black when disabled
     if (distUv.x < 0.0 || distUv.x > 1.0 || distUv.y < 0.0 || distUv.y > 1.0) {
-      gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+      gl_FragColor = u_vortexEnabled > 0.5
+        ? texture2D(tVortex, vUv)
+        : vec4(0.0, 0.0, 0.0, 1.0);
       return;
     }
 
@@ -184,6 +190,105 @@ const VHS_FRAGMENT = /* glsl */ `
   }
 `
 
+// ---------- vortex grid shader (rendered to tiny offscreen RT) ----------
+const VORTEX_SIZE = 128 // 128×128 pixels — super low-res, chunky
+
+const VORTEX_FRAGMENT = /* glsl */ `
+  uniform float u_time;
+  varying vec2 vUv;
+
+  #define V_TAU 6.28318530718
+
+  float vHash(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+  }
+
+  float vNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+
+    float a = vHash(i);
+    float b = vHash(i + vec2(1.0, 0.0));
+    float c = vHash(i + vec2(0.0, 1.0));
+    float d = vHash(i + vec2(1.0, 1.0));
+
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
+
+  float vFbm(vec2 p) {
+    float val = 0.0;
+    float amp = 0.5;
+    float freq = 1.0;
+
+    for (int i = 0; i < 5; i++) {
+      val += amp * vNoise(p * freq);
+      freq *= 2.0;
+      amp *= 0.5;
+    }
+
+    return val;
+  }
+
+  void main() {
+    vec2 centered = vUv - 0.5;
+    float radius = length(centered);
+    float angle = atan(centered.y, centered.x);
+
+    // Slow spin
+    angle += u_time * 0.15;
+
+    // --- dark swirling clouds ---
+    vec2 cloudUv = vUv * 8.0;
+
+    float swirlAngle = angle + u_time * 0.2;
+    float swirlStrength = 1.5 / (radius + 0.3);
+    cloudUv += vec2(cos(swirlAngle), sin(swirlAngle)) * swirlStrength * 0.5;
+
+    cloudUv += vec2(u_time * 0.15, u_time * 0.08);
+
+    float warp = vFbm(cloudUv * 0.5 + u_time * 0.05);
+    cloudUv += vec2(warp * 1.2 - 0.6, warp * 0.8 - 0.4);
+
+    float c1 = vFbm(cloudUv);
+    float c2 = vFbm(cloudUv + vec2(5.2, 3.1));
+    float cloudDensity = (c1 * 0.6 + c2 * 0.4);
+
+    vec3 bgBright = vec3(0.08, 0.55, 0.30);
+    vec3 bgDark = vec3(0.02, 0.18, 0.08);
+    vec3 bg = mix(bgBright, bgDark, smoothstep(0.32, 0.58, cloudDensity));
+
+    // --- perspective tunnel grid ---
+    float logDepth = -log(max(radius, 0.001)) * 4.0;
+    float ringPos = logDepth - u_time * 0.3;
+
+    float ringCell = fract(ringPos);
+    float ringLine = 1.0 - smoothstep(0.0, 0.10, ringCell) * (1.0 - smoothstep(0.90, 1.0, ringCell));
+
+    float spokeCount = 28.0;
+    float spokeCell = fract(angle * spokeCount / V_TAU);
+    float spokeLine = 1.0 - smoothstep(0.0, 0.08, spokeCell) * (1.0 - smoothstep(0.92, 1.0, spokeCell));
+
+    float grid = max(ringLine, spokeLine);
+
+    float outerFade = smoothstep(0.7, 0.4, radius);
+    grid *= outerFade;
+
+    vec3 gridBright = vec3(0.55, 1.0, 0.70);
+    vec3 gridEdge = vec3(0.35, 0.80, 0.50);
+    vec3 gridColor = mix(gridEdge, gridBright, grid * 0.8);
+
+    vec3 color = mix(bg, gridColor, grid * 0.85);
+
+    float centerGlow = exp(-radius * 8.0);
+    color += vec3(0.50, 1.0, 0.65) * centerGlow;
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`
+
 const BLOOM_SCALE = 0.5 // bloom at half the scene RT resolution
 
 export function PsxPostProcess() {
@@ -214,6 +319,15 @@ export function PsxPostProcess() {
   // Highlight mask render target (same resolution as scene)
   const maskTarget = useMemo(() => {
     return new THREE.WebGLRenderTarget(1, 1, {
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      format: THREE.RGBAFormat,
+    })
+  }, [])
+
+  // Tiny vortex grid render target (128×128, NearestFilter for chunky pixels)
+  const vortexTarget = useMemo(() => {
+    return new THREE.WebGLRenderTarget(VORTEX_SIZE, VORTEX_SIZE, {
       minFilter: THREE.NearestFilter,
       magFilter: THREE.NearestFilter,
       format: THREE.RGBAFormat,
@@ -258,6 +372,28 @@ export function PsxPostProcess() {
     return { blitScene: s, blitCamera: c, blitMaterial: mat }
   }, [])
 
+  // Vortex grid shader quad (renders to tiny 128×128 RT)
+  const { vortexScene, vortexCamera, vortexMaterial } = useMemo(() => {
+    const mat = new THREE.ShaderMaterial({
+      vertexShader: VHS_VERTEX,
+      fragmentShader: VORTEX_FRAGMENT,
+      uniforms: { u_time: { value: 0 } },
+      depthTest: false,
+      depthWrite: false,
+    })
+
+    const geo = new THREE.PlaneGeometry(2, 2)
+    const quad = new THREE.Mesh(geo, mat)
+    quad.frustumCulled = false
+
+    const s = new THREE.Scene()
+    s.add(quad)
+
+    const c = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+
+    return { vortexScene: s, vortexCamera: c, vortexMaterial: mat }
+  }, [])
+
   // Fullscreen quad with VHS+PSX shader
   const { quadScene, quadCamera, material } = useMemo(() => {
     const mat = new THREE.ShaderMaterial({
@@ -267,6 +403,8 @@ export function PsxPostProcess() {
         tDiffuse: { value: null },
         tBloom: { value: null },
         tMask: { value: null },
+        tVortex: { value: null },
+        u_vortexEnabled: { value: 0 },
         u_resolution: { value: new THREE.Vector2(160, 120) },
         u_bloomResolution: { value: new THREE.Vector2(80, 60) },
         u_time: { value: 0 },
@@ -322,19 +460,23 @@ export function PsxPostProcess() {
       target.dispose()
       bloomTarget.dispose()
       maskTarget.dispose()
+      vortexTarget.dispose()
       maskMaterialNoDepth.dispose()
       maskMaterialDepth.dispose()
       material.dispose()
       blitMaterial.dispose()
+      vortexMaterial.dispose()
     }
   }, [
     target,
     bloomTarget,
     maskTarget,
+    vortexTarget,
     maskMaterialNoDepth,
     maskMaterialDepth,
     material,
     blitMaterial,
+    vortexMaterial,
   ])
 
   // Custom render loop: scene → low-res target → VHS shader → screen
@@ -421,6 +563,18 @@ export function PsxPostProcess() {
     blitMaterial.uniforms.tDiffuse.value = target.texture
     gl.clear()
     render(blitScene, blitCamera)
+
+    // 2.5. Render vortex grid to tiny 128×128 RT (only when enabled)
+    const vortexOn = useUIStore.getState().vortexOob
+    material.uniforms.u_vortexEnabled.value = vortexOn ? 1.0 : 0.0
+
+    if (vortexOn) {
+      vortexMaterial.uniforms.u_time.value = timeRef.current
+      gl.setRenderTarget(vortexTarget)
+      gl.clear()
+      render(vortexScene, vortexCamera)
+      material.uniforms.tVortex.value = vortexTarget.texture
+    }
 
     // 3. Render VHS post-process quad to screen
     gl.setRenderTarget(null)

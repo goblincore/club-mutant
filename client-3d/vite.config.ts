@@ -13,5 +13,20 @@ export default defineConfig({
 
   server: {
     port: 5175,
+
+    proxy: {
+      // Reverse proxy that strips X-Frame-Options / CSP so iframe embedding works locally
+      '/iframe-proxy': {
+        target: 'https://jmail.world',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/iframe-proxy/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            delete proxyRes.headers['x-frame-options']
+            delete proxyRes.headers['content-security-policy']
+          })
+        },
+      },
+    },
   },
 })

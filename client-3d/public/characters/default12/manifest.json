@@ -1,0 +1,573 @@
+{
+  "name": "eggy2",
+  "parts": [
+    {
+      "id": "torso",
+      "texture": "torso.png",
+      "pivot": [
+        0.5,
+        0.8
+      ],
+      "size": [
+        134,
+        127
+      ],
+      "parent": null,
+      "offset": [
+        -2,
+        -41.60000000000001,
+        1
+      ],
+      "zIndex": 1,
+      "boneRole": "torso"
+    },
+    {
+      "id": "head",
+      "texture": "head.png",
+      "pivot": [
+        0.5,
+        0
+      ],
+      "size": [
+        66,
+        54
+      ],
+      "parent": "torso",
+      "offset": [
+        2.7520995781966633,
+        -0.21554602885905183,
+        2
+      ],
+      "zIndex": 2,
+      "boneRole": "head"
+    },
+    {
+      "id": "arm_l",
+      "texture": "arm_l.png",
+      "pivot": [
+        0.8,
+        0.92
+      ],
+      "size": [
+        30,
+        82
+      ],
+      "parent": "torso",
+      "offset": [
+        -59.74790042180334,
+        44.34445397114095,
+        0
+      ],
+      "zIndex": -1,
+      "boneRole": "arm_l"
+    },
+    {
+      "id": "arm_r",
+      "texture": "arm_r.png",
+      "pivot": [
+        0.26,
+        0.91
+      ],
+      "size": [
+        33,
+        88
+      ],
+      "parent": "torso",
+      "offset": [
+        61.70209957819665,
+        37.82445397114094,
+        0
+      ],
+      "zIndex": -1,
+      "boneRole": "arm_r"
+    },
+    {
+      "id": "leg_l",
+      "texture": "leg_l.png",
+      "pivot": [
+        0.7,
+        0.92
+      ],
+      "size": [
+        31,
+        48
+      ],
+      "parent": "torso",
+      "offset": [
+        -21.547900421803334,
+        91.62445397114095,
+        -1
+      ],
+      "zIndex": -2,
+      "boneRole": "leg_l"
+    },
+    {
+      "id": "leg_r",
+      "texture": "leg_r.png",
+      "pivot": [
+        0.3,
+        0.92
+      ],
+      "size": [
+        33,
+        50
+      ],
+      "parent": "torso",
+      "offset": [
+        27.65209957819667,
+        90.78445397114095,
+        -1
+      ],
+      "zIndex": -2,
+      "boneRole": "leg_r"
+    }
+  ],
+  "animations": [
+    {
+      "name": "idle",
+      "fps": 10,
+      "duration": 2,
+      "interpolation": "linear",
+      "tracks": [
+        {
+          "boneId": "torso",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              0
+            ],
+            [
+              1,
+              0.02
+            ],
+            [
+              2,
+              0
+            ]
+          ]
+        },
+        {
+          "boneId": "head",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              0
+            ],
+            [
+              1,
+              -0.03
+            ],
+            [
+              2,
+              0
+            ]
+          ]
+        },
+        {
+          "boneId": "arm_l",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              0.05
+            ],
+            [
+              1,
+              -0.02
+            ],
+            [
+              2,
+              0.05
+            ]
+          ]
+        },
+        {
+          "boneId": "arm_r",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              -0.05
+            ],
+            [
+              1,
+              0.02
+            ],
+            [
+              2,
+              -0.05
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "wave",
+      "fps": 12,
+      "duration": 1,
+      "interpolation": "linear",
+      "tracks": [
+        {
+          "boneId": "arm_r",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              0.3
+            ],
+            [
+              0.25,
+              1.2
+            ],
+            [
+              0.5,
+              0.8
+            ],
+            [
+              0.75,
+              1.2
+            ],
+            [
+              1,
+              0.3
+            ]
+          ]
+        },
+        {
+          "boneId": "torso",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              0
+            ],
+            [
+              0.5,
+              0.05
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "walk",
+      "fps": 12,
+      "duration": 0.8,
+      "interpolation": "linear",
+      "tracks": [
+        {
+          "boneId": "torso",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              -0.04
+            ],
+            [
+              0.4,
+              0.04
+            ],
+            [
+              0.8,
+              -0.04
+            ]
+          ]
+        },
+        {
+          "boneId": "arm_l",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              0.4
+            ],
+            [
+              0.4,
+              -0.4
+            ],
+            [
+              0.8,
+              0.4
+            ]
+          ]
+        },
+        {
+          "boneId": "arm_r",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              -0.4
+            ],
+            [
+              0.4,
+              0.4
+            ],
+            [
+              0.8,
+              -0.4
+            ]
+          ]
+        },
+        {
+          "boneId": "leg_l",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              -0.3
+            ],
+            [
+              0.4,
+              0.3
+            ],
+            [
+              0.8,
+              -0.3
+            ]
+          ]
+        },
+        {
+          "boneId": "leg_r",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              0.3
+            ],
+            [
+              0.4,
+              -0.3
+            ],
+            [
+              0.8,
+              0.3
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "dance",
+      "fps": 12,
+      "duration": 1.2,
+      "interpolation": "step",
+      "tracks": [
+        {
+          "boneId": "torso",
+          "property": "position.y",
+          "keys": [
+            [
+              0,
+              0
+            ],
+            [
+              0.3,
+              10
+            ],
+            [
+              0.6,
+              0
+            ],
+            [
+              0.9,
+              10
+            ],
+            [
+              1.2,
+              0
+            ]
+          ]
+        },
+        {
+          "boneId": "torso",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              -0.1
+            ],
+            [
+              0.3,
+              0.1
+            ],
+            [
+              0.6,
+              -0.1
+            ],
+            [
+              0.9,
+              0.1
+            ],
+            [
+              1.2,
+              -0.1
+            ]
+          ]
+        },
+        {
+          "boneId": "arm_l",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              0.8
+            ],
+            [
+              0.3,
+              -1.2
+            ],
+            [
+              0.6,
+              0.8
+            ],
+            [
+              0.9,
+              -1.2
+            ],
+            [
+              1.2,
+              0.8
+            ]
+          ]
+        },
+        {
+          "boneId": "arm_l",
+          "property": "rotation.y",
+          "keys": [
+            [
+              0,
+              0
+            ],
+            [
+              0.3,
+              0.6
+            ],
+            [
+              0.6,
+              0
+            ],
+            [
+              0.9,
+              -0.5
+            ],
+            [
+              1.2,
+              0
+            ]
+          ]
+        },
+        {
+          "boneId": "arm_r",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              -1.2
+            ],
+            [
+              0.3,
+              0.8
+            ],
+            [
+              0.6,
+              -1.2
+            ],
+            [
+              0.9,
+              0.8
+            ],
+            [
+              1.2,
+              -1.2
+            ]
+          ]
+        },
+        {
+          "boneId": "arm_r",
+          "property": "rotation.y",
+          "keys": [
+            [
+              0,
+              0
+            ],
+            [
+              0.3,
+              -0.5
+            ],
+            [
+              0.6,
+              0
+            ],
+            [
+              0.9,
+              0.6
+            ],
+            [
+              1.2,
+              0
+            ]
+          ]
+        },
+        {
+          "boneId": "leg_l",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              0.2
+            ],
+            [
+              0.3,
+              -0.2
+            ],
+            [
+              0.6,
+              0.2
+            ],
+            [
+              0.9,
+              -0.2
+            ],
+            [
+              1.2,
+              0.2
+            ]
+          ]
+        },
+        {
+          "boneId": "leg_r",
+          "property": "rotation.z",
+          "keys": [
+            [
+              0,
+              -0.2
+            ],
+            [
+              0.3,
+              0.2
+            ],
+            [
+              0.6,
+              -0.2
+            ],
+            [
+              0.9,
+              0.2
+            ],
+            [
+              1.2,
+              -0.2
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

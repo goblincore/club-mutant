@@ -13,3 +13,14 @@ yt.mutante.club {
   # CORS handled by Go service corsMiddleware
   reverse_proxy youtube-api:8081
 }
+
+proxy.mutante.club {
+  encode gzip
+
+  # Strip iframe-blocking headers so the 3D client can embed external sites
+  reverse_proxy https://jmail.world {
+    header_up Host jmail.world
+    header_down -X-Frame-Options
+    header_down -Content-Security-Policy
+  }
+}

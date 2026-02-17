@@ -12,6 +12,7 @@ import { IframeVideoBackground } from './ui/IframeVideoBackground'
 import { BoothPrompt } from './ui/BoothPrompt'
 import { ToastContainer } from './ui/ToastContainer'
 import { DisconnectedOverlay } from './ui/DisconnectedOverlay'
+import { ComputerBrowser } from './ui/ComputerBrowser'
 
 const PLAYLIST_WIDTH = 360
 
@@ -222,6 +223,9 @@ export function App() {
 
       {/* Booth prompt popup */}
       <BoothPrompt />
+
+      {/* Computer desk mini browser */}
+      <ComputerBrowser />
 
       {/* Reconnection / disconnection overlay */}
       <DisconnectedOverlay />

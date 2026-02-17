@@ -104,6 +104,16 @@ export function FpsCounter() {
 
         <div className="text-white/30 tabular-nums text-center">{vertexFisheye.toFixed(2)}</div>
       </div>
+      <label className="flex items-center gap-1.5 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={useUIStore((s) => s.vortexOob)}
+          onChange={() => useUIStore.getState().toggleVortexOob()}
+          className="accent-green-500"
+        />
+
+        <span className="text-white/40">vortex OOB</span>
+      </label>
     </div>
   )
 }

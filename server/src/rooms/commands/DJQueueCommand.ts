@@ -11,6 +11,13 @@ type Payload = {
 }
 
 // Helper function to find next DJ with tracks
+function hasUnplayedTracks(player: any): boolean {
+  for (let i = 0; i < player.roomQueuePlaylist.length; i++) {
+    if (!player.roomQueuePlaylist[i].played) return true
+  }
+  return false
+}
+
 function findNextDJWithTracks(room: ClubMutant): {
   entry: DJQueueEntry | null
   player: any | null
@@ -18,7 +25,7 @@ function findNextDJWithTracks(room: ClubMutant): {
   for (let i = 0; i < room.state.djQueue.length; i++) {
     const entry = room.state.djQueue[i]
     const player = room.state.players.get(entry.sessionId)
-    if (player && player.roomQueuePlaylist.length > 0) {
+    if (player && hasUnplayedTracks(player)) {
       return { entry, player }
     }
   }
@@ -47,8 +54,8 @@ function advanceRotation(room: ClubMutant) {
 
   room.state.djQueue.shift() // Remove from front
 
-  // If player still connected and has tracks, move to end
-  if (currentPlayer && currentPlayer.roomQueuePlaylist.length > 0) {
+  // If player still connected and has unplayed tracks, move to end
+  if (currentPlayer && hasUnplayedTracks(currentPlayer)) {
     const newEntry = new DJQueueEntry()
     newEntry.sessionId = currentEntry.sessionId
     newEntry.name = currentEntry.name

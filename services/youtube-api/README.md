@@ -116,6 +116,33 @@ curl "http://localhost:8081/proxy/dQw4w9WgXcQ?videoOnly=false" --output video.mp
 
 **Response:** Raw video stream with appropriate `Content-Type`, `Content-Length`, `Content-Range` headers.
 
+### GET /browse
+
+Proxy-browse an arbitrary web page. Fetches the URL through the server (and configured `PROXY_URL` if set), strips iframe-blocking headers (`X-Frame-Options`, `Content-Security-Policy`), and injects a `<base href>` tag + navigation script for use inside an iframe.
+
+**Query Parameters:**
+
+- `url` (required): Full URL to fetch (must be http or https)
+
+**Example:**
+
+```bash
+curl "http://localhost:8081/browse?url=https://www.wikipedia.org/"
+```
+
+**Response:** The proxied HTML (or other content) with:
+
+- `X-Frame-Options` and `Content-Security-Policy` headers stripped
+- `<base href="https://origin/">` injected so relative resources load from the target
+- A small JS script injected that intercepts link clicks and form submissions, sending `postMessage({ type: 'browse-navigate', url })` to the parent frame
+
+**Security:**
+
+- Only `http://` and `https://` URLs are allowed
+- Requests to private/loopback IPs are blocked
+- Response body capped at 10MB
+- 30-second timeout per request
+
 ### GET /health
 
 Health check endpoint.

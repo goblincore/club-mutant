@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -1369,6 +1370,176 @@ func prewarmPOToken() {
 	}
 }
 
+// browseNavigationScript is injected into proxied HTML pages to intercept
+// link clicks and form submissions, routing them back through the proxy.
+const browseNavigationScript = `<script>
+(function() {
+  // Intercept link clicks
+  document.addEventListener('click', function(e) {
+    var el = e.target;
+    while (el && el.tagName !== 'A') el = el.parentElement;
+    if (!el || !el.href) return;
+    try {
+      var u = new URL(el.href);
+      if (u.protocol === 'http:' || u.protocol === 'https:') {
+        e.preventDefault();
+        window.parent.postMessage({ type: 'browse-navigate', url: el.href }, '*');
+      }
+    } catch(err) {}
+  }, true);
+
+  // Intercept form submissions
+  document.addEventListener('submit', function(e) {
+    var form = e.target;
+    if (form.method && form.method.toLowerCase() !== 'get') return;
+    e.preventDefault();
+    var fd = new FormData(form);
+    var params = new URLSearchParams(fd).toString();
+    var action = form.action || window.location.href;
+    var sep = action.indexOf('?') >= 0 ? '&' : '?';
+    var url = action + sep + params;
+    window.parent.postMessage({ type: 'browse-navigate', url: url }, '*');
+  }, true);
+
+  // Report page title
+  var observer = new MutationObserver(function() {
+    window.parent.postMessage({ type: 'browse-title', title: document.title }, '*');
+  });
+  observer.observe(document.querySelector('title') || document.head, { childList: true, subtree: true, characterData: true });
+  window.parent.postMessage({ type: 'browse-title', title: document.title }, '*');
+})();
+</script>`
+
+// isPrivateIP checks if a host resolves to a private/loopback IP
+func isPrivateIP(host string) bool {
+	// Strip port if present
+	h, _, err := net.SplitHostPort(host)
+	if err != nil {
+		h = host
+	}
+
+	// Block obvious localhost names
+	if h == "localhost" || h == "127.0.0.1" || h == "::1" || h == "0.0.0.0" {
+		return true
+	}
+
+	ips, err := net.LookupIP(h)
+	if err != nil {
+		return true // Block if we can't resolve
+	}
+
+	for _, ip := range ips {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+			return true
+		}
+	}
+
+	return false
+}
+
+const browseMaxResponseBytes = 10 * 1024 * 1024 // 10MB
+
+// handleBrowse proxies arbitrary web pages through the server, stripping
+// iframe-blocking headers and injecting navigation helpers.
+// Usage: GET /browse?url=https://example.com
+func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
+	rawURL := r.URL.Query().Get("url")
+	if rawURL == "" {
+		http.Error(w, "Missing 'url' query parameter", http.StatusBadRequest)
+		return
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		http.Error(w, "Invalid URL: must be http or https", http.StatusBadRequest)
+		return
+	}
+
+	// Block requests to internal/private IPs
+	if isPrivateIP(parsed.Host) {
+		http.Error(w, "Cannot browse internal addresses", http.StatusForbidden)
+		return
+	}
+
+	log.Printf("[browse] Fetching: %s", rawURL)
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
+	if err != nil {
+		http.Error(w, "Failed to create request", http.StatusInternalServerError)
+		return
+	}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		log.Printf("[browse] Fetch failed for %s: %v", rawURL, err)
+		http.Error(w, "Failed to fetch URL", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, browseMaxResponseBytes))
+	if err != nil {
+		log.Printf("[browse] Read failed for %s: %v", rawURL, err)
+		http.Error(w, "Failed to read response", http.StatusBadGateway)
+		return
+	}
+
+	contentType := resp.Header.Get("Content-Type")
+
+	// For HTML responses, inject <base href> and navigation script
+	if strings.Contains(contentType, "text/html") {
+		origin := parsed.Scheme + "://" + parsed.Host
+		baseTag := `<base href="` + origin + `/">`
+
+		html := string(body)
+
+		// Remove any existing <base> tags
+		baseRe := regexp.MustCompile(`(?i)<base[^>]*>`)
+		html = baseRe.ReplaceAllString(html, "")
+
+		// Inject our <base> tag and navigation script after <head>
+		headIdx := strings.Index(strings.ToLower(html), "<head")
+		if headIdx >= 0 {
+			// Find the closing > of <head...>
+			closeIdx := strings.Index(html[headIdx:], ">")
+			if closeIdx >= 0 {
+				insertAt := headIdx + closeIdx + 1
+				html = html[:insertAt] + baseTag + browseNavigationScript + html[insertAt:]
+			}
+		} else {
+			// No <head> tag — prepend
+			html = baseTag + browseNavigationScript + html
+		}
+
+		body = []byte(html)
+	}
+
+	// Copy safe headers from upstream
+	w.Header().Set("Content-Type", contentType)
+
+	if ce := resp.Header.Get("Content-Encoding"); ce != "" {
+		w.Header().Set("Content-Encoding", ce)
+	}
+
+	// Deliberately strip these headers to allow iframe embedding:
+	// - X-Frame-Options
+	// - Content-Security-Policy
+	// - Content-Security-Policy-Report-Only
+
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	w.WriteHeader(resp.StatusCode)
+	w.Write(body)
+
+	log.Printf("[browse] Served %s (%d bytes, %s)", rawURL, len(body), contentType)
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -1407,6 +1578,7 @@ func main() {
 	mux.HandleFunc("POST /prefetch/{videoId}", server.handlePrefetch)
 	mux.HandleFunc("GET /health", server.handleHealth)
 	mux.HandleFunc("GET /pot", server.handlePOToken)
+	mux.HandleFunc("GET /browse", server.handleBrowse)
 
 	handler := corsMiddleware(loggingMiddleware(mux))
 
@@ -1465,6 +1637,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	allowedOrigins := map[string]bool{
 		"https://mutante.club":  true,
 		"http://localhost:5173": true,
+		"http://localhost:5175": true,
 		"http://localhost:3000": true,
 	}
 

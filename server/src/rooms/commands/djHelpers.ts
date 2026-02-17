@@ -13,7 +13,14 @@ export function playTrackForCurrentDJ(room: ClubMutant) {
   const player = room.state.players.get(djId)
   if (!player) return
 
-  const track = player.roomQueuePlaylist[0]
+  // Find the first unplayed track (played tracks are pushed to the end)
+  let track: any = null
+  for (let i = 0; i < player.roomQueuePlaylist.length; i++) {
+    if (!player.roomQueuePlaylist[i].played) {
+      track = player.roomQueuePlaylist[i]
+      break
+    }
+  }
   if (!track) return
 
   const musicStream = room.state.musicStream
