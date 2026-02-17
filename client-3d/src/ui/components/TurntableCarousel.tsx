@@ -1,5 +1,4 @@
 import { useRef, useEffect, useState, useCallback, useMemo, memo } from 'react'
-import { useDrag } from '@use-gesture/react'
 import type { CharacterManifest, ManifestPart, ManifestTrack } from '../../character/CharacterLoader'
 
 interface CharacterEntry {
@@ -27,7 +26,6 @@ export function TurntableCarousel({
   selectedIndex, 
   onSelect 
 }: TurntableCarouselProps) {
-  const [isDragging, setIsDragging] = useState(false)
   const autoRotateRef = useRef<NodeJS.Timeout | null>(null)
   const rotationRef = useRef(0)
   const targetRotationRef = useRef(0)
@@ -41,12 +39,12 @@ export function TurntableCarousel({
     if (autoRotateRef.current) clearInterval(autoRotateRef.current)
     
     autoRotateRef.current = setInterval(() => {
-      if (!isDragging && characters.length > 1) {
+      if (characters.length > 1) {
         const nextIndex = (selectedIndex + 1) % characters.length
         onSelect(nextIndex)
       }
     }, AUTO_ROTATE_SPEED)
-  }, [isDragging, characters.length, selectedIndex, onSelect])
+  }, [characters.length, selectedIndex, onSelect])
   
   useEffect(() => {
     startAutoRotate()
@@ -83,27 +81,25 @@ export function TurntableCarousel({
   // Force re-render state
   const [, setRotationState] = useState(0)
   
-  // Drag gesture
-  const bind = useDrag(({ movement: [x], down }) => {
-    setIsDragging(down)
-    
-    if (down) {
-      if (autoRotateRef.current) clearInterval(autoRotateRef.current)
-      rotationRef.current = targetRotationRef.current + x * 0.005
-      setRotationState(rotationRef.current)
-    } else {
-      const charOffset = Math.round((rotationRef.current - targetRotationRef.current) / anglePerChar)
-      let newIndex = selectedIndex - charOffset
-      newIndex = ((newIndex % characters.length) + characters.length) % characters.length
-      
-      onSelect(newIndex)
-      setTimeout(startAutoRotate, 1000)
+  const handlePrev = () => {
+    const newIndex = (selectedIndex - 1 + characters.length) % characters.length
+    onSelect(newIndex)
+    // Reset auto-rotation timer
+    if (autoRotateRef.current) {
+      clearInterval(autoRotateRef.current)
+      startAutoRotate()
     }
-  }, {
-    axis: 'x',
-    bounds: { left: -300, right: 300 },
-    rubberband: true,
-  })
+  }
+  
+  const handleNext = () => {
+    const newIndex = (selectedIndex + 1) % characters.length
+    onSelect(newIndex)
+    // Reset auto-rotation timer
+    if (autoRotateRef.current) {
+      clearInterval(autoRotateRef.current)
+      startAutoRotate()
+    }
+  }
   
   if (characters.length === 0) return null
   
@@ -124,80 +120,110 @@ export function TurntableCarousel({
   }
   
   return (
-    <div 
-      className="relative w-full h-80 cursor-grab active:cursor-grabbing"
-      style={{ perspective: '1000px' }}
-      {...bind()}
-    >
-      <div 
-        className="absolute inset-0 flex items-center justify-center"
-        style={{
-          transformStyle: 'preserve-3d',
-          transform: `rotateY(${rotationRef.current}rad)`,
-        }}
+    <div className="relative w-full">
+      {/* Arrow buttons */}
+      <button
+        onClick={handlePrev}
+        className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 
+                   flex items-center justify-center rounded-full
+                   bg-black/50 border-2 border-white/30 text-white
+                   hover:bg-white/20 hover:border-white/60
+                   transition-all duration-200"
+        style={{ backdropFilter: 'blur(4px)' }}
       >
-        {visibleCharacters.map(({ character, index, offset, angle }) => {
-          const isCenter = offset === 0
-          const x = Math.sin(angle) * RADIUS
-          const z = Math.cos(angle) * RADIUS - RADIUS
-          const scale = isCenter ? 1.3 : 0.85 - Math.abs(offset) * 0.08
-          const opacity = isCenter ? 1 : 0.4 - Math.abs(offset) * 0.08
-          
-          return (
-            <div
-              key={`${character.id}-${offset}`}
-              className="absolute flex flex-col items-center"
-              style={{
-                transform: `
-                  translateX(${x}px) 
-                  translateZ(${z}px)
-                  scale(${scale})
-                `,
-                opacity: Math.max(0.15, opacity),
-                zIndex: isCenter ? 10 : 5 - Math.abs(offset),
-                transition: isDragging ? 'none' : 'opacity 0.3s ease',
-                filter: isCenter ? 'drop-shadow(0 0 20px rgba(57, 255, 20, 0.6))' : 'none',
-              }}
-              onClick={() => {
-                if (!isDragging && !isCenter) {
-                  onSelect(index)
-                }
-              }}
-            >
-              <CharacterPreview 
-                characterPath={character.path}
-                isActive={isCenter}
-                size={isCenter ? 140 : 100}
-              />
-            </div>
-          )
-        })}
-      </div>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
       
-      {/* Floor reflection */}
+      <button
+        onClick={handleNext}
+        className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 
+                   flex items-center justify-center rounded-full
+                   bg-black/50 border-2 border-white/30 text-white
+                   hover:bg-white/20 hover:border-white/60
+                   transition-all duration-200"
+        style={{ backdropFilter: 'blur(4px)' }}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
+      
       <div 
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 w-96 h-px opacity-30"
-        style={{
-          background: 'linear-gradient(90deg, transparent, #39ff14, transparent)',
-        }}
-      />
-      
-      {/* Selection dots */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-        {Array.from({ length: Math.min(characters.length, 8) }).map((_, i) => {
-          const isActive = i === selectedIndex % 8
-          return (
-            <div
-              key={i}
-              className="w-1.5 h-1.5 rounded-full"
-              style={{
-                backgroundColor: isActive ? '#39ff14' : 'rgba(255,255,255,0.3)',
-                transform: isActive ? 'scale(1.3)' : 'scale(1)',
-                transition: 'all 0.3s ease',
-              }}
-            />
-          )
-        })}
+        className="relative w-full h-80"
+        style={{ perspective: '1000px' }}
+      >
+        <div 
+          className="absolute inset-0 flex items-center justify-center"
+          style={{
+            transformStyle: 'preserve-3d',
+            transform: `rotateY(${rotationRef.current}rad)`,
+          }}
+        >
+          {visibleCharacters.map(({ character, index, offset, angle }) => {
+            const isCenter = offset === 0
+            const x = Math.sin(angle) * RADIUS
+            const z = Math.cos(angle) * RADIUS - RADIUS
+            const scale = isCenter ? 1.3 : 0.9 - Math.abs(offset) * 0.05
+            const opacity = isCenter ? 1 : 0.7 - Math.abs(offset) * 0.08
+            
+            return (
+              <div
+                key={`${character.id}-${offset}`}
+                className="absolute flex flex-col items-center cursor-pointer"
+                style={{
+                  transform: `
+                    translateX(${x}px) 
+                    translateZ(${z}px)
+                    scale(${scale})
+                  `,
+                  opacity: Math.max(0.3, opacity),
+                  zIndex: isCenter ? 10 : 5 - Math.abs(offset),
+                  transition: 'opacity 0.3s ease',
+                  filter: isCenter ? 'drop-shadow(0 0 20px rgba(57, 255, 20, 0.6))' : 'none',
+                }}
+                onClick={() => {
+                  if (!isCenter) {
+                    onSelect(index)
+                  }
+                }}
+              >
+                <CharacterPreview 
+                  characterPath={character.path}
+                  isActive={isCenter}
+                  size={isCenter ? 140 : 100}
+                />
+              </div>
+            )
+          })}
+        </div>
+        
+        {/* Floor reflection */}
+        <div 
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 w-96 h-px opacity-30"
+          style={{
+            background: 'linear-gradient(90deg, transparent, #39ff14, transparent)',
+          }}
+        />
+        
+        {/* Selection dots */}
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+          {Array.from({ length: Math.min(characters.length, 8) }).map((_, i) => {
+            const isActive = i === selectedIndex % 8
+            return (
+              <div
+                key={i}
+                className="w-1.5 h-1.5 rounded-full"
+                style={{
+                  backgroundColor: isActive ? '#39ff14' : 'rgba(255,255,255,0.3)',
+                  transform: isActive ? 'scale(1.3)' : 'scale(1)',
+                  transition: 'all 0.3s ease',
+                }}
+              />
+            )
+          })}
+        </div>
       </div>
     </div>
   )
