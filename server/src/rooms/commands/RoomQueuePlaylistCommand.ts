@@ -67,7 +67,16 @@ export class RoomQueuePlaylistAddCommand extends Command<ClubMutant, AddPayload>
     // Pre-fetch video to cache it before playback
     prefetchVideo(item.link)
 
-    // Playback is now explicit — current DJ must press play (DJ_PLAY message)
+    // If no current DJ, promote this player so they can press play
+    if (!this.state.currentDjSessionId) {
+      this.state.currentDjSessionId = client.sessionId
+      console.log('[RoomQueuePlaylist] No current DJ, promoted:', client.sessionId)
+
+      this.room.broadcast(Message.DJ_QUEUE_UPDATED, {
+        djQueue: this.state.djQueue.toArray(),
+        currentDjSessionId: this.state.currentDjSessionId,
+      })
+    }
 
     // Notify client of update
     client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {

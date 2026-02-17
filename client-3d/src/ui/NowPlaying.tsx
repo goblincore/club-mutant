@@ -21,6 +21,7 @@ export function NowPlaying() {
   const currentDjSessionId = useBoothStore((s) => s.currentDjSessionId)
   const djQueue = useBoothStore((s) => s.djQueue)
   const mySessionId = useGameStore((s) => s.mySessionId)
+  const isInQueue = useBoothStore((s) => s.isInQueue)
   const isCurrentDJ = currentDjSessionId === mySessionId
   const muted = useUIStore((s) => s.muted)
 
@@ -95,9 +96,9 @@ export function NowPlaying() {
         ? formatTime(elapsed)
         : null
 
-  // Show for current DJ even when stopped (so they can hit play),
+  // Show for DJs in the queue even when stopped (so they can hit play / see controls),
   // or for anyone when something is playing
-  if (!isPlaying && !isCurrentDJ) {
+  if (!isPlaying && !isCurrentDJ && !isInQueue) {
     return null
   }
 
@@ -126,8 +127,8 @@ export function NowPlaying() {
 
       {/* Mini player bar */}
       <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm border border-white/10 rounded-lg px-3 py-2 min-w-[320px] max-w-[500px]">
-        {/* DJ controls: play/stop toggle + skip (only for current DJ) */}
-        {isCurrentDJ && (
+        {/* DJ controls: play/stop toggle + skip (for current DJ, or any DJ in queue when stopped) */}
+        {(isCurrentDJ || (isInQueue && !isPlaying)) && (
           <div className="flex items-center gap-1 flex-shrink-0">
             {isPlaying ? (
               <button
@@ -162,7 +163,6 @@ export function NowPlaying() {
           {isPlaying ? (
             <>
               <div className="text-[13px] font-mono text-white truncate">
-                {stream.currentDjName ? `${stream.currentDjName} — ` : ''}
                 {stream.currentTitle ?? '♪ untitled'}
               </div>
 

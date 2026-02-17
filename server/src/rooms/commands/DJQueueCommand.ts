@@ -54,8 +54,10 @@ function advanceRotation(room: ClubMutant) {
 
   room.state.djQueue.shift() // Remove from front
 
-  // If player still connected and has unplayed tracks, move to end
-  if (currentPlayer && hasUnplayedTracks(currentPlayer)) {
+  // If player still connected, move to end of queue (even without unplayed tracks —
+  // they can still add more tracks while at the booth). findNextDJWithTracks will
+  // skip them for playback if they have no unplayed tracks.
+  if (currentPlayer) {
     const newEntry = new DJQueueEntry()
     newEntry.sessionId = currentEntry.sessionId
     newEntry.name = currentEntry.name
@@ -65,10 +67,7 @@ function advanceRotation(room: ClubMutant) {
     room.state.djQueue.push(newEntry)
     console.log('[DJQueue] Moved DJ to end of queue:', currentEntry.sessionId)
   } else {
-    console.log(
-      '[DJQueue] DJ removed from queue (no tracks or disconnected):',
-      currentEntry.sessionId
-    )
+    console.log('[DJQueue] DJ removed from queue (disconnected):', currentEntry.sessionId)
   }
 
   // Update positions
@@ -300,10 +299,17 @@ export class DJPlayCommand extends Command<ClubMutant, Payload> {
   execute(data: Payload) {
     const { client } = data
 
-    // Only current DJ can start playback
+    // Only current DJ can start playback — auto-promote if no current DJ and player is in queue
     if (this.state.currentDjSessionId !== client.sessionId) {
-      console.log('[DJQueue] Play rejected - not current DJ:', client.sessionId)
-      return
+      const inQueue = this.state.djQueue.some((e: any) => e.sessionId === client.sessionId)
+
+      if (!this.state.currentDjSessionId && inQueue) {
+        this.state.currentDjSessionId = client.sessionId
+        console.log('[DJQueue] No current DJ, promoted on play:', client.sessionId)
+      } else {
+        console.log('[DJQueue] Play rejected - not current DJ:', client.sessionId)
+        return
+      }
     }
 
     const player = this.state.players.get(client.sessionId)
@@ -316,6 +322,17 @@ export class DJPlayCommand extends Command<ClubMutant, Payload> {
     if (this.state.musicStream.status === 'playing' && this.state.musicStream.currentLink) {
       console.log('[DJQueue] Already playing, ignoring play request')
       return
+    }
+
+    // If all tracks are played, reset them to loop through the playlist again
+    const hasUnplayed = player.roomQueuePlaylist.some((t: any) => !t.played)
+
+    if (!hasUnplayed) {
+      console.log('[DJQueue] All tracks played, resetting for loop:', client.sessionId)
+
+      for (let i = 0; i < player.roomQueuePlaylist.length; i++) {
+        player.roomQueuePlaylist[i].played = false
+      }
     }
 
     console.log('[DJQueue] Explicit play by current DJ:', client.sessionId)
