@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 
 import { getNetwork } from '../network/NetworkManager'
 import { useGameStore } from '../stores/gameStore'
 import { getCharacters, type CharacterEntry } from '../character/characterRegistry'
 import { WarpCheckBg } from './WarpCheckBg'
-import { MutantLogo } from './components/MutantLogo'
 import { TurntableCarousel } from './components/TurntableCarousel'
 
 export function LobbyScreen() {
@@ -83,18 +82,8 @@ export function LobbyScreen() {
         ))}
       </div>
 
-      {/* Logo at top */}
-      <motion.div 
-        className="relative z-10 mt-8"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-      >
-        <MutantLogo />
-      </motion.div>
-
-      {/* Carousel floating in space */}
-      <div className="relative z-10 flex-1 w-full flex items-center justify-center -mt-8">
+      {/* Carousel floating in space — logo is rendered inside TurntableCarousel's 3D space */}
+      <div className="relative z-10 flex-1 w-full flex items-center justify-center">
         {characters.length > 0 && (
           <TurntableCarousel
             characters={characters}
@@ -105,14 +94,15 @@ export function LobbyScreen() {
       </div>
 
       {/* Input container - opaque green for legibility */}
-      <motion.div 
+      <motion.div
         className="relative z-10 mb-8 p-6 rounded-xl border-2"
         style={{
-          backgroundColor: 'rgba(20, 60, 20, 0.85)',
+          backgroundColor: 'rgba(57, 255, 20, 0.45)',
+          backdropFilter: 'blur(12px)',
           borderColor: '#39ff14',
           boxShadow: `
-            0 0 30px rgba(57, 255, 20, 0.2),
-            inset 0 0 20px rgba(57, 255, 20, 0.1)
+            0 0 30px rgba(57, 255, 20, 0.3),
+            inset 0 0 20px rgba(57, 255, 20, 0.15)
           `,
         }}
         initial={{ opacity: 0, y: 20 }}
@@ -127,11 +117,11 @@ export function LobbyScreen() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="ENTER YOUR NAME"
+              placeholder="Enter your name"
               maxLength={20}
               disabled={connecting}
-              className="w-full bg-black/40 border-2 border-toxic-green/50 rounded-lg px-4 py-3 
-                         text-base font-mono text-toxic-green placeholder-toxic-green/40 text-center uppercase tracking-wider
+              className="w-full bg-green-800/50 border-2 border-toxic-green/50 rounded-lg px-4 py-3
+                         text-base font-mono text-white placeholder-white/50 text-center
                          focus:border-toxic-green focus:outline-none focus:shadow-[0_0_25px_rgba(57,255,20,0.4)]
                          transition-all duration-300"
               style={{
@@ -153,10 +143,10 @@ export function LobbyScreen() {
             onClick={handleJoin}
             disabled={connecting || !name.trim()}
             className="w-full relative overflow-hidden group
-                       bg-toxic-green/20 border-2 border-toxic-green rounded-lg px-4 py-3 
-                       text-base font-mono font-bold text-white uppercase tracking-widest
-                       hover:bg-toxic-green/40 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
-                       disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-toxic-green/20
+                       bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-3
+                       text-base font-mono font-bold text-white
+                       hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
+                       disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-green-700/40
                        transition-all duration-300"
             whileHover={{ scale: name.trim() ? 1.03 : 1 }}
             whileTap={{ scale: name.trim() ? 0.97 : 1 }}
@@ -172,7 +162,7 @@ export function LobbyScreen() {
                   CONNECTING...
                 </span>
               ) : (
-                'JOIN THE CLUB'
+                'Join'
               )}
             </span>
           </motion.button>
@@ -188,10 +178,6 @@ export function LobbyScreen() {
             </motion.p>
           )}
 
-          {/* Instructions */}
-          <p className="text-toxic-green/60 text-xs font-mono text-center">
-            Drag or use ← → arrows to browse
-          </p>
         </div>
       </motion.div>
 

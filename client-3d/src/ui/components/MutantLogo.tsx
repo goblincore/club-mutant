@@ -1,27 +1,27 @@
 import { motion } from 'framer-motion'
 
 /**
- * "Club Mutant" Logo - Simple red text, easy to read
+ * "Club Mutant" Logo - Image-based logo centered in the carousel ring
  */
 export function MutantLogo() {
   return (
-    <div className="relative flex items-center justify-center py-2">
-      <motion.h1
-        className="text-4xl font-black font-mono tracking-wider"
+    <motion.div
+      className="flex items-center justify-center"
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.6, ease: 'easeOut' }}
+    >
+      <img
+        src="/logo/ver1.png"
+        alt="Club Mutant"
+        className="pointer-events-none select-none"
         style={{
-          color: '#ff0040',
-          textShadow: `
-            0 0 20px rgba(255, 0, 64, 0.8),
-            0 0 40px rgba(255, 0, 64, 0.4),
-            0 0 60px rgba(255, 0, 64, 0.2)
-          `,
+          width: 200,
+          height: 'auto',
+          filter: 'drop-shadow(0 0 20px rgba(57, 255, 20, 0.4))',
         }}
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
-      >
-        Club Mutant
-      </motion.h1>
-    </div>
+        draggable={false}
+      />
+    </motion.div>
   )
 }

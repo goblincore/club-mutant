@@ -17,11 +17,11 @@ interface TurntableCarouselProps {
 // --- Constants ---
 const TWO_PI = Math.PI * 2
 const RADIUS = 250 // ring radius in px
-const AUTO_SPEED = 0.3 // radians/sec (~17 deg/s, full rotation ~21s)
+const AUTO_SPEED = 0.10 // radians/sec (~5.7 deg/s, full rotation ~63s)
 const SNAP_LERP = 8 // exponential approach factor
 const SNAP_THRESHOLD = 0.003 // rad — close enough to snap
-const RESUME_DELAY = 3000 // ms before auto-rotate resumes after user input
-const TILT_DEG = 8 // X-axis tilt for turntable perspective
+const RESUME_DELAY = 5000 // ms before auto-rotate resumes after user input
+const TILT_DEG = -40 // X-axis tilt — negative = looking down at the turntable
 const DEPTH_FACTOR = 0.5 // Z scaling for perspective exaggeration
 const CHAR_SIZE = 140 // uniform size for all CharacterPreview instances
 
@@ -40,6 +40,7 @@ export function TurntableCarousel({
   const lastFrameRef = useRef(0)
   const autoResumeTsRef = useRef(0) // timestamp when auto-rotate can resume
   const lastReportedIndexRef = useRef(-1)
+  const isAutoRotateSelectRef = useRef(false) // true when onSelect is called by auto-rotate (not user)
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const rafRef = useRef<number>(0)
 
@@ -54,6 +55,11 @@ export function TurntableCarousel({
   // --- Selection sync: when parent changes selectedIndex, set snap target ---
   useEffect(() => {
     if (characters.length === 0) return
+    // Skip snap/pause when the change came from auto-rotate reporting the front character
+    if (isAutoRotateSelectRef.current) {
+      isAutoRotateSelectRef.current = false
+      return
+    }
     const target = -(selectedIndex * TWO_PI / characters.length)
     targetAngleRef.current = target
     autoResumeTsRef.current = performance.now() + RESUME_DELAY
@@ -110,14 +116,27 @@ export function TurntableCarousel({
         const opacity = 0.3 + 0.7 * depth
         const brightness = 0.4 + 0.6 * depth
         const zIdx = Math.round(depth * 100)
-        const isFront = depth > 0.92
+        const isSelected = i === selectedIndexRef.current
 
         el.style.transform = `translateX(${x}px) translateZ(${z * DEPTH_FACTOR}px) scale(${scale})`
         el.style.opacity = String(opacity)
         el.style.zIndex = String(zIdx)
-        el.style.filter = isFront
-          ? `drop-shadow(0 0 20px rgba(57, 255, 20, 0.6)) brightness(${brightness})`
-          : `brightness(${brightness})`
+
+        if (isSelected) {
+          // Pulsating outer glow — sine wave drives intensity for a breathing effect
+          const pulse = 0.6 + 0.4 * Math.sin(now * 0.003) // 0.2 → 1.0
+          const g1 = Math.round(255 * pulse) // tight inner glow
+          const g2 = Math.round(200 * pulse) // mid glow
+          const g3 = Math.round(140 * pulse) // wide outer glow
+          el.style.filter =
+            `drop-shadow(0 0 4px rgba(255,255,255,${(pulse * 0.95).toFixed(2)}))` +
+            ` drop-shadow(0 0 10px rgba(${g1},${g1},255,${(pulse * 0.7).toFixed(2)}))` +
+            ` drop-shadow(0 0 20px rgba(${g2},${g2},255,${(pulse * 0.45).toFixed(2)}))` +
+            ` drop-shadow(0 0 35px rgba(${g3},${g3},255,${(pulse * 0.25).toFixed(2)}))` +
+            ` brightness(${brightness})`
+        } else {
+          el.style.filter = `brightness(${brightness})`
+        }
         el.style.pointerEvents = depth > 0.3 ? 'auto' : 'none'
       }
 
@@ -136,6 +155,7 @@ export function TurntableCarousel({
         }
         if (bestI !== lastReportedIndexRef.current) {
           lastReportedIndexRef.current = bestI
+          isAutoRotateSelectRef.current = true
           onSelectRef.current(bestI)
         }
       }
@@ -151,50 +171,47 @@ export function TurntableCarousel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [characters.length > 0]) // only restart when chars become available
 
-  const handlePrev = () => {
-    const N = characters.length
-    if (N === 0) return
-    onSelect((selectedIndex - 1 + N) % N)
-  }
-
-  const handleNext = () => {
-    const N = characters.length
-    if (N === 0) return
-    onSelect((selectedIndex + 1) % N)
-  }
+  const [isHovered, setIsHovered] = useState(false)
 
   if (characters.length === 0) return null
 
   return (
-    <div className="relative w-full">
-      {/* Arrow buttons */}
-      <button
-        onClick={handlePrev}
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-14 h-14
-                   flex items-center justify-center rounded-full
-                   bg-black/60 border-2 border-white/40 text-white
-                   hover:bg-white/30 hover:border-white/70 hover:scale-110
-                   transition-all duration-200"
-        style={{ backdropFilter: 'blur(4px)' }}
+    <div
+      className="relative w-full"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* "Choose a character!" speech bubble tooltip */}
+      <div
+        className="absolute left-1/2 -translate-x-1/2 pointer-events-none z-30 transition-all duration-300"
+        style={{
+          top: -8,
+          opacity: isHovered ? 1 : 0,
+          transform: `translateX(-50%) translateY(${isHovered ? 0 : 8}px)`,
+        }}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="15 18 9 12 15 6" />
-        </svg>
-      </button>
-
-      <button
-        onClick={handleNext}
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-14 h-14
-                   flex items-center justify-center rounded-full
-                   bg-black/60 border-2 border-white/40 text-white
-                   hover:bg-white/30 hover:border-white/70 hover:scale-110
-                   transition-all duration-200"
-        style={{ backdropFilter: 'blur(4px)' }}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-      </button>
+        <div
+          className="relative px-5 py-2.5 rounded-2xl font-mono font-bold text-sm text-black whitespace-nowrap"
+          style={{
+            backgroundColor: 'white',
+            boxShadow: '0 3px 12px rgba(0,0,0,0.25), 0 0 0 2px rgba(0,0,0,0.08)',
+          }}
+        >
+          Choose a character!
+          {/* Speech bubble tail */}
+          <div
+            className="absolute left-1/2 -translate-x-1/2"
+            style={{
+              bottom: -10,
+              width: 0,
+              height: 0,
+              borderLeft: '10px solid transparent',
+              borderRight: '10px solid transparent',
+              borderTop: '10px solid white',
+            }}
+          />
+        </div>
+      </div>
 
       {/* 3D carousel container */}
       <div
@@ -205,57 +222,48 @@ export function TurntableCarousel({
           className="absolute inset-0 flex items-center justify-center"
           style={{
             transformStyle: 'preserve-3d',
-            transform: `rotateX(${TILT_DEG}deg)`,
+            transform: `translateY(60px) rotateX(${TILT_DEG}deg)`,
           }}
         >
           {characters.map((char, i) => (
             <div
               key={char.id}
               ref={(el) => { itemRefs.current[i] = el }}
-              className="absolute flex flex-col items-center cursor-pointer"
+              className="absolute flex items-center justify-center cursor-pointer select-none"
               onClick={() => { if (i !== selectedIndex) onSelect(i) }}
-              style={{ willChange: 'transform, opacity' }}
+              style={{ willChange: 'transform, opacity', WebkitUserDrag: 'none' } as React.CSSProperties}
             >
               <CharacterPreview
                 characterPath={char.path}
                 isActive={i === selectedIndex}
                 size={CHAR_SIZE}
               />
-              <span
-                className="text-xs font-mono text-white/80 mt-1 text-center whitespace-nowrap"
-                style={{ textShadow: '0 0 6px rgba(0,0,0,0.8)' }}
-              >
-                {char.name}
-              </span>
             </div>
           ))}
+
+          {/* Logo at the center of the 3D ring — sits at Z=0 so characters
+              in front (positive Z) naturally occlude it and back characters
+              go behind it via CSS 3D depth sorting */}
+          <div
+            className="absolute flex items-center justify-center pointer-events-none"
+            style={{
+              transform: `translateY(-105px) translateZ(0px) rotateX(${-TILT_DEG}deg)`,
+            }}
+          >
+            <img
+              src="/logo/ver1.png"
+              alt="Club Mutant"
+              className="select-none"
+              style={{
+                width: 200,
+                height: 'auto',
+                filter: 'drop-shadow(0 0 20px rgba(57, 255, 20, 0.4))',
+              }}
+              draggable={false}
+            />
+          </div>
         </div>
 
-        {/* Floor reflection line */}
-        <div
-          className="absolute bottom-12 left-1/2 -translate-x-1/2 w-[400px] h-0.5 opacity-30"
-          style={{
-            background: 'linear-gradient(90deg, transparent, #39ff14, transparent)',
-          }}
-        />
-
-        {/* Selection dots */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-          {characters.map((_, i) => {
-            const isActive = i === selectedIndex
-            return (
-              <button
-                key={i}
-                onClick={() => onSelect(i)}
-                className="w-2 h-2 rounded-full transition-all duration-200 hover:scale-150"
-                style={{
-                  backgroundColor: isActive ? '#39ff14' : 'rgba(255,255,255,0.3)',
-                  transform: isActive ? 'scale(1.3)' : 'scale(1)',
-                }}
-              />
-            )
-          })}
-        </div>
       </div>
     </div>
   )
@@ -386,7 +394,10 @@ const CharacterPreview = memo(function CharacterPreview({
 
     const totalW = maxX - minX
     const totalH = maxY - minY
-    const scale = size / Math.max(totalW, totalH)
+    // Base scale fits the character into the `size` box, then apply the
+    // per-character manifest scale so relative sizes are accurate
+    const charScale = Number(manifest.scale) || 1
+    const scale = (size / totalH) * charScale
 
     const centerX = (size - totalW * scale) / 2
     const centerY = (size - totalH * scale) / 2
