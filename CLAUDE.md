@@ -159,6 +159,9 @@ Works mathematically but visual feel needs more tuning. **Alternatives to explor
 - **`Box3.setFromObject` needs fresh world matrices** — In nested/rotated groups (like the old 180°-rotated DJ booth), `matrixWorld` can be stale. Always call `updateWorldMatrix(true, true)` before measuring bounding boxes.
 - **Server `sanitizeTextureId` whitelist vs dynamic character discovery** — `AnimationCodec.ts` had a hardcoded `textureNamesById` map (IDs 0–4) used to validate textureIds. The 3D client discovers characters dynamically by probing `public/characters/default[N]` folders and assigns textureId by index. New characters (ID ≥ 5) got sanitized to 0 on the server, so other clients saw the wrong character. Fix: validate against a numeric range (`0..MAX_TEXTURE_ID`) instead of a name lookup. Keep `MAX_TEXTURE_ID` in sync with `characterRegistry.ts`'s `MAX_PROBE`.
 - **Server speed validation rejects client-side teleports** — `UPDATE_PLAYER_ACTION` has a speed check (`maxSpeedPxPerSec * dt + buffer`). If the client teleports a player (e.g., behind the DJ booth on queue join), the large position jump gets rejected when `dtMs` is small. Fix: set position server-authoritatively in the relevant command (e.g., `DJQueueJoinCommand` sets `player.x`/`player.y` directly). This also ensures late-joining clients see the correct position.
+- **`useState` inside `<Canvas>` wastes re-renders** — Inside r3f Canvas, rendering is `useFrame`-driven. `useState` triggers React reconciliation that does nothing visible. Use `useRef` for mutable state and read it imperatively in `useFrame`. Only use `useState` when you need React to add/remove JSX children.
+- **Multiple `<Canvas>` elements = multiple WebGL contexts** — Each `<Canvas>` creates its own WebGL context, render loop, and scene graph. Two canvases rendering the same character means double the animation work, double the material updates, double the draw calls. Prefer CSS effects (drop-shadow, filters) on a single Canvas wrapper div instead of a second Canvas.
+- **Geometry created in `onSync` callbacks leaks** — troika text's `onSync` fires whenever text metrics change. Creating new `ShapeGeometry` each time leaks unless explicitly disposed. Cache geometries by quantized dimensions (e.g., `Math.round(w * 100) / 100`) — only ~5 distinct sizes for short phrases.
 
 ## How to run
 
@@ -1444,6 +1447,8 @@ A single `DEBUG_MODE` flag in `client/src/config.ts` controls all debug keyboard
 - ~~Fix DJ queue: playback timer runs indefinitely after last track; can't add tracks after stop; miniplayer disappears~~ ✅ COMPLETED (Feb 2026)
 - ~~Remove DJ username from NowPlaying mini player title (show track title only)~~ ✅ COMPLETED (Feb 2026)
 - ~~Lobby screen: character carousel with full-body preview + idle animation + WebGL checkerboard bg~~ ✅ COMPLETED (Feb 2026)
+- ~~Lobby carousel rewrite: r3f TurntableCarousel with PaperDoll characters + walk anims + speech bubbles~~ ✅ COMPLETED (Feb 2026)
+- ~~Lobby carousel performance optimizations (single Canvas, distortion skip, geometry cache, ref-based state, double-fetch elimination)~~ ✅ COMPLETED (Feb 2026)
 - PSX geometry shaders (vertex snapping, affine texture mapping)
 - Textured DJ booth furniture
 - Sound effects (footsteps, UI clicks, punch impacts)
@@ -1477,9 +1482,7 @@ A single `DEBUG_MODE` flag in `client/src/config.ts` controls all debug keyboard
 
 ### Character System
 
-Characters discoverable dynamically via `characterRegistry.ts` (probes `public/characters/default[N]` up to `MAX_PROBE=20`). Lobby uses a **carousel selector** (one character at a time, arrow nav + keyboard + dot indicators).
-
-**Full-body preview** (`CharacterPreview` in `LobbyScreen.tsx`): CSS-composited from manifest parts — fetches `manifest.json`, walks parent chain for absolute positions, layers by `zIndex`, scales to fit container, centers both axes. Plays **idle animation** via `requestAnimationFrame` loop that reads `rotation.z` tracks and applies CSS `rotate()` transforms at each part's pivot point (Y-flipped for CSS coordinate space).
+Characters discoverable dynamically via `characterRegistry.ts` (probes `public/characters/default[N]` up to `MAX_PROBE=20`). Lobby uses a **3D turntable carousel** (`TurntableCarousel.tsx`) with all characters arranged in a circle, rendered via r3f `<Canvas>`. See **Lobby Turntable Carousel** section below.
 
 **WebGL lobby background** (`WarpCheckBg.tsx`): Fragment shader renders a warping green/white checkerboard with multi-layered sinusoidal UV distortion. Rendered at ¼ resolution with `imageRendering: pixelated` + `filter: blur(3px)` for a degraded analog feel. Lobby card uses `bg-green-500/70 backdrop-blur-md`.
 
@@ -1553,6 +1556,50 @@ Server plays ambient background video (`isAmbient: true`) when no DJ is active. 
 ### Animated Skybox
 
 `TrippySky.tsx` — procedural FBM cloud layer with `uTime`-driven drift at speed `0.4` (increased from `0.06` for visible movement). Five-octave fractal brownian motion, two overlapping cloud layers, horizon fade.
+
+### Lobby Turntable Carousel (Feb 2026)
+
+`TurntableCarousel.tsx` — r3f-based 3D character selector for the lobby screen. All discovered characters arranged in a circle, rendered with actual `PaperDoll` components (same as in-game), playing walk animations. Selected character walks forward (toward camera), others idle. Replaced the earlier CSS-composited `CharacterPreview` approach.
+
+**Architecture**: Single `<Canvas>` (orthographic, `dpr={0.75}`) renders all characters + speech bubbles + "CLUB MUTANT" logo text. Characters are positioned in a turntable ring and rotated to face inward. The carousel auto-rotates and snaps to the selected character via `useFrame` lerp.
+
+**Key components**:
+
+- `CarouselScene` — manages the turntable group rotation, maps characters to ring positions
+- `CarouselCharacter` — wraps `PaperDoll` with per-character position/rotation on the ring, passes walk anim to selected character
+- `CarouselBubble` — speech bubbles above characters using troika `<Text>` + rounded-rect `ShapeGeometry`, reads text from ref in `useFrame` (no React state)
+- `useBubbleScheduler` — ref-based scheduler that cycles random phrases across characters via timers, returns `MutableRefObject<(string|null)[]>` (no `useState`)
+
+**Glow effect**: CSS `drop-shadow` filter applied to the main canvas wrapper div via `useGlowFilter` hook. Pulsates via sine wave, throttled to ~15fps. Previously used a second `<Canvas>` for isolated glow rendering — eliminated for performance (see optimizations below).
+
+**Key files**: `TurntableCarousel.tsx` (carousel + scene + bubbles), `LobbyScreen.tsx` (lobby layout + name input + connect button)
+
+### Lobby Carousel Performance Optimizations (Feb 2026)
+
+Seven optimizations applied to the lobby carousel and character system:
+
+**1. Single Canvas (eliminated dual-Canvas glow)**
+Previously the carousel used two `<Canvas>` elements — one for the main scene and one solely for CSS `drop-shadow` glow on the selected character. This meant two WebGL contexts, two render loops, and the selected character rendered & animated twice every frame. Removed the glow Canvas entirely; applied `drop-shadow` CSS filter directly to the main Canvas wrapper. PaperDoll instances dropped from 13 to 12.
+
+**2. Distortion uniform skip for static PaperDolls**
+`PaperDoll.tsx` `useFrame` now early-returns after `applyAnimation()` when `speed === 0 && velocityX === 0 && billboardTwist === 0` — skips `distortTimeRef`, `useUIStore.getState()`, and the material uniform loop entirely. Always true for all 12 lobby PaperDolls. Saves ~120 uniform writes/frame.
+
+**3. O(1) children lookup in PaperDoll (childrenByParent map)**
+`PartMesh` previously called `allParts.filter(p => p.parent === part.id)` on every render — O(N²) total across the bone tree. Now builds a `Map<string|null, ManifestPart[]>` once via `useMemo` in `PaperDoll`, passes to `PartMesh`. Lookup is O(1).
+
+**4. Ref-based bubble state (no React re-renders in Canvas)**
+`useBubbleScheduler` used `useState` which triggered React reconciliation on every bubble show/hide. Inside `<Canvas>`, rendering is driven by `useFrame`, not React — re-renders are wasted. Replaced with `useRef<(string|null)[]>` that `CarouselBubble` reads imperatively via `useFrame`.
+
+**5. Cached rounded-rect geometry for bubbles**
+`makeRoundedRect` was creating a new `ShapeGeometry` every `onSync` callback. Now cached by quantized `(w,h)` key via `getCachedRoundedRect` — there are only ~5 distinct sizes for the short phrases, so cache hit rate is near 100%.
+
+**6. Throttled glow filter rAF to ~15fps**
+`useGlowFilter` was writing a CSS filter string at 60fps for a sine-wave pulse. Added `GLOW_FRAME_MS = 1000/15` frame-rate cap. Visually imperceptible difference for a slow sine pulse.
+
+**7. Eliminated double manifest fetch in character discovery**
+`discoverCharacters()` fetches `manifest.json` per character for the name/metadata, then `preloadCharacter()` would fetch it again when loading textures. Now passes the already-parsed manifest directly via `preloadCharacterWithManifest()` in `CharacterLoader.ts`, skipping the redundant fetch. `discoverCharacters` returns `DiscoveredCharacter[]` (entry + manifest), `getCharacters()` maps to `CharacterEntry[]` for external consumers and calls `preloadCharacterWithManifest` with the manifest.
+
+**Key pattern — ref-based state inside r3f Canvas**: Inside `<Canvas>`, rendering is driven by `useFrame`, not React reconciliation. `useState` triggers re-renders that are wasted work. Use `useRef` for mutable state and read it imperatively in `useFrame`. This applies to speech bubble text, animation clocks, material arrays, etc. Only use `useState` when you need React to re-render JSX (e.g., adding/removing child components).
 
 ### Paper Rig Editor (`tools/paper-rig-editor/`)
 

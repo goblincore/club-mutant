@@ -133,14 +133,14 @@ interface PaperDollProps {
 // A single part mesh within the bone hierarchy
 function PartMesh({
   part,
-  allParts,
+  childrenByParent,
   texture,
   textures,
   registerBone,
   onMaterialCreated,
 }: {
   part: ManifestPart
-  allParts: ManifestPart[]
+  childrenByParent: Map<string | null, ManifestPart[]>
   texture: THREE.Texture
   textures: Map<string, THREE.Texture>
   registerBone: (id: string, boneRole: string | null, group: THREE.Group | null) => void
@@ -177,7 +177,7 @@ function PartMesh({
     return geo
   }, [part.size, part.pivot, material])
 
-  const children = allParts.filter((p) => p.parent === part.id)
+  const children = childrenByParent.get(part.id) ?? []
 
   return (
     <group
@@ -195,7 +195,7 @@ function PartMesh({
           <PartMesh
             key={child.id}
             part={child}
-            allParts={allParts}
+            childrenByParent={childrenByParent}
             texture={childTex}
             textures={textures}
             registerBone={registerBone}
@@ -277,6 +277,9 @@ export function PaperDoll({
     clockRef.current += delta
     applyAnimation(activeAnim, boneRefs.current, clockRef.current, PX_SCALE)
 
+    // Skip distortion uniform loop when no movement (e.g. lobby carousel)
+    if (speed === 0 && velocityX === 0 && billboardTwist === 0) return
+
     // Update distortion uniforms on all part materials
     distortTimeRef.current += delta
 
@@ -287,6 +290,18 @@ export function PaperDoll({
       setVertexFisheye(mat, vFisheye)
     }
   })
+
+  // Build children lookup map once (O(N) instead of O(N²) filter per PartMesh render)
+  const childrenByParent = useMemo(() => {
+    if (!loaded) return new Map<string | null, ManifestPart[]>()
+    const map = new Map<string | null, ManifestPart[]>()
+    for (const p of loaded.manifest.parts) {
+      const list = map.get(p.parent) ?? []
+      list.push(p)
+      map.set(p.parent, list)
+    }
+    return map
+  }, [loaded])
 
   // Compute layout metrics: scale, ground offset, world height
   const layout = useMemo(() => {
@@ -318,7 +333,7 @@ export function PaperDoll({
     )
   }
 
-  const rootParts = loaded.manifest.parts.filter((p) => p.parent === null)
+  const rootParts = childrenByParent.get(null) ?? []
 
   return (
     <group
@@ -333,7 +348,7 @@ export function PaperDoll({
           <PartMesh
             key={part.id}
             part={part}
-            allParts={loaded.manifest.parts}
+            childrenByParent={childrenByParent}
             texture={tex}
             textures={loaded.textures}
             registerBone={registerBone}

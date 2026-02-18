@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import * as THREE from 'three'
@@ -43,6 +43,9 @@ const CB_PAD_X = 0.08
 const CB_PAD_Y = 0.06
 const CB_RADIUS = 0.07
 const CB_FONT_SIZE = 0.16
+const GLOW_WIDTH = 1.2 // glow sprite width (character-width capsule)
+const GLOW_HEIGHT = 2.4 // glow sprite height (character-height capsule)
+const GLOW_PULSE_SPEED = 0.003 // sine wave speed for glow pulse
 
 function shortestAngleDiff(from: number, to: number): number {
   return ((to - from) % TWO_PI + TWO_PI + Math.PI) % TWO_PI - Math.PI
@@ -57,6 +60,78 @@ function LogoSprite() {
   return (
     <sprite position={[0, LOGO_Y, 0]} scale={[LOGO_SCALE * aspect, LOGO_SCALE, 1]} renderOrder={-1}>
       <spriteMaterial map={texture} transparent depthWrite depthTest alphaTest={0.5} />
+    </sprite>
+  )
+}
+
+// ─── Glow behind selected character (radial gradient texture) ────────
+
+// Character-shaped capsule glow: tall ellipse with sharp falloff
+const _glowTexture = (() => {
+  const w = 128
+  const h = 256
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')!
+
+  // Draw a capsule/ellipse shape with tight falloff
+  // Use elliptical gradient by scaling the canvas context
+  ctx.save()
+  ctx.translate(w / 2, h / 2)
+  ctx.scale(1, h / w) // stretch vertically
+  // Tight inner glow
+  const g1 = ctx.createRadialGradient(0, 0, 0, 0, 0, w / 2)
+  g1.addColorStop(0, 'rgba(200, 230, 255, 1.0)')
+  g1.addColorStop(0.3, 'rgba(120, 180, 255, 0.95)')
+  g1.addColorStop(0.6, 'rgba(80, 140, 255, 0.6)')
+  g1.addColorStop(0.8, 'rgba(50, 100, 255, 0.2)')
+  g1.addColorStop(1, 'rgba(30, 60, 255, 0)')
+  ctx.fillStyle = g1
+  ctx.fillRect(-w / 2, -w / 2, w, w) // fills the scaled circle
+  ctx.restore()
+
+  // Add a hot bright core center (upper body area)
+  ctx.save()
+  ctx.translate(w / 2, h * 0.4) // slightly above center
+  ctx.scale(1, 1.2)
+  const g2 = ctx.createRadialGradient(0, 0, 0, 0, 0, w * 0.25)
+  g2.addColorStop(0, 'rgba(255, 255, 255, 0.9)')
+  g2.addColorStop(0.4, 'rgba(180, 220, 255, 0.5)')
+  g2.addColorStop(1, 'rgba(100, 160, 255, 0)')
+  ctx.fillStyle = g2
+  ctx.fillRect(-w * 0.25, -w * 0.25, w * 0.5, w * 0.5)
+  ctx.restore()
+
+  const tex = new THREE.CanvasTexture(canvas)
+  return tex
+})()
+
+function SelectionGlow({ isSelected }: { isSelected: boolean }) {
+  const meshRef = useRef<THREE.Sprite>(null)
+
+  useFrame(() => {
+    if (!meshRef.current) return
+    if (!isSelected) {
+      meshRef.current.visible = false
+      return
+    }
+    meshRef.current.visible = true
+    const t = performance.now() * GLOW_PULSE_SPEED
+    const pulse = 0.92 + 0.08 * Math.sin(t)
+    meshRef.current.scale.set(GLOW_WIDTH * pulse, GLOW_HEIGHT * pulse, 1)
+    const mat = meshRef.current.material as THREE.SpriteMaterial
+    mat.opacity = 0.85 + 0.15 * Math.sin(t)
+  })
+
+  return (
+    <sprite ref={meshRef} position={[0, 0.55, -0.15]} renderOrder={-2}>
+      <spriteMaterial
+        map={_glowTexture}
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
     </sprite>
   )
 }
@@ -109,31 +184,65 @@ function makeRoundedRect(w: number, h: number, r: number): THREE.ShapeGeometry {
   return new THREE.ShapeGeometry(shape)
 }
 
+// ─── Rounded-rect geometry cache (keyed by quantized w×h) ───────────
+
+const _roundedRectCache = new Map<string, THREE.ShapeGeometry>()
+
+function getCachedRoundedRect(w: number, h: number, r: number): THREE.ShapeGeometry {
+  const qw = Math.round(w * 100) / 100
+  const qh = Math.round(h * 100) / 100
+  const key = `${qw}_${qh}`
+  let geo = _roundedRectCache.get(key)
+  if (!geo) {
+    geo = makeRoundedRect(qw, qh, r)
+    _roundedRectCache.set(key, geo)
+  }
+  return geo
+}
+
 // ─── Single 3D speech bubble above a character ──────────────────────
 
 const _parentQuatInverse = new THREE.Quaternion()
 
-function CarouselBubble({ text }: { text: string | null }) {
+function CarouselBubble({ textRef, index }: { textRef: React.MutableRefObject<(string | null)[]>; index: number }) {
   const groupRef = useRef<THREE.Group>(null)
   const bgRef = useRef<THREE.Mesh>(null)
   const tailRef = useRef<THREE.Mesh>(null)
   const animRef = useRef(0)
   const showStartRef = useRef(0)
-  const prevTextRef = useRef<string | null>(null)
   const bgBounds = useRef({ cx: 0, cy: 0, w: 0.1, h: 0.1 })
 
-  // Reset animation when text changes
-  if (text !== null && text !== prevTextRef.current) {
-    animRef.current = 0
-    showStartRef.current = Date.now()
-  }
-  prevTextRef.current = text
+  // React state for displayed text — drives troika <Text> children for proper onSync
+  const [displayText, setDisplayText] = useState<string | null>(null)
+  const prevTextRef = useRef<string | null>(null)
+  const activeTextRef = useRef<string | null>(null)
 
   useFrame(({ camera }) => {
     if (!groupRef.current) return
 
-    if (!text) {
+    const text = textRef.current[index] ?? null
+
+    // Track text changes — use setState to trigger React re-render so troika re-measures
+    if (text !== prevTextRef.current) {
+      if (text !== null) {
+        animRef.current = 0
+        showStartRef.current = Date.now()
+        activeTextRef.current = text
+        setDisplayText(text)
+      } else {
+        // Keep showing current text during fade-out, then clear
+        // Don't clear displayText yet — let fade animation finish
+      }
+      prevTextRef.current = text
+    }
+
+    // When text is null and animation is done, hide and clear
+    if (!text && animRef.current <= 0) {
       groupRef.current.scale.setScalar(0)
+      if (activeTextRef.current !== null) {
+        activeTextRef.current = null
+        setDisplayText(null)
+      }
       return
     }
 
@@ -177,31 +286,35 @@ function CarouselBubble({ text }: { text: string | null }) {
 
     const w = bb.max.x - bb.min.x + CB_PAD_X * 2
     const h = bb.max.y - bb.min.y + CB_PAD_Y * 2
+    if (w < 0.02 || h < 0.02) return // skip degenerate bounds from empty text
+
     const cx = (bb.min.x + bb.max.x) / 2
     const cy = (bb.min.y + bb.max.y) / 2
 
     bgBounds.current = { cx, cy, w, h }
-    bgRef.current.geometry.dispose()
-    bgRef.current.geometry = makeRoundedRect(w, h, CB_RADIUS)
+    bgRef.current.geometry = getCachedRoundedRect(w, h, CB_RADIUS)
     bgRef.current.position.set(cx, cy, -0.003)
   }, [])
 
-  if (!text) return null
+  // Show text as React children so troika re-measures and fires onSync properly
+  const shownText = displayText ?? activeTextRef.current ?? ''
 
   return (
     <group ref={groupRef} position={[0, BUBBLE_Y_OFFSET, 0]} scale={0}>
-      <Text
-        fontSize={CB_FONT_SIZE}
-        maxWidth={1.0}
-        color="#000000"
-        anchorX="center"
-        anchorY="bottom"
-        textAlign="center"
-        font="/fonts/courier-prime.woff"
-        onSync={handleSync}
-      >
-        {text}
-      </Text>
+      {shownText ? (
+        <Text
+          fontSize={CB_FONT_SIZE}
+          maxWidth={1.0}
+          color="#000000"
+          anchorX="center"
+          anchorY="bottom"
+          textAlign="center"
+          font="/fonts/courier-prime.woff"
+          onSync={handleSync}
+        >
+          {shownText}
+        </Text>
+      ) : null}
 
       <mesh ref={bgRef} material={carouselBubbleMat}>
         <planeGeometry args={[0.1, 0.1]} />
@@ -212,33 +325,25 @@ function CarouselBubble({ text }: { text: string | null }) {
   )
 }
 
-// ─── Bubble scheduler: randomly shows phrases on characters ─────────
+// ─── Bubble scheduler: randomly shows phrases on characters (ref-based, no re-renders) ─
 
-function useBubbleScheduler(characterCount: number): (string | null)[] {
-  const [bubbles, setBubbles] = useState<(string | null)[]>([])
+function useBubbleScheduler(characterCount: number): React.MutableRefObject<(string | null)[]> {
+  const bubblesRef = useRef<(string | null)[]>([])
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (characterCount === 0) return
-    setBubbles(new Array(characterCount).fill(null))
+    bubblesRef.current = new Array(characterCount).fill(null)
 
     const schedule = () => {
       const charIdx = Math.floor(Math.random() * characterCount)
       const phrase = CAROUSEL_PHRASES[Math.floor(Math.random() * CAROUSEL_PHRASES.length)]
 
-      setBubbles(prev => {
-        const next = [...prev]
-        next[charIdx] = phrase
-        return next
-      })
+      bubblesRef.current[charIdx] = phrase
 
       // Clear after duration
       setTimeout(() => {
-        setBubbles(prev => {
-          const next = [...prev]
-          next[charIdx] = null
-          return next
-        })
+        bubblesRef.current[charIdx] = null
       }, BUBBLE_SHOW_DURATION)
 
       // Schedule next bubble
@@ -254,7 +359,7 @@ function useBubbleScheduler(characterCount: number): (string | null)[] {
     }
   }, [characterCount])
 
-  return bubbles
+  return bubblesRef
 }
 
 // ─── Inner scene: characters on a ring ───────────────────────────────
@@ -281,7 +386,7 @@ function CarouselScene({
   const N = characters.length
   const angleStep = TWO_PI / N
   const groupRefs = useRef<(THREE.Group | null)[]>([])
-  const bubbleTexts = useBubbleScheduler(characters.length)
+  const bubblesRef = useBubbleScheduler(characters.length)
 
   // Camera setup — look down at the ring from above
   const { camera } = useThree()
@@ -333,82 +438,15 @@ function CarouselScene({
           ref={(el) => { groupRefs.current[i] = el }}
         >
           <PaperDoll characterPath={char.path} animationName={i === selectedIndex ? 'walk' : 'idle'} />
+          <SelectionGlow isSelected={i === selectedIndex} />
           <ClickSprite onClick={() => { if (i !== selectedIndexRef.current) onSelect(i) }} />
-          <CarouselBubble text={bubbleTexts[i] ?? null} />
+          <CarouselBubble textRef={bubblesRef} index={i} />
         </group>
       ))}
 
       <LogoSprite />
     </>
   )
-}
-
-// ─── Glow layer: renders ONLY the selected character with CSS drop-shadow ──
-
-function GlowScene({
-  character,
-  angleRef,
-  selectedIndex,
-  characterCount,
-}: {
-  character: CharacterEntry
-  angleRef: React.MutableRefObject<number>
-  selectedIndex: number
-  characterCount: number
-}) {
-  const groupRef = useRef<THREE.Group>(null)
-  const angleStep = TWO_PI / characterCount
-
-  const { camera } = useThree()
-  useEffect(() => {
-    camera.position.set(0, 5, 5.5)
-    camera.lookAt(0, 0.6, 0)
-    camera.updateProjectionMatrix()
-  }, [camera])
-
-  useFrame(() => {
-    if (!groupRef.current) return
-    const charAngle = angleRef.current + selectedIndex * angleStep
-    const x = Math.sin(charAngle) * RADIUS
-    const z = Math.cos(charAngle) * RADIUS
-    groupRef.current.position.set(x, 0, z)
-    groupRef.current.lookAt(0, 0, 0)
-  })
-
-  return (
-    <>
-      <ambientLight intensity={1.5} />
-      <directionalLight position={[2, 5, 3]} intensity={0.5} />
-      <group ref={groupRef}>
-        <PaperDoll characterPath={character.path} animationName="walk" />
-      </group>
-    </>
-  )
-}
-
-// ─── Pulsating glow filter driver ────────────────────────────────────
-
-function useGlowFilter(ref: React.RefObject<HTMLDivElement | null>) {
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    let raf: number
-    const update = () => {
-      const t = performance.now() * 0.003
-      const pulse = 0.5 + 0.5 * Math.sin(t)
-      const inner = 6 + pulse * 6        // tight inner glow: 6–12px
-      const mid = 12 + pulse * 8          // mid glow: 12–20px
-      const outer = 20 + pulse * 12       // wide outer glow: 20–32px
-      // Three stacked drop-shadows for an intense, thick glowing outline
-      el.style.filter =
-        `drop-shadow(0 0 ${inner}px rgba(160, 190, 255, ${0.9 + pulse * 0.1})) ` +
-        `drop-shadow(0 0 ${mid}px rgba(120, 160, 255, ${0.7 + pulse * 0.3})) ` +
-        `drop-shadow(0 0 ${outer}px rgba(80, 130, 255, ${0.5 + pulse * 0.3}))`
-      raf = requestAnimationFrame(update)
-    }
-    raf = requestAnimationFrame(update)
-    return () => cancelAnimationFrame(raf)
-  }, [ref])
 }
 
 // ─── Main exported component ─────────────────────────────────────────
@@ -425,8 +463,6 @@ export function TurntableCarousel({
   const selectedIndexRef = useRef(selectedIndex)
   selectedIndexRef.current = selectedIndex
 
-  const glowDivRef = useRef<HTMLDivElement>(null)
-  useGlowFilter(glowDivRef)
 
   // --- Selection sync: when parent changes selectedIndex, set snap target ---
   useEffect(() => {
@@ -448,64 +484,30 @@ export function TurntableCarousel({
     return () => { document.body.style.cursor = 'default' }
   }, [])
 
-  const selectedChar = characters[selectedIndex]
-
   if (characters.length === 0) return null
 
   return (
     <div className="relative w-full h-full">
-      {/* Canvas stack — fills available parent height */}
-      <div className="w-full relative h-full">
-        {/* Glow layer — renders only selected character with CSS drop-shadow outline */}
-        {selectedChar && (
-          <div
-            ref={glowDivRef}
-            className="absolute inset-0 pointer-events-none z-10"
-          >
-            <Canvas
-              orthographic
-              camera={{ position: [0, 5, 5.5], zoom: 120, near: 0.1, far: 100 }}
-              dpr={0.5}
-              gl={{ alpha: true, antialias: false }}
-              style={{ background: 'transparent', pointerEvents: 'none' }}
-              onCreated={({ gl }) => {
-                gl.setClearColor(0x000000, 0)
-                gl.domElement.style.pointerEvents = 'none'
-              }}
-            >
-              <GlowScene
-                key={selectedChar.id}
-                character={selectedChar}
-                angleRef={angleRef}
-                selectedIndex={selectedIndex}
-                characterCount={characters.length}
-              />
-            </Canvas>
-          </div>
-        )}
-
-        {/* Main carousel canvas */}
-        <Canvas
-          orthographic
-          camera={{ position: [0, 5, 5.5], zoom: 120, near: 0.1, far: 100 }}
-          dpr={0.75}
-          gl={{ alpha: true, antialias: false }}
-          style={{ background: 'transparent' }}
-          onCreated={({ gl }) => {
-            gl.setClearColor(0x000000, 0)
-          }}
-        >
-          <CarouselScene
-            characters={characters}
-            selectedIndex={selectedIndex}
-            onSelect={onSelect}
-            angleRef={angleRef}
-            targetAngleRef={targetAngleRef}
-            autoResumeTsRef={autoResumeTsRef}
-            selectedIndexRef={selectedIndexRef}
-          />
-        </Canvas>
-      </div>
+      <Canvas
+        orthographic
+        camera={{ position: [0, 5, 5.5], zoom: 120, near: 0.1, far: 100 }}
+        dpr={0.75}
+        gl={{ alpha: true, antialias: false }}
+        style={{ background: 'transparent' }}
+        onCreated={({ gl }) => {
+          gl.setClearColor(0x000000, 0)
+        }}
+      >
+        <CarouselScene
+          characters={characters}
+          selectedIndex={selectedIndex}
+          onSelect={onSelect}
+          angleRef={angleRef}
+          targetAngleRef={targetAngleRef}
+          autoResumeTsRef={autoResumeTsRef}
+          selectedIndexRef={selectedIndexRef}
+        />
+      </Canvas>
     </div>
   )
 }
