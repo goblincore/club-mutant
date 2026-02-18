@@ -1,5 +1,6 @@
-import { useRef, useEffect, useState, useMemo } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber'
+import { Text } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { PaperDoll } from '../../character/PaperDoll'
@@ -26,6 +27,22 @@ const SNAP_THRESHOLD = 0.003 // rad — close enough to snap
 const RESUME_DELAY = 5000 // ms before auto-rotate resumes after user input
 const LOGO_Y = 0.85 // logo center height in world units
 const LOGO_SCALE = 2.0 // logo sprite scale
+
+// --- Speech bubble constants ---
+const CAROUSEL_PHRASES = [
+  'Pick me!', "I'm cute", "I'm cuter", 'Choose me!',
+  'Over here!', 'Hey!', 'Me! Me!', 'Look at me!',
+  '...', 'Yo!', '*waves*', 'Hi!', 'Hiii~',
+]
+const BUBBLE_SHOW_DURATION = 3000 // ms a bubble stays visible
+const BUBBLE_FADE_MS = 600 // ms for shrink-out at end
+const BUBBLE_MIN_INTERVAL = 2000 // min ms between any bubble appearing
+const BUBBLE_MAX_INTERVAL = 5000 // max ms between bubbles
+const BUBBLE_Y_OFFSET = 1.6 // world units above character ground
+const CB_PAD_X = 0.08
+const CB_PAD_Y = 0.06
+const CB_RADIUS = 0.07
+const CB_FONT_SIZE = 0.16
 
 function shortestAngleDiff(from: number, to: number): number {
   return ((to - from) % TWO_PI + TWO_PI + Math.PI) % TWO_PI - Math.PI
@@ -55,9 +72,189 @@ function ClickSprite({ onClick }: { onClick: () => void }) {
       onPointerOver={() => { document.body.style.cursor = 'pointer' }}
       onPointerOut={() => { document.body.style.cursor = 'default' }}
     >
-      <spriteMaterial transparent opacity={0} depthWrite={false} />
+      <spriteMaterial transparent opacity={0.001} depthWrite={false} />
     </sprite>
   )
+}
+
+// ─── Speech bubble geometry helpers ──────────────────────────────────
+
+const carouselBubbleMat = new THREE.MeshBasicMaterial({ color: 0xffffff })
+
+const carouselTailGeo = (() => {
+  const s = new THREE.Shape()
+  s.moveTo(-0.03, 0)
+  s.lineTo(0.03, 0)
+  s.lineTo(0, -0.06)
+  s.closePath()
+  return new THREE.ShapeGeometry(s)
+})()
+
+function makeRoundedRect(w: number, h: number, r: number): THREE.ShapeGeometry {
+  r = Math.min(r, w / 2, h / 2)
+  const shape = new THREE.Shape()
+  const hw = w / 2
+  const hh = h / 2
+
+  shape.moveTo(-hw + r, -hh)
+  shape.lineTo(hw - r, -hh)
+  shape.quadraticCurveTo(hw, -hh, hw, -hh + r)
+  shape.lineTo(hw, hh - r)
+  shape.quadraticCurveTo(hw, hh, hw - r, hh)
+  shape.lineTo(-hw + r, hh)
+  shape.quadraticCurveTo(-hw, hh, -hw, hh - r)
+  shape.lineTo(-hw, -hh + r)
+  shape.quadraticCurveTo(-hw, -hh, -hw + r, -hh)
+
+  return new THREE.ShapeGeometry(shape)
+}
+
+// ─── Single 3D speech bubble above a character ──────────────────────
+
+const _parentQuatInverse = new THREE.Quaternion()
+
+function CarouselBubble({ text }: { text: string | null }) {
+  const groupRef = useRef<THREE.Group>(null)
+  const bgRef = useRef<THREE.Mesh>(null)
+  const tailRef = useRef<THREE.Mesh>(null)
+  const animRef = useRef(0)
+  const showStartRef = useRef(0)
+  const prevTextRef = useRef<string | null>(null)
+  const bgBounds = useRef({ cx: 0, cy: 0, w: 0.1, h: 0.1 })
+
+  // Reset animation when text changes
+  if (text !== null && text !== prevTextRef.current) {
+    animRef.current = 0
+    showStartRef.current = Date.now()
+  }
+  prevTextRef.current = text
+
+  useFrame(({ camera }) => {
+    if (!groupRef.current) return
+
+    if (!text) {
+      groupRef.current.scale.setScalar(0)
+      return
+    }
+
+    // Billboard: counter parent's world rotation so bubble always faces camera
+    const parent = groupRef.current.parent
+    if (parent) {
+      parent.updateWorldMatrix(true, false)
+      _parentQuatInverse.copy(parent.getWorldQuaternion(_parentQuatInverse)).invert()
+      groupRef.current.quaternion.copy(_parentQuatInverse).multiply(camera.quaternion)
+    } else {
+      groupRef.current.quaternion.copy(camera.quaternion)
+    }
+
+    // Pop-in
+    if (animRef.current < 1) {
+      animRef.current = Math.min(1, animRef.current + 0.016 * 8) // ~8/sec
+    }
+
+    // Shrink-out in last BUBBLE_FADE_MS
+    const elapsed = Date.now() - showStartRef.current
+    const remaining = BUBBLE_SHOW_DURATION - elapsed
+    const fadeScale = remaining < BUBBLE_FADE_MS
+      ? Math.max(0, remaining / BUBBLE_FADE_MS)
+      : 1
+
+    const ease = 1 - (1 - animRef.current) * (1 - animRef.current)
+    groupRef.current.scale.setScalar(ease * fadeScale)
+
+    // Tail position (below the bg rect)
+    if (tailRef.current) {
+      const { cx, cy, h } = bgBounds.current
+      tailRef.current.rotation.z = 0
+      tailRef.current.position.set(cx, cy - h / 2, 0)
+    }
+  })
+
+  const handleSync = useCallback((troika: THREE.Mesh) => {
+    troika.geometry.computeBoundingBox()
+    const bb = troika.geometry.boundingBox
+    if (!bb || !bgRef.current) return
+
+    const w = bb.max.x - bb.min.x + CB_PAD_X * 2
+    const h = bb.max.y - bb.min.y + CB_PAD_Y * 2
+    const cx = (bb.min.x + bb.max.x) / 2
+    const cy = (bb.min.y + bb.max.y) / 2
+
+    bgBounds.current = { cx, cy, w, h }
+    bgRef.current.geometry.dispose()
+    bgRef.current.geometry = makeRoundedRect(w, h, CB_RADIUS)
+    bgRef.current.position.set(cx, cy, -0.003)
+  }, [])
+
+  if (!text) return null
+
+  return (
+    <group ref={groupRef} position={[0, BUBBLE_Y_OFFSET, 0]} scale={0}>
+      <Text
+        fontSize={CB_FONT_SIZE}
+        maxWidth={1.0}
+        color="#000000"
+        anchorX="center"
+        anchorY="bottom"
+        textAlign="center"
+        font="/fonts/courier-prime.woff"
+        onSync={handleSync}
+      >
+        {text}
+      </Text>
+
+      <mesh ref={bgRef} material={carouselBubbleMat}>
+        <planeGeometry args={[0.1, 0.1]} />
+      </mesh>
+
+      <mesh ref={tailRef} geometry={carouselTailGeo} material={carouselBubbleMat} />
+    </group>
+  )
+}
+
+// ─── Bubble scheduler: randomly shows phrases on characters ─────────
+
+function useBubbleScheduler(characterCount: number): (string | null)[] {
+  const [bubbles, setBubbles] = useState<(string | null)[]>([])
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (characterCount === 0) return
+    setBubbles(new Array(characterCount).fill(null))
+
+    const schedule = () => {
+      const charIdx = Math.floor(Math.random() * characterCount)
+      const phrase = CAROUSEL_PHRASES[Math.floor(Math.random() * CAROUSEL_PHRASES.length)]
+
+      setBubbles(prev => {
+        const next = [...prev]
+        next[charIdx] = phrase
+        return next
+      })
+
+      // Clear after duration
+      setTimeout(() => {
+        setBubbles(prev => {
+          const next = [...prev]
+          next[charIdx] = null
+          return next
+        })
+      }, BUBBLE_SHOW_DURATION)
+
+      // Schedule next bubble
+      const delay = BUBBLE_MIN_INTERVAL + Math.random() * (BUBBLE_MAX_INTERVAL - BUBBLE_MIN_INTERVAL)
+      timerRef.current = setTimeout(schedule, delay)
+    }
+
+    // Start first bubble after a short delay
+    timerRef.current = setTimeout(schedule, 1000)
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [characterCount])
+
+  return bubbles
 }
 
 // ─── Inner scene: characters on a ring ───────────────────────────────
@@ -84,6 +281,7 @@ function CarouselScene({
   const N = characters.length
   const angleStep = TWO_PI / N
   const groupRefs = useRef<(THREE.Group | null)[]>([])
+  const bubbleTexts = useBubbleScheduler(characters.length)
 
   // Camera setup — look down at the ring from above
   const { camera } = useThree()
@@ -134,8 +332,9 @@ function CarouselScene({
           key={char.id}
           ref={(el) => { groupRefs.current[i] = el }}
         >
-          <PaperDoll characterPath={char.path} />
+          <PaperDoll characterPath={char.path} animationName={i === selectedIndex ? 'walk' : 'idle'} />
           <ClickSprite onClick={() => { if (i !== selectedIndexRef.current) onSelect(i) }} />
+          <CarouselBubble text={bubbleTexts[i] ?? null} />
         </group>
       ))}
 
@@ -181,7 +380,7 @@ function GlowScene({
       <ambientLight intensity={1.5} />
       <directionalLight position={[2, 5, 3]} intensity={0.5} />
       <group ref={groupRef}>
-        <PaperDoll characterPath={character.path} />
+        <PaperDoll characterPath={character.path} animationName="walk" />
       </group>
     </>
   )
@@ -244,50 +443,17 @@ export function TurntableCarousel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [characters.length > 0])
 
-  const [isHovered, setIsHovered] = useState(false)
+  // Reset cursor when component unmounts
+  useEffect(() => {
+    return () => { document.body.style.cursor = 'default' }
+  }, [])
 
   const selectedChar = characters[selectedIndex]
 
   if (characters.length === 0) return null
 
   return (
-    <div
-      className="relative w-full h-full"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      {/* "Choose a character!" speech bubble tooltip */}
-      <div
-        className="absolute left-1/2 -translate-x-1/2 pointer-events-none z-30 transition-all duration-300"
-        style={{
-          top: '28%',
-          opacity: isHovered ? 1 : 0,
-          transform: `translateX(-50%) translateY(${isHovered ? 0 : 8}px)`,
-        }}
-      >
-        <div
-          className="relative px-5 py-2.5 rounded-2xl font-mono font-bold text-sm text-black whitespace-nowrap"
-          style={{
-            backgroundColor: 'white',
-            boxShadow: '0 3px 12px rgba(0,0,0,0.25), 0 0 0 2px rgba(0,0,0,0.08)',
-          }}
-        >
-          Choose a character!
-          {/* Speech bubble tail */}
-          <div
-            className="absolute left-1/2 -translate-x-1/2"
-            style={{
-              bottom: -10,
-              width: 0,
-              height: 0,
-              borderLeft: '10px solid transparent',
-              borderRight: '10px solid transparent',
-              borderTop: '10px solid white',
-            }}
-          />
-        </div>
-      </div>
-
+    <div className="relative w-full h-full">
       {/* Canvas stack — fills available parent height */}
       <div className="w-full relative h-full">
         {/* Glow layer — renders only selected character with CSS drop-shadow outline */}
