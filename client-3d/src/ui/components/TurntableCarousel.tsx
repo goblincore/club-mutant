@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import * as THREE from 'three'
@@ -43,7 +43,9 @@ const CB_PAD_X = 0.08
 const CB_PAD_Y = 0.06
 const CB_RADIUS = 0.07
 const CB_FONT_SIZE = 0.16
-const GLOW_FRAME_MS = 1000 / 15 // cap glow filter to ~15fps
+const GLOW_WIDTH = 1.2 // glow sprite width (character-width capsule)
+const GLOW_HEIGHT = 2.4 // glow sprite height (character-height capsule)
+const GLOW_PULSE_SPEED = 0.003 // sine wave speed for glow pulse
 
 function shortestAngleDiff(from: number, to: number): number {
   return ((to - from) % TWO_PI + TWO_PI + Math.PI) % TWO_PI - Math.PI
@@ -58,6 +60,78 @@ function LogoSprite() {
   return (
     <sprite position={[0, LOGO_Y, 0]} scale={[LOGO_SCALE * aspect, LOGO_SCALE, 1]} renderOrder={-1}>
       <spriteMaterial map={texture} transparent depthWrite depthTest alphaTest={0.5} />
+    </sprite>
+  )
+}
+
+// ─── Glow behind selected character (radial gradient texture) ────────
+
+// Character-shaped capsule glow: tall ellipse with sharp falloff
+const _glowTexture = (() => {
+  const w = 128
+  const h = 256
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')!
+
+  // Draw a capsule/ellipse shape with tight falloff
+  // Use elliptical gradient by scaling the canvas context
+  ctx.save()
+  ctx.translate(w / 2, h / 2)
+  ctx.scale(1, h / w) // stretch vertically
+  // Tight inner glow
+  const g1 = ctx.createRadialGradient(0, 0, 0, 0, 0, w / 2)
+  g1.addColorStop(0, 'rgba(200, 230, 255, 1.0)')
+  g1.addColorStop(0.3, 'rgba(120, 180, 255, 0.95)')
+  g1.addColorStop(0.6, 'rgba(80, 140, 255, 0.6)')
+  g1.addColorStop(0.8, 'rgba(50, 100, 255, 0.2)')
+  g1.addColorStop(1, 'rgba(30, 60, 255, 0)')
+  ctx.fillStyle = g1
+  ctx.fillRect(-w / 2, -w / 2, w, w) // fills the scaled circle
+  ctx.restore()
+
+  // Add a hot bright core center (upper body area)
+  ctx.save()
+  ctx.translate(w / 2, h * 0.4) // slightly above center
+  ctx.scale(1, 1.2)
+  const g2 = ctx.createRadialGradient(0, 0, 0, 0, 0, w * 0.25)
+  g2.addColorStop(0, 'rgba(255, 255, 255, 0.9)')
+  g2.addColorStop(0.4, 'rgba(180, 220, 255, 0.5)')
+  g2.addColorStop(1, 'rgba(100, 160, 255, 0)')
+  ctx.fillStyle = g2
+  ctx.fillRect(-w * 0.25, -w * 0.25, w * 0.5, w * 0.5)
+  ctx.restore()
+
+  const tex = new THREE.CanvasTexture(canvas)
+  return tex
+})()
+
+function SelectionGlow({ isSelected }: { isSelected: boolean }) {
+  const meshRef = useRef<THREE.Sprite>(null)
+
+  useFrame(() => {
+    if (!meshRef.current) return
+    if (!isSelected) {
+      meshRef.current.visible = false
+      return
+    }
+    meshRef.current.visible = true
+    const t = performance.now() * GLOW_PULSE_SPEED
+    const pulse = 0.92 + 0.08 * Math.sin(t)
+    meshRef.current.scale.set(GLOW_WIDTH * pulse, GLOW_HEIGHT * pulse, 1)
+    const mat = meshRef.current.material as THREE.SpriteMaterial
+    mat.opacity = 0.85 + 0.15 * Math.sin(t)
+  })
+
+  return (
+    <sprite ref={meshRef} position={[0, 0.55, -0.15]} renderOrder={-2}>
+      <spriteMaterial
+        map={_glowTexture}
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
     </sprite>
   )
 }
@@ -134,11 +208,13 @@ function CarouselBubble({ textRef, index }: { textRef: React.MutableRefObject<(s
   const groupRef = useRef<THREE.Group>(null)
   const bgRef = useRef<THREE.Mesh>(null)
   const tailRef = useRef<THREE.Mesh>(null)
-  const textMeshRef = useRef<THREE.Mesh>(null)
   const animRef = useRef(0)
   const showStartRef = useRef(0)
-  const prevTextRef = useRef<string | null>(null)
   const bgBounds = useRef({ cx: 0, cy: 0, w: 0.1, h: 0.1 })
+
+  // React state for displayed text — drives troika <Text> children for proper onSync
+  const [displayText, setDisplayText] = useState<string | null>(null)
+  const prevTextRef = useRef<string | null>(null)
   const activeTextRef = useRef<string | null>(null)
 
   useFrame(({ camera }) => {
@@ -146,25 +222,27 @@ function CarouselBubble({ textRef, index }: { textRef: React.MutableRefObject<(s
 
     const text = textRef.current[index] ?? null
 
-    // Track text changes for animation reset
-    if (text !== null && text !== prevTextRef.current) {
-      animRef.current = 0
-      showStartRef.current = Date.now()
-      activeTextRef.current = text
-    }
-    prevTextRef.current = text
-
-    // Update troika text content if changed
-    if (textMeshRef.current) {
-      const troika = textMeshRef.current as unknown as { text: string }
-      const displayText = text ?? activeTextRef.current ?? ''
-      if (troika.text !== displayText) {
-        troika.text = displayText
+    // Track text changes — use setState to trigger React re-render so troika re-measures
+    if (text !== prevTextRef.current) {
+      if (text !== null) {
+        animRef.current = 0
+        showStartRef.current = Date.now()
+        activeTextRef.current = text
+        setDisplayText(text)
+      } else {
+        // Keep showing current text during fade-out, then clear
+        // Don't clear displayText yet — let fade animation finish
       }
+      prevTextRef.current = text
     }
 
+    // When text is null and animation is done, hide and clear
     if (!text && animRef.current <= 0) {
       groupRef.current.scale.setScalar(0)
+      if (activeTextRef.current !== null) {
+        activeTextRef.current = null
+        setDisplayText(null)
+      }
       return
     }
 
@@ -208,6 +286,8 @@ function CarouselBubble({ textRef, index }: { textRef: React.MutableRefObject<(s
 
     const w = bb.max.x - bb.min.x + CB_PAD_X * 2
     const h = bb.max.y - bb.min.y + CB_PAD_Y * 2
+    if (w < 0.02 || h < 0.02) return // skip degenerate bounds from empty text
+
     const cx = (bb.min.x + bb.max.x) / 2
     const cy = (bb.min.y + bb.max.y) / 2
 
@@ -216,21 +296,25 @@ function CarouselBubble({ textRef, index }: { textRef: React.MutableRefObject<(s
     bgRef.current.position.set(cx, cy, -0.003)
   }, [])
 
+  // Show text as React children so troika re-measures and fires onSync properly
+  const shownText = displayText ?? activeTextRef.current ?? ''
+
   return (
     <group ref={groupRef} position={[0, BUBBLE_Y_OFFSET, 0]} scale={0}>
-      <Text
-        ref={textMeshRef}
-        fontSize={CB_FONT_SIZE}
-        maxWidth={1.0}
-        color="#000000"
-        anchorX="center"
-        anchorY="bottom"
-        textAlign="center"
-        font="/fonts/courier-prime.woff"
-        onSync={handleSync}
-      >
-        {' '}
-      </Text>
+      {shownText ? (
+        <Text
+          fontSize={CB_FONT_SIZE}
+          maxWidth={1.0}
+          color="#000000"
+          anchorX="center"
+          anchorY="bottom"
+          textAlign="center"
+          font="/fonts/courier-prime.woff"
+          onSync={handleSync}
+        >
+          {shownText}
+        </Text>
+      ) : null}
 
       <mesh ref={bgRef} material={carouselBubbleMat}>
         <planeGeometry args={[0.1, 0.1]} />
@@ -354,6 +438,7 @@ function CarouselScene({
           ref={(el) => { groupRefs.current[i] = el }}
         >
           <PaperDoll characterPath={char.path} animationName={i === selectedIndex ? 'walk' : 'idle'} />
+          <SelectionGlow isSelected={i === selectedIndex} />
           <ClickSprite onClick={() => { if (i !== selectedIndexRef.current) onSelect(i) }} />
           <CarouselBubble textRef={bubblesRef} index={i} />
         </group>
@@ -362,35 +447,6 @@ function CarouselScene({
       <LogoSprite />
     </>
   )
-}
-
-// ─── Pulsating glow filter driver (throttled to ~15fps) ─────────────
-
-function useGlowFilter(ref: React.RefObject<HTMLDivElement | null>) {
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    let raf: number
-    let lastFrame = 0
-    const update = (now: number) => {
-      if (now - lastFrame >= GLOW_FRAME_MS) {
-        lastFrame = now
-        const t = now * 0.003
-        const pulse = 0.5 + 0.5 * Math.sin(t)
-        const inner = 6 + pulse * 6        // tight inner glow: 6–12px
-        const mid = 12 + pulse * 8          // mid glow: 12–20px
-        const outer = 20 + pulse * 12       // wide outer glow: 20–32px
-        // Three stacked drop-shadows for an intense, thick glowing outline
-        el.style.filter =
-          `drop-shadow(0 0 ${inner}px rgba(160, 190, 255, ${0.9 + pulse * 0.1})) ` +
-          `drop-shadow(0 0 ${mid}px rgba(120, 160, 255, ${0.7 + pulse * 0.3})) ` +
-          `drop-shadow(0 0 ${outer}px rgba(80, 130, 255, ${0.5 + pulse * 0.3}))`
-      }
-      raf = requestAnimationFrame(update)
-    }
-    raf = requestAnimationFrame(update)
-    return () => cancelAnimationFrame(raf)
-  }, [ref])
 }
 
 // ─── Main exported component ─────────────────────────────────────────
@@ -407,8 +463,6 @@ export function TurntableCarousel({
   const selectedIndexRef = useRef(selectedIndex)
   selectedIndexRef.current = selectedIndex
 
-  const canvasDivRef = useRef<HTMLDivElement>(null)
-  useGlowFilter(canvasDivRef)
 
   // --- Selection sync: when parent changes selectedIndex, set snap target ---
   useEffect(() => {
@@ -434,29 +488,26 @@ export function TurntableCarousel({
 
   return (
     <div className="relative w-full h-full">
-      {/* Single canvas with CSS glow applied to the wrapper */}
-      <div ref={canvasDivRef} className="w-full relative h-full">
-        <Canvas
-          orthographic
-          camera={{ position: [0, 5, 5.5], zoom: 120, near: 0.1, far: 100 }}
-          dpr={0.75}
-          gl={{ alpha: true, antialias: false }}
-          style={{ background: 'transparent' }}
-          onCreated={({ gl }) => {
-            gl.setClearColor(0x000000, 0)
-          }}
-        >
-          <CarouselScene
-            characters={characters}
-            selectedIndex={selectedIndex}
-            onSelect={onSelect}
-            angleRef={angleRef}
-            targetAngleRef={targetAngleRef}
-            autoResumeTsRef={autoResumeTsRef}
-            selectedIndexRef={selectedIndexRef}
-          />
-        </Canvas>
-      </div>
+      <Canvas
+        orthographic
+        camera={{ position: [0, 5, 5.5], zoom: 120, near: 0.1, far: 100 }}
+        dpr={0.75}
+        gl={{ alpha: true, antialias: false }}
+        style={{ background: 'transparent' }}
+        onCreated={({ gl }) => {
+          gl.setClearColor(0x000000, 0)
+        }}
+      >
+        <CarouselScene
+          characters={characters}
+          selectedIndex={selectedIndex}
+          onSelect={onSelect}
+          angleRef={angleRef}
+          targetAngleRef={targetAngleRef}
+          autoResumeTsRef={autoResumeTsRef}
+          selectedIndexRef={selectedIndexRef}
+        />
+      </Canvas>
     </div>
   )
 }
