@@ -61,7 +61,7 @@ export function LobbyScreen() {
   }
 
   return (
-    <div className="relative flex flex-col items-center justify-center w-full h-full overflow-hidden">
+    <div className="relative flex flex-col items-center w-full h-full overflow-hidden">
       <WarpCheckBg />
 
       {/* Toxic particle overlay */}
@@ -83,7 +83,7 @@ export function LobbyScreen() {
       </div>
 
       {/* Carousel floating in space — logo is rendered inside TurntableCarousel's 3D space */}
-      <div className="relative z-10 flex-1 w-full flex items-center justify-center">
+      <div className="relative z-10 flex-1 w-full flex items-end justify-center min-h-0">
         {characters.length > 0 && (
           <TurntableCarousel
             characters={characters}
@@ -95,7 +95,7 @@ export function LobbyScreen() {
 
       {/* Input container - opaque green for legibility */}
       <motion.div
-        className="relative z-10 mb-8 p-6 rounded-xl border-2"
+        className="relative z-10 mb-6 mt-0 p-6 rounded-xl border-2 shrink-0"
         style={{
           backgroundColor: 'rgba(57, 255, 20, 0.45)',
           backdropFilter: 'blur(12px)',
