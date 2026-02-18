@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
 
 import { getNetwork } from '../network/NetworkManager'
 import { useGameStore } from '../stores/gameStore'
@@ -94,8 +93,8 @@ export function LobbyScreen() {
       </div>
 
       {/* Input container - opaque green for legibility */}
-      <motion.div
-        className="relative z-10 mb-6 mt-0 p-6 rounded-xl border-2 shrink-0"
+      <div
+        className="relative z-10 mb-6 mt-0 p-6 rounded-xl border-2 shrink-0 lobby-card-enter"
         style={{
           backgroundColor: 'rgba(57, 255, 20, 0.45)',
           backdropFilter: 'blur(12px)',
@@ -105,9 +104,6 @@ export function LobbyScreen() {
             inset 0 0 20px rgba(57, 255, 20, 0.15)
           `,
         }}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
       >
         <div className="flex flex-col items-center gap-4 w-80">
           {/* Name input */}
@@ -139,22 +135,20 @@ export function LobbyScreen() {
           </div>
 
           {/* Join button */}
-          <motion.button
+          <button
             onClick={handleJoin}
             disabled={connecting || !name.trim()}
-            className="w-full relative overflow-hidden group
+            className="lobby-btn w-full relative overflow-hidden group
                        bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-3
                        text-base font-mono font-bold text-white
                        hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
                        disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-green-700/40
                        transition-all duration-300"
-            whileHover={{ scale: name.trim() ? 1.03 : 1 }}
-            whileTap={{ scale: name.trim() ? 0.97 : 1 }}
           >
             {/* Button glow effect */}
-            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent 
+            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
                             translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
-            
+
             <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
               {connecting ? (
                 <span className="flex items-center justify-center gap-2">
@@ -165,21 +159,17 @@ export function LobbyScreen() {
                 'Join'
               )}
             </span>
-          </motion.button>
+          </button>
 
           {/* Error message */}
           {error && (
-            <motion.p 
-              className="text-rave-pink text-sm font-mono text-center font-bold"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
+            <p className="lobby-error-enter text-rave-pink text-sm font-mono text-center font-bold">
               ⚠ {error}
-            </motion.p>
+            </p>
           )}
 
         </div>
-      </motion.div>
+      </div>
 
       <style>{`
         @keyframes scanline {
@@ -187,18 +177,34 @@ export function LobbyScreen() {
           50% { opacity: 1; transform: scaleX(1); }
         }
         @keyframes particle-float {
-          0%, 100% { 
-            transform: translateY(0) scale(0.5); 
-            opacity: 0; 
+          0%, 100% {
+            transform: translateY(0) scale(0.5);
+            opacity: 0;
           }
-          50% { 
-            transform: translateY(-40px) scale(1.2); 
-            opacity: 0.8; 
+          50% {
+            transform: translateY(-40px) scale(1.2);
+            opacity: 0.8;
           }
         }
         .particle-float {
           animation: particle-float ease-in-out infinite;
         }
+        @keyframes lobby-card-enter {
+          from { opacity: 0; transform: translateY(20px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .lobby-card-enter {
+          animation: lobby-card-enter 0.5s ease-out 0.2s both;
+        }
+        @keyframes lobby-error-enter {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        .lobby-error-enter {
+          animation: lobby-error-enter 0.3s ease both;
+        }
+        .lobby-btn:not(:disabled):hover  { transform: scale(1.03); }
+        .lobby-btn:not(:disabled):active { transform: scale(0.97); }
       `}</style>
     </div>
   )
