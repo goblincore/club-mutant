@@ -382,7 +382,7 @@ const CharacterPreview = memo(function CharacterPreview({
     const layouts: PartLayout[] = parts.map((part) => {
       const [ax, ay] = getAbsPos(part)
       const left = ax - part.pivot[0] * part.size[0]
-      const top = ay - part.pivot[1] * part.size[1]
+      const top = ay - (1 - part.pivot[1]) * part.size[1]
 
       minX = Math.min(minX, left)
       minY = Math.min(minY, top)
@@ -417,7 +417,7 @@ const CharacterPreview = memo(function CharacterPreview({
         const w = part.size[0] * scale
         const h = part.size[1] * scale
         const originX = part.pivot[0] * 100
-        const originY = part.pivot[1] * 100
+        const originY = (1 - part.pivot[1]) * 100
 
         return (
           <img
