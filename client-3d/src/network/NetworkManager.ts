@@ -2,6 +2,7 @@ import { Client, Room, getStateCallbacks } from '@colyseus/sdk'
 import type { IOfficeState, IPlayer } from '@club-mutant/types/IOfficeState'
 import { Message } from '@club-mutant/types/Messages'
 import { RoomType } from '@club-mutant/types/Rooms'
+import type { RoomListEntry } from '../stores/gameStore'
 
 import { useGameStore, setPlayerPosition, getPlayerPosition } from '../stores/gameStore'
 import { useChatStore } from '../stores/chatStore'
@@ -31,6 +32,7 @@ export class NetworkManager {
   private moveThrottleTimer: ReturnType<typeof setTimeout> | null = null
   private httpBaseUrl: string
   private _timeSync: TimeSync | null = null
+  private _myTextureId: number = 0
 
   constructor(serverUrl?: string) {
     const url =
@@ -42,11 +44,87 @@ export class NetworkManager {
 
     this.client = new Client(url)
     this.httpBaseUrl = url.replace(/^ws/, 'http')
+
+    // Connect to Colyseus LobbyRoom for room discovery (non-blocking)
+    this.joinLobbyRoom()
+  }
+
+  /**
+   * Connect to Colyseus' built-in LobbyRoom for real-time room discovery.
+   * Filters to only CUSTOM rooms (the public room also appears but we skip it).
+   * Retries with exponential backoff on failure.
+   */
+  private async joinLobbyRoom(maxRetries = 3, baseDelay = 1000) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        this.lobby = await this.client.joinOrCreate(RoomType.LOBBY)
+
+        this.lobby.onMessage('rooms', (rooms: any[]) => {
+          const customRooms: RoomListEntry[] = rooms
+            .filter((r) => r.name === RoomType.CUSTOM)
+            .map((r) => ({
+              roomId: r.roomId,
+              name: r.metadata?.name ?? 'Unnamed',
+              description: r.metadata?.description ?? '',
+              clients: r.clients ?? 0,
+              hasPassword: r.metadata?.hasPassword ?? false,
+            }))
+
+          useGameStore.getState().setAvailableRooms(customRooms)
+        })
+
+        this.lobby.onMessage('+', ([roomId, room]: [string, any]) => {
+          if (room.name !== RoomType.CUSTOM) return
+
+          useGameStore.getState().addOrUpdateRoom(roomId, {
+            roomId,
+            name: room.metadata?.name ?? 'Unnamed',
+            description: room.metadata?.description ?? '',
+            clients: room.clients ?? 0,
+            hasPassword: room.metadata?.hasPassword ?? false,
+          })
+        })
+
+        this.lobby.onMessage('-', (roomId: string) => {
+          useGameStore.getState().removeRoom(roomId)
+        })
+
+        useGameStore.getState().setLobbyJoined(true)
+        console.log('[network] Joined lobby room for room discovery')
+        return
+      } catch (err) {
+        console.warn(`[network] Lobby room attempt ${attempt + 1} failed:`, err)
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, baseDelay * (attempt + 1)))
+        }
+      }
+    }
+    console.warn('[network] Failed to join lobby room after all retries')
+  }
+
+  /**
+   * Shared room setup: reconnection config, TimeSync, listeners, mark connected.
+   * Called by joinPublicRoom, createCustomRoom, joinCustomById after room is joined.
+   */
+  private setupRoom(textureId: number) {
+    if (!this.room) return
+
+    this._myTextureId = textureId
+
+    // Configure reconnection: max 10 retries, up to 8s delay
+    this.room.reconnection.maxRetries = 10
+    this.room.reconnection.maxDelay = 8000
+
+    this._timeSync = new TimeSync(this.room as Room)
+    this._timeSync.start()
+
+    this.wireRoomListeners()
+
+    // Only mark connected AFTER listeners are wired — prevents half-initialized state
+    useGameStore.getState().setConnected(true, this.room.sessionId)
   }
 
   async joinPublicRoom(playerName: string, textureId?: number): Promise<void> {
-    const gameStore = useGameStore.getState()
-
     try {
       this.room = await this.client.joinOrCreate<IOfficeState>(RoomType.PUBLIC, {
         name: playerName,
@@ -54,19 +132,54 @@ export class NetworkManager {
         ...(textureId != null ? { textureId } : {}),
       })
 
-      // Configure reconnection: max 10 retries, up to 8s delay
-      this.room.reconnection.maxRetries = 10
-      this.room.reconnection.maxDelay = 8000
-
-      this._timeSync = new TimeSync(this.room as Room)
-      this._timeSync.start()
-
-      this.wireRoomListeners()
-
-      // Only mark connected AFTER listeners are wired — prevents half-initialized state
-      gameStore.setConnected(true, this.room.sessionId)
+      useGameStore.getState().setRoomType('public')
+      this.setupRoom(textureId ?? 0)
     } catch (err) {
-      console.error('[network] Failed to join room:', err)
+      console.error('[network] Failed to join public room:', err)
+      throw err
+    }
+  }
+
+  async createCustomRoom(
+    roomData: { name: string; description: string; password: string | null },
+    playerName: string,
+    textureId: number
+  ): Promise<void> {
+    try {
+      this.room = await this.client.create<IOfficeState>(RoomType.CUSTOM, {
+        name: roomData.name,
+        description: roomData.description,
+        password: roomData.password,
+        autoDispose: true,
+        playerId: getOrCreatePlayerId(),
+        textureId,
+      })
+
+      useGameStore.getState().setRoomType('custom')
+      this.setupRoom(textureId)
+    } catch (err) {
+      console.error('[network] Failed to create custom room:', err)
+      throw err
+    }
+  }
+
+  async joinCustomById(
+    roomId: string,
+    password: string | null,
+    playerName: string,
+    textureId: number
+  ): Promise<void> {
+    try {
+      this.room = await this.client.joinById<IOfficeState>(roomId, {
+        password,
+        playerId: getOrCreatePlayerId(),
+        textureId,
+      })
+
+      useGameStore.getState().setRoomType('custom')
+      this.setupRoom(textureId)
+    } catch (err) {
+      console.error('[network] Failed to join custom room:', err)
       throw err
     }
   }
@@ -423,10 +536,16 @@ export class NetworkManager {
   }
 
   // Send position update (throttled)
-  sendPosition(x: number, y: number, anim: string) {
+  // Includes textureId so server can correctly assign character for custom rooms.
+  // The anim param is kept for API compat but not sent — server uses textureId.
+  sendPosition(x: number, y: number, _anim: string) {
     if (this.moveThrottleTimer) return
 
-    this.room?.send(Message.UPDATE_PLAYER_ACTION, { x, y, anim })
+    this.room?.send(Message.UPDATE_PLAYER_ACTION, {
+      x,
+      y,
+      textureId: this._myTextureId,
+    })
 
     this.moveThrottleTimer = setTimeout(() => {
       this.moveThrottleTimer = null
@@ -436,6 +555,11 @@ export class NetworkManager {
   // Send ready to connect
   sendReady() {
     this.room?.send(Message.READY_TO_CONNECT, {})
+  }
+
+  // Send player name (needed for custom rooms where server doesn't auto-set name)
+  sendPlayerName(name: string) {
+    this.room?.send(Message.UPDATE_PLAYER_NAME, { name })
   }
 
   // DJ booth

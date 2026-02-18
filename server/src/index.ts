@@ -70,6 +70,10 @@ import { RoomType } from '@club-mutant/types/Rooms'
 
 import { ClubMutant } from './rooms/ClubMutant'
 
+// Enable realtime listing on CUSTOM rooms so LobbyRoom broadcasts room events
+const customRoomHandler = defineRoom(ClubMutant)
+customRoomHandler.enableRealtimeListing()
+
 const server = defineServer({
   transport: new uWebSocketsTransport({
     maxPayloadLength: 1024 * 1024, // 1MB max message size
@@ -84,7 +88,7 @@ const server = defineServer({
       autoDispose: false,
       isPublic: true,
     }),
-    [RoomType.CUSTOM]: defineRoom(ClubMutant),
+    [RoomType.CUSTOM]: customRoomHandler,
   },
 
   express: (app) => {
