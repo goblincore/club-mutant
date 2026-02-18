@@ -1,16 +1,9 @@
-import { motion } from 'framer-motion'
-
 /**
  * "Club Mutant" Logo - Image-based logo centered in the carousel ring
  */
 export function MutantLogo() {
   return (
-    <motion.div
-      className="flex items-center justify-center"
-      initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.6, ease: 'easeOut' }}
-    >
+    <div className="flex items-center justify-center logo-fadein">
       <img
         src="/logo/ver1.png"
         alt="Club Mutant"
@@ -22,6 +15,15 @@ export function MutantLogo() {
         }}
         draggable={false}
       />
-    </motion.div>
+      <style>{`
+        @keyframes logo-fadein {
+          from { opacity: 0; transform: scale(0.8); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        .logo-fadein {
+          animation: logo-fadein 0.6s ease-out both;
+        }
+      `}</style>
+    </div>
   )
 }
