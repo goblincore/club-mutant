@@ -40,6 +40,39 @@ export interface LoadedCharacter {
 
 const textureLoader = new THREE.TextureLoader()
 
+// Load textures for a pre-fetched manifest (avoids double manifest fetch)
+async function loadTextures(basePath: string, manifest: CharacterManifest): Promise<Map<string, THREE.Texture>> {
+  const textures = new Map<string, THREE.Texture>()
+
+  await Promise.all(
+    manifest.parts.map(async (part) => {
+      const url = `${basePath}/${part.texture}`
+
+      try {
+        const tex = await new Promise<THREE.Texture>((resolve, reject) => {
+          textureLoader.load(
+            url,
+            (t) => {
+              t.magFilter = THREE.NearestFilter
+              t.minFilter = THREE.NearestFilter
+              t.colorSpace = THREE.SRGBColorSpace
+              resolve(t)
+            },
+            undefined,
+            reject
+          )
+        })
+
+        textures.set(part.id, tex)
+      } catch (err) {
+        console.error('[character] Failed to load texture:', part.id, '←', url, err)
+      }
+    })
+  )
+
+  return textures
+}
+
 // Load a character manifest + all its textures
 export async function loadCharacter(basePath: string): Promise<LoadedCharacter> {
   const manifestUrl = `${basePath}/manifest.json`
@@ -100,4 +133,20 @@ export function loadCharacterCached(basePath: string): Promise<LoadedCharacter> 
 // Preload a character into the cache (fire-and-forget, used by lobby)
 export function preloadCharacter(basePath: string): void {
   loadCharacterCached(basePath)
+}
+
+// Preload with an already-fetched manifest (avoids double fetch from discovery)
+export function preloadCharacterWithManifest(basePath: string, manifest: CharacterManifest): void {
+  if (cache.has(basePath)) return
+
+  const promise = loadTextures(basePath, manifest).then((textures) => ({
+    manifest,
+    textures,
+  }))
+
+  cache.set(basePath, promise)
+
+  promise.catch(() => {
+    cache.delete(basePath)
+  })
 }

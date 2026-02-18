@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useCallback } from 'react'
 import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import * as THREE from 'three'
@@ -43,6 +43,7 @@ const CB_PAD_X = 0.08
 const CB_PAD_Y = 0.06
 const CB_RADIUS = 0.07
 const CB_FONT_SIZE = 0.16
+const GLOW_FRAME_MS = 1000 / 15 // cap glow filter to ~15fps
 
 function shortestAngleDiff(from: number, to: number): number {
   return ((to - from) % TWO_PI + TWO_PI + Math.PI) % TWO_PI - Math.PI
@@ -109,30 +110,60 @@ function makeRoundedRect(w: number, h: number, r: number): THREE.ShapeGeometry {
   return new THREE.ShapeGeometry(shape)
 }
 
+// ─── Rounded-rect geometry cache (keyed by quantized w×h) ───────────
+
+const _roundedRectCache = new Map<string, THREE.ShapeGeometry>()
+
+function getCachedRoundedRect(w: number, h: number, r: number): THREE.ShapeGeometry {
+  const qw = Math.round(w * 100) / 100
+  const qh = Math.round(h * 100) / 100
+  const key = `${qw}_${qh}`
+  let geo = _roundedRectCache.get(key)
+  if (!geo) {
+    geo = makeRoundedRect(qw, qh, r)
+    _roundedRectCache.set(key, geo)
+  }
+  return geo
+}
+
 // ─── Single 3D speech bubble above a character ──────────────────────
 
 const _parentQuatInverse = new THREE.Quaternion()
 
-function CarouselBubble({ text }: { text: string | null }) {
+function CarouselBubble({ textRef, index }: { textRef: React.MutableRefObject<(string | null)[]>; index: number }) {
   const groupRef = useRef<THREE.Group>(null)
   const bgRef = useRef<THREE.Mesh>(null)
   const tailRef = useRef<THREE.Mesh>(null)
+  const textMeshRef = useRef<THREE.Mesh>(null)
   const animRef = useRef(0)
   const showStartRef = useRef(0)
   const prevTextRef = useRef<string | null>(null)
   const bgBounds = useRef({ cx: 0, cy: 0, w: 0.1, h: 0.1 })
-
-  // Reset animation when text changes
-  if (text !== null && text !== prevTextRef.current) {
-    animRef.current = 0
-    showStartRef.current = Date.now()
-  }
-  prevTextRef.current = text
+  const activeTextRef = useRef<string | null>(null)
 
   useFrame(({ camera }) => {
     if (!groupRef.current) return
 
-    if (!text) {
+    const text = textRef.current[index] ?? null
+
+    // Track text changes for animation reset
+    if (text !== null && text !== prevTextRef.current) {
+      animRef.current = 0
+      showStartRef.current = Date.now()
+      activeTextRef.current = text
+    }
+    prevTextRef.current = text
+
+    // Update troika text content if changed
+    if (textMeshRef.current) {
+      const troika = textMeshRef.current as unknown as { text: string }
+      const displayText = text ?? activeTextRef.current ?? ''
+      if (troika.text !== displayText) {
+        troika.text = displayText
+      }
+    }
+
+    if (!text && animRef.current <= 0) {
       groupRef.current.scale.setScalar(0)
       return
     }
@@ -181,16 +212,14 @@ function CarouselBubble({ text }: { text: string | null }) {
     const cy = (bb.min.y + bb.max.y) / 2
 
     bgBounds.current = { cx, cy, w, h }
-    bgRef.current.geometry.dispose()
-    bgRef.current.geometry = makeRoundedRect(w, h, CB_RADIUS)
+    bgRef.current.geometry = getCachedRoundedRect(w, h, CB_RADIUS)
     bgRef.current.position.set(cx, cy, -0.003)
   }, [])
-
-  if (!text) return null
 
   return (
     <group ref={groupRef} position={[0, BUBBLE_Y_OFFSET, 0]} scale={0}>
       <Text
+        ref={textMeshRef}
         fontSize={CB_FONT_SIZE}
         maxWidth={1.0}
         color="#000000"
@@ -200,7 +229,7 @@ function CarouselBubble({ text }: { text: string | null }) {
         font="/fonts/courier-prime.woff"
         onSync={handleSync}
       >
-        {text}
+        {' '}
       </Text>
 
       <mesh ref={bgRef} material={carouselBubbleMat}>
@@ -212,33 +241,25 @@ function CarouselBubble({ text }: { text: string | null }) {
   )
 }
 
-// ─── Bubble scheduler: randomly shows phrases on characters ─────────
+// ─── Bubble scheduler: randomly shows phrases on characters (ref-based, no re-renders) ─
 
-function useBubbleScheduler(characterCount: number): (string | null)[] {
-  const [bubbles, setBubbles] = useState<(string | null)[]>([])
+function useBubbleScheduler(characterCount: number): React.MutableRefObject<(string | null)[]> {
+  const bubblesRef = useRef<(string | null)[]>([])
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (characterCount === 0) return
-    setBubbles(new Array(characterCount).fill(null))
+    bubblesRef.current = new Array(characterCount).fill(null)
 
     const schedule = () => {
       const charIdx = Math.floor(Math.random() * characterCount)
       const phrase = CAROUSEL_PHRASES[Math.floor(Math.random() * CAROUSEL_PHRASES.length)]
 
-      setBubbles(prev => {
-        const next = [...prev]
-        next[charIdx] = phrase
-        return next
-      })
+      bubblesRef.current[charIdx] = phrase
 
       // Clear after duration
       setTimeout(() => {
-        setBubbles(prev => {
-          const next = [...prev]
-          next[charIdx] = null
-          return next
-        })
+        bubblesRef.current[charIdx] = null
       }, BUBBLE_SHOW_DURATION)
 
       // Schedule next bubble
@@ -254,7 +275,7 @@ function useBubbleScheduler(characterCount: number): (string | null)[] {
     }
   }, [characterCount])
 
-  return bubbles
+  return bubblesRef
 }
 
 // ─── Inner scene: characters on a ring ───────────────────────────────
@@ -281,7 +302,7 @@ function CarouselScene({
   const N = characters.length
   const angleStep = TWO_PI / N
   const groupRefs = useRef<(THREE.Group | null)[]>([])
-  const bubbleTexts = useBubbleScheduler(characters.length)
+  const bubblesRef = useBubbleScheduler(characters.length)
 
   // Camera setup — look down at the ring from above
   const { camera } = useThree()
@@ -334,7 +355,7 @@ function CarouselScene({
         >
           <PaperDoll characterPath={char.path} animationName={i === selectedIndex ? 'walk' : 'idle'} />
           <ClickSprite onClick={() => { if (i !== selectedIndexRef.current) onSelect(i) }} />
-          <CarouselBubble text={bubbleTexts[i] ?? null} />
+          <CarouselBubble textRef={bubblesRef} index={i} />
         </group>
       ))}
 
@@ -343,67 +364,28 @@ function CarouselScene({
   )
 }
 
-// ─── Glow layer: renders ONLY the selected character with CSS drop-shadow ──
-
-function GlowScene({
-  character,
-  angleRef,
-  selectedIndex,
-  characterCount,
-}: {
-  character: CharacterEntry
-  angleRef: React.MutableRefObject<number>
-  selectedIndex: number
-  characterCount: number
-}) {
-  const groupRef = useRef<THREE.Group>(null)
-  const angleStep = TWO_PI / characterCount
-
-  const { camera } = useThree()
-  useEffect(() => {
-    camera.position.set(0, 5, 5.5)
-    camera.lookAt(0, 0.6, 0)
-    camera.updateProjectionMatrix()
-  }, [camera])
-
-  useFrame(() => {
-    if (!groupRef.current) return
-    const charAngle = angleRef.current + selectedIndex * angleStep
-    const x = Math.sin(charAngle) * RADIUS
-    const z = Math.cos(charAngle) * RADIUS
-    groupRef.current.position.set(x, 0, z)
-    groupRef.current.lookAt(0, 0, 0)
-  })
-
-  return (
-    <>
-      <ambientLight intensity={1.5} />
-      <directionalLight position={[2, 5, 3]} intensity={0.5} />
-      <group ref={groupRef}>
-        <PaperDoll characterPath={character.path} animationName="walk" />
-      </group>
-    </>
-  )
-}
-
-// ─── Pulsating glow filter driver ────────────────────────────────────
+// ─── Pulsating glow filter driver (throttled to ~15fps) ─────────────
 
 function useGlowFilter(ref: React.RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const el = ref.current
     if (!el) return
     let raf: number
-    const update = () => {
-      const t = performance.now() * 0.003
-      const pulse = 0.5 + 0.5 * Math.sin(t)
-      const inner = 6 + pulse * 6        // tight inner glow: 6–12px
-      const mid = 12 + pulse * 8          // mid glow: 12–20px
-      const outer = 20 + pulse * 12       // wide outer glow: 20–32px
-      // Three stacked drop-shadows for an intense, thick glowing outline
-      el.style.filter =
-        `drop-shadow(0 0 ${inner}px rgba(160, 190, 255, ${0.9 + pulse * 0.1})) ` +
-        `drop-shadow(0 0 ${mid}px rgba(120, 160, 255, ${0.7 + pulse * 0.3})) ` +
-        `drop-shadow(0 0 ${outer}px rgba(80, 130, 255, ${0.5 + pulse * 0.3}))`
+    let lastFrame = 0
+    const update = (now: number) => {
+      if (now - lastFrame >= GLOW_FRAME_MS) {
+        lastFrame = now
+        const t = now * 0.003
+        const pulse = 0.5 + 0.5 * Math.sin(t)
+        const inner = 6 + pulse * 6        // tight inner glow: 6–12px
+        const mid = 12 + pulse * 8          // mid glow: 12–20px
+        const outer = 20 + pulse * 12       // wide outer glow: 20–32px
+        // Three stacked drop-shadows for an intense, thick glowing outline
+        el.style.filter =
+          `drop-shadow(0 0 ${inner}px rgba(160, 190, 255, ${0.9 + pulse * 0.1})) ` +
+          `drop-shadow(0 0 ${mid}px rgba(120, 160, 255, ${0.7 + pulse * 0.3})) ` +
+          `drop-shadow(0 0 ${outer}px rgba(80, 130, 255, ${0.5 + pulse * 0.3}))`
+      }
       raf = requestAnimationFrame(update)
     }
     raf = requestAnimationFrame(update)
@@ -425,8 +407,8 @@ export function TurntableCarousel({
   const selectedIndexRef = useRef(selectedIndex)
   selectedIndexRef.current = selectedIndex
 
-  const glowDivRef = useRef<HTMLDivElement>(null)
-  useGlowFilter(glowDivRef)
+  const canvasDivRef = useRef<HTMLDivElement>(null)
+  useGlowFilter(canvasDivRef)
 
   // --- Selection sync: when parent changes selectedIndex, set snap target ---
   useEffect(() => {
@@ -448,43 +430,12 @@ export function TurntableCarousel({
     return () => { document.body.style.cursor = 'default' }
   }, [])
 
-  const selectedChar = characters[selectedIndex]
-
   if (characters.length === 0) return null
 
   return (
     <div className="relative w-full h-full">
-      {/* Canvas stack — fills available parent height */}
-      <div className="w-full relative h-full">
-        {/* Glow layer — renders only selected character with CSS drop-shadow outline */}
-        {selectedChar && (
-          <div
-            ref={glowDivRef}
-            className="absolute inset-0 pointer-events-none z-10"
-          >
-            <Canvas
-              orthographic
-              camera={{ position: [0, 5, 5.5], zoom: 120, near: 0.1, far: 100 }}
-              dpr={0.5}
-              gl={{ alpha: true, antialias: false }}
-              style={{ background: 'transparent', pointerEvents: 'none' }}
-              onCreated={({ gl }) => {
-                gl.setClearColor(0x000000, 0)
-                gl.domElement.style.pointerEvents = 'none'
-              }}
-            >
-              <GlowScene
-                key={selectedChar.id}
-                character={selectedChar}
-                angleRef={angleRef}
-                selectedIndex={selectedIndex}
-                characterCount={characters.length}
-              />
-            </Canvas>
-          </div>
-        )}
-
-        {/* Main carousel canvas */}
+      {/* Single canvas with CSS glow applied to the wrapper */}
+      <div ref={canvasDivRef} className="w-full relative h-full">
         <Canvas
           orthographic
           camera={{ position: [0, 5, 5.5], zoom: 120, near: 0.1, far: 100 }}
