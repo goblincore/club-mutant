@@ -458,15 +458,19 @@ export class ClubMutant extends Room {
     const existingPlayer = this.state.players.get(client.sessionId)
     const player = existingPlayer ?? new Player()
 
-    if (!existingPlayer && this.isPublic) {
+    if (!existingPlayer) {
       const playerId = options?.playerId || client.sessionId.slice(0, 8)
-      const playerName = options?.name?.trim()
-      player.name = playerName || `mutant-${playerId}`
       const rawTextureId = options?.textureId
       player.textureId = rawTextureId != null ? sanitizeTextureId(rawTextureId) : TEXTURE_IDS.mutant
       player.animId = packDirectionalAnimId('idle', 'down')
+
+      if (this.isPublic) {
+        const playerName = options?.name?.trim()
+        player.name = playerName || `mutant-${playerId}`
+      }
+
       console.log(
-        `[onJoin] name=${player.name} textureId=${player.textureId} (raw=${rawTextureId})`
+        `[onJoin] name=${player.name} textureId=${player.textureId} (raw=${rawTextureId}) public=${this.isPublic}`
       )
     }
 

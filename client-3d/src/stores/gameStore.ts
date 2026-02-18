@@ -40,11 +40,24 @@ export function deletePlayerPosition(sessionId: string) {
 
 export type ConnectionStatus = 'disconnected' | 'connected' | 'reconnecting'
 
+export interface RoomListEntry {
+  roomId: string
+  name: string
+  description: string
+  clients: number
+  hasPassword: boolean
+}
+
 export interface GameState {
   // Connection
   connected: boolean
   connectionStatus: ConnectionStatus
   mySessionId: string | null
+
+  // Room discovery
+  lobbyJoined: boolean
+  availableRooms: RoomListEntry[]
+  roomType: 'public' | 'custom' | null
 
   // Players
   players: Map<string, PlayerState>
@@ -59,6 +72,11 @@ export interface GameState {
   // Actions
   setConnected: (connected: boolean, sessionId?: string) => void
   setConnectionStatus: (status: ConnectionStatus) => void
+  setLobbyJoined: (joined: boolean) => void
+  setAvailableRooms: (rooms: RoomListEntry[]) => void
+  addOrUpdateRoom: (roomId: string, room: RoomListEntry) => void
+  removeRoom: (roomId: string) => void
+  setRoomType: (type: 'public' | 'custom' | null) => void
   addPlayer: (sessionId: string, player: PlayerState) => void
   removePlayer: (sessionId: string) => void
   updatePlayer: (sessionId: string, updates: Partial<PlayerState>) => void
@@ -70,6 +88,10 @@ export const useGameStore = create<GameState>((set) => ({
   connected: false,
   connectionStatus: 'disconnected' as ConnectionStatus,
   mySessionId: null,
+
+  lobbyJoined: false,
+  availableRooms: [],
+  roomType: null,
 
   players: new Map(),
 
@@ -87,6 +109,23 @@ export const useGameStore = create<GameState>((set) => ({
 
   setConnectionStatus: (status) =>
     set({ connectionStatus: status, connected: status === 'connected' }),
+
+  setLobbyJoined: (joined) => set({ lobbyJoined: joined }),
+
+  setAvailableRooms: (rooms) => set({ availableRooms: rooms }),
+
+  addOrUpdateRoom: (roomId, room) =>
+    set((s) => {
+      const filtered = s.availableRooms.filter((r) => r.roomId !== roomId)
+      return { availableRooms: [...filtered, room] }
+    }),
+
+  removeRoom: (roomId) =>
+    set((s) => ({
+      availableRooms: s.availableRooms.filter((r) => r.roomId !== roomId),
+    })),
+
+  setRoomType: (type) => set({ roomType: type }),
 
   addPlayer: (sessionId, player) =>
     set((s) => {
