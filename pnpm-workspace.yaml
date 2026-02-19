@@ -3,6 +3,7 @@ packages:
   - client-3d
   - server
   - types
+  - loadtest
 
 onlyBuiltDependencies:
   - '@parcel/watcher'

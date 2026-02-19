@@ -38,6 +38,8 @@ import {
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 import PunchPlayerCommand from './commands/PunchPlayerCommand'
 
+const LOG_ENABLED = process.env.NODE_ENV !== 'production'
+
 export class ClubMutant extends Room {
   state = new OfficeState()
 
@@ -50,10 +52,27 @@ export class ClubMutant extends Room {
 
   private lastPlayerActionAtMsBySessionId = new Map<string, number>()
 
+  // Per-client message throttling: sessionId → messageType → lastSentMs
+  private messageThrottles = new Map<string, Map<number, number>>()
+
   private musicStreamTickIntervalId: NodeJS.Timeout | null = null
   private trackWatchdogTimerId: NodeJS.Timeout | null = null
 
   private ambientPublicVideoId = '5-gDL5G-VQQ' //'5-gDL5G-VQQ'
+
+  /** Returns true if the message should be dropped (too frequent). */
+  private throttle(client: Client, messageType: number, minIntervalMs: number): boolean {
+    const nowMs = Date.now()
+    let clientMap = this.messageThrottles.get(client.sessionId)
+    if (!clientMap) {
+      clientMap = new Map()
+      this.messageThrottles.set(client.sessionId, clientMap)
+    }
+    const lastMs = clientMap.get(messageType) ?? 0
+    if (nowMs - lastMs < minIntervalMs) return true
+    clientMap.set(messageType, nowMs)
+    return false
+  }
 
   /** Start a watchdog timer that auto-advances DJ rotation if no DJ_TURN_COMPLETE arrives. */
   private startTrackWatchdog(durationMs: number) {
@@ -173,6 +192,13 @@ export class ClubMutant extends Room {
     this.autoDispose = autoDispose
     this.isPublic = Boolean(isPublic)
 
+    // Performance: cap max players per room
+    this.maxClients = 50
+
+    // Performance: reduce patch rate from 20fps (50ms) to 10fps (100ms)
+    // Client uses exponential lerp (REMOTE_LERP=8) so 10fps is visually smooth
+    this.patchRate = 100
+
     if (this.isPublic) {
       this.publicBackgroundSeed = 3
     }
@@ -282,7 +308,7 @@ export class ClubMutant extends Room {
         const nowMs = Date.now()
 
         const lastAtMs = this.lastPlayerActionAtMsBySessionId.get(client.sessionId) ?? 0
-        const minIntervalMs = 50
+        const minIntervalMs = 100 // Match patchRate (100ms = 10fps)
         if (nowMs - lastAtMs < minIntervalMs) return
 
         const x = typeof message.x === 'number' && Number.isFinite(message.x) ? message.x : null
@@ -355,6 +381,7 @@ export class ClubMutant extends Room {
 
     // when a player send a chat message, update the message array and broadcast to all connected clients except the sender
     this.onMessage(Message.ADD_CHAT_MESSAGE, (client, message: { content: string }) => {
+      if (this.throttle(client, Message.ADD_CHAT_MESSAGE, 500)) return
       // update the message array (so that players join later can also see the message)
       this.dispatcher.dispatch(new ChatMessageUpdateCommand(), {
         client,
@@ -371,6 +398,7 @@ export class ClubMutant extends Room {
 
     // DJ Queue Management
     this.onMessage(Message.DJ_QUEUE_JOIN, (client, message) => {
+      if (this.throttle(client, Message.DJ_QUEUE_JOIN, 2000)) return
       this.dispatcher.dispatch(new DJQueueJoinCommand(), {
         client,
         slotIndex: message?.slotIndex ?? 0,
@@ -378,6 +406,7 @@ export class ClubMutant extends Room {
     })
 
     this.onMessage(Message.DJ_QUEUE_LEAVE, (client) => {
+      if (this.throttle(client, Message.DJ_QUEUE_LEAVE, 2000)) return
       this.clearTrackWatchdog()
       this.dispatcher.dispatch(new DJQueueLeaveCommand(), { client })
       this.startWatchdogIfPlaying()
@@ -407,6 +436,7 @@ export class ClubMutant extends Room {
 
     // Trampoline jump — broadcast to all other clients (cosmetic)
     this.onMessage(Message.PLAYER_JUMP, (client) => {
+      if (this.throttle(client, Message.PLAYER_JUMP, 1000)) return
       this.broadcast(Message.PLAYER_JUMP, { sessionId: client.sessionId }, { except: client })
     })
 
@@ -453,7 +483,7 @@ export class ClubMutant extends Room {
 
   // when a new player joins, send room data
   onJoin(client: Client, options: any) {
-    console.log('////onJoin, client', client)
+    if (LOG_ENABLED) console.log('////onJoin, client', client.sessionId)
 
     const existingPlayer = this.state.players.get(client.sessionId)
     const player = existingPlayer ?? new Player()
@@ -469,9 +499,10 @@ export class ClubMutant extends Room {
         player.name = playerName || `mutant-${playerId}`
       }
 
-      console.log(
-        `[onJoin] name=${player.name} textureId=${player.textureId} (raw=${rawTextureId}) public=${this.isPublic}`
-      )
+      if (LOG_ENABLED)
+        console.log(
+          `[onJoin] name=${player.name} textureId=${player.textureId} (raw=${rawTextureId}) public=${this.isPublic}`
+        )
     }
 
     if (!existingPlayer) {
@@ -486,12 +517,12 @@ export class ClubMutant extends Room {
       description: this.description,
       backgroundSeed: this.isPublic ? this.publicBackgroundSeed : null,
     })
-    console.log('////onJoin, Message.SEND_ROOM_DATA')
+    if (LOG_ENABLED) console.log('////onJoin, Message.SEND_ROOM_DATA')
 
     this.startAmbientIfNeeded()
 
     const musicStream = this.state.musicStream
-    console.log('this state musicStream', musicStream)
+    if (LOG_ENABLED) console.log('this state musicStream', musicStream)
     if (musicStream.status === 'playing') {
       const currentTime: number = Date.now()
       client.send(Message.START_MUSIC_STREAM, {
@@ -499,11 +530,11 @@ export class ClubMutant extends Room {
         offset: (currentTime - musicStream.startTime) / 1000,
       })
     }
-    console.log('////onJoin, musicStream.status', musicStream.status)
+    if (LOG_ENABLED) console.log('////onJoin, musicStream.status', musicStream.status)
   }
 
   onDrop(client: Client, code: number) {
-    console.log(`[onDrop] client ${client.sessionId} dropped, code=${code}`)
+    if (LOG_ENABLED) console.log(`[onDrop] client ${client.sessionId} dropped, code=${code}`)
 
     // Allow 60 seconds for reconnection
     this.allowReconnection(client, 60)
@@ -517,7 +548,7 @@ export class ClubMutant extends Room {
   }
 
   onReconnect(client: Client) {
-    console.log(`[onReconnect] client ${client.sessionId} reconnected!`)
+    if (LOG_ENABLED) console.log(`[onReconnect] client ${client.sessionId} reconnected!`)
 
     const player = this.state.players.get(client.sessionId)
 
@@ -527,9 +558,10 @@ export class ClubMutant extends Room {
   }
 
   async onLeave(client: Client, code: number) {
-    console.log(`[onLeave] client ${client.sessionId} left, code=${code}`)
+    if (LOG_ENABLED) console.log(`[onLeave] client ${client.sessionId} left, code=${code}`)
 
     this.lastPlayerActionAtMsBySessionId.delete(client.sessionId)
+    this.messageThrottles.delete(client.sessionId)
 
     if (this.state.players.has(client.sessionId)) {
       this.state.players.delete(client.sessionId)
@@ -567,7 +599,7 @@ export class ClubMutant extends Room {
   }
 
   onDispose() {
-    console.log('room', this.roomId, 'disposing...')
+    if (LOG_ENABLED) console.log('room', this.roomId, 'disposing...')
 
     this.clearTrackWatchdog()
     this.stopMusicStreamTickIfNeeded()

@@ -43,9 +43,23 @@ matchMaker.controller.getCorsHeaders = function (requestHeaders) {
     console.log('[CORS] matchmaker origin:', origin)
   }
 
-  // Echo back the origin if in allowlist, otherwise use production URL
-  // (Cannot use '*' when credentials are enabled)
-  const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : 'https://mutante.club'
+  // Non-browser callers (Node.js loadtest, server-to-server) don't send an Origin header.
+  // Return permissive CORS without credentials for these — CORS is browser-only enforcement.
+  // IMPORTANT: Must explicitly set Access-Control-Allow-Credentials to '' because the
+  // uWebSockets transport merges DEFAULT_CORS_HEADERS (which has credentials:'true') via
+  // Object.assign before our headers. Without this override, the merged result would be
+  // Origin:* + Credentials:true — an illegal CORS combo that Node.js 22 fetch rejects.
+  if (!origin) {
+    return {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept',
+      'Access-Control-Allow-Credentials': '',
+    }
+  }
+
+  // Browser callers: echo back the specific origin (can't use * with credentials)
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
 
   return {
     'Access-Control-Allow-Origin': allowedOrigin,

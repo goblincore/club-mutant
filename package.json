@@ -7,7 +7,9 @@
     "start": "cd server && npm run start",
     "heroku-postbuild": "npm i && cd types && npm i && cd ../server && tsc --project tsconfig.server.json",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build:models": "node scripts/build-models.mjs"
+    "build:models": "node scripts/build-models.mjs",
+    "loadtest": "cd loadtest && npx tsx scenario.ts",
+    "loadtest:dj": "cd loadtest && npx tsx dj-scenario.ts"
   },
   "repository": {
     "type": "git",
