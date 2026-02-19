@@ -257,13 +257,15 @@ export function LobbyScreen() {
                         onClick={() => setRoomSubView('browse')}
                         disabled={!lobbyJoined}
                         className="lobby-btn w-full relative overflow-hidden group
-                                   bg-transparent border border-white/30 rounded-lg px-4 py-3
-                                   text-sm font-mono text-white/70
-                                   hover:text-white hover:border-white/60 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]
-                                   disabled:opacity-30 disabled:cursor-not-allowed
+                                   bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-4
+                                   text-base font-mono font-bold text-white
+                                   hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
+                                   disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-green-700/40
                                    transition-all duration-300"
                       >
-                        <span className="relative z-10 drop-shadow-[0_0_6px_rgba(0,0,0,0.6)]">
+                        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
+                                        translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+                        <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
                           {lobbyJoined ? 'Custom Rooms' : 'connecting...'}
                         </span>
                       </button>
