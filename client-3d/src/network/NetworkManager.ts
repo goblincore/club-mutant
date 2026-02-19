@@ -549,7 +549,7 @@ export class NetworkManager {
 
     this.moveThrottleTimer = setTimeout(() => {
       this.moveThrottleTimer = null
-    }, 50) // 20 updates/sec max
+    }, 100) // 10 updates/sec max (matches server patchRate=100ms)
   }
 
   // Send ready to connect

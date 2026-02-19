@@ -1,0 +1,21 @@
+{
+  "private": true,
+  "name": "club-mutant-loadtest",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Load testing scenarios for Club Mutant Colyseus server",
+  "scripts": {
+    "scenario": "npx tsx scenario.ts",
+    "dj-scenario": "npx tsx dj-scenario.ts",
+    "test-connect": "npx tsx test-connect.ts"
+  },
+  "dependencies": {
+    "@club-mutant/types": "workspace:*",
+    "@colyseus/loadtest": "^0.17.0",
+    "@colyseus/sdk": "^0.17.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
