@@ -91,6 +91,25 @@ export function LobbyScreen() {
     }
   }
 
+  // Screen 2: Join a personal "My Room"
+  const handleJoinMyRoom = async () => {
+    const trimmed = name.trim()
+    if (!trimmed || !selectedChar) return
+
+    setConnecting(true)
+    setError(null)
+
+    try {
+      await getNetwork().joinMyRoom(trimmed, selectedChar.textureId)
+      getNetwork().sendReady()
+    } catch (err) {
+      setError('Failed to connect. Is the server running?')
+      console.error(err)
+    } finally {
+      setConnecting(false)
+    }
+  }
+
   // Called when successfully joined/created a custom room
   const handleCustomRoomJoined = () => {
     if (selectedChar) {
@@ -269,6 +288,31 @@ export function LobbyScreen() {
                                         translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
                         <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
                           {lobbyJoined ? 'Custom Rooms' : 'connecting...'}
+                        </span>
+                      </button>
+
+                      {/* My Room button */}
+                      <button
+                        onClick={handleJoinMyRoom}
+                        disabled={connecting}
+                        className="lobby-btn w-full relative overflow-hidden group
+                                   bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-4
+                                   text-base font-mono font-bold text-white
+                                   hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
+                                   disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-green-700/40
+                                   transition-all duration-300"
+                      >
+                        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
+                                        translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+                        <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
+                          {connecting ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              CONNECTING...
+                            </span>
+                          ) : (
+                            'My Room'
+                          )}
                         </span>
                       </button>
 

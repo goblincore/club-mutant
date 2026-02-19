@@ -13,17 +13,55 @@ const JUMP_COOLDOWN = 0.3 // seconds between jump triggers
 
 const ROOM_HALF = 580 // room boundary with character radius padding
 
+type CollisionBox = { minX: number; maxX: number; minY: number; maxY: number }
+
+// ── Club room collision boxes ──
+
 // DJ booth: table (2.8w × 0.7d) + speakers (±1.85 x, 0.65w × 0.55d)
 // Combined AABB with ~15px padding for character radius
-const BOOTH_BOX = { minX: -230, maxX: 230, minY: 305, maxY: 395 }
+const BOOTH_BOX: CollisionBox = { minX: -230, maxX: 230, minY: 305, maxY: 395 }
 
 // Old Dell computer desk: world (-4.8, -5.2), rotated 45°, ~1.5m effective AABB
-const DESK_BOX = { minX: -560, maxX: -400, minY: 440, maxY: 600 }
+const DESK_BOX: CollisionBox = { minX: -560, maxX: -400, minY: 440, maxY: 600 }
 
 // Magazine rack: world (5.4, -1.5), rotated -90°, 0.85w × 0.45d
-const RACK_BOX = { minX: 500, maxX: 580, minY: 90, maxY: 210 }
+const RACK_BOX: CollisionBox = { minX: 500, maxX: 580, minY: 90, maxY: 210 }
 
-const COLLISION_BOXES = [BOOTH_BOX, DESK_BOX, RACK_BOX]
+const CLUB_COLLISION_BOXES: CollisionBox[] = [BOOTH_BOX, DESK_BOX, RACK_BOX]
+
+// ── Japanese room (myroom) collision boxes ──
+// Room is 7w × 6d world units → 700 × 600 server coords
+// Server coords: world X*100 → serverX, world -Z*100 → serverY
+
+// Computer desk at world (-2.6, 0, -2.0) → server (-260, 200), desk is 1.1w × 0.55d
+const MYROOM_DESK_BOX: CollisionBox = { minX: -330, maxX: -195, minY: 165, maxY: 240 }
+
+// Wooden shelf at world (2.5, 0, -2.75) → server (250, 275), shelf is 1.2w × 0.45d
+const MYROOM_SHELF_BOX: CollisionBox = { minX: 170, maxX: 330, minY: 240, maxY: 310 }
+
+// Low table at world (0.5, 0, 0.5) → server (50, -50), table is 0.7w × 0.5d
+const MYROOM_TABLE_BOX: CollisionBox = { minX: 5, maxX: 100, minY: -90, maxY: -10 }
+
+// Futon at world (2.8, 0, -0.2) rotated 90° → server (280, 20), futon is ~1.5l × 0.75w
+const MYROOM_FUTON_BOX: CollisionBox = { minX: 195, maxX: 330, minY: -80, maxY: 110 }
+
+const MYROOM_COLLISION_BOXES: CollisionBox[] = [MYROOM_DESK_BOX, MYROOM_SHELF_BOX, MYROOM_TABLE_BOX, MYROOM_FUTON_BOX]
+
+// Room boundary half-sizes in server coordinates (with character radius padding)
+const MYROOM_HALF_X = 330 // 7 * 100 / 2 - 20 padding
+const MYROOM_HALF_Y = 280 // 6 * 100 / 2 - 20 padding
+
+function getCollisionBoxes(): CollisionBox[] {
+  const roomType = useGameStore.getState().roomType
+  if (roomType === 'myroom') return MYROOM_COLLISION_BOXES
+  return CLUB_COLLISION_BOXES
+}
+
+function getRoomBounds(): { halfX: number; halfY: number } {
+  const roomType = useGameStore.getState().roomType
+  if (roomType === 'myroom') return { halfX: MYROOM_HALF_X, halfY: MYROOM_HALF_Y }
+  return { halfX: ROOM_HALF, halfY: ROOM_HALF }
+}
 
 function pushOutOfBox(x: number, y: number, b: typeof BOOTH_BOX): [number, number] {
   if (x > b.minX && x < b.maxX && y > b.minY && y < b.maxY) {
@@ -43,12 +81,13 @@ function pushOutOfBox(x: number, y: number, b: typeof BOOTH_BOX): [number, numbe
 }
 
 function clampPosition(x: number, y: number): [number, number] {
-  // Room boundaries
-  x = Math.max(-ROOM_HALF, Math.min(ROOM_HALF, x))
-  y = Math.max(-ROOM_HALF, Math.min(ROOM_HALF, y))
+  // Room boundaries (room-type-aware)
+  const bounds = getRoomBounds()
+  x = Math.max(-bounds.halfX, Math.min(bounds.halfX, x))
+  y = Math.max(-bounds.halfY, Math.min(bounds.halfY, y))
 
   // Push out of all furniture collision boxes
-  for (const box of COLLISION_BOXES) {
+  for (const box of getCollisionBoxes()) {
     ;[x, y] = pushOutOfBox(x, y, box)
   }
 

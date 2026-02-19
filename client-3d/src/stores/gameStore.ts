@@ -57,7 +57,7 @@ export interface GameState {
   // Room discovery
   lobbyJoined: boolean
   availableRooms: RoomListEntry[]
-  roomType: 'public' | 'custom' | null
+  roomType: 'public' | 'custom' | 'myroom' | null
 
   // Players
   players: Map<string, PlayerState>
@@ -76,7 +76,7 @@ export interface GameState {
   setAvailableRooms: (rooms: RoomListEntry[]) => void
   addOrUpdateRoom: (roomId: string, room: RoomListEntry) => void
   removeRoom: (roomId: string) => void
-  setRoomType: (type: 'public' | 'custom' | null) => void
+  setRoomType: (type: 'public' | 'custom' | 'myroom' | null) => void
   addPlayer: (sessionId: string, player: PlayerState) => void
   removePlayer: (sessionId: string) => void
   updatePlayer: (sessionId: string, updates: Partial<PlayerState>) => void

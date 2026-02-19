@@ -103,6 +103,13 @@ const server = defineServer({
       isPublic: true,
     }),
     [RoomType.CUSTOM]: customRoomHandler,
+    [RoomType.MYROOM]: defineRoom(ClubMutant, {
+      name: 'My Room',
+      description: 'Personal tatami room',
+      password: null,
+      autoDispose: true,
+      isPublic: false,
+    }),
   },
 
   express: (app) => {

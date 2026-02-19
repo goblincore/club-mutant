@@ -6,6 +6,7 @@ import { PsxPostProcess } from '../shaders/PsxPostProcess'
 import { FpsCounter } from '../ui/FpsCounter'
 
 import { Room } from './Room'
+import { JapaneseRoom } from './JapaneseRoom'
 import { FollowCamera, wasCameraDrag } from './Camera'
 import { PlayerEntity } from './PlayerEntity'
 import { useGameStore } from '../stores/gameStore'
@@ -86,11 +87,16 @@ function DynamicBackground() {
 function SceneContent() {
   const videoTexture = useVideoBackground()
   const slideshowTexture = useSlideshowTexture(!videoTexture)
+  const roomType = useGameStore((s) => s.roomType)
 
   return (
     <>
       <DynamicBackground />
-      <Room videoTexture={videoTexture} slideshowTexture={slideshowTexture} />
+      {roomType === 'myroom' ? (
+        <JapaneseRoom videoTexture={videoTexture} slideshowTexture={slideshowTexture} />
+      ) : (
+        <Room videoTexture={videoTexture} slideshowTexture={slideshowTexture} />
+      )}
       <ClickPlane />
       <Players />
       <FollowCamera />

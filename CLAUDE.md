@@ -29,7 +29,7 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
     - `src/network/` — NetworkManager (Colyseus client, player/chat/music/DJ queue wiring, YouTube search, late-join sync for music + DJ queue from **schema-only callbacks** — `onAdd`/`onRemove`/`listen`, no separate `DJ_QUEUE_UPDATED` message handler; **reconnection**: `room.onDrop` → status `'reconnecting'`, `room.onReconnect` → status `'connected'` + TimeSync restart, `room.onLeave` → status `'disconnected'`; reconnection config: `maxRetries=10`, `maxDelay=8000`), TimeSync (client-server clock sync with `onReady` callback for deferred operations)
     - `src/stores/` — gameStore (+ `connectionStatus`: `'disconnected'` | `'connected'` | `'reconnecting'`, `selectedCharacterPath`, `lobbyJoined`, `availableRooms`, `roomType`), chatStore (+ bubbles), musicStore, uiStore (+ debug: `showFps`, `renderScale` [0.75/0.5/0.35], `fisheyeOverride`, `vertexFisheye`, `vortexOob`; + `computerIframeOpen`, `magazineReaderOpen`), boothStore (DJ booth + queue + video bg, `videoBackgroundEnabled` defaults `true`)
     - `src/hooks/` — useVideoBackground (resolves YouTube video URL → `<video>` → `THREE.VideoTexture`, falls back to iframe mode), **useSlideshowTexture** (cycles through `/textures/slideshow/` images when no video playing, shown on wall display)
-    - `src/shaders/` — PsxPostProcess (VHS+bloom+fisheye post-processing, **dynamic fisheye** via `u_fisheye` uniform scaled by camera zoom distance [closer = stronger], configurable `renderScale` from uiStore [0.75/0.5/0.35] replaces hardcoded `RES_SCALE`; **half-res bloom**: scene RT downsampled to `BLOOM_SCALE=0.5` RT with LinearFilter, 16-tap bloom sampling (4 iterations × 4 cardinal); **layer-based rendering**: layer 0 for scene with VHS, layer 1 for UI/chat bubbles/nametags rendered clean, layer 2 for highlight mask; **screen-space outline**: mask RT + dilation in VHS shader, see **Interactable object outline** below), TvStaticFloor (animated TV noise floor material, `FLOOR_SEGMENTS=48`, samples baked displacement texture + PSX integer stepping via `DISP_STEPS=10`), TrampolineGrid (`GRID_SEGMENTS=48`, same displacement texture sampling + integer stepping), **DisplacementBaker.ts** (bakes ripple displacement from `getDisplacementAt` into 64×64 Float32 `DataTexture` each frame, frame-deduplicated, short-circuits when no ripples active; sampled by floor+grid vertex shaders instead of per-vertex ripple loops), TrippySky (Win95-style blue sky + animated procedural clouds skybox, drift speed 0.4), **VortexGridSky** (spinning polar grid vortex on dark cloudy FBM background — not currently used in scene, kept for future skybox option), BrickWallMaterial (procedural brick wall shader). **Vortex OOB** in PsxPostProcess: renders a spinning green polar grid to a tiny 128×128 offscreen RT with NearestFilter for chunky pixels; fills fisheye barrel distortion out-of-bounds areas when `vortexOob` toggle is on (default off, toggle in FpsCounter debug panel); RT rendering completely skipped when disabled
+    - `src/shaders/` — PsxPostProcess (VHS+bloom+fisheye post-processing, **dynamic fisheye** via `u_fisheye` uniform scaled by camera zoom distance [closer = stronger], configurable `renderScale` from uiStore [0.75/0.5/0.35] replaces hardcoded `RES_SCALE`; **half-res bloom**: scene RT downsampled to `BLOOM_SCALE=0.5` RT with LinearFilter, 16-tap bloom sampling (4 iterations × 4 cardinal); **layer-based rendering**: layer 0 for scene with VHS, layer 1 for UI/chat bubbles/nametags rendered clean, layer 2 for highlight mask; **screen-space outline**: mask RT + dilation in VHS shader, see **Interactable object outline** below), TvStaticFloor (animated TV noise floor material, `FLOOR_SEGMENTS=48`, samples baked displacement texture + PSX integer stepping via `DISP_STEPS=10`), TrampolineGrid (`GRID_SEGMENTS=48`, same displacement texture sampling + integer stepping), **DisplacementBaker.ts** (bakes ripple displacement from `getDisplacementAt` into 64×64 Float32 `DataTexture` each frame, frame-deduplicated, short-circuits when no ripples active; sampled by floor+grid vertex shaders instead of per-vertex ripple loops), TrippySky (Win95-style blue sky + animated procedural clouds skybox, drift speed 0.4), **VortexGridSky** (spinning polar grid vortex on dark cloudy FBM background — not currently used in scene, kept for future skybox option), BrickWallMaterial (procedural brick wall shader), **TatamiFloorMaterial** (procedural herringbone tatami floor for MyRoom), **StripedWallMaterial** (vertical stripe wallpaper with uOpacity for wall occlusion), **OceanViewMaterial** (animated ocean window view — moonlit nighttime), **NightSky** (dark dusk/night skybox with stars and faint clouds). **Vortex OOB** in PsxPostProcess: renders a spinning green polar grid to a tiny 128×128 offscreen RT with NearestFilter for chunky pixels; fills fisheye barrel distortion out-of-bounds areas when `vortexOob` toggle is on (default off, toggle in FpsCounter debug panel); RT rendering completely skipped when disabled
     - `src/scene/TrampolineRipples.ts` — Module-level ripple state manager (max 16 analytical ripples). Has its own `performance.now()`-based clock (`getTime()`) — no dependency on r3f clock or useFrame ordering. Provides CPU-side `getDisplacementAt(x,z)` used by DisplacementBaker (baked to texture) and directly by PlayerEntity/Room furniture for Y offset. `getRippleVec4s()`/`getRippleCount()` still available but no longer used by shaders (replaced by texture sampling). Shared by DisplacementBaker, PlayerEntity, Room furniture, and NetworkManager (remote jump ripples).
     - `src/input/` — usePlayerInput (WASD camera-relative + click-to-move + spacebar jump with cooldown + **collision detection**: room boundary clamp at ±580 server px + AABB push-out via `clampPosition()` for DJ booth, old Dell desk, and magazine rack — add new furniture by appending to `COLLISION_BOXES` array)
     - `src/ui/` — ChatPanel, PlaylistPanel (search + queue + YouTube search within queue view), NowPlaying (mini bar + video bg toggle), LobbyScreen (two-screen lobby flow: Screen 1 character carousel + name input, Screen 2 two-column room select with character preview; see **Lobby Custom Room System** below), **CharacterSidePreview** (compact character preview card with r3f Canvas + PaperDoll + arrow nav + dynamic camera centering via `onLayout`), **CustomRoomBrowser** (lists available custom rooms from lobby, join with optional password), **CreateRoomForm** (create custom room with name/description/password), BoothPrompt (click available egg → confirmation), FpsCounter (debug overlay: FPS readout + render scale display + post-process fisheye slider [0–15, purple, with auto/reset] + vertex fisheye slider [0–3, pink] + vortex OOB checkbox), **DisconnectedOverlay** (reconnecting spinner overlay + disconnected screen with Refresh button), **WarpCheckBg** (WebGL warping checkerboard shader background for lobby), **ComputerBrowser** (640×480 iframe overlay opened by clicking old computer desk, shows Wikipedia, dark browser chrome with traffic light dots + URL bar), **MagazineReader** (responsive modal overlay opened by clicking magazine rack — cover grid + page viewer with arrow key/click navigation; see **Magazine rack** section)
@@ -94,7 +94,7 @@ GLBModel.preload('/models/old-computer-desk.glb')
 - `scripts/build-models.mjs` — Node.js script that programmatically builds GLB files using `@gltf-transform/core`
 - `client-3d/src/scene/GLBModel.tsx` — Reusable loader component (useGLTF + clone + preload)
 - `client-3d/public/models/` — GLB asset directory (served statically by Vite)
-- Currently converted: `old-computer-desk.glb` (38 KB, 16 meshes), `dj-booth.glb` (43 KB, 12 meshes), `magazine-rack.glb` (10 KB, 3 meshes)
+- Currently converted: `old-computer-desk.glb` (38 KB), `dj-booth.glb` (43 KB), `magazine-rack.glb` (10 KB), `wooden-shelf.glb` (8 KB), `retro-computer.glb` (22 KB), `trophy.glb` (7 KB), `low-table-vase.glb` (16 KB), `zabuton.glb` (5 KB), `toy-car.glb` (12 KB), `shoji-door.glb` (12 KB), `low-computer-desk.glb` (6 KB), `futon.glb` (5 KB), `candle.glb` (11 KB), `floor-lamp.glb` (10 KB), `ceiling-lamp.glb` (10 KB)
 - Optimization pipeline: `dedup` (merge duplicate materials) → `flatten` (collapse hierarchy) → `join` (merge meshes by material). Runs automatically in `buildAndWrite()`.
 
 ## Magazine rack (Feb 2026)
@@ -1401,6 +1401,74 @@ A single `DEBUG_MODE` flag in `client/src/config.ts` controls all debug keyboard
 - In `update()`: key5 gated with `if (DEBUG_MODE)`, keyT and debugKeys (1-4) only passed to `myPlayer.update()` when `DEBUG_MODE` is true
 - `MyPlayer.ts` already handles `keyT` and `debugKeys` as optional parameters — when `undefined` is passed, the handlers are skipped
 
+## MyRoom — Japanese Bedroom (Feb 2026)
+
+A cozy PSX-style Japanese bedroom room type. Personal room with no DJ booth — focused on atmosphere and decoration.
+
+### Architecture
+
+- **RoomType**: `MYROOM = 'myroom'` in `types/Rooms.ts`
+- **Server**: Registered in `server/src/index.ts` using `ClubMutant` class with `isPublic: false`
+- **Client routing**: `GameScene.tsx` renders `<JapaneseRoom>` when `roomType === 'myroom'`, otherwise `<Room>`
+- **Lobby**: "My Room" button in `LobbyScreen.tsx` Screen 2 room select
+
+### Room Layout
+
+- Small cozy bedroom: `ROOM_W=7, ROOM_D=6, WALL_HEIGHT=2.6`
+- Walls: `StripedWallMaterial` (procedural vertical stripes, darkened for nighttime)
+- Floor: `TatamiFloorMaterial` (procedural herringbone tatami, darkened for nighttime)
+- Back wall: `OceanWindow` with `OceanViewMaterial` (moonlit nighttime ocean shader) + wooden shelf with trophies
+- Front wall: Shoji door (GLB)
+- Furniture: futon (right wall), low computer desk + pink egg computer (left wall), low table with flower vase (center), zabuton cushions, toy car, candles (3x), hanging ceiling lamp
+
+### Custom Shaders
+
+| Shader | File | Description |
+|--------|------|-------------|
+| `TatamiFloorMaterial` | `src/shaders/TatamiFloorMaterial.tsx` | Procedural herringbone tatami with woven grain, dark nighttime colors |
+| `StripedWallMaterial` | `src/shaders/StripedWallMaterial.tsx` | Vertical stripe wallpaper with `uOpacity` for wall occlusion, dark red/gray |
+| `OceanViewMaterial` | `src/shaders/OceanViewMaterial.tsx` | Animated moonlit ocean with stars, moon, mountain silhouettes |
+| `NightSky` | `src/shaders/NightSky.tsx` | Dark blue-purple sky with twinkling stars, faint clouds, dusk horizon glow |
+
+### Lighting
+
+Nighttime atmosphere with warm point lights:
+- Very dim ambient (`0.08`, purple tint `#332244`)
+- Hanging ceiling lamp as main warm light source (intensity 1.2)
+- 3 candle point lights (orange, intensity 0.4–0.6)
+- Computer screen glow (purple-pink, intensity 0.3)
+- Faint moonlight from window (cool blue, intensity 0.15)
+
+**Important**: Wall and floor materials are custom shaders that output color directly via `gl_FragColor` — they do NOT respond to Three.js scene lights. To darken/lighten the room, you must change the base color values inside the shader source code, not the light intensities.
+
+### Retro Computer (pink egg iMac)
+
+Cute bisected-sphere computer with pink/purple shell (`#cc66aa`), purple-glowing screen (`emissive: #cc88ff`), keyboard with key rows, hockey puck mouse. Built with `hemisphereGeometry()` helper in `build-models.mjs`. Clickable via `InteractableObject` → opens `ComputerBrowser`.
+
+### Collision
+
+Room-type-aware collision in `usePlayerInput.ts`:
+- `getCollisionBoxes()` returns `MYROOM_COLLISION_BOXES` or `CLUB_COLLISION_BOXES` based on `roomType`
+- `getRoomBounds()` returns `{halfX: 330, halfY: 280}` for myroom vs `{halfX: 580, halfY: 580}` for club
+- Collision boxes for: desk, shelf, low table, futon
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `types/Rooms.ts` | `MYROOM` enum value |
+| `server/src/index.ts` | Room registration |
+| `client-3d/src/scene/JapaneseRoom.tsx` | Main room component |
+| `client-3d/src/scene/GameScene.tsx` | Scene routing |
+| `client-3d/src/shaders/NightSky.tsx` | Nighttime skybox shader |
+| `client-3d/src/shaders/TatamiFloorMaterial.tsx` | Floor shader |
+| `client-3d/src/shaders/StripedWallMaterial.tsx` | Wall shader |
+| `client-3d/src/shaders/OceanViewMaterial.tsx` | Window view shader |
+| `client-3d/src/input/usePlayerInput.ts` | Room-type-aware collision |
+| `client-3d/src/network/NetworkManager.ts` | `joinMyRoom()` method |
+| `client-3d/src/stores/gameStore.ts` | `roomType` includes `'myroom'` |
+| `scripts/build-models.mjs` | All Japanese room GLB model builders |
+
 ## Current tasks
 
 - ~~Implement DJ Queue Rotation System~~ ✅ COMPLETED (Feb 2026)
@@ -1450,6 +1518,7 @@ A single `DEBUG_MODE` flag in `client/src/config.ts` controls all debug keyboard
 - ~~Lobby carousel rewrite: r3f TurntableCarousel with PaperDoll characters + walk anims + speech bubbles~~ ✅ COMPLETED (Feb 2026)
 - ~~Lobby carousel performance optimizations (single Canvas, distortion skip, geometry cache, ref-based state, double-fetch elimination)~~ ✅ COMPLETED (Feb 2026)
 - ~~Custom room system: two-screen lobby flow, room browser/create, CharacterSidePreview, textureId fix~~ ✅ COMPLETED (Feb 2026)
+- ~~MyRoom: Japanese bedroom room type with nighttime atmosphere, custom shaders, furniture~~ ✅ COMPLETED (Feb 2026)
 - PSX geometry shaders (vertex snapping, affine texture mapping)
 - Textured DJ booth furniture
 - Sound effects (footsteps, UI clicks, punch impacts)

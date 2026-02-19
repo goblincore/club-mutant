@@ -140,6 +140,22 @@ export class NetworkManager {
     }
   }
 
+  async joinMyRoom(playerName: string, textureId: number): Promise<void> {
+    try {
+      this.room = await this.client.joinOrCreate<IOfficeState>(RoomType.MYROOM, {
+        name: playerName,
+        playerId: getOrCreatePlayerId(),
+        textureId,
+      })
+
+      useGameStore.getState().setRoomType('myroom')
+      this.setupRoom(textureId)
+    } catch (err) {
+      console.error('[network] Failed to join MyRoom:', err)
+      throw err
+    }
+  }
+
   async createCustomRoom(
     roomData: { name: string; description: string; password: string | null },
     playerName: string,
