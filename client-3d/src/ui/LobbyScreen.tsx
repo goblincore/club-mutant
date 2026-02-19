@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 
 import { getNetwork } from '../network/NetworkManager'
 import { useGameStore } from '../stores/gameStore'
-import { getCharacters, type CharacterEntry } from '../character/characterRegistry'
+import { getCharacters, getCharactersSync, type CharacterEntry } from '../character/characterRegistry'
 import { WarpCheckBg } from './WarpCheckBg'
 import { TurntableCarousel } from './components/TurntableCarousel'
 import { CharacterSidePreview } from './CharacterSidePreview'
@@ -13,7 +13,7 @@ type Screen = 'character-select' | 'room-select'
 type RoomSubView = 'choose' | 'browse' | 'create'
 
 export function LobbyScreen() {
-  const [characters, setCharacters] = useState<CharacterEntry[]>([])
+  const [characters, setCharacters] = useState<CharacterEntry[]>(() => getCharactersSync())
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [name, setName] = useState('')
   const [connecting, setConnecting] = useState(false)
@@ -120,11 +120,13 @@ export function LobbyScreen() {
           {/* Carousel floating in space */}
           <div className="relative z-10 flex-1 w-full flex items-end justify-center min-h-0">
             {characters.length > 0 && (
-              <TurntableCarousel
-                characters={characters}
-                selectedIndex={selectedIndex}
-                onSelect={handleCharacterSwitch}
-              />
+              <div className="w-full h-full animate-fade-in">
+                <TurntableCarousel
+                  characters={characters}
+                  selectedIndex={selectedIndex}
+                  onSelect={handleCharacterSwitch}
+                />
+              </div>
             )}
           </div>
 

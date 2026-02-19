@@ -96,3 +96,8 @@ export function characterPathForTextureId(textureId: number): string {
 
   return entry?.path ?? '/characters/default'
 }
+
+/** Synchronous read of already-resolved entries (empty array if not yet resolved). */
+export function getCharactersSync(): CharacterEntry[] {
+  return resolvedEntries
+}

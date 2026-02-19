@@ -28,6 +28,10 @@ export default {
           '0%': { opacity: '0', transform: 'translateY(-8px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
         'drip': {
           '0%, 100%': { transform: 'translateY(0)', opacity: '0.6' },
           '50%': { transform: 'translateY(15px)', opacity: '0.2' },
@@ -43,6 +47,7 @@ export default {
       },
       animation: {
         'fade-in-down': 'fade-in-down 0.2s ease-out',
+        'fade-in': 'fade-in 0.3s ease-out',
         'drip': 'drip 2s ease-in-out infinite',
         'pulse-glow': 'pulse-glow 3s ease-in-out infinite',
         'bob': 'bob 2s ease-in-out infinite',
