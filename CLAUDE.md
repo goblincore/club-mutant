@@ -24,10 +24,10 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Dev server: port 5175 (`cd client-3d && pnpm dev`)
   - Characters: paper-doll rigs (flat textured planes on bone hierarchy) from rig editor export
   - Key dirs:
-    - `src/scene/` — Room (walls + DJ booth + wall occlusion with `depthWrite` fix for attachments), Camera (orbit + sway + **follow lerp delay** `FOLLOW_LERP=4` for trailing camera feel, exports `cameraDistance` + `cameraAzimuth` for fisheye scaling + camera-relative WASD), PlayerEntity (lerp + 3D chat bubbles + troika Text nametags on layer 1), GameScene (Canvas + ClickPlane + debug keyboard shortcuts: `` ` `` for FPS, `-`/`=` for render scale cycle), InteractableObject (proximity + hover highlight + cursor + click; see **Interactable object outline** below), **GLBModel** (reusable GLB loader component via drei's `useGLTF`, clones scene per instance, supports preload; see **GLB model pipeline** below)
+    - `src/scene/` — Room (walls + DJ booth + wall occlusion with `depthWrite` fix for attachments), **JukeboxRoom** (vintage 50s diner with checkerboard floor, burgundy walls, stage + mic stand; see **Jukebox Room** below), **JapaneseRoom** (cozy nighttime bedroom; see **MyRoom** below), Camera (orbit + sway + **follow lerp delay** `FOLLOW_LERP=4` for trailing camera feel, exports `cameraDistance` + `cameraAzimuth` for fisheye scaling + camera-relative WASD), PlayerEntity (lerp + 3D chat bubbles + troika Text nametags on layer 1), GameScene (Canvas + ClickPlane + debug keyboard shortcuts: `` ` `` for FPS, `-`/`=` for render scale cycle), InteractableObject (proximity + hover highlight + cursor + click; see **Interactable object outline** below), **GLBModel** (reusable GLB loader component via drei's `useGLTF`, clones scene per instance, supports preload; see **GLB model pipeline** below)
     - `src/character/` — PaperDoll, CharacterLoader, DistortMaterial (PaRappa vertex warp + clip-space vertex fisheye via `uVertexFisheye`), AnimationMixer, **characterRegistry** (auto-discovers characters by probing `default`..`default20` folders at startup, parallel fetch, singleton cache, preloads all, `characterPathForTextureId()` for sync lookup by remote players)
     - `src/network/` — NetworkManager (Colyseus client, player/chat/music/DJ queue wiring, YouTube search, late-join sync for music + DJ queue from **schema-only callbacks** — `onAdd`/`onRemove`/`listen`, no separate `DJ_QUEUE_UPDATED` message handler; **reconnection**: `room.onDrop` → status `'reconnecting'`, `room.onReconnect` → status `'connected'` + TimeSync restart, `room.onLeave` → status `'disconnected'`; reconnection config: `maxRetries=10`, `maxDelay=8000`), TimeSync (client-server clock sync with `onReady` callback for deferred operations)
-    - `src/stores/` — gameStore (+ `connectionStatus`: `'disconnected'` | `'connected'` | `'reconnecting'`, `selectedCharacterPath`, `lobbyJoined`, `availableRooms`, `roomType`), chatStore (+ bubbles), musicStore, uiStore (+ debug: `showFps`, `renderScale` [0.75/0.5/0.35], `fisheyeOverride`, `vertexFisheye`, `vortexOob`; + `computerIframeOpen`, `magazineReaderOpen`), boothStore (DJ booth + queue + video bg, `videoBackgroundEnabled` defaults `true`)
+    - `src/stores/` — gameStore (+ `connectionStatus`: `'disconnected'` | `'connected'` | `'reconnecting'`, `selectedCharacterPath`, `lobbyJoined`, `availableRooms`, `roomType`, `musicMode`), chatStore (+ bubbles), musicStore, uiStore (+ debug: `showFps`, `renderScale` [0.75/0.5/0.35], `fisheyeOverride`, `vertexFisheye`, `vortexOob`; + `computerIframeOpen`, `magazineReaderOpen`), boothStore (DJ booth + queue + video bg, `videoBackgroundEnabled` defaults `true`), **jukeboxStore** (shared jukebox playlist synced from server schema)
     - `src/hooks/` — useVideoBackground (resolves YouTube video URL → `<video>` → `THREE.VideoTexture`, falls back to iframe mode), **useSlideshowTexture** (cycles through `/textures/slideshow/` images when no video playing, shown on wall display)
     - `src/shaders/` — PsxPostProcess (VHS+bloom+fisheye post-processing, **dynamic fisheye** via `u_fisheye` uniform scaled by camera zoom distance [closer = stronger], configurable `renderScale` from uiStore [0.75/0.5/0.35] replaces hardcoded `RES_SCALE`; **half-res bloom**: scene RT downsampled to `BLOOM_SCALE=0.5` RT with LinearFilter, 16-tap bloom sampling (4 iterations × 4 cardinal); **layer-based rendering**: layer 0 for scene with VHS, layer 1 for UI/chat bubbles/nametags rendered clean, layer 2 for highlight mask; **screen-space outline**: mask RT + dilation in VHS shader, see **Interactable object outline** below), TvStaticFloor (animated TV noise floor material, `FLOOR_SEGMENTS=48`, samples baked displacement texture + PSX integer stepping via `DISP_STEPS=10`), TrampolineGrid (`GRID_SEGMENTS=48`, same displacement texture sampling + integer stepping), **DisplacementBaker.ts** (bakes ripple displacement from `getDisplacementAt` into 64×64 Float32 `DataTexture` each frame, frame-deduplicated, short-circuits when no ripples active; sampled by floor+grid vertex shaders instead of per-vertex ripple loops), TrippySky (Win95-style blue sky + animated procedural clouds skybox, drift speed 0.4), **VortexGridSky** (spinning polar grid vortex on dark cloudy FBM background — not currently used in scene, kept for future skybox option), BrickWallMaterial (procedural brick wall shader), **TatamiFloorMaterial** (procedural herringbone tatami floor for MyRoom), **StripedWallMaterial** (vertical stripe wallpaper with uOpacity for wall occlusion), **OceanViewMaterial** (animated ocean window view — moonlit nighttime), **NightSky** (dark dusk/night skybox with stars and faint clouds). **Vortex OOB** in PsxPostProcess: renders a spinning green polar grid to a tiny 128×128 offscreen RT with NearestFilter for chunky pixels; fills fisheye barrel distortion out-of-bounds areas when `vortexOob` toggle is on (default off, toggle in FpsCounter debug panel); RT rendering completely skipped when disabled
     - `src/scene/TrampolineRipples.ts` — Module-level ripple state manager (max 16 analytical ripples). Has its own `performance.now()`-based clock (`getTime()`) — no dependency on r3f clock or useFrame ordering. Provides CPU-side `getDisplacementAt(x,z)` used by DisplacementBaker (baked to texture) and directly by PlayerEntity/Room furniture for Y offset. `getRippleVec4s()`/`getRippleCount()` still available but no longer used by shaders (replaced by texture sampling). Shared by DisplacementBaker, PlayerEntity, Room furniture, and NetworkManager (remote jump ripples).
@@ -1262,7 +1262,11 @@ YouTube ID into a direct playable video URL:
 - **Debug mode config**: `client/src/config.ts`
 - **Room Queue Playlist**: `server/src/rooms/commands/RoomQueuePlaylistCommand.ts`
 - **Clock sync**: `client-3d/src/network/TimeSync.ts` (client-server clock sync with `onReady` callback)
+- **Jukebox commands**: `server/src/rooms/commands/JukeboxCommand.ts`
+- **Jukebox room scene**: `client-3d/src/scene/JukeboxRoom.tsx`
+- **Jukebox store**: `client-3d/src/stores/jukeboxStore.ts`
 - **Shared message enum**: `types/Messages.ts`
+- **Room types + music modes**: `types/Rooms.ts`
 
 ## Conventions / tips
 
@@ -1469,6 +1473,126 @@ Room-type-aware collision in `usePlayerInput.ts`:
 | `client-3d/src/stores/gameStore.ts` | `roomType` includes `'myroom'` |
 | `scripts/build-models.mjs` | All Japanese room GLB model builders |
 
+## Jukebox Room — Vintage 50s Diner (Feb 2026)
+
+A PSX-style vintage diner room type with a shared jukebox playlist. Unlike the DJ queue system (round-robin, per-DJ queues), the jukebox mode has a single shared playlist where any player can add tracks and anyone can control playback.
+
+### Music Mode Architecture
+
+Rooms now have a `musicMode` property that determines which music system is used:
+
+| Mode | Description | Used by |
+|------|-------------|---------|
+| `djqueue` | Round-robin DJ queue with per-DJ playlists (default) | Public room, custom rooms |
+| `jukebox` | Shared room playlist, any player can add/play/skip | Jukebox room, custom rooms |
+| `personal` | No shared music (future) | MyRoom |
+
+- **Type**: `MusicMode = 'djqueue' | 'jukebox' | 'personal'` in `types/Rooms.ts`
+- **Server**: `IRoomData.musicMode` passed at room creation, stored on `ClubMutant.musicMode`
+- **Client**: `gameStore.musicMode` set on room join, drives UI branching in PlaylistPanel and NowPlaying
+
+### Room Layout
+
+- 9×9 world unit room with `WALL_HEIGHT=3.0`
+- **Floor**: Black & white checkerboard (procedural GLSL shader, 12×12 tiles with grout lines)
+- **Walls**: Deep burgundy wainscoting (lower 42%) + brass/gold rail band + dark wine/maroon upper (procedural GLSL `dinerWallFrag`)
+- **Ceiling**: Dark warm tone (`#1c1008`)
+- **Skybox**: `NightSky` (dark dusk with stars)
+- **Furniture**:
+  - Jukebox machine (left wall) — clickable via `InteractableObject`, opens PlaylistPanel
+  - Counter with stools along right wall
+  - Two booth benches against left wall
+  - Wall decorations: `DinerPoster` (framed posters with accent colors) and `WallRecord` (vinyl records) on all walls
+  - Neon "OPEN" sign above front wall
+- **Stage** (front wall):
+  - Raised platform (`JUKEBOX_STAGE_HEIGHT=0.3` world units) with wood top
+  - Mic stand (pole + boom arm + capsule + grille + tripod legs)
+  - Two spotlight rigs (hanging can lights with colored cones)
+  - Edge trim and steps
+  - **Walkable**: Players step up onto the stage surface via `getFloorHeight()` in PlayerEntity
+
+### Stage Walkability
+
+The stage is a raised platform that players walk on top of, not collide against:
+
+- `JukeboxRoom.tsx` exports stage bounds: `JUKEBOX_STAGE_X_MIN/MAX`, `JUKEBOX_STAGE_Z_MIN/MAX`, `JUKEBOX_STAGE_HEIGHT`
+- `PlayerEntity.tsx` has `getFloorHeight(worldX, worldZ)` that returns `JUKEBOX_STAGE_HEIGHT + rippleY` when the player is within stage bounds, otherwise just `rippleY`
+- Stage platform uses separate side planes (with `depthWrite`) + a top surface with `depthWrite={false}` so characters standing on it aren't clipped by the depth buffer
+
+### Jukebox Server Commands
+
+All jukebox messages are defined in `types/Messages.ts` and handled in `server/src/rooms/commands/JukeboxCommand.ts`:
+
+| Message | Command | Description |
+|---------|---------|-------------|
+| `JUKEBOX_ADD` | `JukeboxAddCommand` | Add track to shared playlist (validates title/link, prefetches video) |
+| `JUKEBOX_REMOVE` | `JukeboxRemoveCommand` | Remove own track (only adder can remove); if removing playing track, auto-advances |
+| `JUKEBOX_PLAY` | `JukeboxPlayCommand` | Start playback (any player); no-op if already playing |
+| `JUKEBOX_STOP` | `JukeboxStopCommand` | Stop playback, keep tracks (any player) |
+| `JUKEBOX_SKIP` | `JukeboxSkipCommand` | Skip + remove current track, auto-advance (any player) |
+| `JUKEBOX_TRACK_COMPLETE` | `JukeboxTrackCompleteCommand` | Track ended naturally; removes it, plays next (streamId dedup) |
+
+Key difference from DJ queue: tracks are **destructively removed** after playing (not marked as "played"), and there is no per-player queue — it's one shared `ArraySchema<JukeboxItem>`.
+
+### Schema
+
+- `OfficeState.jukeboxPlaylist`: `ArraySchema<JukeboxItem>` — synced to all clients via Colyseus schema
+- `JukeboxItem`: Schema class with `id`, `title`, `link`, `duration`, `addedBySessionId`, `addedByName`, `addedAtMs`
+- `JukeboxItemDto`: Plain DTO in `types/Dtos.ts` for client-side typing
+
+### Client UI
+
+- **PlaylistPanel** (`src/ui/PlaylistPanel.tsx`): Detects `musicMode === 'jukebox'` and shows jukebox-specific UI:
+  - Shared playlist view (all players' tracks in one list)
+  - Each track shows who added it + remove button (own tracks only)
+  - YouTube search + link paste to add tracks
+  - Play/Stop/Skip controls visible to all (not just DJ)
+- **NowPlaying** (`src/ui/NowPlaying.tsx`): Jukebox mode shows track title + elapsed/total time + Play/Stop/Skip buttons for all players
+- **jukeboxStore** (`src/stores/jukeboxStore.ts`): Zustand store synced from server schema via `onAdd`/`onRemove` callbacks
+
+### Custom Shaders (inline in JukeboxRoom.tsx)
+
+| Shader | Description |
+|--------|-------------|
+| `checkerFrag` | Black/white checkerboard floor, 12×12 tiles with grout lines, subtle center sheen |
+| `dinerWallFrag` | Deep burgundy wainscoting (lower 42%) + brass rail + dark wine upper + dark baseboard, `uOpacity` for wall occlusion |
+
+### Wall Occlusion
+
+Same raycaster-based system as other rooms with full attachment support:
+- Wall material `uOpacity` uniform + `depthWrite` toggle
+- Attachment traversal: `opacity`, `depthWrite`, `side` (DoubleSide when faded), `emissiveIntensity` scaling
+- Front wall rotated 180° (`rotation=[0, Math.PI, 0]`) so normal faces inward (required for FrontSide raycasting)
+
+### Collision
+
+Room-type-aware in `usePlayerInput.ts`:
+- `isJukeboxScene()` checks `roomType === 'jukebox'` or `roomType === 'custom' && musicMode === 'jukebox'`
+- `JUKEBOX_COLLISION_BOXES`: jukebox machine box + counter box (no stage collision — walkable)
+- `JUKEBOX_HALF = 430` (9 × 100 / 2 - 20 padding)
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `types/Rooms.ts` | `JUKEBOX` enum + `MusicMode` type |
+| `types/Messages.ts` | `JUKEBOX_*` message enums |
+| `types/Dtos.ts` | `JukeboxItemDto` |
+| `server/src/index.ts` | Jukebox room registration |
+| `server/src/rooms/ClubMutant.ts` | Jukebox message handlers + `musicMode` storage |
+| `server/src/rooms/schema/OfficeState.ts` | `JukeboxItem` schema + `jukeboxPlaylist` on `OfficeState` |
+| `server/src/rooms/commands/JukeboxCommand.ts` | All jukebox commands |
+| `client-3d/src/scene/JukeboxRoom.tsx` | Full diner scene (1140 lines) |
+| `client-3d/src/scene/GameScene.tsx` | Routes to `<JukeboxRoom>` for jukebox/custom+jukebox rooms |
+| `client-3d/src/scene/PlayerEntity.tsx` | `getFloorHeight()` for walkable stage |
+| `client-3d/src/stores/jukeboxStore.ts` | Client-side jukebox playlist state |
+| `client-3d/src/network/NetworkManager.ts` | `joinJukeboxRoom()` + jukebox schema sync |
+| `client-3d/src/ui/PlaylistPanel.tsx` | Jukebox mode playlist UI |
+| `client-3d/src/ui/NowPlaying.tsx` | Jukebox mode mini player |
+| `client-3d/src/ui/LobbyScreen.tsx` | "Jukebox" room option in lobby |
+| `client-3d/src/ui/CreateRoomForm.tsx` | Music mode selector for custom rooms |
+| `client-3d/src/input/usePlayerInput.ts` | Jukebox room collision boxes |
+
 ## Current tasks
 
 - ~~Implement DJ Queue Rotation System~~ ✅ COMPLETED (Feb 2026)
@@ -1519,6 +1643,9 @@ Room-type-aware collision in `usePlayerInput.ts`:
 - ~~Lobby carousel performance optimizations (single Canvas, distortion skip, geometry cache, ref-based state, double-fetch elimination)~~ ✅ COMPLETED (Feb 2026)
 - ~~Custom room system: two-screen lobby flow, room browser/create, CharacterSidePreview, textureId fix~~ ✅ COMPLETED (Feb 2026)
 - ~~MyRoom: Japanese bedroom room type with nighttime atmosphere, custom shaders, furniture~~ ✅ COMPLETED (Feb 2026)
+- ~~Jukebox Room: vintage 50s diner with shared playlist, stage, mic stand, spotlights, walkable stage~~ ✅ COMPLETED (Feb 2026)
+- ~~Music mode system (djqueue/jukebox/personal) for room-type-specific music behavior~~ ✅ COMPLETED (Feb 2026)
+- ~~Wall occlusion fixes: depthWrite toggle on walls, side toggle + emissive scaling on attachments~~ ✅ COMPLETED (Feb 2026)
 - PSX geometry shaders (vertex snapping, affine texture mapping)
 - Textured DJ booth furniture
 - Sound effects (footsteps, UI clicks, punch impacts)
