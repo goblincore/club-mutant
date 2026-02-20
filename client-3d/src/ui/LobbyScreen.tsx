@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 import { getNetwork } from '../network/NetworkManager'
 import { useGameStore } from '../stores/gameStore'
@@ -22,11 +22,30 @@ export function LobbyScreen() {
   const [roomSubView, setRoomSubView] = useState<RoomSubView>('choose')
 
   const lobbyJoined = useGameStore((s) => s.lobbyJoined)
+  // Track whether characters have loaded so the carousel can fade in exactly once.
+  // If getCharactersSync() already has results (module-level cache resolved), start visible.
+  const carouselReadyRef = useRef(false)
+  const [carouselVisible, setCarouselVisible] = useState(false)
 
   useEffect(() => {
     getCharacters().then((chars) => {
       setCharacters(chars)
+      if (!carouselReadyRef.current && chars.length > 0) {
+        carouselReadyRef.current = true
+        // rAF delay gives the Canvas one frame to initialize before fading in,
+        // preventing the flash of a half-initialized scene
+        requestAnimationFrame(() => setCarouselVisible(true))
+      }
     })
+  }, [])
+
+  // If sync data was already available at mount time, trigger the fade-in after one frame
+  useEffect(() => {
+    if (!carouselReadyRef.current && characters.length > 0) {
+      carouselReadyRef.current = true
+      requestAnimationFrame(() => setCarouselVisible(true))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const selectedChar = characters[selectedIndex] ?? null
@@ -138,15 +157,19 @@ export function LobbyScreen() {
         <>
           {/* Carousel floating in space */}
           <div className="relative z-10 flex-1 w-full flex items-end justify-center min-h-0">
-            {characters.length > 0 && (
-              <div className="w-full h-full animate-fade-in">
-                <TurntableCarousel
-                  characters={characters}
-                  selectedIndex={selectedIndex}
-                  onSelect={handleCharacterSwitch}
-                />
-              </div>
-            )}
+            <div
+              className="w-full h-full"
+              style={{
+                opacity: carouselVisible ? 1 : 0,
+                transition: carouselVisible ? 'opacity 0.5s ease-out' : 'none',
+              }}
+            >
+              <TurntableCarousel
+                characters={characters}
+                selectedIndex={selectedIndex}
+                onSelect={handleCharacterSwitch}
+              />
+            </div>
           </div>
 
           {/* Bottom card: name input + Go! button */}

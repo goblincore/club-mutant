@@ -9,11 +9,14 @@ interface Props {
   onCreated: () => void
 }
 
+type MusicModeOption = 'djqueue' | 'jukebox'
+
 export function CreateRoomForm({ playerName, textureId, onBack, onCreated }: Props) {
   const [roomName, setRoomName] = useState('')
   const [description, setDescription] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [musicModeOption, setMusicModeOption] = useState<MusicModeOption>('djqueue')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,6 +34,7 @@ export function CreateRoomForm({ playerName, textureId, onBack, onCreated }: Pro
           name: roomName.trim(),
           description: description.trim(),
           password: password.trim() || null,
+          musicMode: musicModeOption,
         },
         playerName,
         textureId
@@ -116,6 +120,40 @@ export function CreateRoomForm({ playerName, textureId, onBack, onCreated }: Pro
                        focus:border-toxic-green focus:outline-none focus:shadow-[0_0_15px_rgba(57,255,20,0.3)]
                        transition-all"
           />
+        </div>
+
+        {/* Music mode */}
+        <div>
+          <label className="block text-white/50 text-xs mb-1.5">music mode</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setMusicModeOption('djqueue')}
+              disabled={creating}
+              className={`flex-1 py-2 rounded-lg text-sm font-mono transition-all border ${
+                musicModeOption === 'djqueue'
+                  ? 'bg-purple-500/20 border-purple-400 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
+                  : 'bg-black/30 border-white/15 text-white/50 hover:text-white/70 hover:border-white/25'
+              }`}
+            >
+              <div className="text-[13px]">DJ Queue</div>
+              <div className="text-[10px] text-white/40 mt-0.5">round-robin turns</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMusicModeOption('jukebox')}
+              disabled={creating}
+              className={`flex-1 py-2 rounded-lg text-sm font-mono transition-all border ${
+                musicModeOption === 'jukebox'
+                  ? 'bg-purple-500/20 border-purple-400 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
+                  : 'bg-black/30 border-white/15 text-white/50 hover:text-white/70 hover:border-white/25'
+              }`}
+            >
+              <div className="text-[13px]">Jukebox</div>
+              <div className="text-[10px] text-white/40 mt-0.5">shared playlist</div>
+            </button>
+          </div>
         </div>
 
         {/* Password (optional) */}

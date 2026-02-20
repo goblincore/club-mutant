@@ -51,15 +51,39 @@ const MYROOM_COLLISION_BOXES: CollisionBox[] = [MYROOM_DESK_BOX, MYROOM_SHELF_BO
 const MYROOM_HALF_X = 330 // 7 * 100 / 2 - 20 padding
 const MYROOM_HALF_Y = 280 // 6 * 100 / 2 - 20 padding
 
+// ── Jukebox room collision boxes ──
+// Room is 8w × 8d world units → 800 × 800 server coords
+// Server coords: world X*100 → serverX, world -Z*100 → serverY
+
+// Room is 9×9 world units → 900×900 server coords
+// Server coords: world X*100 → serverX, world -Z*100 → serverY
+
+// Jukebox machine at world (-0.6, 0, -4.2) → server (-60, 420), machine ~1.0w × 0.6d
+const JB_JUKEBOX_BOX: CollisionBox = { minX: -120, maxX: 10, minY: 380, maxY: 450 }
+
+// Counter along right wall at world (3.6, 0, -0.5) → server (360, 50), counter ~0.6w × 4.5d
+const JB_COUNTER_BOX: CollisionBox = { minX: 300, maxX: 430, minY: -175, maxY: 275 }
+
+const JUKEBOX_COLLISION_BOXES: CollisionBox[] = [JB_JUKEBOX_BOX, JB_COUNTER_BOX]
+
+const JUKEBOX_HALF = 430 // 9 * 100 / 2 - 20 padding
+
+function isJukeboxScene(): boolean {
+  const { roomType, musicMode } = useGameStore.getState()
+  return roomType === 'jukebox' || (roomType === 'custom' && musicMode === 'jukebox')
+}
+
 function getCollisionBoxes(): CollisionBox[] {
   const roomType = useGameStore.getState().roomType
   if (roomType === 'myroom') return MYROOM_COLLISION_BOXES
+  if (isJukeboxScene()) return JUKEBOX_COLLISION_BOXES
   return CLUB_COLLISION_BOXES
 }
 
 function getRoomBounds(): { halfX: number; halfY: number } {
   const roomType = useGameStore.getState().roomType
   if (roomType === 'myroom') return { halfX: MYROOM_HALF_X, halfY: MYROOM_HALF_Y }
+  if (isJukeboxScene()) return { halfX: JUKEBOX_HALF, halfY: JUKEBOX_HALF }
   return { halfX: ROOM_HALF, halfY: ROOM_HALF }
 }
 

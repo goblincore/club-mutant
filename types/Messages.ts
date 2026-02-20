@@ -54,4 +54,12 @@ export enum Message {
 
   // Trampoline
   PLAYER_JUMP, // Player jumped (cosmetic, broadcast to others)
+
+  // Jukebox (shared room playlist — used by jukebox + personal music modes)
+  JUKEBOX_ADD, // Add track to shared jukebox playlist
+  JUKEBOX_REMOVE, // Remove own track from jukebox
+  JUKEBOX_PLAY, // Start/resume playback
+  JUKEBOX_STOP, // Stop playback (keep tracks)
+  JUKEBOX_SKIP, // Skip current track (destructive — removes it)
+  JUKEBOX_TRACK_COMPLETE, // Current track finished (auto-advance)
 }

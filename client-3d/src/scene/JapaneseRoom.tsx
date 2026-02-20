@@ -150,23 +150,28 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
 
       wallOpacities.current[i] += (targetOpacity - wallOpacities.current[i]) * t
 
+      const opacity = wallOpacities.current[i]
+      const faded = opacity < 0.99
+
+      // Toggle depthWrite on the wall itself — faded walls still block depth otherwise.
       if ('uniforms' in mat && mat.uniforms.uOpacity) {
-        mat.uniforms.uOpacity.value = wallOpacities.current[i]
+        mat.uniforms.uOpacity.value = opacity
+        mat.depthWrite = !faded
       } else {
-        ;(mat as THREE.MeshStandardMaterial).opacity = wallOpacities.current[i]
+        const msm = mat as THREE.MeshStandardMaterial
+        msm.opacity = opacity
+        msm.depthWrite = !faded
       }
 
       const attachments = wallAttachmentRefs.current[i]
       if (attachments) {
-        const opacity = wallOpacities.current[i]
-        const faded = opacity < 0.99
-
         attachments.traverse((child) => {
           if (child instanceof THREE.Mesh && child.material) {
             const m = child.material as THREE.MeshStandardMaterial | THREE.MeshBasicMaterial
             m.transparent = true
             m.opacity = opacity
             m.depthWrite = !faded
+            m.side = faded ? THREE.DoubleSide : THREE.FrontSide
           }
         })
       }
@@ -292,6 +297,46 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
         position={[0.5, 0, 1.3]}
         rotation={[0, 0.2, 0]}
       />
+
+      {/* Boombox on the low table — interactable, opens playlist panel */}
+      <InteractableObject
+        interactDistance={2.0}
+        onInteract={() => useUIStore.getState().setPlaylistOpen(true)}
+      >
+        <group position={[1.0, 0.21, 0.5]} rotation={[0, -0.3, 0]}>
+          {/* Placeholder boombox (will be replaced by GLB model) */}
+          {/* Main body */}
+          <mesh>
+            <boxGeometry args={[0.5, 0.25, 0.2]} />
+            <meshStandardMaterial color="#333333" />
+          </mesh>
+          {/* Left speaker grille */}
+          <mesh position={[-0.16, 0, 0.01]}>
+            <cylinderGeometry args={[0.06, 0.06, 0.02, 12]} />
+            <meshStandardMaterial color="#555555" metalness={0.3} roughness={0.7} />
+          </mesh>
+          {/* Right speaker grille */}
+          <mesh position={[0.16, 0, 0.01]}>
+            <cylinderGeometry args={[0.06, 0.06, 0.02, 12]} />
+            <meshStandardMaterial color="#555555" metalness={0.3} roughness={0.7} />
+          </mesh>
+          {/* Antenna */}
+          <mesh position={[0.15, 0.2, -0.05]} rotation={[0, 0, 0.15]}>
+            <cylinderGeometry args={[0.005, 0.005, 0.2, 4]} />
+            <meshStandardMaterial color="#888888" metalness={0.5} />
+          </mesh>
+          {/* CD slot */}
+          <mesh position={[0, 0.04, 0.101]}>
+            <boxGeometry args={[0.12, 0.01, 0.01]} />
+            <meshStandardMaterial color="#222222" />
+          </mesh>
+          {/* Glowing display */}
+          <mesh position={[0, 0.06, 0.101]}>
+            <boxGeometry args={[0.12, 0.04, 0.005]} />
+            <meshStandardMaterial color="#44ff88" emissive="#44ff88" emissiveIntensity={0.5} />
+          </mesh>
+        </group>
+      </InteractableObject>
 
       {/* Red toy car — casually placed on the floor near the futon */}
       <GLBModel

@@ -46,6 +46,7 @@ export interface RoomListEntry {
   description: string
   clients: number
   hasPassword: boolean
+  musicMode?: string | null
 }
 
 export interface GameState {
@@ -57,7 +58,8 @@ export interface GameState {
   // Room discovery
   lobbyJoined: boolean
   availableRooms: RoomListEntry[]
-  roomType: 'public' | 'custom' | 'myroom' | null
+  roomType: 'public' | 'custom' | 'myroom' | 'jukebox' | null
+  musicMode: 'djqueue' | 'jukebox' | 'personal' | null
 
   // Players
   players: Map<string, PlayerState>
@@ -76,7 +78,8 @@ export interface GameState {
   setAvailableRooms: (rooms: RoomListEntry[]) => void
   addOrUpdateRoom: (roomId: string, room: RoomListEntry) => void
   removeRoom: (roomId: string) => void
-  setRoomType: (type: 'public' | 'custom' | 'myroom' | null) => void
+  setRoomType: (type: 'public' | 'custom' | 'myroom' | 'jukebox' | null) => void
+  setMusicMode: (mode: 'djqueue' | 'jukebox' | 'personal' | null) => void
   addPlayer: (sessionId: string, player: PlayerState) => void
   removePlayer: (sessionId: string) => void
   updatePlayer: (sessionId: string, updates: Partial<PlayerState>) => void
@@ -92,6 +95,7 @@ export const useGameStore = create<GameState>((set) => ({
   lobbyJoined: false,
   availableRooms: [],
   roomType: null,
+  musicMode: null,
 
   players: new Map(),
 
@@ -126,6 +130,8 @@ export const useGameStore = create<GameState>((set) => ({
     })),
 
   setRoomType: (type) => set({ roomType: type }),
+
+  setMusicMode: (mode) => set({ musicMode: mode }),
 
   addPlayer: (sessionId, player) =>
     set((s) => {

@@ -5,6 +5,7 @@ import { getNetwork } from '../network/NetworkManager'
 import { useMusicStore } from '../stores/musicStore'
 import { useBoothStore } from '../stores/boothStore'
 import { useGameStore } from '../stores/gameStore'
+import { useJukeboxStore } from '../stores/jukeboxStore'
 import { useUIStore } from '../stores/uiStore'
 
 function formatTime(seconds: number): string {
@@ -22,8 +23,12 @@ export function NowPlaying() {
   const djQueue = useBoothStore((s) => s.djQueue)
   const mySessionId = useGameStore((s) => s.mySessionId)
   const isInQueue = useBoothStore((s) => s.isInQueue)
+  const musicMode = useGameStore((s) => s.musicMode)
+  const jukeboxPlaylist = useJukeboxStore((s) => s.playlist)
   const isCurrentDJ = currentDjSessionId === mySessionId
   const muted = useUIStore((s) => s.muted)
+
+  const isJukeboxMode = musicMode === 'jukebox' || musicMode === 'personal'
 
   const playerRef = useRef<ReactPlayer>(null)
   const [elapsed, setElapsed] = useState(0)
@@ -32,11 +37,10 @@ export function NowPlaying() {
 
   const isPlaying = stream.isPlaying && !!stream.currentLink
 
-  // When the current DJ's song ends, notify the server to advance rotation.
-  // Guard with streamId to prevent ReactPlayer's onEnded from firing twice.
+  // When the current track ends, notify the server.
+  // For DJ queue mode: only the current DJ reports.
+  // For jukebox/personal mode: any client can report (server deduplicates via streamId).
   const handleEnded = useCallback(() => {
-    if (!isCurrentDJ) return
-
     const sid = useMusicStore.getState().stream.streamId
 
     if (lastEndedStreamIdRef.current === sid) {
@@ -45,9 +49,16 @@ export function NowPlaying() {
     }
 
     lastEndedStreamIdRef.current = sid
-    console.log('[NowPlaying] Song ended (streamId=%d), sending djTurnComplete', sid)
-    getNetwork().djTurnComplete()
-  }, [isCurrentDJ])
+
+    if (isJukeboxMode) {
+      console.log('[NowPlaying] Jukebox track ended (streamId=%d), sending jukeboxTrackComplete', sid)
+      getNetwork().jukeboxTrackComplete(sid)
+    } else {
+      if (!isCurrentDJ) return
+      console.log('[NowPlaying] DJ track ended (streamId=%d), sending djTurnComplete', sid)
+      getNetwork().djTurnComplete()
+    }
+  }, [isCurrentDJ, isJukeboxMode])
 
   // Seek to correct offset on stream start (late-join sync)
   useEffect(() => {
@@ -84,9 +95,15 @@ export function NowPlaying() {
     return () => clearInterval(id)
   }, [isPlaying, stream.startTime, stream.currentLink])
 
-  // Build "up next" text
-  const nextDJ = djQueue.length > 1 ? djQueue[1] : null
-  const upNextText = nextDJ ? `Up next: ${nextDJ.name}` : null
+  // Build "up next" text based on mode
+  let upNextText: string | null = null
+  if (isJukeboxMode) {
+    const nextTrack = jukeboxPlaylist.length > 1 ? jukeboxPlaylist[1] : null
+    upNextText = nextTrack ? `Up next: ${nextTrack.title}` : null
+  } else {
+    const nextDJ = djQueue.length > 1 ? djQueue[1] : null
+    upNextText = nextDJ ? `Up next: ${nextDJ.name}` : null
+  }
 
   // Time display
   const timeText =
@@ -96,11 +113,21 @@ export function NowPlaying() {
         ? formatTime(elapsed)
         : null
 
-  // Show for DJs in the queue even when stopped (so they can hit play / see controls),
-  // or for anyone when something is playing
-  if (!isPlaying && !isCurrentDJ && !isInQueue) {
-    return null
+  // Visibility logic:
+  // Jukebox/personal: show when playing or when playlist has tracks
+  // DJ queue: show for DJs in queue or when something is playing
+  if (isJukeboxMode) {
+    if (!isPlaying && jukeboxPlaylist.length === 0) return null
+  } else {
+    if (!isPlaying && !isCurrentDJ && !isInQueue) return null
   }
+
+  // Controls:
+  // Jukebox/personal: play/stop/skip available to ALL players
+  // DJ queue: play/stop/skip only for current DJ or DJs in queue when stopped
+  const showControls = isJukeboxMode
+    ? true
+    : isCurrentDJ || (isInQueue && !isPlaying)
 
   return (
     <>
@@ -127,12 +154,14 @@ export function NowPlaying() {
 
       {/* Mini player bar */}
       <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm border border-white/10 rounded-lg px-3 py-2 min-w-[320px] max-w-[500px]">
-        {/* DJ controls: play/stop toggle + skip (for current DJ, or any DJ in queue when stopped) */}
-        {(isCurrentDJ || (isInQueue && !isPlaying)) && (
+        {/* Controls: play/stop toggle + skip */}
+        {showControls && (
           <div className="flex items-center gap-1 flex-shrink-0">
             {isPlaying ? (
               <button
-                onClick={() => getNetwork().djStop()}
+                onClick={() =>
+                  isJukeboxMode ? getNetwork().jukeboxStop() : getNetwork().djStop()
+                }
                 className="w-7 h-7 flex items-center justify-center bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded transition-colors"
                 title="Stop"
               >
@@ -140,7 +169,9 @@ export function NowPlaying() {
               </button>
             ) : (
               <button
-                onClick={() => getNetwork().djPlay()}
+                onClick={() =>
+                  isJukeboxMode ? getNetwork().jukeboxPlay() : getNetwork().djPlay()
+                }
                 className="w-7 h-7 flex items-center justify-center bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded transition-colors"
                 title="Play"
               >
@@ -149,7 +180,9 @@ export function NowPlaying() {
             )}
 
             <button
-              onClick={() => getNetwork().djTurnComplete()}
+              onClick={() =>
+                isJukeboxMode ? getNetwork().jukeboxSkip() : getNetwork().djTurnComplete()
+              }
               className="w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 border border-white/15 rounded transition-colors"
               title="Skip to next"
             >
@@ -167,13 +200,20 @@ export function NowPlaying() {
               </div>
 
               <div className="text-[11px] font-mono text-white/60 truncate">
+                {isJukeboxMode && stream.currentDjName && (
+                  <span className="text-white/40">added by {stream.currentDjName} · </span>
+                )}
                 {timeText}
-                {timeText && upNextText && ' • '}
+                {timeText && upNextText && ' · '}
                 {upNextText}
               </div>
             </>
           ) : (
-            <div className="text-[13px] font-mono text-white/60">stopped — press ▶ to play</div>
+            <div className="text-[13px] font-mono text-white/60">
+              {isJukeboxMode && jukeboxPlaylist.length > 0
+                ? `${jukeboxPlaylist.length} track${jukeboxPlaylist.length !== 1 ? 's' : ''} queued — press ▶`
+                : 'stopped — press ▶ to play'}
+            </div>
           )}
         </div>
 

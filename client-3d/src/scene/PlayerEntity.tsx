@@ -4,6 +4,7 @@ import { Text } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { PaperDoll } from '../character/PaperDoll'
+import { useGameStore } from '../stores/gameStore'
 import type { PlayerState } from '../stores/gameStore'
 import { getPlayerPosition } from '../stores/gameStore'
 import {
@@ -15,6 +16,13 @@ import { useMusicStore } from '../stores/musicStore'
 import { consumeJumpRequest } from '../input/usePlayerInput'
 import { addRipple, getDisplacementAt } from './TrampolineRipples'
 import { getNetwork } from '../network/NetworkManager'
+import {
+  JUKEBOX_STAGE_X_MIN,
+  JUKEBOX_STAGE_X_MAX,
+  JUKEBOX_STAGE_Z_MIN,
+  JUKEBOX_STAGE_Z_MAX,
+  JUKEBOX_STAGE_HEIGHT,
+} from './JukeboxRoom'
 
 const WORLD_SCALE = 0.01 // Server pixels → world units
 const LOCAL_LERP = 18 // Fast lerp for local player (smooth but responsive)
@@ -39,6 +47,24 @@ const JUMP_SPIN_SPEED = 8.0 // radians/sec spin during air time
 const TAKEOFF_SQUASH_DURATION = 0.1 // seconds of squash before launch
 const LANDING_SQUASH_DURATION = 0.15 // seconds of squash on landing
 const SQUASH_SPRING_SPEED = 12.0 // how fast scale springs back to 1
+
+// ── Floor height — accounts for raised stage in jukebox room ──
+function getFloorHeight(worldX: number, worldZ: number): number {
+  const rippleY = getDisplacementAt(worldX, worldZ)
+  // Check if player is over the jukebox stage platform
+  const { roomType, musicMode } = useGameStore.getState()
+  const isJukeboxRoom = roomType === 'jukebox' || (roomType === 'custom' && musicMode === 'jukebox')
+  if (
+    isJukeboxRoom &&
+    worldX >= JUKEBOX_STAGE_X_MIN &&
+    worldX <= JUKEBOX_STAGE_X_MAX &&
+    worldZ >= JUKEBOX_STAGE_Z_MIN &&
+    worldZ <= JUKEBOX_STAGE_Z_MAX
+  ) {
+    return JUKEBOX_STAGE_HEIGHT + rippleY
+  }
+  return rippleY
+}
 
 // Shared jump signal for remote players (set by NetworkManager)
 const _remoteJumpSignals = new Map<string, boolean>()
@@ -445,7 +471,7 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
     }
 
     // ── Jump physics ──
-    const floorHeight = getDisplacementAt(worldX, worldZ)
+    const floorHeight = getFloorHeight(worldX, worldZ)
 
     if (isJumping.current) {
       jumpVelY.current -= GRAVITY * delta

@@ -8,6 +8,8 @@ import { useGameStore, setPlayerPosition, getPlayerPosition } from '../stores/ga
 import { useChatStore } from '../stores/chatStore'
 import { useMusicStore } from '../stores/musicStore'
 import { useBoothStore } from '../stores/boothStore'
+import { useJukeboxStore } from '../stores/jukeboxStore'
+import type { JukeboxItemDto } from '@club-mutant/types/Dtos'
 import { triggerRemoteJump } from '../scene/PlayerEntity'
 import { addRipple } from '../scene/TrampolineRipples'
 import { TimeSync } from './TimeSync'
@@ -60,21 +62,22 @@ export class NetworkManager {
         this.lobby = await this.client.joinOrCreate(RoomType.LOBBY)
 
         this.lobby.onMessage('rooms', (rooms: any[]) => {
-          const customRooms: RoomListEntry[] = rooms
-            .filter((r) => r.name === RoomType.CUSTOM)
+          const listedRooms: RoomListEntry[] = rooms
+            .filter((r) => r.name === RoomType.CUSTOM || r.name === RoomType.JUKEBOX)
             .map((r) => ({
               roomId: r.roomId,
               name: r.metadata?.name ?? 'Unnamed',
               description: r.metadata?.description ?? '',
               clients: r.clients ?? 0,
               hasPassword: r.metadata?.hasPassword ?? false,
+              musicMode: r.metadata?.musicMode ?? null,
             }))
 
-          useGameStore.getState().setAvailableRooms(customRooms)
+          useGameStore.getState().setAvailableRooms(listedRooms)
         })
 
         this.lobby.onMessage('+', ([roomId, room]: [string, any]) => {
-          if (room.name !== RoomType.CUSTOM) return
+          if (room.name !== RoomType.CUSTOM && room.name !== RoomType.JUKEBOX) return
 
           useGameStore.getState().addOrUpdateRoom(roomId, {
             roomId,
@@ -82,6 +85,7 @@ export class NetworkManager {
             description: room.metadata?.description ?? '',
             clients: room.clients ?? 0,
             hasPassword: room.metadata?.hasPassword ?? false,
+            musicMode: room.metadata?.musicMode ?? null,
           })
         })
 
@@ -132,7 +136,9 @@ export class NetworkManager {
         ...(textureId != null ? { textureId } : {}),
       })
 
-      useGameStore.getState().setRoomType('public')
+      const gs = useGameStore.getState()
+      gs.setRoomType('public')
+      gs.setMusicMode('djqueue')
       this.setupRoom(textureId ?? 0)
     } catch (err) {
       console.error('[network] Failed to join public room:', err)
@@ -148,7 +154,9 @@ export class NetworkManager {
         textureId,
       })
 
-      useGameStore.getState().setRoomType('myroom')
+      const gs = useGameStore.getState()
+      gs.setRoomType('myroom')
+      gs.setMusicMode('personal')
       this.setupRoom(textureId)
     } catch (err) {
       console.error('[network] Failed to join MyRoom:', err)
@@ -156,22 +164,53 @@ export class NetworkManager {
     }
   }
 
-  async createCustomRoom(
+  async joinJukeboxRoom(
     roomData: { name: string; description: string; password: string | null },
     playerName: string,
     textureId: number
   ): Promise<void> {
     try {
+      this.room = await this.client.create<IOfficeState>(RoomType.JUKEBOX, {
+        name: roomData.name,
+        description: roomData.description,
+        password: roomData.password,
+        autoDispose: true,
+        musicMode: 'jukebox',
+        playerId: getOrCreatePlayerId(),
+        textureId,
+      })
+
+      const gs = useGameStore.getState()
+      gs.setRoomType('jukebox')
+      gs.setMusicMode('jukebox')
+      this.setupRoom(textureId)
+    } catch (err) {
+      console.error('[network] Failed to create jukebox room:', err)
+      throw err
+    }
+  }
+
+  async createCustomRoom(
+    roomData: { name: string; description: string; password: string | null; musicMode?: string },
+    playerName: string,
+    textureId: number
+  ): Promise<void> {
+    try {
+      const musicMode = roomData.musicMode ?? 'djqueue'
+
       this.room = await this.client.create<IOfficeState>(RoomType.CUSTOM, {
         name: roomData.name,
         description: roomData.description,
         password: roomData.password,
         autoDispose: true,
+        musicMode,
         playerId: getOrCreatePlayerId(),
         textureId,
       })
 
-      useGameStore.getState().setRoomType('custom')
+      const gs = useGameStore.getState()
+      gs.setRoomType('custom')
+      gs.setMusicMode(musicMode as any)
       this.setupRoom(textureId)
     } catch (err) {
       console.error('[network] Failed to create custom room:', err)
@@ -192,7 +231,13 @@ export class NetworkManager {
         textureId,
       })
 
-      useGameStore.getState().setRoomType('custom')
+      // Determine musicMode from lobby's room listing (available before join)
+      const gs = useGameStore.getState()
+      const roomEntry = gs.availableRooms.find((r) => r.roomId === roomId)
+      const musicMode = (roomEntry?.musicMode as any) ?? 'djqueue'
+
+      gs.setRoomType('custom')
+      gs.setMusicMode(musicMode)
       this.setupRoom(textureId)
     } catch (err) {
       console.error('[network] Failed to join custom room:', err)
@@ -447,6 +492,36 @@ export class NetworkManager {
       console.warn('[network] Schema callbacks for djQueue failed:', err)
     }
 
+    // Jukebox playlist schema callbacks — syncs shared playlist to jukeboxStore.
+    // Fires on late-join (initial state) and every live mutation (add/remove/splice).
+    try {
+      const jukeboxPlaylistProxy = stateProxy.jukeboxPlaylist
+
+      const syncJukeboxPlaylist = () => {
+        const rs = this.room?.state as any
+        if (!rs?.jukeboxPlaylist) return
+
+        const items: JukeboxItemDto[] = Array.from(
+          rs.jukeboxPlaylist as Iterable<any>
+        ).map((item: any) => ({
+          id: item.id as string,
+          title: item.title as string,
+          link: item.link as string,
+          duration: (item.duration ?? 0) as number,
+          addedBySessionId: item.addedBySessionId as string,
+          addedByName: item.addedByName as string,
+          addedAtMs: (item.addedAtMs ?? 0) as number,
+        }))
+
+        useJukeboxStore.getState().setPlaylist(items)
+      }
+
+      jukeboxPlaylistProxy.onAdd(() => syncJukeboxPlaylist())
+      jukeboxPlaylistProxy.onRemove(() => syncJukeboxPlaylist())
+    } catch (err) {
+      console.warn('[network] Schema callbacks for jukeboxPlaylist failed:', err)
+    }
+
     // Late-join: sync music state AFTER TimeSync is ready (correct seek offset)
     if (this._timeSync) {
       this._timeSync.onReady(() => {
@@ -527,6 +602,7 @@ export class NetworkManager {
       useMusicStore.getState().clearStream()
       useBoothStore.getState().setBoothConnected(false)
       useBoothStore.getState().setIsInQueue(false)
+      useJukeboxStore.getState().clear()
     })
   }
 
@@ -630,6 +706,31 @@ export class NetworkManager {
 
   reorderQueuePlaylist(fromIndex: number, toIndex: number) {
     this.room?.send(Message.ROOM_QUEUE_PLAYLIST_REORDER, { fromIndex, toIndex })
+  }
+
+  // Jukebox (shared room playlist — jukebox + personal music modes)
+  addToJukebox(title: string, link: string, duration: number) {
+    this.room?.send(Message.JUKEBOX_ADD, { title, link, duration })
+  }
+
+  removeFromJukebox(itemId: string) {
+    this.room?.send(Message.JUKEBOX_REMOVE, { itemId })
+  }
+
+  jukeboxPlay() {
+    this.room?.send(Message.JUKEBOX_PLAY, {})
+  }
+
+  jukeboxStop() {
+    this.room?.send(Message.JUKEBOX_STOP, {})
+  }
+
+  jukeboxSkip() {
+    this.room?.send(Message.JUKEBOX_SKIP, {})
+  }
+
+  jukeboxTrackComplete(streamId?: number) {
+    this.room?.send(Message.JUKEBOX_TRACK_COMPLETE, { streamId })
   }
 
   // YouTube search (via server)

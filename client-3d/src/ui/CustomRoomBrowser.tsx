@@ -120,6 +120,29 @@ export function CustomRoomBrowser({ playerName, textureId, onBack, onCreating, o
                 <div className="flex-1 min-w-0 mr-3">
                   <div className="flex items-center gap-2">
                     <span className="text-white text-sm font-bold truncate">{room.name}</span>
+                    {room.musicMode === 'jukebox' ? (
+                      <span
+                        className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold leading-none"
+                        style={{
+                          backgroundColor: 'rgba(168, 85, 247, 0.25)',
+                          border: '1px solid rgba(168, 85, 247, 0.5)',
+                          color: '#c084fc',
+                        }}
+                      >
+                        jukebox
+                      </span>
+                    ) : (
+                      <span
+                        className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold leading-none"
+                        style={{
+                          backgroundColor: 'rgba(59, 130, 246, 0.25)',
+                          border: '1px solid rgba(59, 130, 246, 0.5)',
+                          color: '#93c5fd',
+                        }}
+                      >
+                        DJ
+                      </span>
+                    )}
                     {room.hasPassword && (
                       <span className="text-yellow-400 text-xs" title="Password protected">
                         🔒

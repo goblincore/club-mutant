@@ -6,6 +6,7 @@ import { useBoothStore } from '../stores/boothStore'
 import { useGameStore } from '../stores/gameStore'
 import { useMusicStore } from '../stores/musicStore'
 import { useUIStore } from '../stores/uiStore'
+import { useJukeboxStore } from '../stores/jukeboxStore'
 import { usePlaylistStore, type PlaylistTrack } from '../stores/playlistStore'
 
 interface SearchResult {
@@ -23,6 +24,7 @@ function leaveBooth() {
 }
 
 type BoothTab = 'queue' | 'playlists'
+type JukeboxTab = 'jukebox' | 'playlists'
 type PlaylistDetailTab = 'tracks' | 'search' | 'link'
 
 export function PlaylistPanel() {
@@ -32,16 +34,20 @@ export function PlaylistPanel() {
   const currentDjSessionId = useBoothStore((s) => s.currentDjSessionId)
   const queuePlaylist = useBoothStore((s) => s.queuePlaylist)
   const mySessionId = useGameStore((s) => s.mySessionId)
+  const musicMode = useGameStore((s) => s.musicMode)
   const stream = useMusicStore((s) => s.stream)
+  const jukeboxPlaylist = useJukeboxStore((s) => s.playlist)
 
   const playlists = usePlaylistStore((s) => s.playlists)
   const activePlaylistId = usePlaylistStore((s) => s.activePlaylistId)
 
   const isCurrentDJ = currentDjSessionId === mySessionId
   const myQueuePos = djQueue.findIndex((e) => e.sessionId === mySessionId) + 1
+  const isJukeboxMode = musicMode === 'jukebox' || musicMode === 'personal'
 
   // Tabs
   const [boothTab, setBoothTab] = useState<BoothTab>('queue')
+  const [jukeboxTab, setJukeboxTab] = useState<JukeboxTab>('jukebox')
 
   // Playlist navigation
   const [viewingPlaylistId, setViewingPlaylistId] = useState<string | null>(null)
@@ -57,6 +63,11 @@ export function PlaylistPanel() {
   const [queueSearchQuery, setQueueSearchQuery] = useState('')
   const [queueSearchYTResults, setQueueSearchYTResults] = useState<SearchResult[]>([])
   const [queueSearching, setQueueSearching] = useState(false)
+
+  // Jukebox search (Jukebox tab — searches playlists + YouTube)
+  const [jbSearchQuery, setJbSearchQuery] = useState('')
+  const [jbSearchYTResults, setJbSearchYTResults] = useState<SearchResult[]>([])
+  const [jbSearching, setJbSearching] = useState(false)
 
   // Playlist management
   const [newPlaylistName, setNewPlaylistName] = useState('')
@@ -82,6 +93,76 @@ export function PlaylistPanel() {
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
 
   const viewingPlaylist = playlists.find((p) => p.id === viewingPlaylistId) ?? null
+
+  // ── Jukebox search handler ──
+  const handleJbSearch = useCallback(async () => {
+    const q = jbSearchQuery.trim()
+    if (!q) {
+      setJbSearchYTResults([])
+      return
+    }
+
+    setJbSearching(true)
+
+    try {
+      const results = await getNetwork().searchYouTube(q)
+
+      setJbSearchYTResults(
+        results.map((r: any) => ({
+          title: r.title ?? r.Title ?? 'Unknown',
+          videoId: r.id ?? r.Id ?? r.videoId ?? '',
+          duration: r.duration ?? r.Duration ?? 0,
+          thumbnail: extractThumbnail(r.thumbnail ?? r.Thumbnail),
+        }))
+      )
+    } catch (err) {
+      console.error('Jukebox search failed:', err)
+    } finally {
+      setJbSearching(false)
+    }
+  }, [jbSearchQuery])
+
+  // Local playlist matches for jukebox search
+  const jbSearchLocalMatches: { playlistName: string; track: PlaylistTrack }[] = (() => {
+    const q = jbSearchQuery.trim().toLowerCase()
+    if (!q) return []
+
+    const matches: { playlistName: string; track: PlaylistTrack }[] = []
+
+    for (const pl of playlists) {
+      for (const track of pl.items) {
+        if (track.title.toLowerCase().includes(q)) {
+          matches.push({ playlistName: pl.name, track })
+        }
+      }
+    }
+
+    return matches.slice(0, 10)
+  })()
+
+  // Add search result to jukebox
+  const handleAddSearchResultToJukebox = useCallback(
+    (result: SearchResult) => {
+      const link = `https://www.youtube.com/watch?v=${result.videoId}`
+
+      getNetwork().addToJukebox(result.title, link, result.duration ?? 0)
+
+      markAdded(`jbsearch-${result.videoId}`)
+      useToastStore.getState().addToast('added to jukebox')
+    },
+    [markAdded]
+  )
+
+  // Add local track to jukebox
+  const handleAddLocalTrackToJukebox = useCallback(
+    (track: PlaylistTrack) => {
+      getNetwork().addToJukebox(track.title, track.link, track.duration)
+
+      markAdded(`jblocal-${track.id}`)
+      useToastStore.getState().addToast('added to jukebox')
+    },
+    [markAdded]
+  )
 
   // Queue search: searches user playlists locally + YouTube remotely
   const handleQueueSearch = useCallback(async () => {
@@ -234,32 +315,245 @@ export function PlaylistPanel() {
     setCreating(false)
   }
 
-  // Add a single track from playlist to DJ queue
+  // Add a single track from playlist to DJ queue or jukebox
   const handleAddTrackToQueue = (track: PlaylistTrack) => {
-    getNetwork().addToQueuePlaylist(track.title, track.link, track.duration)
-
-    markAdded(`queue-${track.id}`)
-    useToastStore.getState().addToast(`added to dj queue`)
+    if (isJukeboxMode) {
+      getNetwork().addToJukebox(track.title, track.link, track.duration)
+      markAdded(`queue-${track.id}`)
+      useToastStore.getState().addToast('added to jukebox')
+    } else {
+      getNetwork().addToQueuePlaylist(track.title, track.link, track.duration)
+      markAdded(`queue-${track.id}`)
+      useToastStore.getState().addToast('added to dj queue')
+    }
   }
 
-  // Add all tracks from a playlist to DJ queue
+  // Add all tracks from a playlist to DJ queue or jukebox
   const handleAddAllToQueue = (playlistId: string) => {
     const pl = playlists.find((p) => p.id === playlistId)
     if (!pl || pl.items.length === 0) return
 
-    for (const track of pl.items) {
-      getNetwork().addToQueuePlaylist(track.title, track.link, track.duration)
+    if (isJukeboxMode) {
+      for (const track of pl.items) {
+        getNetwork().addToJukebox(track.title, track.link, track.duration)
+      }
+      markAdded(`all-${playlistId}`)
+      useToastStore.getState().addToast(`added ${pl.items.length} tracks to jukebox`)
+    } else {
+      for (const track of pl.items) {
+        getNetwork().addToQueuePlaylist(track.title, track.link, track.duration)
+      }
+      markAdded(`all-${playlistId}`)
+      useToastStore.getState().addToast(`added ${pl.items.length} tracks to dj queue`)
     }
-
-    markAdded(`all-${playlistId}`)
-    useToastStore.getState().addToast(`added ${pl.items.length} tracks to dj queue`)
   }
 
   const handleRemoveQueueTrack = useCallback((id: string) => {
     getNetwork().removeFromQueuePlaylist(id)
   }, [])
 
+  const handleRemoveJukeboxTrack = useCallback((id: string) => {
+    getNetwork().removeFromJukebox(id)
+  }, [])
+
+  // ---------- Jukebox Tab Content ----------
+
+  const jukeboxTabContent = (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Jukebox search bar */}
+      <div className="px-3 py-2 border-b border-white/[0.1]">
+        <div className="flex gap-1">
+          <input
+            type="text"
+            value={jbSearchQuery}
+            onChange={(e) => setJbSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleJbSearch()
+              if (e.key === 'Escape') {
+                setJbSearchQuery('')
+                setJbSearchYTResults([])
+              }
+            }}
+            placeholder="search to add tracks..."
+            className="flex-1 bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-[12px] text-white placeholder-white/30 focus:border-purple-400/50 focus:outline-none font-mono"
+          />
+
+          {jbSearchQuery.trim() ? (
+            <button
+              onClick={() => {
+                setJbSearchQuery('')
+                setJbSearchYTResults([])
+              }}
+              className="px-2 py-1.5 text-[12px] font-mono text-white/50 hover:text-white transition-colors"
+              title="Clear search"
+            >
+              ✕
+            </button>
+          ) : null}
+
+          <button
+            onClick={handleJbSearch}
+            disabled={jbSearching}
+            className="px-2.5 py-1.5 text-[12px] font-mono bg-white/10 border border-white/20 rounded text-white/80 hover:text-white transition-colors disabled:opacity-30"
+          >
+            {jbSearching ? '...' : 'go'}
+          </button>
+        </div>
+      </div>
+
+      {/* Search results (shown when there's a query) */}
+      {jbSearchQuery.trim() &&
+      (jbSearchLocalMatches.length > 0 || jbSearchYTResults.length > 0) ? (
+        <div className="flex-1 overflow-y-auto px-3 py-1">
+          {/* Playlist matches */}
+          {jbSearchLocalMatches.length > 0 && (
+            <div className="mb-2">
+              <div className="text-[10px] font-mono text-white/50 uppercase tracking-wider mb-1 mt-1">
+                from your playlists
+              </div>
+
+              {jbSearchLocalMatches.map(({ playlistName, track }) => (
+                <div
+                  key={`local-${track.id}`}
+                  className="flex items-center gap-2 py-1.5 border-b border-white/[0.05] group"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12px] font-mono text-white/90 truncate">
+                      {track.title}
+                    </div>
+
+                    <div className="text-[10px] font-mono text-white/40 truncate">
+                      {playlistName}
+                      {track.duration > 0 && ` · ${formatDuration(track.duration)}`}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleAddLocalTrackToJukebox(track)}
+                    className={`text-[12px] font-mono px-2 py-1 border rounded transition-colors flex-shrink-0 ${
+                      recentlyAdded.has(`jblocal-${track.id}`)
+                        ? 'bg-green-500/20 border-green-500/30 text-green-400 opacity-100'
+                        : 'bg-green-500/15 border-green-500/25 text-green-400 hover:bg-green-500/25 opacity-0 group-hover:opacity-100'
+                    }`}
+                  >
+                    {recentlyAdded.has(`jblocal-${track.id}`) ? '✓' : '+'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* YouTube results */}
+          {jbSearchYTResults.length > 0 && (
+            <div className="mb-2">
+              <div className="text-[10px] font-mono text-white/50 uppercase tracking-wider mb-1 mt-1">
+                from youtube
+              </div>
+
+              {jbSearchYTResults.map((result) => (
+                <div
+                  key={`yt-${result.videoId}`}
+                  className="flex items-center gap-2 py-1.5 border-b border-white/[0.05] group"
+                >
+                  {result.thumbnail && (
+                    <img
+                      src={result.thumbnail}
+                      alt=""
+                      className="w-10 h-7 rounded object-cover flex-shrink-0"
+                    />
+                  )}
+
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12px] font-mono text-white/90 truncate">
+                      {result.title}
+                    </div>
+
+                    {result.duration ? (
+                      <div className="text-[10px] font-mono text-white/50">
+                        {formatDuration(result.duration)}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <button
+                    onClick={() => handleAddSearchResultToJukebox(result)}
+                    className={`text-[12px] font-mono px-2 py-1 border rounded transition-colors flex-shrink-0 ${
+                      recentlyAdded.has(`jbsearch-${result.videoId}`)
+                        ? 'bg-green-500/20 border-green-500/30 text-green-400 opacity-100'
+                        : 'bg-green-500/15 border-green-500/25 text-green-400 hover:bg-green-500/25 opacity-0 group-hover:opacity-100'
+                    }`}
+                  >
+                    {recentlyAdded.has(`jbsearch-${result.videoId}`) ? '✓' : '+'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {jbSearching && (
+            <p className="text-white/40 text-[12px] font-mono text-center mt-2">
+              searching youtube...
+            </p>
+          )}
+        </div>
+      ) : (
+        /* Jukebox track list (default view) */
+        <div className="flex-1 overflow-y-auto px-3 py-2">
+          {jukeboxPlaylist.length === 0 && (
+            <p className="text-white/40 text-[12px] font-mono mt-2">
+              no tracks — use the search bar above to add tracks
+            </p>
+          )}
+
+          {jukeboxPlaylist.map((track, i) => {
+            const isNowPlaying = i === 0 && stream.isPlaying
+            const isMine = track.addedBySessionId === mySessionId
+
+            return (
+              <div
+                key={track.id}
+                className={`flex items-center justify-between py-1 ${
+                  isNowPlaying ? 'bg-purple-500/10 rounded px-1 -mx-1' : ''
+                }`}
+              >
+                <div className="text-[12px] font-mono text-white/90 truncate flex-1 mr-2">
+                  <span className="text-white/40 mr-1">{i + 1}.</span>
+                  {track.title}
+                  {isNowPlaying && <span className="text-green-400/60 ml-1">♪</span>}
+                </div>
+
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {track.duration > 0 && (
+                    <span className="text-[10px] font-mono text-white/40">
+                      {formatDuration(track.duration)}
+                    </span>
+                  )}
+
+                  <span className="text-[10px] font-mono text-white/30 max-w-[60px] truncate">
+                    {track.addedByName}
+                  </span>
+
+                  {isMine && (
+                    <button
+                      onClick={() => handleRemoveJukeboxTrack(track.id)}
+                      className="text-[12px] text-white/50 hover:text-red-400 transition-colors"
+                      title="Remove your track"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+
   // ---------- Playlist Detail View (Tracks / Search / Link sub-tabs) ----------
+
+  const queueLabel = isJukeboxMode ? 'jukebox' : 'dj queue'
 
   const playlistDetailView = viewingPlaylist ? (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -305,7 +599,7 @@ export function PlaylistPanel() {
       {/* Sub-tab content */}
       {detailTab === 'tracks' ? (
         <div className="flex-1 overflow-y-auto px-3 py-2">
-          {isConnected && viewingPlaylist.items.length > 0 && (
+          {viewingPlaylist.items.length > 0 && (
             <button
               onClick={() => handleAddAllToQueue(viewingPlaylist.id)}
               className={`mb-2 w-full py-1.5 text-[12px] font-mono border rounded transition-colors ${
@@ -315,8 +609,8 @@ export function PlaylistPanel() {
               }`}
             >
               {recentlyAdded.has(`all-${viewingPlaylist.id}`)
-                ? '✓ added to queue'
-                : '+ add all to queue'}
+                ? `✓ added to ${queueLabel}`
+                : `+ add all to ${queueLabel}`}
             </button>
           )}
 
@@ -381,19 +675,17 @@ export function PlaylistPanel() {
                   🗑
                 </button>
 
-                {isConnected && (
-                  <button
-                    onClick={() => handleAddTrackToQueue(track)}
-                    className={`w-6 h-6 flex items-center justify-center text-[13px] transition-colors ${
-                      recentlyAdded.has(`queue-${track.id}`)
-                        ? 'text-green-400'
-                        : 'text-white/45 hover:text-green-400'
-                    }`}
-                    title="Add to DJ queue"
-                  >
-                    {recentlyAdded.has(`queue-${track.id}`) ? '✓' : '+'}
-                  </button>
-                )}
+                <button
+                  onClick={() => handleAddTrackToQueue(track)}
+                  className={`w-6 h-6 flex items-center justify-center text-[13px] transition-colors ${
+                    recentlyAdded.has(`queue-${track.id}`)
+                      ? 'text-green-400'
+                      : 'text-white/45 hover:text-green-400'
+                  }`}
+                  title={`Add to ${queueLabel}`}
+                >
+                  {recentlyAdded.has(`queue-${track.id}`) ? '✓' : '+'}
+                </button>
               </div>
             </div>
           ))}
@@ -530,7 +822,7 @@ export function PlaylistPanel() {
           </div>
 
           <div className="flex gap-1 flex-shrink-0">
-            {isConnected && pl.items.length > 0 && (
+            {pl.items.length > 0 && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -605,9 +897,72 @@ export function PlaylistPanel() {
   const myPlaylistsContent =
     viewingPlaylistId && viewingPlaylist ? playlistDetailView : playlistListView
 
-  // ---------- Layout ----------
+  // ==========================================
+  // JUKEBOX / PERSONAL MODE LAYOUT
+  // ==========================================
+  if (isJukeboxMode) {
+    return (
+      <div className="flex flex-col h-full">
+        {/* Header */}
+        <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.15]">
+          <span className="text-[13px] font-mono text-purple-300 flex-1 truncate">
+            {musicMode === 'personal' ? '● boombox' : '● jukebox'}
+            {jukeboxPlaylist.length > 0 && ` (${jukeboxPlaylist.length})`}
+          </span>
 
-  // When at booth: DJ booth header + 2 tabs (DJ Queue / My Playlists)
+          <button
+            onClick={() => useUIStore.getState().setPlaylistMinimized(true)}
+            className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white transition-colors rounded hover:bg-white/10 flex-shrink-0"
+            title="Minimize panel"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="4 14 10 14 10 20" />
+              <polyline points="20 10 14 10 14 4" />
+              <line x1="14" y1="10" x2="21" y2="3" />
+              <line x1="3" y1="21" x2="10" y2="14" />
+            </svg>
+          </button>
+        </div>
+
+        {/* 2 tabs: Jukebox / My Playlists */}
+        <div className="flex border-b border-white/[0.15]">
+          {(['jukebox', 'playlists'] as JukeboxTab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setJukeboxTab(t)}
+              className={`flex-1 py-2 text-[13px] font-mono text-center transition-colors ${
+                jukeboxTab === t
+                  ? 'text-purple-300 border-b-2 border-purple-400'
+                  : 'text-white/60 hover:text-white/80'
+              }`}
+            >
+              {t === 'jukebox'
+                ? musicMode === 'personal'
+                  ? `Boombox (${jukeboxPlaylist.length})`
+                  : `Jukebox (${jukeboxPlaylist.length})`
+                : 'My Playlists'}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        {jukeboxTab === 'jukebox' ? jukeboxTabContent : myPlaylistsContent}
+      </div>
+    )
+  }
+
+  // ==========================================
+  // DJ QUEUE MODE — BOOTH CONNECTED LAYOUT
+  // ==========================================
   if (isConnected) {
     return (
       <div className="flex flex-col h-full">
@@ -916,7 +1271,9 @@ export function PlaylistPanel() {
     )
   }
 
-  // When NOT at booth: My Playlists (list or detail)
+  // ==========================================
+  // NOT AT BOOTH: My Playlists (list or detail)
+  // ==========================================
   return (
     <div className="flex flex-col h-full">
       {/* Header */}

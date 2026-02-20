@@ -88,6 +88,10 @@ import { ClubMutant } from './rooms/ClubMutant'
 const customRoomHandler = defineRoom(ClubMutant)
 customRoomHandler.enableRealtimeListing()
 
+// Jukebox rooms also get realtime listing so they show in the room browser
+const jukeboxRoomHandler = defineRoom(ClubMutant)
+jukeboxRoomHandler.enableRealtimeListing()
+
 const server = defineServer({
   transport: new uWebSocketsTransport({
     maxPayloadLength: 1024 * 1024, // 1MB max message size
@@ -109,7 +113,9 @@ const server = defineServer({
       password: null,
       autoDispose: true,
       isPublic: false,
+      musicMode: 'personal',
     }),
+    [RoomType.JUKEBOX]: jukeboxRoomHandler,
   },
 
   express: (app) => {

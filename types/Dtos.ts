@@ -31,3 +31,14 @@ export interface DJQueueEntryDto {
   joinedAtMs: number
   queuePosition: number
 }
+
+// Jukebox (shared room playlist) item
+export interface JukeboxItemDto {
+  id: string
+  title: string
+  link: string
+  duration: number
+  addedBySessionId: string
+  addedByName: string
+  addedAtMs: number
+}

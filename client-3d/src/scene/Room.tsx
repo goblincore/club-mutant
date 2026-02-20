@@ -770,26 +770,32 @@ export function Room({ videoTexture, slideshowTexture }: RoomProps) {
 
       wallOpacities.current[i] += (targetOpacity - wallOpacities.current[i]) * t
 
+      const opacity = wallOpacities.current[i]
+      const faded = opacity < 0.99
+
       // Support both ShaderMaterial (uOpacity uniform) and MeshStandardMaterial (.opacity)
+      // Also toggle depthWrite on the wall itself — faded walls still block depth otherwise.
       if ('uniforms' in mat && mat.uniforms.uOpacity) {
-        mat.uniforms.uOpacity.value = wallOpacities.current[i]
+        mat.uniforms.uOpacity.value = opacity
+        mat.depthWrite = !faded
       } else {
-        ;(mat as THREE.MeshStandardMaterial).opacity = wallOpacities.current[i]
+        const msm = mat as THREE.MeshStandardMaterial
+        msm.opacity = opacity
+        msm.depthWrite = !faded
       }
 
       // Fade wall-mounted objects (TV, picture frames, door) to match.
       // Disable depthWrite when faded so characters behind them remain visible.
+      // Switch to DoubleSide when faded so FrontSide planes are visible from behind.
       const attachments = wallAttachmentRefs.current[i]
       if (attachments) {
-        const opacity = wallOpacities.current[i]
-        const faded = opacity < 0.99
-
         attachments.traverse((child) => {
           if (child instanceof THREE.Mesh && child.material) {
             const m = child.material as THREE.MeshStandardMaterial | THREE.MeshBasicMaterial
             m.transparent = true
             m.opacity = opacity
             m.depthWrite = !faded
+            m.side = faded ? THREE.DoubleSide : THREE.FrontSide
           }
         })
       }

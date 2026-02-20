@@ -63,6 +63,17 @@ export class MusicBooth extends Schema {
   @type(['string']) connectedUsers = new ArraySchema<string>('', '', '', '')
 }
 
+// Jukebox item for shared room playlist (jukebox + personal music modes)
+export class JukeboxItem extends Schema {
+  @type('string') id = ''
+  @type('string') title = ''
+  @type('string') link = ''
+  @type('number') duration = 0
+  @type('string') addedBySessionId = ''
+  @type('string') addedByName = ''
+  @type('number') addedAtMs = 0
+}
+
 export class OfficeState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>()
   @type([MusicBooth]) musicBooths = new ArraySchema<MusicBooth>()
@@ -70,6 +81,7 @@ export class OfficeState extends Schema {
   @type(MusicStream) musicStream = new MusicStream()
   @type([DJQueueEntry]) djQueue = new ArraySchema<DJQueueEntry>()
   @type('string') currentDjSessionId: string | null = null
+  @type([JukeboxItem]) jukeboxPlaylist = new ArraySchema<JukeboxItem>()
 }
 
 // const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'

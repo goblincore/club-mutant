@@ -3,7 +3,7 @@ import { Room, Client, ServerError, CloseCode } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
 
 import { Player, OfficeState, MusicBooth } from './schema/OfficeState'
-import { IRoomData } from '@club-mutant/types/Rooms'
+import { IRoomData, type MusicMode } from '@club-mutant/types/Rooms'
 import { Message } from '@club-mutant/types/Messages'
 import {
   TEXTURE_IDS,
@@ -35,6 +35,15 @@ import {
   RoomQueuePlaylistReorderCommand,
 } from './commands/RoomQueuePlaylistCommand'
 
+import {
+  JukeboxAddCommand,
+  JukeboxRemoveCommand,
+  JukeboxPlayCommand,
+  JukeboxStopCommand,
+  JukeboxSkipCommand,
+  JukeboxTrackCompleteCommand,
+} from './commands/JukeboxCommand'
+
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 import PunchPlayerCommand from './commands/PunchPlayerCommand'
 
@@ -48,6 +57,7 @@ export class ClubMutant extends Room {
   private description = ''
   private password: string | null = null
   private isPublic = false
+  private musicMode: MusicMode = 'djqueue'
   private publicBackgroundSeed: number | null = null
 
   private lastPlayerActionAtMsBySessionId = new Map<string, number>()
@@ -74,7 +84,7 @@ export class ClubMutant extends Room {
     return false
   }
 
-  /** Start a watchdog timer that auto-advances DJ rotation if no DJ_TURN_COMPLETE arrives. */
+  /** Start a watchdog timer that auto-advances when no track-complete arrives. */
   private startTrackWatchdog(durationMs: number) {
     this.clearTrackWatchdog()
 
@@ -87,14 +97,21 @@ export class ClubMutant extends Room {
       const ms = this.state.musicStream
       if (ms.status !== 'playing' || !ms.currentLink) return
 
-      const djId = this.state.currentDjSessionId
-      if (!djId) return
+      if (this.musicMode === 'jukebox' || this.musicMode === 'personal') {
+        console.log('[Watchdog] Jukebox track duration exceeded, auto-advancing')
+        this.dispatcher.dispatch(new JukeboxTrackCompleteCommand(), {
+          client: { sessionId: '' } as Client,
+          streamId: ms.streamId,
+        })
+      } else {
+        const djId = this.state.currentDjSessionId
+        if (!djId) return
 
-      console.log('[Watchdog] Track duration exceeded for DJ %s, auto-advancing', djId)
-
-      this.dispatcher.dispatch(new DJTurnCompleteCommand(), {
-        client: { sessionId: djId } as Client,
-      })
+        console.log('[Watchdog] Track duration exceeded for DJ %s, auto-advancing', djId)
+        this.dispatcher.dispatch(new DJTurnCompleteCommand(), {
+          client: { sessionId: djId } as Client,
+        })
+      }
     }, timeoutMs)
   }
 
@@ -192,6 +209,15 @@ export class ClubMutant extends Room {
     this.autoDispose = autoDispose
     this.isPublic = Boolean(isPublic)
 
+    // Compute music mode from options
+    if (options.musicMode) {
+      this.musicMode = options.musicMode
+    } else if (this.isPublic) {
+      this.musicMode = 'djqueue'
+    } else {
+      this.musicMode = 'djqueue' // default for custom rooms
+    }
+
     // Performance: cap max players per room
     this.maxClients = 50
 
@@ -209,7 +235,7 @@ export class ClubMutant extends Room {
       this.password = await bcrypt.hash(password, salt)
       hasPassword = true
     }
-    this.setMetadata({ name, description, hasPassword })
+    this.setMetadata({ name, description, hasPassword, musicMode: this.musicMode })
 
     this.startMusicStreamTickIfNeeded()
 
@@ -396,75 +422,122 @@ export class ClubMutant extends Room {
       )
     })
 
-    // DJ Queue Management
-    this.onMessage(Message.DJ_QUEUE_JOIN, (client, message) => {
-      if (this.throttle(client, Message.DJ_QUEUE_JOIN, 2000)) return
-      this.dispatcher.dispatch(new DJQueueJoinCommand(), {
-        client,
-        slotIndex: message?.slotIndex ?? 0,
+    // ──────── DJ Queue Management (djqueue mode only) ────────
+    if (this.musicMode === 'djqueue') {
+      this.onMessage(Message.DJ_QUEUE_JOIN, (client, message) => {
+        if (this.throttle(client, Message.DJ_QUEUE_JOIN, 2000)) return
+        this.dispatcher.dispatch(new DJQueueJoinCommand(), {
+          client,
+          slotIndex: message?.slotIndex ?? 0,
+        })
       })
-    })
 
-    this.onMessage(Message.DJ_QUEUE_LEAVE, (client) => {
-      if (this.throttle(client, Message.DJ_QUEUE_LEAVE, 2000)) return
-      this.clearTrackWatchdog()
-      this.dispatcher.dispatch(new DJQueueLeaveCommand(), { client })
-      this.startWatchdogIfPlaying()
-    })
+      this.onMessage(Message.DJ_QUEUE_LEAVE, (client) => {
+        if (this.throttle(client, Message.DJ_QUEUE_LEAVE, 2000)) return
+        this.clearTrackWatchdog()
+        this.dispatcher.dispatch(new DJQueueLeaveCommand(), { client })
+        this.startWatchdogIfPlaying()
+      })
 
-    this.onMessage(Message.DJ_PLAY, (client) => {
-      this.dispatcher.dispatch(new DJPlayCommand(), { client })
-      this.startWatchdogIfPlaying()
-    })
+      this.onMessage(Message.DJ_PLAY, (client) => {
+        this.dispatcher.dispatch(new DJPlayCommand(), { client })
+        this.startWatchdogIfPlaying()
+      })
 
-    this.onMessage(Message.DJ_STOP, (client) => {
-      this.clearTrackWatchdog()
-      this.dispatcher.dispatch(new DJStopCommand(), { client })
-    })
+      this.onMessage(Message.DJ_STOP, (client) => {
+        this.clearTrackWatchdog()
+        this.dispatcher.dispatch(new DJStopCommand(), { client })
+      })
 
-    this.onMessage(Message.DJ_SKIP_TURN, (client) => {
-      this.clearTrackWatchdog()
-      this.dispatcher.dispatch(new DJSkipTurnCommand(), { client })
-      this.startWatchdogIfPlaying()
-    })
+      this.onMessage(Message.DJ_SKIP_TURN, (client) => {
+        this.clearTrackWatchdog()
+        this.dispatcher.dispatch(new DJSkipTurnCommand(), { client })
+        this.startWatchdogIfPlaying()
+      })
 
-    this.onMessage(Message.DJ_TURN_COMPLETE, (client) => {
-      this.clearTrackWatchdog()
-      this.dispatcher.dispatch(new DJTurnCompleteCommand(), { client })
-      this.startWatchdogIfPlaying()
-    })
+      this.onMessage(Message.DJ_TURN_COMPLETE, (client) => {
+        this.clearTrackWatchdog()
+        this.dispatcher.dispatch(new DJTurnCompleteCommand(), { client })
+        this.startWatchdogIfPlaying()
+      })
+
+      // Room Queue Playlist Management (per-player, djqueue mode only)
+      this.onMessage(
+        Message.ROOM_QUEUE_PLAYLIST_ADD,
+        (client, message: { title: string; link: string; duration: number }) => {
+          this.dispatcher.dispatch(new RoomQueuePlaylistAddCommand(), { client, item: message })
+        }
+      )
+
+      this.onMessage(Message.ROOM_QUEUE_PLAYLIST_REMOVE, (client, message: { itemId: string }) => {
+        this.dispatcher.dispatch(new RoomQueuePlaylistRemoveCommand(), {
+          client,
+          itemId: message.itemId,
+        })
+      })
+
+      this.onMessage(
+        Message.ROOM_QUEUE_PLAYLIST_REORDER,
+        (client, message: { fromIndex: number; toIndex: number }) => {
+          this.dispatcher.dispatch(new RoomQueuePlaylistReorderCommand(), {
+            client,
+            fromIndex: message.fromIndex,
+            toIndex: message.toIndex,
+          })
+        }
+      )
+    }
+
+    // ──────── Jukebox Management (jukebox + personal modes) ────────
+    if (this.musicMode === 'jukebox' || this.musicMode === 'personal') {
+      this.onMessage(
+        Message.JUKEBOX_ADD,
+        (client, message: { title: string; link: string; duration: number }) => {
+          this.dispatcher.dispatch(new JukeboxAddCommand(), { client, item: message })
+          this.startWatchdogIfPlaying()
+        }
+      )
+
+      this.onMessage(Message.JUKEBOX_REMOVE, (client, message: { itemId: string }) => {
+        this.clearTrackWatchdog()
+        this.dispatcher.dispatch(new JukeboxRemoveCommand(), {
+          client,
+          itemId: message.itemId,
+        })
+        this.startWatchdogIfPlaying()
+      })
+
+      this.onMessage(Message.JUKEBOX_PLAY, (client) => {
+        this.dispatcher.dispatch(new JukeboxPlayCommand(), { client })
+        this.startWatchdogIfPlaying()
+      })
+
+      this.onMessage(Message.JUKEBOX_STOP, (client) => {
+        this.clearTrackWatchdog()
+        this.dispatcher.dispatch(new JukeboxStopCommand(), { client })
+      })
+
+      this.onMessage(Message.JUKEBOX_SKIP, (client) => {
+        this.clearTrackWatchdog()
+        this.dispatcher.dispatch(new JukeboxSkipCommand(), { client })
+        this.startWatchdogIfPlaying()
+      })
+
+      this.onMessage(Message.JUKEBOX_TRACK_COMPLETE, (client, message) => {
+        this.clearTrackWatchdog()
+        this.dispatcher.dispatch(new JukeboxTrackCompleteCommand(), {
+          client,
+          streamId: message?.streamId,
+        })
+        this.startWatchdogIfPlaying()
+      })
+    }
 
     // Trampoline jump — broadcast to all other clients (cosmetic)
     this.onMessage(Message.PLAYER_JUMP, (client) => {
       if (this.throttle(client, Message.PLAYER_JUMP, 1000)) return
       this.broadcast(Message.PLAYER_JUMP, { sessionId: client.sessionId }, { except: client })
     })
-
-    // Room Queue Playlist Management
-    this.onMessage(
-      Message.ROOM_QUEUE_PLAYLIST_ADD,
-      (client, message: { title: string; link: string; duration: number }) => {
-        this.dispatcher.dispatch(new RoomQueuePlaylistAddCommand(), { client, item: message })
-      }
-    )
-
-    this.onMessage(Message.ROOM_QUEUE_PLAYLIST_REMOVE, (client, message: { itemId: string }) => {
-      this.dispatcher.dispatch(new RoomQueuePlaylistRemoveCommand(), {
-        client,
-        itemId: message.itemId,
-      })
-    })
-
-    this.onMessage(
-      Message.ROOM_QUEUE_PLAYLIST_REORDER,
-      (client, message: { fromIndex: number; toIndex: number }) => {
-        this.dispatcher.dispatch(new RoomQueuePlaylistReorderCommand(), {
-          client,
-          fromIndex: message.fromIndex,
-          toIndex: message.toIndex,
-        })
-      }
-    )
   }
 
   async onAuth(client: Client, options: { password: string | null }) {

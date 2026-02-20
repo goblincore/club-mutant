@@ -7,6 +7,7 @@ import { FpsCounter } from '../ui/FpsCounter'
 
 import { Room } from './Room'
 import { JapaneseRoom } from './JapaneseRoom'
+import { JukeboxRoom } from './JukeboxRoom'
 import { FollowCamera, wasCameraDrag } from './Camera'
 import { PlayerEntity } from './PlayerEntity'
 import { useGameStore } from '../stores/gameStore'
@@ -88,12 +89,18 @@ function SceneContent() {
   const videoTexture = useVideoBackground()
   const slideshowTexture = useSlideshowTexture(!videoTexture)
   const roomType = useGameStore((s) => s.roomType)
+  const musicMode = useGameStore((s) => s.musicMode)
+
+  // Custom rooms with jukebox musicMode also use the JukeboxRoom scene
+  const useJukeboxScene = roomType === 'jukebox' || (roomType === 'custom' && musicMode === 'jukebox')
 
   return (
     <>
       <DynamicBackground />
       {roomType === 'myroom' ? (
         <JapaneseRoom videoTexture={videoTexture} slideshowTexture={slideshowTexture} />
+      ) : useJukeboxScene ? (
+        <JukeboxRoom videoTexture={videoTexture} slideshowTexture={slideshowTexture} />
       ) : (
         <Room videoTexture={videoTexture} slideshowTexture={slideshowTexture} />
       )}
