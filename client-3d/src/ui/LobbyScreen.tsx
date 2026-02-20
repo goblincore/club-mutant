@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 import { getNetwork } from '../network/NetworkManager'
 import { useGameStore } from '../stores/gameStore'
@@ -22,30 +22,19 @@ export function LobbyScreen() {
   const [roomSubView, setRoomSubView] = useState<RoomSubView>('choose')
 
   const lobbyJoined = useGameStore((s) => s.lobbyJoined)
-  // Track whether characters have loaded so the carousel can fade in exactly once.
-  // If getCharactersSync() already has results (module-level cache resolved), start visible.
-  const carouselReadyRef = useRef(false)
+  // Carousel fade-in: stays invisible until the r3f scene signals readiness
+  // (after a few frames, so textures are loaded and rendered)
   const [carouselVisible, setCarouselVisible] = useState(false)
 
   useEffect(() => {
     getCharacters().then((chars) => {
       setCharacters(chars)
-      if (!carouselReadyRef.current && chars.length > 0) {
-        carouselReadyRef.current = true
-        // rAF delay gives the Canvas one frame to initialize before fading in,
-        // preventing the flash of a half-initialized scene
-        requestAnimationFrame(() => setCarouselVisible(true))
-      }
     })
   }, [])
 
-  // If sync data was already available at mount time, trigger the fade-in after one frame
-  useEffect(() => {
-    if (!carouselReadyRef.current && characters.length > 0) {
-      carouselReadyRef.current = true
-      requestAnimationFrame(() => setCarouselVisible(true))
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Called from inside the r3f Canvas after a few frames have rendered
+  const handleCarouselReady = useCallback(() => {
+    setCarouselVisible(true)
   }, [])
 
   const selectedChar = characters[selectedIndex] ?? null
@@ -168,6 +157,7 @@ export function LobbyScreen() {
                 characters={characters}
                 selectedIndex={selectedIndex}
                 onSelect={handleCharacterSwitch}
+                onReady={handleCarouselReady}
               />
             </div>
           </div>

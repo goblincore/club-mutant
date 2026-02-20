@@ -16,6 +16,7 @@ interface TurntableCarouselProps {
   characters: CharacterEntry[]
   selectedIndex: number
   onSelect: (index: number) => void
+  onReady?: () => void
 }
 
 // --- Constants ---
@@ -362,6 +363,25 @@ function useBubbleScheduler(characterCount: number): React.MutableRefObject<(str
   return bubblesRef
 }
 
+// ─── Readiness probe: fires onReady after N rendered frames ──────────
+
+function ReadinessProbe({ onReady }: { onReady?: () => void }) {
+  const frameCount = useRef(0)
+  const fired = useRef(false)
+
+  useFrame(() => {
+    if (fired.current || !onReady) return
+    frameCount.current++
+    // Wait a few frames so PaperDoll textures resolve and render
+    if (frameCount.current >= 4) {
+      fired.current = true
+      onReady()
+    }
+  })
+
+  return null
+}
+
 // ─── Inner scene: characters on a ring ───────────────────────────────
 
 interface CarouselSceneProps {
@@ -372,6 +392,7 @@ interface CarouselSceneProps {
   targetAngleRef: React.MutableRefObject<number | null>
   autoResumeTsRef: React.MutableRefObject<number>
   selectedIndexRef: React.MutableRefObject<number>
+  onReady?: () => void
 }
 
 function CarouselScene({
@@ -382,6 +403,7 @@ function CarouselScene({
   targetAngleRef,
   autoResumeTsRef,
   selectedIndexRef,
+  onReady,
 }: CarouselSceneProps) {
   const N = characters.length
   const angleStep = TWO_PI / N
@@ -445,6 +467,7 @@ function CarouselScene({
       ))}
 
       <LogoSprite />
+      <ReadinessProbe onReady={onReady} />
     </>
   )
 }
@@ -455,6 +478,7 @@ export function TurntableCarousel({
   characters,
   selectedIndex,
   onSelect,
+  onReady,
 }: TurntableCarouselProps) {
   // --- Refs for animation (no React state in the hot path) ---
   const angleRef = useRef(0)
@@ -506,6 +530,7 @@ export function TurntableCarousel({
           targetAngleRef={targetAngleRef}
           autoResumeTsRef={autoResumeTsRef}
           selectedIndexRef={selectedIndexRef}
+          onReady={onReady}
         />
       </Canvas>
     </div>
