@@ -45,8 +45,8 @@ const JUMP_SPIN_SPEED = 8.0 // radians/sec spin during air time
 
 // Squash/stretch timing
 const TAKEOFF_SQUASH_DURATION = 0.1 // seconds of squash before launch
-const LANDING_SQUASH_DURATION = 0.15 // seconds of squash on landing
-const SQUASH_SPRING_SPEED = 12.0 // how fast scale springs back to 1
+const LANDING_SQUASH_DURATION = 0.55 // seconds of jelly wobble after landing
+const SQUASH_SPRING_SPEED = 6.0 // how fast scale relaxes back to 1 (outside wobble window)
 
 // ── Floor height — accounts for raised stage in jukebox room ──
 function getFloorHeight(worldX: number, worldZ: number): number {
@@ -498,10 +498,10 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
         hasDoubleJump.current = true
         jumpSpinAccum.current = 0
 
-        // Start landing squash
+        // Start landing squash — harder initial hit for more jelly impact
         landingSquashTimer.current = LANDING_SQUASH_DURATION
-        jumpScaleY.current = 0.6
-        jumpScaleX.current = 1.3
+        jumpScaleY.current = 0.55
+        jumpScaleX.current = 1.35
       }
 
       groupRef.current.position.y = jumpY.current
@@ -519,15 +519,21 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
         landingSquashTimer.current = 0
       }
 
-      // Landing squash spring-back
+      // Landing jelly wobble — damped oscillation that squashes → overshoots tall → settles
       if (landingSquashTimer.current > 0) {
         landingSquashTimer.current -= delta
-        const progress = 1 - landingSquashTimer.current / LANDING_SQUASH_DURATION
-        const spring = 1 + Math.sin(progress * Math.PI) * 0.3 * (1 - progress)
-        jumpScaleY.current +=
-          (spring - jumpScaleY.current) * Math.min(delta * SQUASH_SPRING_SPEED, 1)
-        jumpScaleX.current +=
-          (2 - spring - jumpScaleX.current) * Math.min(delta * SQUASH_SPRING_SPEED, 1)
+        // t: 0 = just landed, 1 = end of wobble window
+        const t = 1 - landingSquashTimer.current / LANDING_SQUASH_DURATION
+        // Damped cosine: starts at peak squash, bounces through neutral, decays to 1
+        // freq=2.5 gives ~1.25 full oscillations over the window (squash → tall → settle)
+        const decay = Math.exp(-t * 4.5)
+        const wobble = Math.cos(t * Math.PI * 2.5) * decay
+        // wobble=+1 at t=0 (squash), wobble goes negative (stretch tall), decays to 0
+        const targetScaleY = 1 - wobble * 0.45   // 0.55 at t=0, overshoots to ~1.45, settles at 1
+        const targetScaleX = 1 + wobble * 0.35   // 1.35 at t=0, overshoots ~0.65, settles at 1
+        // Lerp toward target at moderate speed so transitions feel fluid not snappy
+        jumpScaleY.current += (targetScaleY - jumpScaleY.current) * Math.min(delta * 18, 1)
+        jumpScaleX.current += (targetScaleX - jumpScaleX.current) * Math.min(delta * 18, 1)
       } else {
         jumpScaleY.current += (1 - jumpScaleY.current) * Math.min(delta * SQUASH_SPRING_SPEED, 1)
         jumpScaleX.current += (1 - jumpScaleX.current) * Math.min(delta * SQUASH_SPRING_SPEED, 1)

@@ -1646,6 +1646,11 @@ Room-type-aware in `usePlayerInput.ts`:
 - ~~Jukebox Room: vintage 50s diner with shared playlist, stage, mic stand, spotlights, walkable stage~~ ✅ COMPLETED (Feb 2026)
 - ~~Music mode system (djqueue/jukebox/personal) for room-type-specific music behavior~~ ✅ COMPLETED (Feb 2026)
 - ~~Wall occlusion fixes: depthWrite toggle on walls, side toggle + emissive scaling on attachments~~ ✅ COMPLETED (Feb 2026)
+- ~~Lobby Screen 2 CharacterSidePreview redesign: arrows to bottom, name input at top, × close button~~ ✅ COMPLETED (Feb 2026)
+- ~~Jukebox room: fix stage spotlights double-offset (world coords inside translated group)~~ ✅ COMPLETED (Feb 2026)
+- ~~Jukebox room: move VideoDisplay from back wall to front wall above stage~~ ✅ COMPLETED (Feb 2026)
+- ~~Suppress browser password manager on CreateRoomForm (type="text" + -webkit-text-security)~~ ✅ COMPLETED (Feb 2026)
+- ~~Jump landing: jelly wobble animation (damped oscillation replaces single squash flash)~~ ✅ COMPLETED (Feb 2026)
 - PSX geometry shaders (vertex snapping, affine texture mapping)
 - Textured DJ booth furniture
 - Sound effects (footsteps, UI clicks, punch impacts)
@@ -1674,6 +1679,11 @@ Room-type-aware in `usePlayerInput.ts`:
 - Fixed music sync on late-join (TimeSync + playerRef issues).
 - Fixed background video sync for both WebGL and iframe fallback renderers.
 - **Phaser Rendering Performance Optimizations** (see **Client Rendering Optimizations** below)
+- Lobby `CharacterSidePreview` redesigned: arrows moved to bottom row, name above character as editable input, `×` close button (see **Lobby CharacterSidePreview** below).
+- Jukebox room spotlight fix: corrected double-offset bug (world coords used inside translated Stage group → now local coords).
+- Jukebox room: moved `VideoDisplay` from back wall to front wall above stage; added `rotation` prop to `VideoDisplay` component.
+- `CreateRoomForm`: suppressed browser password manager by using `type="text"` with CSS `-webkit-text-security: disc` instead of `type="password"`; field renamed "room code"; added `data-lpignore` + `data-form-type` attributes.
+- Jump landing squash-stretch extended to full jelly wobble: damped cosine oscillation (squash → overshoot tall → settle) over 0.55s replacing the old 0.15s single-spring flash.
 
 ## client-3d Recent Changes (Feb 2026)
 
@@ -1828,6 +1838,70 @@ Custom room creation and browsing for the 3D client. Two-screen lobby flow with 
 | `client-3d/src/stores/gameStore.ts` | `lobbyJoined`, `availableRooms`, `roomType` |
 | `server/src/index.ts` | `enableRealtimeListing()` on CUSTOM handler |
 | `server/src/rooms/ClubMutant.ts` | `onJoin` textureId for all players |
+
+### Lobby CharacterSidePreview Redesign (Feb 2026)
+
+`CharacterSidePreview.tsx` was redesigned so the character sprite fills more vertical space on Screen 2 of the lobby:
+
+- **Before**: left/right arrow buttons flanked the canvas, eating into horizontal space and forcing a small character
+- **After**:
+  - Editable name input at the **top** of the card (when `onPlayerNameChange` prop is provided)
+  - `×` close button top-right (calls `onBack`)
+  - Canvas fills full card width (300px tall)
+  - Bottom nav row: `‹` counter `N / total` `›` arrows
+
+Camera settings: `zoom=170`, initial `position.y=0.55`. At zoom=170 a 300px canvas shows 1.76 world units — enough to fit the tallest character (1.10 wu) with comfortable padding. Camera Y lerps toward `visualTopY / 2` via `onLayout` callback for per-character centering.
+
+**`CharacterSidePreviewProps`**:
+```ts
+interface CharacterSidePreviewProps {
+  characters: CharacterEntry[]
+  selectedIndex: number
+  onSelect: (index: number) => void
+  playerName: string
+  onPlayerNameChange?: (name: string) => void  // if omitted, name is shown as static text
+  onBack?: () => void
+}
+```
+
+### Browser Password Manager Suppression (Feb 2026)
+
+`CreateRoomForm.tsx` room code field uses `type="text"` instead of `type="password"` to prevent Chrome/Brave from triggering password-manager dialogs ("Check your saved passwords" breach warnings).
+
+**Technique**: CSS `-webkit-text-security: disc` applied via inline style mimics the bullet-character masking of a password field without triggering browser heuristics:
+
+```tsx
+<input
+  type="text"
+  autoComplete="off"
+  data-lpignore="true"       // LastPass ignore
+  data-form-type="other"     // Dashlane/Bitwarden ignore
+  style={showPassword ? undefined : { WebkitTextSecurity: 'disc' } as React.CSSProperties}
+/>
+```
+
+Also: label renamed "room code" (avoids the word "password"), wrapped in `<form autoComplete="off" onSubmit={(e) => e.preventDefault()}>`, submit button has `type="button"`.
+
+**Gotcha**: `autoComplete="new-password"` + `type="password"` does NOT reliably suppress Chrome's breach-check dialog. Only removing `type="password"` entirely prevents it.
+
+### Jump Landing Jelly Wobble (Feb 2026)
+
+Landing squash-stretch was extended from a 0.15s single-spring flash to a full 0.55s damped jelly oscillation in `PlayerEntity.tsx`.
+
+**Formula** (in grounded `useFrame`, `landingSquashTimer > 0`):
+```ts
+const t = 1 - landingSquashTimer.current / LANDING_SQUASH_DURATION  // 0→1
+const decay = Math.exp(-t * 4.5)
+const wobble = Math.cos(t * Math.PI * 2.5) * decay
+targetScaleY = 1 - wobble * 0.45  // 0.55 at t=0, overshoots ~1.45, settles at 1
+targetScaleX = 1 + wobble * 0.35  // 1.35 at t=0, undershoots ~0.65, settles at 1
+```
+
+Animation arc: **squash (0.55/1.35) → overshoot tall (1.45/0.65) → gentle second squash → settle at 1.0** over 0.55s. The lerp rate of 18/s keeps transitions fluid. Initial hit uses harder values (0.55/1.35 vs previous 0.6/1.3).
+
+**Key constants**:
+- `LANDING_SQUASH_DURATION = 0.55` (was 0.15)
+- `SQUASH_SPRING_SPEED = 6.0` (was 12.0, only applies outside the wobble window)
 
 ### Paper Rig Editor (`tools/paper-rig-editor/`)
 

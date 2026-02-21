@@ -4,18 +4,13 @@ import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { PaperDoll } from '../character/PaperDoll'
 import type { CharacterEntry } from '../character/characterRegistry'
 
-interface CharacterSidePreviewProps {
-  characters: CharacterEntry[]
-  selectedIndex: number
-  onSelect: (index: number) => void
-  playerName: string
-  onBack?: () => void
-}
-
 /** Inner scene: camera setup + single PaperDoll. Must be inside <Canvas>. */
 function PreviewScene({ characterPath }: { characterPath: string }) {
   const { camera } = useThree()
-  const targetY = useRef(0.5)
+  // Characters have feet at y=0, head at ~0.5–1.1 wu depending on scale.
+  // Start camera centered at 0.55 (midpoint of tallest chars) so there's
+  // no ugly jump before handleLayout fires.
+  const targetY = useRef(0.55)
 
   const handleLayout = useCallback(
     (layout: { worldHeight: number; headTopY: number; visualTopY: number }) => {
@@ -38,8 +33,8 @@ function PreviewScene({ characterPath }: { characterPath: string }) {
   })
 
   useEffect(() => {
-    camera.position.set(0, 0.5, 5)
-    camera.lookAt(0, 0.5, 0)
+    camera.position.set(0, 0.55, 5)
+    camera.lookAt(0, 0.55, 0)
     camera.updateProjectionMatrix()
   }, [camera])
 
@@ -56,11 +51,21 @@ function PreviewScene({ characterPath }: { characterPath: string }) {
   )
 }
 
+interface CharacterSidePreviewProps {
+  characters: CharacterEntry[]
+  selectedIndex: number
+  onSelect: (index: number) => void
+  playerName: string
+  onPlayerNameChange?: (name: string) => void
+  onBack?: () => void
+}
+
 export function CharacterSidePreview({
   characters,
   selectedIndex,
   onSelect,
   playerName,
+  onPlayerNameChange,
   onBack,
 }: CharacterSidePreviewProps) {
   const N = characters.length
@@ -81,23 +86,48 @@ export function CharacterSidePreview({
         boxShadow: '0 0 30px rgba(57, 255, 20, 0.15)',
       }}
     >
-      {/* Back button */}
-      {onBack && (
-        <button
-          onClick={onBack}
-          className="self-start px-3 pt-2.5 pb-0 text-sm font-mono cursor-pointer
-                     transition-colors"
-          style={{ color: '#39ff14', textShadow: '0 0 6px rgba(57, 255, 20, 0.4)' }}
-        >
-          ← back
-        </button>
-      )}
+      {/* Header row: name input (left) + close button (right) */}
+      <div className="flex items-center gap-1.5 px-2.5 pt-2.5 pb-0">
+        {onPlayerNameChange ? (
+          <input
+            type="text"
+            value={playerName}
+            onChange={(e) => onPlayerNameChange(e.target.value)}
+            maxLength={20}
+            placeholder="your name"
+            className="flex-1 min-w-0 bg-transparent border-b border-toxic-green/50
+                       text-sm font-mono font-bold text-center py-0.5
+                       placeholder-white/30 focus:outline-none focus:border-toxic-green
+                       transition-colors"
+            style={{ color: '#39ff14', textShadow: '0 0 8px rgba(57, 255, 20, 0.5)' }}
+          />
+        ) : (
+          <p
+            className="flex-1 text-sm font-mono font-bold text-center truncate"
+            style={{ color: '#39ff14', textShadow: '0 0 8px rgba(57, 255, 20, 0.5)' }}
+          >
+            {playerName}
+          </p>
+        )}
 
-      {/* Canvas area with arrow overlays */}
-      <div className="relative" style={{ height: 280 }}>
+        {/* × close / back button */}
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="shrink-0 w-6 h-6 flex items-center justify-center rounded
+                       text-white/50 hover:text-white transition-colors cursor-pointer text-base leading-none"
+            style={{ fontFamily: 'monospace' }}
+          >
+            ×
+          </button>
+        )}
+      </div>
+
+      {/* Canvas area — full width, no side arrow constraints */}
+      <div className="relative" style={{ height: 300 }}>
         <Canvas
           orthographic
-          camera={{ position: [0, 0.5, 5], zoom: 110, near: 0.1, far: 100 }}
+          camera={{ position: [0, 0.55, 5], zoom: 170, near: 0.1, far: 100 }}
           dpr={1}
           gl={{ alpha: true, antialias: false }}
           style={{ background: 'transparent' }}
@@ -105,46 +135,42 @@ export function CharacterSidePreview({
         >
           <PreviewScene characterPath={current.path} />
         </Canvas>
-
-        {/* Left arrow */}
-        <button
-          onClick={handlePrev}
-          className="absolute left-2 top-1/2 -translate-y-1/2
-                     w-7 h-7 rounded-full flex items-center justify-center
-                     text-white/70 hover:text-white text-sm font-bold
-                     transition-all duration-200 hover:scale-110 cursor-pointer"
-          style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            border: '1px solid rgba(57, 255, 20, 0.5)',
-          }}
-        >
-          &lsaquo;
-        </button>
-
-        {/* Right arrow */}
-        <button
-          onClick={handleNext}
-          className="absolute right-2 top-1/2 -translate-y-1/2
-                     w-7 h-7 rounded-full flex items-center justify-center
-                     text-white/70 hover:text-white text-sm font-bold
-                     transition-all duration-200 hover:scale-110 cursor-pointer"
-          style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            border: '1px solid rgba(57, 255, 20, 0.5)',
-          }}
-        >
-          &rsaquo;
-        </button>
       </div>
 
-      {/* Player name */}
-      <div className="px-3 py-2.5 text-center font-mono">
-        <p
-          className="text-sm font-bold truncate"
-          style={{ color: '#39ff14', textShadow: '0 0 8px rgba(57, 255, 20, 0.5)' }}
+      {/* Bottom nav row: ‹  counter  › */}
+      <div className="flex items-center justify-between px-3 pb-3 pt-1">
+        <button
+          onClick={handlePrev}
+          className="w-8 h-8 rounded-full flex items-center justify-center
+                     text-white/70 hover:text-white text-lg font-bold
+                     transition-all duration-200 hover:scale-110 cursor-pointer"
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            border: '1px solid rgba(57, 255, 20, 0.5)',
+          }}
         >
-          {playerName}
-        </p>
+          ‹
+        </button>
+
+        <span
+          className="text-xs font-mono"
+          style={{ color: 'rgba(57, 255, 20, 0.6)' }}
+        >
+          {selectedIndex + 1} / {N}
+        </span>
+
+        <button
+          onClick={handleNext}
+          className="w-8 h-8 rounded-full flex items-center justify-center
+                     text-white/70 hover:text-white text-lg font-bold
+                     transition-all duration-200 hover:scale-110 cursor-pointer"
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            border: '1px solid rgba(57, 255, 20, 0.5)',
+          }}
+        >
+          ›
+        </button>
       </div>
     </div>
   )

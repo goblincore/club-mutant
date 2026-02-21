@@ -240,7 +240,8 @@ export function LobbyScreen() {
                   characters={characters}
                   selectedIndex={selectedIndex}
                   onSelect={handleCharacterSwitch}
-                  playerName={name.trim()}
+                  playerName={name}
+                  onPlayerNameChange={setName}
                   onBack={handleBack}
                 />
               )}

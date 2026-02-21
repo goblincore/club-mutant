@@ -503,10 +503,12 @@ function NeonSign({ position }: { position: [number, number, number] }) {
 // ── Video display — mounted above the counter like a diner TV ──
 function VideoDisplay({
   position,
+  rotation,
   videoTexture,
   slideshowTexture,
 }: {
   position: [number, number, number]
+  rotation?: [number, number, number]
   videoTexture?: THREE.VideoTexture | null
   slideshowTexture?: THREE.Texture | null
 }) {
@@ -515,7 +517,7 @@ function VideoDisplay({
   const displayTexture = videoTexture ?? slideshowTexture
 
   return (
-    <group position={position}>
+    <group position={position} rotation={rotation}>
       {/* Bezel */}
       <mesh position={[0, 0, -0.05]}>
         <boxGeometry args={[SCREEN_W + 0.08, SCREEN_H + 0.08, 0.08]} />
@@ -711,15 +713,17 @@ function Stage() {
       {/* Mic stand on stage */}
       <MicStand position={[0.3, STAGE_H, 0.1]} />
 
-      {/* Spotlight rigs — two can lights hanging from ceiling, angled at stage */}
+      {/* Spotlight rigs — local coords relative to Stage group.
+          Stage group is at world Z = HALF_D - STAGE_D/2 - 0.05 ≈ 3.55.
+          Hang lights above stage center, aim down at mic stand at local [0.3, STAGE_H, 0.1] */}
       <SpotlightCone
-        position={[-0.8, WALL_HEIGHT - 0.05, HALF_D - 1.8]}
-        targetPos={[0.3, STAGE_H + 1.1, HALF_D - STAGE_D * 0.4]}
+        position={[-1.2, WALL_HEIGHT - 0.05, 0]}
+        targetPos={[0.3, STAGE_H + 0.3, 0]}
         color="#fff8cc"
       />
       <SpotlightCone
-        position={[0.8, WALL_HEIGHT - 0.05, HALF_D - 1.8]}
-        targetPos={[0.3, STAGE_H + 1.1, HALF_D - STAGE_D * 0.4]}
+        position={[1.2, WALL_HEIGHT - 0.05, 0]}
+        targetPos={[0.3, STAGE_H + 0.3, 0]}
         color="#ffccee"
       />
     </group>
@@ -882,17 +886,10 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
         <DinerWallMaterial />
       </mesh>
 
-      {/* Back wall attachments: neon sign + video display + posters + vinyl records */}
+      {/* Back wall attachments: neon sign + posters + vinyl records */}
       <group ref={setWallAttachmentRef(0)}>
         {/* Neon sign — left of center */}
         <NeonSign position={[-2.2, WALL_HEIGHT * 0.72, -HALF_D + 0.04]} />
-
-        {/* Video display — right side of back wall */}
-        <VideoDisplay
-          position={[1.8, WALL_HEIGHT * 0.68, -HALF_D + 0.05]}
-          videoTexture={videoTexture}
-          slideshowTexture={slideshowTexture}
-        />
 
         {/* Posters — left cluster */}
         <DinerPoster
@@ -1019,8 +1016,16 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
         <DinerWallMaterial />
       </mesh>
 
-      {/* Front wall attachments: posters flanking the stage */}
+      {/* Front wall attachments: video screen above stage + posters flanking */}
       <group ref={setWallAttachmentRef(3)}>
+        {/* Video screen — centered above the stage, facing into the room */}
+        <VideoDisplay
+          position={[0, WALL_HEIGHT * 0.72, HALF_D - 0.06]}
+          rotation={[0, Math.PI, 0]}
+          videoTexture={videoTexture}
+          slideshowTexture={slideshowTexture}
+        />
+
         <DinerPoster
           position={[-3.0, WALL_HEIGHT * 0.68, HALF_D - 0.02]}
           rotation={[0, Math.PI, 0]}
@@ -1102,24 +1107,24 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
       {/* Counter area overhead */}
       <pointLight position={[HALF_W - 1.0, WALL_HEIGHT - 0.2, -0.5]} intensity={1.5} color="#fff8ec" distance={5} decay={2} />
 
-      {/* Stage spotlights — warm white + rosy pink, aimed at mic stand */}
+      {/* Stage spotlights — world Z ≈ 3.55 (stage center) */}
       <pointLight
-        position={[-0.8, WALL_HEIGHT - 0.15, HALF_D - 1.9]}
+        position={[-1.2, WALL_HEIGHT - 0.15, HALF_D - STAGE_D / 2 - 0.05]}
         intensity={3.5}
         color="#fff8cc"
         distance={4.5}
         decay={2}
       />
       <pointLight
-        position={[0.8, WALL_HEIGHT - 0.15, HALF_D - 1.9]}
+        position={[1.2, WALL_HEIGHT - 0.15, HALF_D - STAGE_D / 2 - 0.05]}
         intensity={2.5}
         color="#ffccee"
         distance={4.0}
         decay={2}
       />
-      {/* Stage floor wash — low warm fill */}
+      {/* Stage floor wash — low warm fill at mic stand */}
       <pointLight
-        position={[0.3, STAGE_H + 0.4, HALF_D - STAGE_D * 0.4]}
+        position={[0.3, STAGE_H + 0.4, HALF_D - STAGE_D / 2 - 0.05]}
         intensity={1.2}
         color="#ffe8aa"
         distance={3.0}

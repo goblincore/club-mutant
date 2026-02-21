@@ -84,7 +84,8 @@ export function CreateRoomForm({ playerName, textureId, onBack, onCreated }: Pro
         <div className="w-12" /> {/* spacer */}
       </div>
 
-      <div className="space-y-3">
+      {/* autoComplete="off" + onSubmit prevent browser from treating this as a login form */}
+      <form autoComplete="off" onSubmit={(e) => e.preventDefault()} className="space-y-3">
         {/* Room name */}
         <div>
           <label className="block text-white/50 text-xs mb-1">room name *</label>
@@ -96,6 +97,7 @@ export function CreateRoomForm({ playerName, textureId, onBack, onCreated }: Pro
             placeholder="my cool room"
             maxLength={30}
             disabled={creating}
+            autoComplete="off"
             className="w-full bg-black/50 border border-white/20 rounded-lg px-3 py-2.5
                        text-sm font-mono text-white placeholder-white/30
                        focus:border-toxic-green focus:outline-none focus:shadow-[0_0_15px_rgba(57,255,20,0.3)]
@@ -115,6 +117,7 @@ export function CreateRoomForm({ playerName, textureId, onBack, onCreated }: Pro
             placeholder="what's this room about?"
             maxLength={60}
             disabled={creating}
+            autoComplete="off"
             className="w-full bg-black/50 border border-white/20 rounded-lg px-3 py-2.5
                        text-sm font-mono text-white placeholder-white/30
                        focus:border-toxic-green focus:outline-none focus:shadow-[0_0_15px_rgba(57,255,20,0.3)]
@@ -156,18 +159,22 @@ export function CreateRoomForm({ playerName, textureId, onBack, onCreated }: Pro
           </div>
         </div>
 
-        {/* Password (optional) */}
+        {/* Room code (optional) — intentionally type="text" to avoid browser password manager */}
         <div>
-          <label className="block text-white/50 text-xs mb-1">password (optional)</label>
+          <label className="block text-white/50 text-xs mb-1">room code (optional)</label>
           <div className="relative">
             <input
-              type={showPassword ? 'text' : 'password'}
+              type="text"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="leave empty for public"
               maxLength={30}
               disabled={creating}
+              autoComplete="off"
+              data-lpignore="true"
+              data-form-type="other"
+              style={showPassword ? undefined : { WebkitTextSecurity: 'disc' } as React.CSSProperties}
               className="w-full bg-black/50 border border-white/20 rounded-lg px-3 py-2.5 pr-16
                          text-sm font-mono text-white placeholder-white/30
                          focus:border-toxic-green focus:outline-none focus:shadow-[0_0_15px_rgba(57,255,20,0.3)]
@@ -190,8 +197,9 @@ export function CreateRoomForm({ playerName, textureId, onBack, onCreated }: Pro
           </p>
         )}
 
-        {/* Create button */}
+        {/* Create button — type="button" so it never triggers form submission */}
         <button
+          type="button"
           onClick={handleCreate}
           disabled={creating || !canCreate}
           className="w-full py-2.5 rounded-lg text-sm font-bold transition-all
@@ -213,7 +221,7 @@ export function CreateRoomForm({ playerName, textureId, onBack, onCreated }: Pro
             'create room'
           )}
         </button>
-      </div>
+      </form>
 
       <style>{`
         @keyframes custom-room-enter {
