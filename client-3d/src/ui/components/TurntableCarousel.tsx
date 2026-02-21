@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react'
+import { useRef, useEffect, useCallback } from 'react'
 import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import * as THREE from 'three'
@@ -209,12 +209,11 @@ function CarouselBubble({ textRef, index }: { textRef: React.MutableRefObject<(s
   const groupRef = useRef<THREE.Group>(null)
   const bgRef = useRef<THREE.Mesh>(null)
   const tailRef = useRef<THREE.Mesh>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const troikaRef = useRef<any>(null)
   const animRef = useRef(0)
   const showStartRef = useRef(0)
   const bgBounds = useRef({ cx: 0, cy: 0, w: 0.1, h: 0.1 })
-
-  // React state for displayed text — drives troika <Text> children for proper onSync
-  const [displayText, setDisplayText] = useState<string | null>(null)
   const prevTextRef = useRef<string | null>(null)
   const activeTextRef = useRef<string | null>(null)
 
@@ -223,26 +222,32 @@ function CarouselBubble({ textRef, index }: { textRef: React.MutableRefObject<(s
 
     const text = textRef.current[index] ?? null
 
-    // Track text changes — use setState to trigger React re-render so troika re-measures
+    // Track text changes — update troika imperatively (no useState, no React re-render)
     if (text !== prevTextRef.current) {
       if (text !== null) {
         animRef.current = 0
         showStartRef.current = Date.now()
         activeTextRef.current = text
-        setDisplayText(text)
-      } else {
-        // Keep showing current text during fade-out, then clear
-        // Don't clear displayText yet — let fade animation finish
+        // Imperatively update troika text — avoids React reconciliation inside Canvas
+        if (troikaRef.current) {
+          troikaRef.current.text = text
+          troikaRef.current.sync(() => handleSync(troikaRef.current))
+        }
       }
+      // When text goes null, keep showing current text during fade-out
       prevTextRef.current = text
     }
 
-    // When text is null and animation is done, hide and clear
+    // When text is null and animation is done, hide
     if (!text && animRef.current <= 0) {
       groupRef.current.scale.setScalar(0)
       if (activeTextRef.current !== null) {
         activeTextRef.current = null
-        setDisplayText(null)
+        // Clear troika text imperatively
+        if (troikaRef.current) {
+          troikaRef.current.text = ''
+          troikaRef.current.sync()
+        }
       }
       return
     }
@@ -297,25 +302,19 @@ function CarouselBubble({ textRef, index }: { textRef: React.MutableRefObject<(s
     bgRef.current.position.set(cx, cy, -0.003)
   }, [])
 
-  // Show text as React children so troika re-measures and fires onSync properly
-  const shownText = displayText ?? activeTextRef.current ?? ''
-
   return (
     <group ref={groupRef} position={[0, BUBBLE_Y_OFFSET, 0]} scale={0}>
-      {shownText ? (
-        <Text
-          fontSize={CB_FONT_SIZE}
-          maxWidth={1.0}
-          color="#000000"
-          anchorX="center"
-          anchorY="bottom"
-          textAlign="center"
-          font="/fonts/courier-prime.woff"
-          onSync={handleSync}
-        >
-          {shownText}
-        </Text>
-      ) : null}
+      <Text
+        ref={troikaRef}
+        fontSize={CB_FONT_SIZE}
+        maxWidth={1.0}
+        color="#000000"
+        anchorX="center"
+        anchorY="bottom"
+        textAlign="center"
+        font="/fonts/courier-prime.woff"
+        onSync={handleSync}
+      >{''}</Text>
 
       <mesh ref={bgRef} material={carouselBubbleMat}>
         <planeGeometry args={[0.1, 0.1]} />
