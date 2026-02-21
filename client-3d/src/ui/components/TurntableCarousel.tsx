@@ -363,14 +363,16 @@ function useBubbleScheduler(characterCount: number): React.MutableRefObject<(str
   return bubblesRef
 }
 
-// ─── Readiness probe: fires onReady after N rendered frames ──────────
+// ─── Readiness probe: fires onReady after N rendered frames WITH characters present ──
 
-function ReadinessProbe({ onReady }: { onReady?: () => void }) {
+function ReadinessProbe({ onReady, hasCharacters }: { onReady?: () => void; hasCharacters: boolean }) {
   const frameCount = useRef(0)
   const fired = useRef(false)
 
   useFrame(() => {
     if (fired.current || !onReady) return
+    // Only start counting once characters have loaded into the scene
+    if (!hasCharacters) return
     frameCount.current++
     // Wait a few frames so PaperDoll textures resolve and render
     if (frameCount.current >= 4) {
@@ -467,7 +469,7 @@ function CarouselScene({
       ))}
 
       <LogoSprite />
-      <ReadinessProbe onReady={onReady} />
+      <ReadinessProbe onReady={onReady} hasCharacters={characters.length > 0} />
     </>
   )
 }
@@ -507,8 +509,6 @@ export function TurntableCarousel({
   useEffect(() => {
     return () => { document.body.style.cursor = 'default' }
   }, [])
-
-  if (characters.length === 0) return null
 
   return (
     <div className="relative w-full h-full">
