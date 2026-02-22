@@ -18,6 +18,8 @@ interface UIState {
   vortexOob: boolean
   computerIframeOpen: boolean
   magazineReaderOpen: boolean
+  sleepPromptOpen: boolean
+  wakePromptOpen: boolean
 
   toggleChatExpanded: () => void
   togglePlaylist: () => void
@@ -33,6 +35,8 @@ interface UIState {
   toggleVortexOob: () => void
   setComputerIframeOpen: (open: boolean) => void
   setMagazineReaderOpen: (open: boolean) => void
+  setSleepPromptOpen: (open: boolean) => void
+  setWakePromptOpen: (open: boolean) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -51,6 +55,8 @@ export const useUIStore = create<UIState>((set) => ({
   vortexOob: false,
   computerIframeOpen: false,
   magazineReaderOpen: false,
+  sleepPromptOpen: false,
+  wakePromptOpen: false,
 
   toggleChatExpanded: () => set((s) => ({ chatExpanded: !s.chatExpanded })),
   togglePlaylist: () => set((s) => ({ playlistOpen: !s.playlistOpen })),
@@ -68,6 +74,8 @@ export const useUIStore = create<UIState>((set) => ({
   toggleVortexOob: () => set((s) => ({ vortexOob: !s.vortexOob })),
   setComputerIframeOpen: (open) => set({ computerIframeOpen: open }),
   setMagazineReaderOpen: (open) => set({ magazineReaderOpen: open }),
+  setSleepPromptOpen: (open) => set({ sleepPromptOpen: open }),
+  setWakePromptOpen: (open) => set({ wakePromptOpen: open }),
 
   cycleRenderScale: () =>
     set((s) => {

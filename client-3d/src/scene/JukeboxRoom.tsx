@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
+import { useFrame, useThree, useLoader } from '@react-three/fiber'
 import * as THREE from 'three'
 
 import { useGameStore, getPlayerPosition } from '../stores/gameStore'
@@ -97,13 +97,18 @@ void main() {
   float baseH  = 0.06; // dark baseboard at very bottom
 
   // Lower panel: deep muted red-burgundy
-  vec3 lower  = vec3(0.48, 0.07, 0.09);
+  vec3 lower  = vec3(0.38, 0.05, 0.07);
   // Upper: dark warm maroon/wine
-  vec3 upper  = vec3(0.32, 0.05, 0.07);
+  vec3 upper  = vec3(0.22, 0.04, 0.05);
   // Chrome/brass rail
-  vec3 chrome = vec3(0.78, 0.68, 0.44);
+  vec3 chrome = vec3(0.68, 0.58, 0.34);
   // Dark baseboard
-  vec3 base   = vec3(0.10, 0.04, 0.04);
+  vec3 base   = vec3(0.06, 0.02, 0.02);
+
+  // Add grime noise to wall
+  float grime = fract(sin(dot(vUv * 150.0, vec2(12.9898, 78.233))) * 43758.5453);
+  lower -= grime * 0.08;
+  upper -= grime * 0.05;
 
   // Subtle plank/panel lines on lower section
   float panelLine = 0.0;
@@ -335,7 +340,7 @@ function CounterStool({ position }: { position: [number, number, number] }) {
   )
 }
 
-// ── Retro jukebox — tall curved cabinet ──
+// ── Pastel Kawaii Retro jukebox ──
 function JukeboxMachine({ position }: { position: [number, number, number] }) {
   const W = 0.82
   const H = 1.75
@@ -343,24 +348,44 @@ function JukeboxMachine({ position }: { position: [number, number, number] }) {
 
   return (
     <group position={position}>
-      {/* Main cabinet — warm cherry/wood */}
+      {/* Main cabinet — Pastel Pink */}
       <mesh position={[0, H / 2, 0]}>
         <boxGeometry args={[W, H, D]} />
-        <meshStandardMaterial color="#7a1f10" roughness={0.7} />
+        <meshStandardMaterial color="#ffb3d9" roughness={0.4} />
+      </mesh>
+
+      {/* Cat ears */}
+      <mesh position={[-0.25, H + 0.35, 0]} rotation={[0, 0, 0.2]}>
+        <coneGeometry args={[0.15, 0.25, 4]} />
+        <meshStandardMaterial color="#ffb3d9" roughness={0.4} />
+      </mesh>
+      <mesh position={[0.25, H + 0.35, 0]} rotation={[0, 0, -0.2]}>
+        <coneGeometry args={[0.15, 0.25, 4]} />
+        <meshStandardMaterial color="#ffb3d9" roughness={0.4} />
+      </mesh>
+
+      {/* Inner Ear pink */}
+      <mesh position={[-0.25, H + 0.36, 0.05]} rotation={[0, 0, 0.2]}>
+        <coneGeometry args={[0.08, 0.15, 3]} />
+        <meshStandardMaterial color="#ff3388" roughness={0.4} />
+      </mesh>
+      <mesh position={[0.25, H + 0.36, 0.05]} rotation={[0, 0, -0.2]}>
+        <coneGeometry args={[0.08, 0.15, 3]} />
+        <meshStandardMaterial color="#ff3388" roughness={0.4} />
       </mesh>
 
       {/* Rounded dome top */}
       <mesh position={[0, H + 0.12, 0]}>
         <sphereGeometry args={[W * 0.52, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshStandardMaterial color="#6a1808" roughness={0.7} />
+        <meshStandardMaterial color="#fca5ce" roughness={0.4} />
       </mesh>
 
-      {/* Glowing display arch — yellow/amber */}
+      {/* Glowing display arch — soft pink */}
       <mesh position={[0, H * 0.78, D / 2 + 0.01]}>
         <planeGeometry args={[W * 0.78, H * 0.22]} />
         <meshStandardMaterial
-          color="#ffdd44"
-          emissive="#ffaa00"
+          color="#ffccff"
+          emissive="#ff99dd"
           emissiveIntensity={1.2}
           transparent
           opacity={0.95}
@@ -370,45 +395,45 @@ function JukeboxMachine({ position }: { position: [number, number, number] }) {
       {/* Chrome trim — top arch */}
       <mesh position={[0, H * 0.9, D / 2 + 0.012]}>
         <boxGeometry args={[W * 0.82, 0.03, 0.01]} />
-        <meshStandardMaterial color="#cccccc" metalness={0.9} roughness={0.1} />
+        <meshStandardMaterial color="#ffffff" metalness={0.9} roughness={0.1} />
       </mesh>
 
       {/* Chrome trim — mid divider */}
       <mesh position={[0, H * 0.62, D / 2 + 0.012]}>
         <boxGeometry args={[W * 0.9, 0.025, 0.01]} />
-        <meshStandardMaterial color="#cccccc" metalness={0.9} roughness={0.1} />
+        <meshStandardMaterial color="#ffffff" metalness={0.9} roughness={0.1} />
       </mesh>
 
       {/* Side chrome fins */}
       {[-1, 1].map((s) => (
         <mesh key={s} position={[s * (W / 2 + 0.01), H * 0.76, 0]}>
           <boxGeometry args={[0.025, H * 0.5, D + 0.02]} />
-          <meshStandardMaterial color="#cccccc" metalness={0.9} roughness={0.1} />
+          <meshStandardMaterial color="#ffffff" metalness={0.9} roughness={0.1} />
         </mesh>
       ))}
 
-      {/* Speaker grille — lower front */}
+      {/* Speaker grille — lower front (soft white/pink tone) */}
       <mesh position={[0, H * 0.28, D / 2 + 0.01]}>
         <planeGeometry args={[W * 0.72, H * 0.3]} />
-        <meshStandardMaterial color="#1a0808" roughness={0.95} />
+        <meshStandardMaterial color="#ffeeff" roughness={0.95} />
       </mesh>
 
       {/* Grille bars */}
       {[0, 1, 2, 3, 4, 5].map((i) => (
         <mesh key={i} position={[0, H * 0.17 + i * 0.055, D / 2 + 0.018]}>
           <boxGeometry args={[W * 0.62, 0.007, 0.003]} />
-          <meshStandardMaterial color="#0d0404" />
+          <meshStandardMaterial color="#ffaadd" />
         </mesh>
       ))}
 
-      {/* Selection buttons */}
+      {/* Selection buttons are now little stars/hearts (using rotated squares for simplicity) */}
       {[-0.18, -0.06, 0.06, 0.18].map((xOff, i) => (
-        <mesh key={i} position={[xOff, H * 0.53, D / 2 + 0.015]}>
-          <circleGeometry args={[0.022, 8]} />
+        <mesh key={i} position={[xOff, H * 0.53, D / 2 + 0.015]} rotation={[0, 0, Math.PI / 4]}>
+          <boxGeometry args={[0.03, 0.03, 0.01]} />
           <meshStandardMaterial
-            color={['#ff3333', '#33aaff', '#33ff55', '#ffcc00'][i]}
-            emissive={['#ff3333', '#33aaff', '#33ff55', '#ffcc00'][i]}
-            emissiveIntensity={0.5}
+            color={['#ff88cc', '#aaddff', '#bcffbc', '#ffffaa'][i]}
+            emissive={['#ff88cc', '#aaddff', '#bcffbc', '#ffffaa'][i]}
+            emissiveIntensity={0.8}
           />
         </mesh>
       ))}
@@ -416,23 +441,23 @@ function JukeboxMachine({ position }: { position: [number, number, number] }) {
       {/* Coin slot */}
       <mesh position={[W * 0.28, H * 0.53, D / 2 + 0.015]}>
         <boxGeometry args={[0.055, 0.012, 0.008]} />
-        <meshStandardMaterial color="#999" metalness={0.7} roughness={0.3} />
+        <meshStandardMaterial color="#dddddd" metalness={0.7} roughness={0.3} />
       </mesh>
 
       {/* Vinyl record visible through top window */}
       <mesh position={[0, H * 0.78 + 0.01, D / 2 + 0.02]}>
         <circleGeometry args={[0.12, 16]} />
-        <meshStandardMaterial color="#111" roughness={0.3} />
+        <meshStandardMaterial color="#554466" roughness={0.3} />
       </mesh>
       <mesh position={[0, H * 0.78 + 0.022, D / 2 + 0.02]}>
         <circleGeometry args={[0.035, 12]} />
-        <meshStandardMaterial color="#dd3322" roughness={0.7} />
+        <meshStandardMaterial color="#ff99cc" roughness={0.7} />
       </mesh>
 
       {/* Base */}
       <mesh position={[0, 0.05, 0]}>
         <boxGeometry args={[W + 0.06, 0.1, D + 0.06]} />
-        <meshStandardMaterial color="#1a0808" roughness={0.85} />
+        <meshStandardMaterial color="#ff88bb" roughness={0.85} />
       </mesh>
     </group>
   )
@@ -495,6 +520,95 @@ function NeonSign({ position }: { position: [number, number, number] }) {
           transparent
           opacity={0.85}
         />
+      </mesh>
+    </group>
+  )
+}
+
+// ── Heavens Night Sign ──
+function HeavensNightSign({ position }: { position: [number, number, number] }) {
+  const texture = useLoader(THREE.TextureLoader, '/textures/heavens_night.png')
+  return (
+    <group position={position}>
+      {/* Sign glow (no backing board so it mounts flush on the wall) */}
+      <mesh position={[0, 0, 0]}>
+        <planeGeometry args={[1.4, 1.4]} />
+        <meshBasicMaterial
+          map={texture}
+          color="#ffffff"
+          transparent
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+    </group>
+  )
+}
+
+// ── Retro Arcade Machine ──
+function ArcadeMachine({ position, rotation = [0, 0, 0], theme = 'fighter' }: { position: [number, number, number], rotation?: [number, number, number], theme?: 'fighter' | 'racer' }) {
+  const W = 0.6
+  const H = 1.6
+  const D = 0.7
+
+  const colors = theme === 'fighter'
+    ? { primary: '#aa2222', accent: '#eeaa11', screen: '#ff5533' }
+    : { primary: '#2233aa', accent: '#33ffdd', screen: '#3388ff' }
+
+  return (
+    <group position={position} rotation={rotation}>
+      {/* Base Cabinet */}
+      <mesh position={[0, H * 0.25, 0]}>
+        <boxGeometry args={[W, H * 0.5, D]} />
+        <meshStandardMaterial color={colors.primary} roughness={0.8} />
+      </mesh>
+      {/* Control Panel */}
+      <mesh position={[0, H * 0.55, 0.1]} rotation={[-0.2, 0, 0]}>
+        <boxGeometry args={[W + 0.02, 0.1, 0.4]} />
+        <meshStandardMaterial color="#111" roughness={0.9} />
+      </mesh>
+      {/* Control stick/buttons */}
+      <mesh position={[-0.15, H * 0.61, 0]} rotation={[-0.2, 0, 0]}>
+        <sphereGeometry args={[0.03, 8, 8]} />
+        <meshStandardMaterial color={colors.accent} roughness={0.4} />
+      </mesh>
+      <mesh position={[0.1, H * 0.61, 0.1]} rotation={[-0.2, 0, 0]}>
+        <cylinderGeometry args={[0.02, 0.02, 0.01]} />
+        <meshStandardMaterial color={colors.accent} roughness={0.4} />
+      </mesh>
+      {/* Screen Area */}
+      <mesh position={[0, H * 0.75, -0.1]} rotation={[0.2, 0, 0]}>
+        <boxGeometry args={[W, 0.5, 0.4]} />
+        <meshStandardMaterial color="#050505" roughness={0.5} />
+      </mesh>
+      {/* Screen Glow */}
+      <mesh position={[0, H * 0.75, 0.11]} rotation={[0.2, 0, 0]}>
+        <planeGeometry args={[W * 0.8, 0.4]} />
+        <meshStandardMaterial color={colors.screen} emissive={colors.screen} emissiveIntensity={0.8} />
+      </mesh>
+      {/* Marquee (Top) */}
+      <mesh position={[0, H * 0.95, -0.05]} rotation={[0.1, 0, 0]}>
+        <boxGeometry args={[W, 0.2, 0.4]} />
+        <meshStandardMaterial color="#111" />
+      </mesh>
+      <mesh position={[0, H * 0.95, 0.16]} rotation={[0.1, 0, 0]}>
+        <planeGeometry args={[W * 0.9, 0.15]} />
+        <meshStandardMaterial color="#fff" emissive={colors.accent} emissiveIntensity={0.9} />
+      </mesh>
+      {/* Side Panels */}
+      {[-1, 1].map((s) => (
+        <mesh key={s} position={[s * (W / 2 + 0.01), H * 0.5, 0]}>
+          <boxGeometry args={[0.02, H, D]} />
+          <meshStandardMaterial color={colors.primary} roughness={0.8} />
+        </mesh>
+      ))}
+      {/* Coin slots */}
+      <mesh position={[W * 0.2, H * 0.35, D / 2 + 0.01]}>
+        <boxGeometry args={[0.02, 0.05, 0.02]} />
+        <meshStandardMaterial color="#ccc" metalness={0.8} />
+      </mesh>
+      <mesh position={[W * 0.3, H * 0.35, D / 2 + 0.01]}>
+        <boxGeometry args={[0.02, 0.05, 0.02]} />
+        <meshStandardMaterial color="#ccc" metalness={0.8} />
       </mesh>
     </group>
   )
@@ -575,19 +689,14 @@ function MicStand({ position }: { position: [number, number, number] }) {
         <cylinderGeometry args={[0.012, 0.012, 1.1, 8]} />
         <meshStandardMaterial color="#aaaaaa" metalness={0.85} roughness={0.2} />
       </mesh>
-      {/* Boom arm */}
-      <mesh position={[0.18, 1.05, 0]} rotation={[0, 0, -Math.PI * 0.12]}>
-        <cylinderGeometry args={[0.008, 0.008, 0.45, 6]} />
-        <meshStandardMaterial color="#999" metalness={0.8} roughness={0.25} />
-      </mesh>
-      {/* Mic capsule */}
-      <mesh position={[0.35, 1.08, 0]} rotation={[Math.PI / 2, 0, 0]}>
+      {/* Mic capsule directly on top of head */}
+      <mesh position={[0, 1.13, 0]} rotation={[0, 0, 0]}>
         <cylinderGeometry args={[0.022, 0.018, 0.07, 10]} />
         <meshStandardMaterial color="#333" metalness={0.6} roughness={0.4} />
       </mesh>
       {/* Mic head grille */}
-      <mesh position={[0.35, 1.08, -0.06]} rotation={[Math.PI / 2, 0, 0]}>
-        <sphereGeometry args={[0.025, 10, 8, 0, Math.PI]} />
+      <mesh position={[0, 1.17, 0]}>
+        <sphereGeometry args={[0.025, 10, 8]} />
         <meshStandardMaterial color="#555" metalness={0.5} roughness={0.5} />
       </mesh>
       {/* Base tripod — 3 legs */}
@@ -847,6 +956,7 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
               side?: number
             }
             m.transparent = true
+            // If the mesh uses meshBasicMaterial (like neon sign or video screen), we must lower its opacity explicitly
             m.opacity = opacity
             m.depthWrite = !faded
             // When faded, render both sides so attachments are visible from
@@ -889,7 +999,7 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
       {/* Back wall attachments: neon sign + posters + vinyl records */}
       <group ref={setWallAttachmentRef(0)}>
         {/* Neon sign — left of center */}
-        <NeonSign position={[-2.2, WALL_HEIGHT * 0.72, -HALF_D + 0.04]} />
+        <HeavensNightSign position={[-2.2, WALL_HEIGHT * 0.72, -HALF_D + 0.04]} />
 
         {/* Posters — left cluster */}
         <DinerPoster
@@ -1071,6 +1181,14 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
       <CounterProps position={[HALF_W - 0.15, 0.92, -1.5]} />
       <CounterProps position={[HALF_W - 0.15, 0.92, 0.8]} />
 
+      {/* ── Arcade Machines ── */}
+      <InteractableObject onInteract={() => useUIStore.getState().setComputerIframeOpen(true)} occludeHighlight={false} interactDistance={2.5}>
+        <ArcadeMachine position={[-HALF_W + 0.6, 0.05, 2.5]} rotation={[0, Math.PI / 5, 0]} theme="fighter" />
+      </InteractableObject>
+      <InteractableObject onInteract={() => useUIStore.getState().setComputerIframeOpen(true)} occludeHighlight={false} interactDistance={2.5}>
+        <ArcadeMachine position={[-HALF_W + 0.6, 0.05, 1.5]} rotation={[0, Math.PI / 4, 0]} theme="racer" />
+      </InteractableObject>
+
       {/* ── Booth seating — along left wall (no tables, open floor) ── */}
       <DinerBooth
         position={[-HALF_W + 0.35, 0, -2.2]}
@@ -1098,14 +1216,14 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
 
       {/* ── Lighting ── bright cheerful diner ── */}
 
-      {/* Ambient — warm but restrained for moody diner */}
-      <ambientLight intensity={0.55} color="#ffeecc" />
+      {/* Ambient — dark and moody for gritty PSX feel */}
+      <ambientLight intensity={0.25} color="#ccaaaa" />
 
       {/* Main ceiling light — centre of room */}
-      <pointLight position={[0, WALL_HEIGHT - 0.2, 0]} intensity={2.0} color="#fff5e0" distance={9} decay={2} />
+      <pointLight position={[0, WALL_HEIGHT - 0.2, 0]} intensity={1.0} color="#ffddbb" distance={9} decay={2} />
 
       {/* Counter area overhead */}
-      <pointLight position={[HALF_W - 1.0, WALL_HEIGHT - 0.2, -0.5]} intensity={1.5} color="#fff8ec" distance={5} decay={2} />
+      <pointLight position={[HALF_W - 1.0, WALL_HEIGHT - 0.2, -0.5]} intensity={0.8} color="#ffeedd" distance={5} decay={2} />
 
       {/* Stage spotlights — world Z ≈ 3.55 (stage center) */}
       <pointLight
@@ -1136,7 +1254,7 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
       <pointLight position={[-0.6, 0.6, -(HALF_D - 0.6)]} intensity={0.8} color="#ff44aa" distance={2.5} decay={2} />
 
       {/* Neon sign glow — pink spill */}
-      <pointLight position={[-2.2, WALL_HEIGHT * 0.72, -(HALF_D - 0.6)]} intensity={0.6} color="#ff2266" distance={2.5} decay={2} />
+      <pointLight position={[-2.2, WALL_HEIGHT * 0.72, -(HALF_D - 0.6)]} intensity={2.0} color="#ff3388" distance={4.5} decay={2} />
 
       {/* Screen glow — blue-white */}
       <pointLight position={[1.8, WALL_HEIGHT * 0.68, -(HALF_D - 0.5)]} intensity={0.4} color="#88aaff" distance={3} decay={2} />

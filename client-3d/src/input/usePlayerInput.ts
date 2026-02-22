@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 
 import { useGameStore, setPlayerPosition } from '../stores/gameStore'
 import { useBoothStore } from '../stores/boothStore'
+import { useDreamStore } from '../dream/dreamStore'
 import { getNetwork } from '../network/NetworkManager'
 import { cameraAzimuth } from '../scene/Camera'
 
@@ -64,7 +65,27 @@ const JB_JUKEBOX_BOX: CollisionBox = { minX: -120, maxX: 10, minY: 380, maxY: 45
 // Counter along right wall at world (3.6, 0, -0.5) → server (360, 50), counter ~0.6w × 4.5d
 const JB_COUNTER_BOX: CollisionBox = { minX: 300, maxX: 430, minY: -175, maxY: 275 }
 
-const JUKEBOX_COLLISION_BOXES: CollisionBox[] = [JB_JUKEBOX_BOX, JB_COUNTER_BOX]
+// Diner Booth 1 (world (-4.15, 0, -2.2) -> server (-415, 220), ~2.5w x 1.6d) 
+// Actual position in JukeboxRoom: [-HALF_W + 0.35, 0, -2.2] = [-4.15, 0, -2.2]
+const JB_BOOTH1_BOX: CollisionBox = { minX: -450, maxX: -280, minY: 110, maxY: 330 }
+
+// Diner Booth 2 (world (-4.15, 0, 0.0) -> server (-415, 0))
+const JB_BOOTH2_BOX: CollisionBox = { minX: -450, maxX: -280, minY: -110, maxY: 110 }
+
+// Arcade Machine 1 (world (-3.9, 0, 2.5) -> server (-390, -250))
+const JB_ARCADE1_BOX: CollisionBox = { minX: -430, maxX: -330, minY: -290, maxY: -190 }
+
+// Arcade Machine 2 (world (-3.9, 0, 1.5) -> server (-390, -150))
+const JB_ARCADE2_BOX: CollisionBox = { minX: -430, maxX: -330, minY: -190, maxY: -90 }
+
+const JUKEBOX_COLLISION_BOXES: CollisionBox[] = [
+  JB_JUKEBOX_BOX, 
+  JB_COUNTER_BOX,
+  JB_BOOTH1_BOX,
+  JB_BOOTH2_BOX,
+  JB_ARCADE1_BOX,
+  JB_ARCADE2_BOX
+]
 
 const JUKEBOX_HALF = 430 // 9 * 100 / 2 - 20 padding
 
@@ -184,8 +205,8 @@ export function usePlayerInput() {
         _jumpCooldownTimer -= dt
       }
 
-      // Lock movement when at the DJ booth
-      if (useBoothStore.getState().isConnected) {
+      // Lock movement when at the DJ booth or dreaming
+      if (useBoothStore.getState().isConnected || useDreamStore.getState().isDreaming) {
         requestAnimationFrame(tick)
         return
       }

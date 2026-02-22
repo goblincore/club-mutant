@@ -733,6 +733,19 @@ export class NetworkManager {
     this.room?.send(Message.JUKEBOX_TRACK_COMPLETE, { streamId })
   }
 
+  // Dream mode
+  sendDreamSleep() {
+    this.room?.send(Message.DREAM_SLEEP, {})
+  }
+
+  sendDreamWake() {
+    this.room?.send(Message.DREAM_WAKE, {})
+  }
+
+  sendDreamCollect(collectibleId: string) {
+    this.room?.send(Message.DREAM_COLLECT, { collectibleId })
+  }
+
   // YouTube search (via server)
   async searchYouTube(query: string): Promise<any[]> {
     const res = await fetch(`${this.httpBaseUrl}/youtube/${encodeURIComponent(query)}`)

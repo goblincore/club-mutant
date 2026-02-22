@@ -7,10 +7,12 @@ const ALLOWED_ORIGINS = [
   'https://mutante.club',
   'http://localhost:5173',
   'http://localhost:5175',
+  'http://localhost:5176', // dream client dev server
   'http://localhost:4173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5175',
+  'http://127.0.0.1:5176',
   'http://127.0.0.1:3000',
 ]
 
@@ -119,7 +121,11 @@ const server = defineServer({
   },
 
   express: (app) => {
-    // CORS is handled by matchMaker.controller.getCorsHeaders - don't add duplicate middleware
+    // CORS is handled per-layer:
+    // - Matchmaker routes: via matchMaker.controller.getCorsHeaders
+    // - Dream NPC chat: moved to standalone dream-npc service (port 4000)
+    // - YouTube routes: called server-to-server, no browser CORS needed
+    // Don't add global CORS middleware here — it conflicts with uWebSockets transport.
     app.use(express.json())
 
     app.get('/health', (_req, res) => {

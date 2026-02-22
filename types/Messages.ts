@@ -62,4 +62,9 @@ export enum Message {
   JUKEBOX_STOP, // Stop playback (keep tracks)
   JUKEBOX_SKIP, // Skip current track (destructive — removes it)
   JUKEBOX_TRACK_COMPLETE, // Current track finished (auto-advance)
+
+  // Dream Mode
+  DREAM_SLEEP, // Player is going to sleep (entering dream)
+  DREAM_WAKE, // Player is waking up (leaving dream)
+  DREAM_COLLECT, // Player collected a dream item { collectibleId: string }
 }

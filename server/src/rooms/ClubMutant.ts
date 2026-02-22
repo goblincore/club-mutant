@@ -533,6 +533,31 @@ export class ClubMutant extends Room {
       })
     }
 
+    // ── Dream Mode ──
+
+    this.onMessage(Message.DREAM_SLEEP, (client) => {
+      const player = this.state.players.get(client.sessionId)
+      if (!player) return
+      player.isDreaming = true
+    })
+
+    this.onMessage(Message.DREAM_WAKE, (client) => {
+      const player = this.state.players.get(client.sessionId)
+      if (!player) return
+      player.isDreaming = false
+    })
+
+    this.onMessage(Message.DREAM_COLLECT, (client, message: { collectibleId?: string }) => {
+      const player = this.state.players.get(client.sessionId)
+      if (!player) return
+      const id = message?.collectibleId
+      if (typeof id !== 'string' || !id) return
+      // Only add if not already collected
+      if (!player.collectibles.includes(id)) {
+        player.collectibles.push(id)
+      }
+    })
+
     // Trampoline jump — broadcast to all other clients (cosmetic)
     this.onMessage(Message.PLAYER_JUMP, (client) => {
       if (this.throttle(client, Message.PLAYER_JUMP, 1000)) return

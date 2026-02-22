@@ -257,12 +257,17 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
 
       {/* ── Furniture ── */}
 
-      {/* Futon along the right wall — rotated 90° so it runs along the wall */}
-      <GLBModel
-        src="/models/futon.glb"
-        position={[HALF_W - 0.7, 0, -0.2]}
-        rotation={[0, -Math.PI / 2, 0]}
-      />
+      {/* Futon along the right wall — interactable (sleep → dream mode) */}
+      <InteractableObject
+        interactDistance={2.0}
+        onInteract={() => useUIStore.getState().setSleepPromptOpen(true)}
+      >
+        <GLBModel
+          src="/models/futon.glb"
+          position={[HALF_W - 0.7, 0, -0.2]}
+          rotation={[0, -Math.PI / 2, 0]}
+        />
+      </InteractableObject>
 
       {/* Computer desk against the left wall, facing into the room */}
       <GLBModel
