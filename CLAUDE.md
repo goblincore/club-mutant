@@ -35,6 +35,20 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
     - `src/ui/` — ChatPanel, PlaylistPanel (search + queue + YouTube search within queue view), NowPlaying (mini bar + video bg toggle), LobbyScreen (two-screen lobby flow: Screen 1 character carousel + name input, Screen 2 two-column room select with character preview; see **Lobby Custom Room System** below), **CharacterSidePreview** (compact character preview card with r3f Canvas + PaperDoll + arrow nav + dynamic camera centering via `onLayout`), **CustomRoomBrowser** (lists available custom rooms from lobby, join with optional password), **CreateRoomForm** (create custom room with name/description/password), BoothPrompt (click available egg → confirmation), FpsCounter (debug overlay: FPS readout + render scale display + post-process fisheye slider [0–15, purple, with auto/reset] + vertex fisheye slider [0–3, pink] + vortex OOB checkbox), **DisconnectedOverlay** (reconnecting spinner overlay + disconnected screen with Refresh button), **WarpCheckBg** (WebGL warping checkerboard shader background for lobby), **ComputerBrowser** (640×480 iframe overlay opened by clicking old computer desk, shows Wikipedia, dark browser chrome with traffic light dots + URL bar), **MagazineReader** (responsive modal overlay opened by clicking magazine rack — cover grid + page viewer with arrow key/click navigation; see **Magazine rack** section)
   - Planning doc: `docs/ideas/client-3d-psx-multiplayer.md`
   - Status: M1 + M1.5 + M2 + M2.5 + M3 mostly complete. VHS shader, character select (**12 characters** discovered via `characterRegistry`, per-manifest scale override), auto-scaling, TV static floor, animated Win95 cloud skybox, full DJ queue UI (playlist panel + NowPlaying mini player), ambient stream filtering all done. **DJ booth 3-slot egg system** (Feb 2026): 3 colored orbs (green/pink/cyan spotted eggs) behind the booth, each mapped to a `slotIndex` (0–2); orbs disappear when occupied; click available orb → BoothPrompt → teleport to slot position + join queue with `slotIndex`; `MAX_DJ_SLOTS=3`, `DJ_SLOT_OFFSETS_X`, `getDJSlotWorldX()` exported from Room.tsx; server enforces `MAX_DJ_QUEUE_SIZE=3` and slot uniqueness. **Video wall display** (Feb 2026): 4×2.25 (16:9) screen with dark bezel on back wall above DJ booth, shows WebGL video texture when playing or slideshow texture when idle; video removed from floor (TrampolineVideoMaterial deleted). **Wall attachment occlusion**: wall-mounted objects (VideoDisplay, picture frames, door) grouped per wall and faded alongside their parent wall opacity. **Trampoline floor** (Feb 2026): spacebar jump with moon-bounce physics, ripple vertex displacement on floor+grid, double jump, chain reaction launches, furniture bobbing, multiplayer sync via PLAYER_JUMP message. **Rendering optimizations** (Feb 2026): displacement baking (64×64 Float32 texture replaces per-vertex ripple loops), segment reduction (96→48 for floor+grid), PSX integer-stepped displacement (`DISP_STEPS=10`), dynamic fisheye (zoom-linked + debug slider), vertex fisheye (clip-space barrel distortion on characters), configurable render scale (75%/50%/35%), debug FPS overlay with shader sliders. **Interactable object outline** (Feb 2026): screen-space silhouette glow system. `InteractableObject` component wraps any scene object with props: `interactDistance`, `onInteract`, `hitboxPad` (default 0.15, eggs use 0.1), `occludeHighlight` (default false). Requires **both hover AND proximity** to highlight (not hover-from-anywhere). Exports module-level `highlightIntensity` and `highlightNeedsOcclusion` — only written by the actively highlighted object (race condition fix: non-hovered objects don't touch globals). Hitbox uses `useFrame` polling (not `useEffect`+`setTimeout` — fragile in production). Children separated into `childrenGroupRef` so `Box3.setFromObject` doesn't include the invisible hitbox mesh. `updateWorldMatrix(true, true)` called before Box3 for correct bounds in nested transforms. `PsxPostProcess` mask render: two paths based on `highlightNeedsOcclusion` — (a) `occludeHighlight=true`: depth pre-pass with full scene, then layer 2 with `depthTest: true` (desk), (b) `occludeHighlight=false`: just layer 2 with `depthTest: false` for full silhouette through geometry (eggs behind booth table). `outlineGlow()` dilates mask (3 radii × 8 directions = 24 taps, cardinal + diagonal with 0.707 weight for round outlines). Applied to OldComputerDesk (`occludeHighlight`) and DJ eggs (no occlusion, `hitboxPad=0.1`) in Room.tsx. DJ booth built facing room directly (no 180° rotation — removed to fix stale `matrixWorld` issues). **GLB models** (Feb 2026): DJ booth and old computer desk converted to `.glb` files via `scripts/build-models.mjs`, loaded with `GLBModel` component. Computer desk is clickable via `InteractableObject` → opens `ComputerBrowser`. Remaining: sound, mobile, trampoline polish (screen shake, particles, sound).
+- `client-dream/` **(new — Feb 2026)**
+  - Phaser 3 dream mode app embedded via iframe in client-3d. Yume Nikki-inspired surreal exploration with freeform AI NPC chat.
+  - Tech: Vite + Phaser 3 + React + Zustand
+  - Dev server: port 5176 (`cd client-dream && pnpm dev`)
+  - Key dirs:
+    - `src/phaser/scenes/` — BootScene (preload mutant_ripped atlas + world JSONs), DreamScene (main gameplay: tile rendering, player, NPCs, collectibles, world transitions)
+    - `src/phaser/entities/` — DreamPlayer (8-dir continuous movement, collision), NPC (mutant sprite + FSM behavior + chat bubbles), Collectible (animated glow pickup)
+    - `src/phaser/systems/` — NpcBehavior (FSM: idle, wander, face_player, conversing, following, fleeing)
+    - `src/phaser/anims/` — DreamAnims (register mutant idle/walk from multi-atlas)
+    - `src/bridge/` — iframeBridge (postMessage listener/sender), bridgeTypes (message type definitions + sendToParent helper)
+    - `src/stores/` — dreamClientStore (init state, collected items, world), dreamChatStore (active NPC, message history, bubbles, thinking)
+    - `src/npc/` — npcService (HTTP client for /dream/npc-chat), npcPersonalities (client-side greeting pools + fallback phrases)
+    - `src/ui/` — DreamChatPanel (chat input + message history), DreamHUD (wake button + collectible count)
+  - Assets: `public/assets/character/mutant_ripped.*` (multi-atlas), `public/data/worlds/*.json` (world definitions)
 - `server/`
   - **Has its own `package.json` with `"type": "module"`** (required for Colyseus 0.17 decorator support)
   - Server code lives in `server/src/`
@@ -43,16 +57,22 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Main room: `server/src/rooms/ClubMutant.ts`
   - Schema state: `server/src/rooms/schema/OfficeState.ts`
   - Commands: `server/src/rooms/commands/*`
+- `services/`
+  - `dream-npc/` — Standalone Express 4 microservice for Dream NPC AI chat. Separated from Colyseus server to avoid uWebSockets transport conflicts with Express middleware.
+    - Tech: Express 4 + cors + tsx
+    - Dev server: port 4000 (`cd services/dream-npc && GEMINI_API_KEY=... npm start`)
+    - Key files: `src/index.ts` (Express server + CORS), `src/dreamNpc.ts` (Gemini API, rate limiting, caching, NPC personalities)
+    - Endpoint: `POST /dream/npc-chat`
+    - Production: `dream.mutante.club` (Caddy reverse proxy → dream-npc:4000)
+  - `youtube-api/` — Go microservice for YouTube search + video URL resolution + proxy. See `services/youtube-api/README.md`. Key endpoints: `GET /search?q=...`, `GET /resolve?id=...`, `GET /proxy?id=...` (streams video through server to avoid CORS), `GET /browse?url=...` (proxies arbitrary URLs for iframe embedding — server-side only, client disabled). Deployed via Docker in `deploy/hetzner/docker-compose.yml`.
+  - `rusty-ytdl-hybrid/` — Rust CLI for fast YouTube URL resolution (used by youtube-api as primary resolver, falls back to yt-dlp)
+  - `pot-provider-rust/` — PO token provider for YouTube auth
 - `tools/`
   - `paper-rig-editor/` — Vite + React + r3f character rig editor for building paper-doll characters. See `tools/paper-rig-editor/README.md` for full docs.
     - Two modes: **Slicer** (drop full image → auto BG removal → draw polygon regions → slice into parts) and **Rig** (arrange parts, set pivots/offsets/parents, preview animations, export zip)
     - Export: `manifest.json` + PNGs, format matches `client-3d/src/character/CharacterLoader.ts`
     - Run: `cd tools/paper-rig-editor && npm run dev` (port 5174)
     - Roadmaps: `docs/ideas/custom-character-system.md`, `docs/ideas/editor-image-slicer.md`
-- `services/`
-  - `youtube-api/` — Go microservice for YouTube search + video URL resolution + proxy. See `services/youtube-api/README.md`. Key endpoints: `GET /search?q=...`, `GET /resolve?id=...`, `GET /proxy?id=...` (streams video through server to avoid CORS), `GET /browse?url=...` (proxies arbitrary URLs for iframe embedding — server-side only, client disabled). Deployed via Docker in `deploy/hetzner/docker-compose.yml`.
-  - `rusty-ytdl-hybrid/` — Rust CLI for fast YouTube URL resolution (used by youtube-api as primary resolver, falls back to yt-dlp)
-  - `pot-provider-rust/` — PO token provider for YouTube auth
 - `types/`
   - Shared types workspace package (`@club-mutant/types`)
   - Imported via pnpm workspace (no copying needed)
@@ -162,6 +182,7 @@ Works mathematically but visual feel needs more tuning. **Alternatives to explor
 - **`useState` inside `<Canvas>` wastes re-renders** — Inside r3f Canvas, rendering is `useFrame`-driven. `useState` triggers React reconciliation that does nothing visible. Use `useRef` for mutable state and read it imperatively in `useFrame`. Only use `useState` when you need React to add/remove JSX children.
 - **Multiple `<Canvas>` elements = multiple WebGL contexts** — Each `<Canvas>` creates its own WebGL context, render loop, and scene graph. Two canvases rendering the same character means double the animation work, double the material updates, double the draw calls. Prefer CSS effects (drop-shadow, filters) on a single Canvas wrapper div instead of a second Canvas.
 - **Geometry created in `onSync` callbacks leaks** — troika text's `onSync` fires whenever text metrics change. Creating new `ShapeGeometry` each time leaks unless explicitly disposed. Cache geometries by quantized dimensions (e.g., `Math.round(w * 100) / 100`) — only ~5 distinct sizes for short phrases.
+- **uWebSockets transport + Express middleware incompatibility** — `@colyseus/uwebsockets-transport` invalidates `uWS.HttpRequest` after any async operation or route handler return. Express middleware that reads `req.headers` or calls `next()` (including `cors()`, body parsers, etc.) causes `uWS.HttpRequest must not be accessed after await` errors. Solution: don't add global middleware to the Express app inside `defineServer.express`. For CORS-needing endpoints, use a separate Express service (e.g., `dream-npc`), or use the Vite dev proxy in development. Matchmaker CORS is handled via `matchMaker.controller.getCorsHeaders`.
 
 ## How to run
 
@@ -170,6 +191,11 @@ Works mathematically but visual feel needs more tuning. **Alternatives to explor
   - Uses `@colyseus/tools` `listen()` pattern
 - **Client**: `cd client && npm run dev`
   - Runs Vite dev server
+- **3D Client**: `cd client-3d && pnpm dev` (port 5175)
+- **Dream NPC Service**: `cd services/dream-npc && GEMINI_API_KEY=... npm start` (port 4000)
+  - Standalone Express service for AI NPC chat (separated from Colyseus to avoid uWS conflicts)
+- **Dream Client**: `cd client-dream && pnpm dev` (port 5176)
+  - For dream mode development, run all four: server + dream-npc + client-3d + client-dream
 
 ## Colyseus 0.17 Migration (Feb 2026)
 
@@ -274,7 +300,7 @@ express: (app) => {
 
 - **Server (Hetzner VPS)**:
   - `Dockerfile.server`: Multi-stage build using pnpm workspaces
-  - `deploy/hetzner/docker-compose.yml`: Orchestrates server + youtube-api + caddy
+  - `deploy/hetzner/docker-compose.yml`: Orchestrates server + youtube-api + dream-npc + caddy
   - Deploy: `ssh vps "cd /path/to/club-mutant && git pull && docker-compose up -d --build server"`
 
 - **Client (Netlify)**:
@@ -1267,6 +1293,17 @@ YouTube ID into a direct playable video URL:
 - **Jukebox store**: `client-3d/src/stores/jukeboxStore.ts`
 - **Shared message enum**: `types/Messages.ts`
 - **Room types + music modes**: `types/Rooms.ts`
+- **Dream NPC chat handler**: `services/dream-npc/src/dreamNpc.ts`
+- **Dream NPC service entry**: `services/dream-npc/src/index.ts`
+- **Dream iframe bridge (3D client)**: `client-3d/src/ui/DreamIframe.tsx`
+- **Dream store (3D client)**: `client-3d/src/dream/dreamStore.ts`
+- **Dream scene (Phaser)**: `client-dream/src/phaser/scenes/DreamScene.ts`
+- **Dream player (Phaser)**: `client-dream/src/phaser/entities/DreamPlayer.ts`
+- **NPC entity**: `client-dream/src/phaser/entities/NPC.ts`
+- **NPC behavior FSM**: `client-dream/src/phaser/systems/NpcBehavior.ts`
+- **NPC chat service**: `client-dream/src/npc/npcService.ts`
+- **Dream chat store**: `client-dream/src/stores/dreamChatStore.ts`
+- **Lily NPC character assets**: `client-3d/public/npc/denkiqt/` (PaperDoll manifest + PNGs)
 
 ## Conventions / tips
 
@@ -1593,6 +1630,382 @@ Room-type-aware in `usePlayerInput.ts`:
 | `client-3d/src/ui/CreateRoomForm.tsx` | Music mode selector for custom rooms |
 | `client-3d/src/input/usePlayerInput.ts` | Jukebox room collision boxes |
 
+## Lily NPC Bartender — Jukebox Room (Feb 2026)
+
+A server-side AI bartender NPC named Lily who lives in the Jukebox Room. She's a shy alien flower being who tends bar and chats with players via Gemini 2.5 Flash-Lite API through the dream-npc microservice.
+
+### Architecture
+
+```
+┌──────────────────────────────────────────┐
+│  server (Colyseus)                       │
+│    ClubMutant.ts                         │
+│    - Virtual Player (NPC_SESSION_ID)     │
+│    - FSM: idle/walking/dancing/conversing│
+│    - Chat routing + chunked delivery     │
+│    - Conversational window (20s)         │
+│    - Spontaneous music commentary        │
+│              │ HTTP POST                 │
+│              ▼                           │
+│  ┌────────────────────────────────────┐  │
+│  │  dream-npc (Express 4, port 4000) │  │
+│  │  POST /bartender/npc-chat         │  │
+│  │  Gemini 2.5 Flash-Lite            │  │
+│  └────────────────────────────────────┘  │
+└──────────────────────────────────────────┘
+```
+
+### Server-Side NPC (`ClubMutant.ts`)
+
+- **Virtual Player**: Created with reserved `sessionId = 'npc_lily'`, spawns as a `Player` in the Colyseus state. Uses `PaperDoll` character at `/npc/denkiqt`.
+- **FSM States**: `idle` (3-8s timer) → `walking` (60px/s within wander bounds) → `dancing` (when music plays) → `conversing` (15s timeout after chat).
+- **Wander Bounds**: Behind the bar island (`minX:290, maxX:410, minY:10, maxY:280` server px).
+- **Update Interval**: 200ms tick via `setInterval`.
+
+### Chat Routing
+
+Messages route to Lily via three triggers (checked in `ADD_CHAT_MESSAGE` handler):
+
+1. **Name prefix**: Message starts with `lily,` or `lily ` (case-insensitive regex)
+2. **Alone with NPC**: `getHumanPlayerCount() === 1`
+3. **Conversational window**: Player recently talked to Lily (within 20s)
+
+The conversational window (`npcConversationWindows: Map<string, number>`) tracks per-player timestamps. After Lily responds to a player, their messages auto-route to her for `NPC_CONVO_WINDOW_MS = 20_000` ms without needing the "Lily" prefix. Window resets on each exchange and cleans up in `onLeave()` and `cleanupNpc()`.
+
+### Chunked Response Delivery
+
+AI responses are split into sentence chunks and delivered with staggered delays to avoid bubble overlap:
+
+- **Splitting**: Regex on `.!?…` sentence boundaries via `splitIntoChunks()`
+- **Delay formula**: `4000 + len * 55` ms per chunk, clamped 4s-7s (`chunkDelay()`)
+- **Queue**: `npcResponseQueue` drained by `setTimeout` chain. First chunk sent immediately.
+- **Interruption**: New player message calls `stopDrainingNpcQueue()` — clears pending chunks.
+- **History**: Full text stored in `npcChatHistory` (not chunks) for coherent AI context.
+
+### Music Awareness
+
+- **Always explicit**: Music context always sent to AI — either `Currently playing: "title"` or `No music is playing right now. The bar is quiet.` Prevents false music references.
+- **Spontaneous commentary**: `notifyNpcMusicStarted(title)` called from `playNextJukeboxTrack()` in `JukeboxCommand.ts`. 30% chance, 2-5s delay. Sends system-tagged prompt for brief reaction.
+- **Song knowledge**: Prompt includes specific song titles for Denki Groove, Cornelius, YMO, Aphex Twin, Nujabes, etc. When asked what to play, suggests specific tracks.
+- **Silence nudge**: After 2 minutes with no music and humans present, Lily suggests someone play something. Repeats every 3 minutes while quiet. Tracked via `npcMusicSilenceSince` / `npcLastMusicSilenceCheck`.
+
+### Overwhelm Behavior
+
+Lily is a small being — she can't handle too many people talking at once:
+
+- **Tracking**: `npcRecentChatters[]` records `{ sessionId, at }` with a 30-second sliding window.
+- **Trigger**: If >3 unique players have chatted in the last 30s, Lily announces she needs a break.
+- **Cooldown**: `npcOverwhelmedUntil` set to `now + 30_000` — she silently ignores all messages for 30s.
+- **Recovery**: After 30s, the chatter list resets and she responds normally again.
+- **Phrases**: 4 overwhelm-specific phrases ("too many voices at once...", "I need a little break...").
+
+### Greeting System
+
+- **On player join**: Random greeting from `npcGreetings[]` after 1.5-3s delay, rate-limited to 1 per 15s.
+- **Greetings teach mechanic**: All greetings mention "say my name" / "call me by name" so players learn how to talk to her.
+
+### Dream-NPC Service (`POST /bartender/npc-chat`)
+
+- **Endpoint**: `services/dream-npc/src/index.ts` registers `/bartender/npc-chat` alongside the existing `/dream/npc-chat`.
+- **Request**: `{ personalityId, message, history, roomId, senderName, musicContext }`
+- **Response**: `{ text, behavior? }` — same format as dream NPC chat.
+- **Personality**: `lily_bartender` in `dreamNpc.ts` — system prompt with backstory, music knowledge, rules, multi-player attribution format.
+- **Rate limiting**: Same per-session limits as dream NPCs (6/min, 60/hr, 200/day).
+- **Caching**: Skipped when music is playing (contextual). Active when bar is quiet.
+- **Fallback phrases**: 18 in-character phrases used when API fails. No unicode emoji.
+
+### Bar Layout (Jukebox Room)
+
+- **BarIsland**: `H=0.38`, retro pastel colors with emissive materials (pink, mint, yellow, lavender). Front faces -X (room center). Chrome strip accent, flower vase.
+- **BackShelf**: Cream/light wood frame, candy-bright bottles (emerald, ruby, gold, cobalt, amethyst). Rotated `[0, -Math.PI/2, 0]` against right wall.
+- **CounterStools**: Small pastel pink seats (`#ffc1d3`, radius 0.13) at `Y=0.28`, chrome bases, positioned at X=1.5. Each stool has its own collision box.
+- **Collision**: `JB_BAR_ISLAND_BOX` (bar island + bartender area) + 3 `JB_STOOL_BOX` boxes in `usePlayerInput.ts`.
+
+### Chat Bubble Fade-Out
+
+- **Duration**: `FADE_MS = 400` ms (fast exit, was 800ms)
+- **Scale**: Shrinks to 70% (not 0) for subtler visual
+- **Opacity**: Per-bubble material clone with opacity fade + troika `fillOpacity` fade
+- **Cleanup**: Material disposed on unmount
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `server/src/rooms/ClubMutant.ts` | NPC spawn, FSM, chat routing, conversational window, chunked delivery, music commentary |
+| `server/src/rooms/commands/JukeboxCommand.ts` | `notifyNpcMusicStarted()` hook in `playNextJukeboxTrack()` |
+| `services/dream-npc/src/dreamNpc.ts` | Lily personality, Gemini API, rate limiting, caching, fallbacks |
+| `services/dream-npc/src/index.ts` | `/bartender/npc-chat` endpoint registration |
+| `client-3d/public/npc/denkiqt/` | Lily's PaperDoll character assets (manifest + PNGs) |
+| `client-3d/src/scene/JukeboxRoom.tsx` | BarIsland, BackShelf, CounterStool, bar lighting |
+| `client-3d/src/scene/PlayerEntity.tsx` | Bubble fade-out animation (FADE_MS, per-bubble opacity) |
+| `client-3d/src/scene/GameScene.tsx` | NPC character path routing |
+| `client-3d/src/input/usePlayerInput.ts` | Bar island collision box |
+| `server/src/rooms/schema/OfficeState.ts` | `Player.isNpc` schema field |
+
+## Dream Mode — Yume Nikki-Inspired Exploration (Feb 2026)
+
+A Yume Nikki-inspired dream mode where players sleep on the futon in MyRoom and enter surreal dream worlds. Implemented as a **separate Phaser 3 Vite app** (`client-dream/`) embedded via fullscreen iframe, with freeform AI NPC chat powered by Gemini 2.5 Flash-Lite.
+
+### Architecture
+
+```
+┌────────────────────────────────────────────────────────┐
+│  client-3d (r3f)                                       │
+│    App.tsx renders <DreamIframe /> when isDreaming      │
+│    SleepPrompt / WakePrompt in MyRoom                  │
+│                     │ postMessage                      │
+│                     ▼                                  │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  client-dream (Phaser 3)      ← port 5176       │  │
+│  │    BootScene → DreamScene                        │  │
+│  │    DreamPlayer + NPCs + Collectibles             │  │
+│  │    React overlay: DreamChatPanel, DreamHUD       │  │
+│  └──────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────┘
+                     │                      │
+                     ▼                      ▼
+┌────────────────────────────────┐ ┌────────────────────────────────┐
+│  server (Colyseus)             │ │  dream-npc (Express 4)         │
+│    Colyseus: DREAM_SLEEP/WAKE/ │ │    POST /dream/npc-chat        │
+│    COLLECT messages             │ │    ← Gemini 2.5 Flash-Lite    │
+│    Port 2567                   │ │    Port 4000                   │
+└────────────────────────────────┘ └────────────────────────────────┘
+```
+
+### Iframe Bridge Protocol
+
+Five message types flow between client-3d and client-dream via `postMessage`:
+
+| Message | Direction | Purpose |
+|---------|-----------|---------|
+| `DREAM_READY` | dream → 3d | Phaser app loaded, ready for init data |
+| `DREAM_INIT` | 3d → dream | Send playerName, collectedItems, serverHttpUrl |
+| `DREAM_COLLECT` | dream → 3d | Player picked up a collectible |
+| `DREAM_WAKE` | dream → 3d | Player wants to wake up (shows WakePrompt) |
+| `DREAM_WAKE_CONFIRMED` | 3d → dream | Wake confirmed, tear down |
+
+**Flow**: SleepPrompt confirms → `isDreaming = true` → `<DreamIframe>` mounts (z-index 50) → iframe loads → `DREAM_READY` → parent sends `DREAM_INIT` → Phaser initializes → player explores → `DREAM_WAKE` → WakePrompt → confirmed → iframe unmounts.
+
+**Production**: Build dream app → copy `client-dream/dist/` into `client-3d/public/dream/` → iframe src becomes `/dream/index.html` (same origin, no CORS).
+
+### client-dream/ App Structure
+
+```
+client-dream/
+  src/
+    main.tsx                # React root
+    App.tsx                 # Phaser container + chat overlay + HUD
+    bridge/
+      bridgeTypes.ts        # Message types + sendToParent helper
+      iframeBridge.ts       # postMessage listener, sends DREAM_READY
+    phaser/
+      config.ts             # Phaser.AUTO, 800x600, pixelArt, RESIZE scale
+      scenes/
+        BootScene.ts        # Preload mutant_ripped multi-atlas + world JSONs
+        DreamScene.ts       # Main scene: tile rendering, player, NPCs, collectibles, transitions
+      entities/
+        DreamPlayer.ts      # 8-dir continuous movement (120px/s), collision, wall sliding
+        NPC.ts              # Mutant sprite + FSM + proximity greeting + chat bubbles
+        Collectible.ts      # Animated glow circle pickup, persists via bridge
+      systems/
+        NpcBehavior.ts      # FSM: idle, wander, face_player, conversing, following, fleeing
+      anims/
+        DreamAnims.ts       # Register mutant idle (4f) + walk (8f) for 8 directions
+      types.ts              # DreamWorldDef, DreamExit, DreamNPCDef, DreamCollectible
+    npc/
+      npcService.ts         # HTTP client: POST /dream/npc-chat, 2s debounce, 8s timeout
+      npcPersonalities.ts   # Client-side greeting pools + fallback phrases per NPC
+    ui/
+      DreamChatPanel.tsx    # Chat input + message display (frosted glass, monospace)
+      DreamHUD.tsx          # Wake button, collectible count, world name
+    stores/
+      dreamChatStore.ts     # Zustand: activeNpcId, messageHistory (last 20), bubbles, thinking
+      dreamClientStore.ts   # Zustand: initialized, playerName, serverHttpUrl, collectedItems, currentWorldId
+  public/
+    assets/character/       # mutant_ripped multi-atlas (3 PNG pages + JSON)
+    data/worlds/            # nexus.json, forest.json
+```
+
+### World Data Format
+
+World JSONs define tile maps with palette-based coloring (no tileset images — shaders will replace them):
+
+```typescript
+interface DreamWorldDef {
+  id: string
+  width: number; height: number; tileSize: number
+  spawnX: number; spawnY: number
+  palette: {
+    floor: string      // e.g. "#1a0a2e" (dark purple)
+    wall: string       // e.g. "#0a0a0a" (near black)
+    path: string       // e.g. "#2a1a3e" (lighter purple)
+    exit: string       // e.g. "#00ff88" (bright glow)
+    noiseBase: string  // noise tint color
+    noiseDrift: string // noise color drift target
+  }
+  layers: DreamWorldLayer[]  // ground + collision (tile data arrays)
+  exits: DreamExit[]         // { x, y, targetWorldId, spawnX, spawnY }
+  collectibles: DreamCollectible[]  // { id, x, y }
+  npcs: DreamNPCDef[]        // { id, personalityId, name, spawnX, spawnY, wanderRadius, interactRadius, stationary }
+}
+```
+
+**Current worlds**:
+- **Nexus** (`nexus.json`): 15×15, dark purple/teal palette, The Watcher NPC (stationary), exit to forest at (7,1), wake exit at (7,12)
+- **Forest** (`forest.json`): 30×22, dark green palette, The Drifter NPC (wanders), static_flower collectible at (24,6), exit back to nexus at (1,10)
+
+### NPC System — Freeform Chat
+
+**No dialogue trees.** Players type freely in a chat input. Messages appear as chat bubbles above sprites — identical UX to chatting with other players. NPC responses come from the AI API.
+
+**NPC behavior (100% client-side, no API needed)**:
+- **FSM states**: idle (3-8s timer) → wander (60px/s, half player speed) → face_player (on proximity) → conversing (on chat) → following (AI-triggered, 8s) → fleeing (AI-triggered, 3s)
+- **Greetings**: Random selection from client-side pool when player enters interact radius (no API call)
+- **External behavior triggers**: AI response can include `behavior` field (`"follow"`, `"flee"`, `"wander"`, `"idle"`, `"turn_to_player"`) to change NPC movement
+
+**Chat data flow**:
+1. Player types in `DreamChatPanel` → player bubble appears (immediate)
+2. NPC shows "..." thinking bubble (immediate)
+3. `npcService.chatWithNpc()` → `POST /dream/npc-chat` to dream-npc service
+4. Dream-npc service: rate limit → cache check → Gemini API → parse response
+5. NPC bubble with response text + optional behavior change
+
+### Dream NPC Service — `POST /dream/npc-chat`
+
+**Service**: `services/dream-npc/` (standalone Express 4 microservice, port 4000)
+**Files**: `src/index.ts` (server + CORS), `src/dreamNpc.ts` (handler + personalities)
+
+Separated from the Colyseus server to avoid uWebSockets transport conflicts with Express middleware. Handles NPC chat with model-agnostic architecture (currently Gemini 2.5 Flash-Lite, swappable to self-hosted Ollama later).
+
+**Request**: `{ personalityId, message, history: [{ role, content }] }`
+**Response**: `{ text, behavior? }` or `{ error, retryAfterMs? }`
+
+**Personality configs** (server-side only — prevents client seeing spoilers):
+- System prompt with backstory, knowledge of secrets/collectibles, lore fragments
+- Greetings pool (used client-side, duplicated for fallback)
+- Fallback phrases (used when API fails)
+
+**Current NPCs**:
+- **The Watcher** (Nexus): Knows about the forest's hidden flower, the humming tile, the self-referencing door. Speaks in present tense about future events.
+- **The Drifter** (Forest): Former dreamer who followed a sound into the trees. Knows about the static flower, the path that loops, the clearing where silence is loud.
+
+**Rate limiting** (in-memory, keyed by IP hash):
+- Per-session: 6/min, 60/hr, 200/day
+- Global: 30/min, 500/hr, 5,000/day
+- Returns HTTP 429 with `retryAfterMs`
+
+**Response caching**: Exact-match on normalized `(personalityId + message)`. Normalization: lowercase, strip punctuation, collapse whitespace. TTL 1hr, max 500 entries (LRU).
+
+**Response parsing** (4-tier fallback):
+1. Direct `JSON.parse(response)`
+2. Extract `{...}` from surrounding text via regex
+3. Use raw text if ≤ 100 chars
+4. Random phrase from personality's fallback pool
+
+**Graceful degradation**:
+- Normal (< 3s): player bubble → "..." → NPC response
+- Slow (3-8s): "..." stays longer
+- Timeout (> 8s): random fallback phrase from server pool
+- Server down: random phrase from client-side generic pool (bundled, ~20 phrases)
+
+**Environment**: Requires `GEMINI_API_KEY` env var.
+
+### AI Model Strategy
+
+**Phase 1 (current)**: Gemini 2.5 Flash-Lite API
+- ~$0.000074 per turn, ~0.5s latency
+- Monthly cost at 500 msg/day: ~$1.11
+- Free tier: 1,000 requests/day
+
+**Phase 2 (future)**: Self-hosted LFM2.5-1.2B via Ollama on Hetzner CX32
+- 731 MB Q4_K_M quantization, ~€7.88/mo fixed
+- ~2-3s per response on 4-core shared CPU
+- Makes sense above ~3,000-5,000 messages/day
+
+The service abstracts the model backend — swapping from API to Ollama requires changing only `services/dream-npc/src/dreamNpc.ts`, not client code.
+
+### NPC System Prompt Structure
+
+**Shared prefix** (all NPCs): "You are a being in a dream..." + rules (1-2 sentences, max 80 chars, speak in fragments/riddles, never break character, never use emoji, give cryptic clues about real locations/collectibles).
+
+**Response format**: `{"text":"your words"}` with optional `{"text":"words","behavior":"follow"}`.
+
+### 3D Client Integration
+
+**`DreamIframe.tsx`** (`client-3d/src/ui/DreamIframe.tsx`): Fullscreen iframe overlay modeled on `ComputerBrowser.tsx`. Dev URL: `http://localhost:5176`, prod URL: `/dream/index.html`. Handles `DREAM_READY`, `DREAM_COLLECT`, `DREAM_WAKE` messages from iframe.
+
+**`dreamStore.ts`** (`client-3d/src/dream/dreamStore.ts`): Simplified to just `isDreaming` flag + `collectedItems` Set + `enterDream()`/`exitDream()`/`addCollectedItem()`. All game state is managed inside the Phaser iframe.
+
+**`dreamBridgeTypes.ts`** (`client-3d/src/dream/dreamBridgeTypes.ts`): Type definitions for the postMessage bridge.
+
+**Removed files** (replaced by Phaser iframe):
+- `client-3d/src/dream/DreamRenderer.tsx`
+- `client-3d/src/dream/DreamTileGrid.tsx`
+- `client-3d/src/dream/DreamPlayer.tsx`
+- `client-3d/src/dream/dreamMovement.ts`
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `client-dream/src/phaser/scenes/DreamScene.ts` | Main Phaser scene (tiles, player, NPCs, collectibles, transitions) |
+| `client-dream/src/phaser/entities/DreamPlayer.ts` | 8-dir movement, collision, wall sliding |
+| `client-dream/src/phaser/entities/NPC.ts` | NPC sprite + FSM + greeting + chat bubbles |
+| `client-dream/src/phaser/entities/Collectible.ts` | Animated glow pickup |
+| `client-dream/src/phaser/systems/NpcBehavior.ts` | FSM: idle/wander/face_player/conversing/following/fleeing |
+| `client-dream/src/bridge/bridgeTypes.ts` | Bridge message types + sendToParent |
+| `client-dream/src/bridge/iframeBridge.ts` | postMessage handler, sends DREAM_READY |
+| `client-dream/src/npc/npcService.ts` | HTTP client for /dream/npc-chat |
+| `client-dream/src/npc/npcPersonalities.ts` | Client-side greeting pools per NPC |
+| `client-dream/src/stores/dreamChatStore.ts` | Chat state: active NPC, messages, thinking |
+| `client-dream/src/stores/dreamClientStore.ts` | Game state: collected items, world, init |
+| `client-dream/src/ui/DreamChatPanel.tsx` | Chat input + message overlay |
+| `client-dream/src/ui/DreamHUD.tsx` | Wake button, collectible count |
+| `client-dream/public/data/worlds/nexus.json` | Nexus world definition |
+| `client-dream/public/data/worlds/forest.json` | Forest world definition |
+| `client-3d/src/ui/DreamIframe.tsx` | Fullscreen iframe overlay + bridge |
+| `client-3d/src/dream/dreamStore.ts` | Simplified isDreaming + collectedItems |
+| `client-3d/src/dream/dreamBridgeTypes.ts` | Bridge type definitions |
+| `services/dream-npc/src/index.ts` | Dream NPC Express server (port 4000, CORS) |
+| `services/dream-npc/src/dreamNpc.ts` | NPC chat: rate limiting, caching, Gemini API, personalities |
+
+### How to Test Dream Mode
+
+1. `cd server && npm run start` (port 2567)
+2. `cd services/dream-npc && GEMINI_API_KEY=... npm start` (port 4000)
+3. `cd client-3d && pnpm dev` (port 5175)
+4. `cd client-dream && pnpm dev` (port 5176)
+4. Join MyRoom from lobby
+5. Walk to futon, click → SleepPrompt appears
+6. Confirm → fullscreen dream iframe loads
+7. Walk with WASD in Nexus
+8. Walk near The Watcher → greeting bubble appears
+9. Chat input appears → type message → NPC responds with cryptic bubble
+10. Step on exit tile → fade → Forest loads
+11. Walk over collectible → pickup animation
+12. Click wake button → WakePrompt → back in MyRoom
+
+### Implementation Phases
+
+**Phase 1** (current — core scaffolding complete):
+- Phaser app + iframe bridge + world transitions + NPC chat + collectibles
+
+**Phase 2** (pending):
+- Shader backgrounds (port TV static noise to Phaser WebGL pipeline, per-world palette)
+- Combat system (turn-based using existing attack/death anims)
+- More NPCs with distinct personalities and lore
+- Additional dream worlds
+- Sound effects and ambient audio
+- VHS-style CSS filter on iframe
+- Self-hosted Ollama migration
+
+**Phase 3** (future):
+- Activity-aware AI context (songs listened to → NPC references them)
+- Collectible effects (unlock Nexus doors, new NPC dialogue)
+- NPC memory across sessions
+- Shared dreams (multiplayer dream exploration)
+
 ## Current tasks
 
 - ~~Implement DJ Queue Rotation System~~ ✅ COMPLETED (Feb 2026)
@@ -1651,6 +2064,13 @@ Room-type-aware in `usePlayerInput.ts`:
 - ~~Jukebox room: move VideoDisplay from back wall to front wall above stage~~ ✅ COMPLETED (Feb 2026)
 - ~~Suppress browser password manager on CreateRoomForm (type="text" + -webkit-text-security)~~ ✅ COMPLETED (Feb 2026)
 - ~~Jump landing: jelly wobble animation (damped oscillation replaces single squash flash)~~ ✅ COMPLETED (Feb 2026)
+- ~~Dream Mode Phase 1: Phaser app + iframe + NPC chat (core scaffolding)~~ ✅ COMPLETED (Feb 2026)
+- ~~Lily NPC bartender: server-side AI NPC, chat routing, bar redesign, music awareness~~ ✅ COMPLETED (Feb 2026)
+- ~~Lily NPC polish: emoticon reduction, chunk delay tuning, greeting name mechanic, conversational window, spontaneous music commentary, song recommendations, fallback emoji fix, bubble fade-out~~ ✅ COMPLETED (Feb 2026)
+- Dream Mode: shader backgrounds (port TV static noise to Phaser WebGL pipeline, per-world palette)
+- Dream Mode: collectible persistence end-to-end testing
+- Dream Mode Phase 2: combat system, more NPCs, additional dream worlds, sound effects
+- Dream Mode Phase 3: activity-aware AI context, NPC memory, shared dreams
 - PSX geometry shaders (vertex snapping, affine texture mapping)
 - Textured DJ booth furniture
 - Sound effects (footsteps, UI clicks, punch impacts)
@@ -2261,18 +2681,21 @@ This repo now includes a working VPS deployment bundle under `deploy/hetzner/` t
 - **Caddy** reverse proxy (automatic HTTPS)
 - **Colyseus Node server** (port `2567` internal)
 - **YouTube API (Go)** (port `8081` internal)
+- **Dream NPC (Node/Express 4)** (port `4000` internal)
 - **PO token provider** (port `4416` internal)
 
 #### Domains
 
 - `api.mutante.club` → Colyseus server (WebSocket + HTTP)
 - `yt.mutante.club` → YouTube API (HTTP)
+- `dream.mutante.club` → Dream NPC service (HTTP)
 
 #### Key files
 
 - `deploy/hetzner/docker-compose.yml`
 - `deploy/hetzner/Caddyfile`
 - `deploy/hetzner/.env.example` (copy to `.env` on the VPS; do not commit)
+- `services/dream-npc/Dockerfile`
 
 #### Ports
 
@@ -2281,12 +2704,14 @@ This repo now includes a working VPS deployment bundle under `deploy/hetzner/` t
 - Container-internal:
   - `2567` (server)
   - `8081` (youtube-api)
+  - `4000` (dream-npc)
   - `4416` (pot-provider)
 
 #### Environment variables (VPS)
 
 - `PROXY_URL` (recommended)
 - `YOUTUBE_COOKIES` (optional; for age-restricted content)
+- `GEMINI_API_KEY` (required for dream-npc service)
 
 #### Client build config (Netlify)
 
@@ -2294,6 +2719,7 @@ The client uses these at build time (see `netlify.toml`):
 
 - `VITE_WS_ENDPOINT=wss://api.mutante.club`
 - `VITE_HTTP_ENDPOINT=https://api.mutante.club`
+- `VITE_DREAM_SERVICE_URL=https://dream.mutante.club`
 
 ### Local Development 403 Troubleshooting (Feb 2026)
 

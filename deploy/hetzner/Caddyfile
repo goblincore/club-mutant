@@ -14,6 +14,12 @@ yt.mutante.club {
   reverse_proxy youtube-api:8081
 }
 
+dream.mutante.club {
+  encode gzip
+  # CORS handled by Express cors middleware in dream-npc service
+  reverse_proxy dream-npc:4000
+}
+
 proxy.mutante.club {
   encode gzip
 

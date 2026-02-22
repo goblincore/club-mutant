@@ -14,6 +14,7 @@ services:
     depends_on:
       - server
       - youtube-api
+      - dream-npc
 
   server:
     build:
@@ -24,6 +25,7 @@ services:
       - NODE_ENV=production
       - PORT=2567
       - YOUTUBE_SERVICE_URL=http://youtube-api:8081
+      - DREAM_NPC_SERVICE_URL=http://dream-npc:4000
     expose:
       - '2567'
 
@@ -44,6 +46,17 @@ services:
       - '8081'
     depends_on:
       - pot-provider
+
+  dream-npc:
+    build:
+      context: ../../services/dream-npc
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - PORT=4000
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    expose:
+      - '4000'
 
   pot-provider:
     image: ghcr.io/jim60105/bgutil-pot:latest

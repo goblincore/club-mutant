@@ -6,6 +6,8 @@ export interface PlayerState {
   textureId: number
   animId: number
   scale: number
+  isNpc: boolean
+  npcCharacterPath: string
 }
 
 // ── Mutable position map (outside React state for hot-path perf) ──

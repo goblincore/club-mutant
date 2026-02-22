@@ -55,6 +55,9 @@ export function playNextJukeboxTrack(room: ClubMutant) {
 
   console.log('[Jukebox] Playing track:', track.title, 'added by:', track.addedByName)
   room.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
+
+  // Notify Lily NPC about the new track (she may comment spontaneously)
+  room.notifyNpcMusicStarted(track.title)
 }
 
 /**

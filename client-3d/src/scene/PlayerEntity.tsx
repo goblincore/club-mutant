@@ -127,7 +127,7 @@ function bubbleTextSize(len: number): number {
 }
 
 const STACK_GAP = 0.12
-const FADE_MS = 800
+const FADE_MS = 400
 
 // ── Nametag (troika Text + background mesh, layer 1) ──
 
@@ -221,14 +221,22 @@ function SingleBubble({
 }) {
   const bgRef = useRef<THREE.Mesh>(null)
   const tailRef = useRef<THREE.Mesh>(null)
+  const textRef = useRef<any>(null)
   const groupRef = useRef<THREE.Group>(null)
   const animRef = useRef(0)
   const bgBounds = useRef({ cx: 0, cy: 0, w: 0.1, h: 0.1 })
+  // Per-bubble material clone so opacity doesn't affect other bubbles
+  const matRef = useRef<THREE.MeshBasicMaterial | null>(null)
+  if (!matRef.current) {
+    matRef.current = bubbleMat.clone()
+    matRef.current.transparent = true
+  }
 
-  // Layer setup — runs on mount
+  // Layer setup + cleanup
   useEffect(() => {
     bgRef.current?.layers.set(1)
     tailRef.current?.layers.set(1)
+    return () => { matRef.current?.dispose() }
   }, [])
 
   useFrame((_, delta) => {
@@ -239,12 +247,17 @@ function SingleBubble({
       animRef.current = Math.min(1, animRef.current + delta * 8)
     }
 
-    // Shrink-out in last FADE_MS
+    // Shrink-out + fade-out in last FADE_MS
     const remaining = BUBBLE_DURATION - (Date.now() - bubble.timestamp)
-    const fadeScale = remaining < FADE_MS ? Math.max(0, remaining / FADE_MS) : 1
+    const fadeT = remaining < FADE_MS ? Math.max(0, remaining / FADE_MS) : 1
+    const fadeScale = 0.7 + 0.3 * fadeT // scale shrinks to 0.7 (not 0)
 
     const ease = 1 - (1 - animRef.current) * (1 - animRef.current)
-    groupRef.current.scale.setScalar(ease * fadeScale)
+    groupRef.current.scale.setScalar(ease * (animRef.current < 1 ? 1 : fadeScale))
+
+    // Opacity fade
+    if (matRef.current) matRef.current.opacity = fadeT
+    if (textRef.current) textRef.current.fillOpacity = fadeT
 
     // Tail position
     if (tailRef.current) {
@@ -284,6 +297,7 @@ function SingleBubble({
   return (
     <group ref={groupRef} position={[0, yOffset, 0]} scale={0}>
       <Text
+        ref={textRef}
         fontSize={fontSize}
         maxWidth={0.6}
         color="#000000"
@@ -296,11 +310,11 @@ function SingleBubble({
         {bubble.content}
       </Text>
 
-      <mesh ref={bgRef} material={bubbleMat}>
+      <mesh ref={bgRef} material={matRef.current!}>
         <planeGeometry args={[0.1, 0.1]} />
       </mesh>
 
-      {showTail && <mesh ref={tailRef} geometry={tailGeo} material={bubbleMat} />}
+      {showTail && <mesh ref={tailRef} geometry={tailGeo} material={matRef.current!} />}
     </group>
   )
 }

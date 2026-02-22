@@ -8,6 +8,7 @@ import { FpsCounter } from '../ui/FpsCounter'
 import { Room } from './Room'
 import { JapaneseRoom } from './JapaneseRoom'
 import { JukeboxRoom } from './JukeboxRoom'
+import { useDreamStore } from '../dream/dreamStore'
 import { FollowCamera, wasCameraDrag } from './Camera'
 import { PlayerEntity } from './PlayerEntity'
 import { useGameStore } from '../stores/gameStore'
@@ -58,18 +59,25 @@ function Players() {
 
   return (
     <>
-      {Array.from(players.entries()).map(([sessionId, player]) => (
-        <PlayerEntity
-          key={sessionId}
-          player={player}
-          isLocal={sessionId === mySessionId}
-          characterPath={
-            sessionId === mySessionId
-              ? selectedCharacterPath
-              : characterPathForTextureId(player.textureId)
-          }
-        />
-      ))}
+      {Array.from(players.entries()).map(([sessionId, player]) => {
+        let characterPath: string
+        if (sessionId === mySessionId) {
+          characterPath = selectedCharacterPath
+        } else if (player.isNpc && player.npcCharacterPath) {
+          characterPath = player.npcCharacterPath
+        } else {
+          characterPath = characterPathForTextureId(player.textureId)
+        }
+
+        return (
+          <PlayerEntity
+            key={sessionId}
+            player={player}
+            isLocal={sessionId === mySessionId}
+            characterPath={characterPath}
+          />
+        )
+      })}
     </>
   )
 }
@@ -90,9 +98,16 @@ function SceneContent() {
   const slideshowTexture = useSlideshowTexture(!videoTexture)
   const roomType = useGameStore((s) => s.roomType)
   const musicMode = useGameStore((s) => s.musicMode)
+  const isDreaming = useDreamStore((s) => s.isDreaming)
 
   // Custom rooms with jukebox musicMode also use the JukeboxRoom scene
   const useJukeboxScene = roomType === 'jukebox' || (roomType === 'custom' && musicMode === 'jukebox')
+
+  // Dream mode is now handled by a fullscreen iframe overlay (DreamIframe.tsx)
+  // The 3D scene stays mounted underneath but is hidden by the iframe
+  if (isDreaming) {
+    return null
+  }
 
   return (
     <>

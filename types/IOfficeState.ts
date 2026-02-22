@@ -9,6 +9,8 @@ export interface IPlayer extends Schema {
   scale: number
   readyToConnect: boolean
   connected: boolean
+  isNpc: boolean
+  npcCharacterPath: string
 }
 
 export interface IDJUserInfo extends Schema {

@@ -1,16 +1,23 @@
 [build]
-  command = "corepack enable && pnpm install --frozen-lockfile && pnpm --filter club-mutant-3d build"
+  command = "corepack enable && pnpm install --frozen-lockfile && pnpm --filter club-mutant-dream build && mkdir -p client-3d/public/dream && cp -r client-dream/dist/* client-3d/public/dream/ && pnpm --filter club-mutant-3d build"
   publish = "client-3d/dist"
 
 [build.environment]
   VITE_WS_ENDPOINT = "wss://api.mutante.club"
   VITE_HTTP_ENDPOINT = "https://api.mutante.club"
   VITE_YOUTUBE_SERVICE_URL = "https://yt.mutante.club"
+  VITE_DREAM_SERVICE_URL = "https://dream.mutante.club"
 
 # Serve static assets directly (don't redirect)
 [[redirects]]
   from = "/assets/*"
   to = "/assets/:splat"
+  status = 200
+
+# Dream client SPA fallback (must be before catch-all)
+[[redirects]]
+  from = "/dream/*"
+  to = "/dream/index.html"
   status = 200
 
 # Rule for router history mode (SPA fallback)

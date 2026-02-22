@@ -1,0 +1,19 @@
+{
+  "name": "dream-npc",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx watch src/index.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/cors": "^2.8.17",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}

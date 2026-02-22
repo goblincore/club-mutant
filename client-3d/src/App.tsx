@@ -14,6 +14,9 @@ import { ToastContainer } from './ui/ToastContainer'
 import { DisconnectedOverlay } from './ui/DisconnectedOverlay'
 import { ComputerBrowser } from './ui/ComputerBrowser'
 import { MagazineReader } from './ui/MagazineReader'
+import { SleepPrompt } from './ui/SleepPrompt'
+import { WakePrompt } from './ui/WakePrompt'
+import { DreamIframe } from './ui/DreamIframe'
 
 const PLAYLIST_WIDTH = 360
 
@@ -230,6 +233,15 @@ export function App() {
 
       {/* Magazine rack reader */}
       <MagazineReader />
+
+      {/* Dream mode iframe (Phaser app) */}
+      <DreamIframe />
+
+      {/* Sleep prompt (dream mode entry) */}
+      <SleepPrompt />
+
+      {/* Wake prompt (dream mode exit) */}
+      <WakePrompt />
 
       {/* Reconnection / disconnection overlay */}
       <DisconnectedOverlay />
