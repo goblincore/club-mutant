@@ -102,6 +102,10 @@ export class ClubMutant extends Room {
   private npcResponseQueue: string[] = [] // queued sentence chunks for chunked delivery
   private npcResponseTimer: NodeJS.Timeout | null = null // drains npcResponseQueue
   private npcConversationWindows = new Map<string, number>() // sessionId → timestamp of last exchange with Lily
+  private npcRecentChatters: { sessionId: string; at: number }[] = [] // track who's been chatting recently
+  private npcOverwhelmedUntil = 0 // timestamp — Lily is overwhelmed and won't respond until this time
+  private npcLastMusicSilenceCheck = 0 // timestamp of last "no music" nudge
+  private npcMusicSilenceSince = 0 // when silence started (0 = music is playing or not tracked yet)
 
   private readonly npcGreetings = [
     "hi! I'm Lily. if you need anything just say my name",
@@ -109,6 +113,21 @@ export class ClubMutant extends Room {
     "hey~ I'm Lily, the bartender here. say my name if you need me",
     "oh! hi. I'm Lily. just say \"Lily\" and I'll hear you",
     "welcome~ I'm Lily. call me by name if you want something!",
+  ]
+
+  private readonly npcOverwhelmedPhrases = [
+    "ah... sorry, there's a lot of people talking... give me a second",
+    "oh... I need to catch my breath... one moment",
+    "too many voices at once... I'll be back in a bit",
+    "s-sorry... I need a little break... just a minute",
+  ]
+
+  private readonly npcSuggestMusicPhrases = [
+    "it's really quiet in here... someone should put on some music",
+    "hmm... this silence is nice but... maybe a song would be good?",
+    "does anyone want to play something? the jukebox is right there",
+    "I keep thinking about Denki Groove... someone should play something",
+    "the bar feels a little empty without music... just saying",
   ]
 
   /** Returns true if the message should be dropped (too frequent). */
@@ -410,6 +429,30 @@ export class ClubMutant extends Room {
         break
       }
     }
+
+    // ── Music silence nudge ──
+    // If no music has been playing for a while and there are humans present, suggest music
+    const now = Date.now()
+    if (isMusicPlaying) {
+      this.npcMusicSilenceSince = 0 // reset when music is playing
+    } else {
+      if (this.npcMusicSilenceSince === 0) {
+        this.npcMusicSilenceSince = now // start tracking silence
+      }
+      const silenceDuration = now - this.npcMusicSilenceSince
+      // After 2 minutes of silence, nudge every 3 minutes (max ~once per 3m)
+      if (
+        silenceDuration > 120_000 &&
+        now - this.npcLastMusicSilenceCheck > 180_000 &&
+        this.getHumanPlayerCount() > 0 &&
+        this.npcState !== 'conversing' &&
+        now >= this.npcOverwhelmedUntil
+      ) {
+        this.npcLastMusicSilenceCheck = now
+        const phrase = this.npcSuggestMusicPhrases[Math.floor(Math.random() * this.npcSuggestMusicPhrases.length)]
+        this.broadcastNpcMessage(phrase)
+      }
+    }
   }
 
   /** Count human (non-NPC) players in the room */
@@ -428,6 +471,26 @@ export class ClubMutant extends Room {
     // Rate limit: 1 request per 2 seconds
     if (now - this.npcLastChatAt < 2000) return
     this.npcLastChatAt = now
+
+    // ── Overwhelm check: if Lily is taking a break, silently ignore ──
+    if (now < this.npcOverwhelmedUntil) return
+
+    // Track recent chatters (sliding 30s window)
+    this.npcRecentChatters = this.npcRecentChatters.filter((c) => now - c.at < 30_000)
+    // Only add if this player isn't already in the recent list
+    if (!this.npcRecentChatters.some((c) => c.sessionId === senderSessionId)) {
+      this.npcRecentChatters.push({ sessionId: senderSessionId, at: now })
+    }
+    // Count unique chatters in last 30s
+    const uniqueChatters = new Set(this.npcRecentChatters.map((c) => c.sessionId)).size
+    if (uniqueChatters > 3) {
+      // Lily is overwhelmed — announce break and pause for 30s
+      const phrase = this.npcOverwhelmedPhrases[Math.floor(Math.random() * this.npcOverwhelmedPhrases.length)]
+      this.broadcastNpcMessage(phrase)
+      this.npcOverwhelmedUntil = now + 30_000
+      this.npcRecentChatters = [] // reset so the window starts fresh after break
+      return
+    }
 
     // Interrupt any pending chunked response queue
     this.stopDrainingNpcQueue()

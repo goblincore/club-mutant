@@ -80,13 +80,21 @@ const JB_ARCADE1_BOX: CollisionBox = { minX: -430, maxX: -330, minY: -290, maxY:
 // Arcade Machine 2 (world (-3.9, 0, 1.5) -> server (-390, -150))
 const JB_ARCADE2_BOX: CollisionBox = { minX: -430, maxX: -330, minY: -190, maxY: -90 }
 
+// Counter stools in front of bar: world [1.5, 0, Z] → server (150, -Z*100), radius ~18 server px
+const JB_STOOL1_BOX: CollisionBox = { minX: 130, maxX: 170, minY: 260, maxY: 300 }  // world Z=-2.8
+const JB_STOOL2_BOX: CollisionBox = { minX: 130, maxX: 170, minY: 130, maxY: 170 }  // world Z=-1.5
+const JB_STOOL3_BOX: CollisionBox = { minX: 130, maxX: 170, minY: 0, maxY: 40 }     // world Z=-0.2
+
 const JUKEBOX_COLLISION_BOXES: CollisionBox[] = [
   JB_JUKEBOX_BOX,
   JB_BAR_ISLAND_BOX,
   JB_BOOTH1_BOX,
   JB_BOOTH2_BOX,
   JB_ARCADE1_BOX,
-  JB_ARCADE2_BOX
+  JB_ARCADE2_BOX,
+  JB_STOOL1_BOX,
+  JB_STOOL2_BOX,
+  JB_STOOL3_BOX
 ]
 
 const JUKEBOX_HALF = 430 // 9 * 100 / 2 - 20 padding

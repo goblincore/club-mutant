@@ -264,7 +264,7 @@ function DinerTable({
 // ── Bar island — L-shaped counter, cute 60s retro style ──
 // Uses emissive to ensure pastel colors show through even in shadow
 function BarIsland({ position }: { position: [number, number, number] }) {
-  const H = 0.50          // low counter — waist height
+  const H = 0.38          // low counter — below waist height
   const D = 0.55
   const MAIN_LEN = 3.6    // main bar runs along Z
   const WING_LEN = 1.8    // short wing runs along X
@@ -417,27 +417,27 @@ function BackShelf({ position, rotation }: { position: [number, number, number];
 function CounterStool({ position }: { position: [number, number, number] }) {
   return (
     <group position={position}>
-      {/* Seat cushion — pastel pink to match bar (H=0.50 bar → seat at ~0.40) */}
-      <mesh position={[0, 0.40, 0]}>
-        <cylinderGeometry args={[0.18, 0.18, 0.06, 10]} />
+      {/* Seat cushion — small pastel pink to match bar (H=0.38 bar → seat at ~0.28) */}
+      <mesh position={[0, 0.28, 0]}>
+        <cylinderGeometry args={[0.13, 0.13, 0.045, 8]} />
         <meshStandardMaterial color="#ffc1d3" emissive="#ffc1d3" emissiveIntensity={0.2} roughness={0.6} />
       </mesh>
 
       {/* Post — short to match low bar */}
-      <mesh position={[0, 0.20, 0]}>
-        <cylinderGeometry args={[0.022, 0.022, 0.40, 8]} />
+      <mesh position={[0, 0.14, 0]}>
+        <cylinderGeometry args={[0.018, 0.018, 0.28, 6]} />
         <meshStandardMaterial color="#c0c2c4" metalness={0.85} roughness={0.15} />
       </mesh>
 
       {/* Foot ring */}
-      <mesh position={[0, 0.14, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.13, 0.012, 6, 14]} />
+      <mesh position={[0, 0.10, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.10, 0.010, 6, 12]} />
         <meshStandardMaterial color="#aaaaaa" metalness={0.7} roughness={0.2} />
       </mesh>
 
       {/* Base */}
-      <mesh position={[0, 0.025, 0]}>
-        <cylinderGeometry args={[0.18, 0.18, 0.04, 10]} />
+      <mesh position={[0, 0.018, 0]}>
+        <cylinderGeometry args={[0.13, 0.13, 0.03, 8]} />
         <meshStandardMaterial color="#c0c2c4" metalness={0.8} roughness={0.2} />
       </mesh>
     </group>
@@ -1279,9 +1279,9 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
       <CounterStool position={[1.5, 0, -1.5]} />
       <CounterStool position={[1.5, 0, -0.2]} />
 
-      {/* Counter props on bar top — lowered to match H=0.50 */}
-      <CounterProps position={[2.5, 0.50, -0.5]} />
-      <CounterProps position={[2.5, 0.50, -2.2]} />
+      {/* Counter props on bar top — lowered to match H=0.38 */}
+      <CounterProps position={[2.5, 0.38, -0.5]} />
+      <CounterProps position={[2.5, 0.38, -2.2]} />
 
       {/* ── Arcade Machines ── */}
       <InteractableObject onInteract={() => useUIStore.getState().setComputerIframeOpen(true)} occludeHighlight={false} interactDistance={2.5}>
