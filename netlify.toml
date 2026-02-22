@@ -1,5 +1,5 @@
 [build]
-  command = "corepack enable && pnpm install --frozen-lockfile && pnpm --filter club-mutant-3d build"
+  command = "corepack enable && pnpm install --frozen-lockfile && pnpm --filter club-mutant-dream build && mkdir -p client-3d/public/dream && cp -r client-dream/dist/* client-3d/public/dream/ && pnpm --filter club-mutant-3d build"
   publish = "client-3d/dist"
 
 [build.environment]
@@ -12,6 +12,12 @@
 [[redirects]]
   from = "/assets/*"
   to = "/assets/:splat"
+  status = 200
+
+# Dream client SPA fallback (must be before catch-all)
+[[redirects]]
+  from = "/dream/*"
+  to = "/dream/index.html"
   status = 200
 
 # Rule for router history mode (SPA fallback)
