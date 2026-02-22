@@ -28,7 +28,10 @@ export function DreamIframe() {
         // Dream app loaded — send init data
         const network = getNetwork()
         const payload: DreamInitPayload = {
-          playerName: useGameStore.getState().playerName || 'dreamer',
+          playerName: (() => {
+            const gs = useGameStore.getState()
+            return gs.players.get(gs.mySessionId ?? '')?.name || 'dreamer'
+          })(),
           collectedItems: Array.from(useDreamStore.getState().collectedItems),
           serverHttpUrl: import.meta.env.VITE_HTTP_ENDPOINT || 'http://localhost:2567',
           dreamServiceUrl: import.meta.env.VITE_DREAM_SERVICE_URL || 'http://localhost:4000',
