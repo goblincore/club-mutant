@@ -1303,6 +1303,7 @@ YouTube ID into a direct playable video URL:
 - **NPC behavior FSM**: `client-dream/src/phaser/systems/NpcBehavior.ts`
 - **NPC chat service**: `client-dream/src/npc/npcService.ts`
 - **Dream chat store**: `client-dream/src/stores/dreamChatStore.ts`
+- **Lily NPC character assets**: `client-3d/public/npc/denkiqt/` (PaperDoll manifest + PNGs)
 
 ## Conventions / tips
 
@@ -1629,6 +1630,108 @@ Room-type-aware in `usePlayerInput.ts`:
 | `client-3d/src/ui/CreateRoomForm.tsx` | Music mode selector for custom rooms |
 | `client-3d/src/input/usePlayerInput.ts` | Jukebox room collision boxes |
 
+## Lily NPC Bartender — Jukebox Room (Feb 2026)
+
+A server-side AI bartender NPC named Lily who lives in the Jukebox Room. She's a shy alien flower being who tends bar and chats with players via Gemini 2.5 Flash-Lite API through the dream-npc microservice.
+
+### Architecture
+
+```
+┌──────────────────────────────────────────┐
+│  server (Colyseus)                       │
+│    ClubMutant.ts                         │
+│    - Virtual Player (NPC_SESSION_ID)     │
+│    - FSM: idle/walking/dancing/conversing│
+│    - Chat routing + chunked delivery     │
+│    - Conversational window (20s)         │
+│    - Spontaneous music commentary        │
+│              │ HTTP POST                 │
+│              ▼                           │
+│  ┌────────────────────────────────────┐  │
+│  │  dream-npc (Express 4, port 4000) │  │
+│  │  POST /bartender/npc-chat         │  │
+│  │  Gemini 2.5 Flash-Lite            │  │
+│  └────────────────────────────────────┘  │
+└──────────────────────────────────────────┘
+```
+
+### Server-Side NPC (`ClubMutant.ts`)
+
+- **Virtual Player**: Created with reserved `sessionId = 'npc_lily'`, spawns as a `Player` in the Colyseus state. Uses `PaperDoll` character at `/npc/denkiqt`.
+- **FSM States**: `idle` (3-8s timer) → `walking` (60px/s within wander bounds) → `dancing` (when music plays) → `conversing` (15s timeout after chat).
+- **Wander Bounds**: Behind the bar island (`minX:290, maxX:410, minY:10, maxY:280` server px).
+- **Update Interval**: 200ms tick via `setInterval`.
+
+### Chat Routing
+
+Messages route to Lily via three triggers (checked in `ADD_CHAT_MESSAGE` handler):
+
+1. **Name prefix**: Message starts with `lily,` or `lily ` (case-insensitive regex)
+2. **Alone with NPC**: `getHumanPlayerCount() === 1`
+3. **Conversational window**: Player recently talked to Lily (within 20s)
+
+The conversational window (`npcConversationWindows: Map<string, number>`) tracks per-player timestamps. After Lily responds to a player, their messages auto-route to her for `NPC_CONVO_WINDOW_MS = 20_000` ms without needing the "Lily" prefix. Window resets on each exchange and cleans up in `onLeave()` and `cleanupNpc()`.
+
+### Chunked Response Delivery
+
+AI responses are split into sentence chunks and delivered with staggered delays to avoid bubble overlap:
+
+- **Splitting**: Regex on `.!?…` sentence boundaries via `splitIntoChunks()`
+- **Delay formula**: `4000 + len * 55` ms per chunk, clamped 4s-7s (`chunkDelay()`)
+- **Queue**: `npcResponseQueue` drained by `setTimeout` chain. First chunk sent immediately.
+- **Interruption**: New player message calls `stopDrainingNpcQueue()` — clears pending chunks.
+- **History**: Full text stored in `npcChatHistory` (not chunks) for coherent AI context.
+
+### Music Awareness
+
+- **Always explicit**: Music context always sent to AI — either `Currently playing: "title"` or `No music is playing right now. The bar is quiet.` Prevents false music references.
+- **Spontaneous commentary**: `notifyNpcMusicStarted(title)` called from `playNextJukeboxTrack()` in `JukeboxCommand.ts`. 30% chance, 2-5s delay. Sends system-tagged prompt for brief reaction.
+- **Song knowledge**: Prompt includes specific song titles for Denki Groove, Cornelius, YMO, Aphex Twin, Nujabes, etc. When asked what to play, suggests specific tracks.
+
+### Greeting System
+
+- **On player join**: Random greeting from `npcGreetings[]` after 1.5-3s delay, rate-limited to 1 per 15s.
+- **Greetings teach mechanic**: All greetings mention "say my name" / "call me by name" so players learn how to talk to her.
+
+### Dream-NPC Service (`POST /bartender/npc-chat`)
+
+- **Endpoint**: `services/dream-npc/src/index.ts` registers `/bartender/npc-chat` alongside the existing `/dream/npc-chat`.
+- **Request**: `{ personalityId, message, history, roomId, senderName, musicContext }`
+- **Response**: `{ text, behavior? }` — same format as dream NPC chat.
+- **Personality**: `lily_bartender` in `dreamNpc.ts` — system prompt with backstory, music knowledge, rules, multi-player attribution format.
+- **Rate limiting**: Same per-session limits as dream NPCs (6/min, 60/hr, 200/day).
+- **Caching**: Skipped when music is playing (contextual). Active when bar is quiet.
+- **Fallback phrases**: 18 in-character phrases used when API fails. No unicode emoji.
+
+### Bar Layout (Jukebox Room)
+
+- **BarIsland**: `H=0.50`, retro pastel colors with emissive materials (pink, mint, yellow, lavender). Front faces -X (room center). Chrome strip accent, flower vase.
+- **BackShelf**: Cream/light wood frame, candy-bright bottles (emerald, ruby, gold, cobalt, amethyst). Rotated `[0, -Math.PI/2, 0]` against right wall.
+- **CounterStools**: Pastel pink seats (`#ffc1d3`) at `Y=0.40`, chrome bases, positioned at X=1.5.
+- **Collision**: `JB_BAR_ISLAND_BOX` in `usePlayerInput.ts` (`minX:170, maxX:450, minY:-50, maxY:340`).
+
+### Chat Bubble Fade-Out
+
+- **Duration**: `FADE_MS = 400` ms (fast exit, was 800ms)
+- **Scale**: Shrinks to 70% (not 0) for subtler visual
+- **Opacity**: Per-bubble material clone with opacity fade + troika `fillOpacity` fade
+- **Cleanup**: Material disposed on unmount
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `server/src/rooms/ClubMutant.ts` | NPC spawn, FSM, chat routing, conversational window, chunked delivery, music commentary |
+| `server/src/rooms/commands/JukeboxCommand.ts` | `notifyNpcMusicStarted()` hook in `playNextJukeboxTrack()` |
+| `services/dream-npc/src/dreamNpc.ts` | Lily personality, Gemini API, rate limiting, caching, fallbacks |
+| `services/dream-npc/src/index.ts` | `/bartender/npc-chat` endpoint registration |
+| `client-3d/public/npc/denkiqt/` | Lily's PaperDoll character assets (manifest + PNGs) |
+| `client-3d/src/scene/JukeboxRoom.tsx` | BarIsland, BackShelf, CounterStool, bar lighting |
+| `client-3d/src/scene/PlayerEntity.tsx` | Bubble fade-out animation (FADE_MS, per-bubble opacity) |
+| `client-3d/src/scene/GameScene.tsx` | NPC character path routing |
+| `client-3d/src/input/usePlayerInput.ts` | Bar island collision box |
+| `server/src/rooms/schema/OfficeState.ts` | `Player.isNpc` schema field |
+
 ## Dream Mode — Yume Nikki-Inspired Exploration (Feb 2026)
 
 A Yume Nikki-inspired dream mode where players sleep on the futon in MyRoom and enter surreal dream worlds. Implemented as a **separate Phaser 3 Vite app** (`client-dream/`) embedded via fullscreen iframe, with freeform AI NPC chat powered by Gemini 2.5 Flash-Lite.
@@ -1951,6 +2054,8 @@ The service abstracts the model backend — swapping from API to Ollama requires
 - ~~Suppress browser password manager on CreateRoomForm (type="text" + -webkit-text-security)~~ ✅ COMPLETED (Feb 2026)
 - ~~Jump landing: jelly wobble animation (damped oscillation replaces single squash flash)~~ ✅ COMPLETED (Feb 2026)
 - ~~Dream Mode Phase 1: Phaser app + iframe + NPC chat (core scaffolding)~~ ✅ COMPLETED (Feb 2026)
+- ~~Lily NPC bartender: server-side AI NPC, chat routing, bar redesign, music awareness~~ ✅ COMPLETED (Feb 2026)
+- ~~Lily NPC polish: emoticon reduction, chunk delay tuning, greeting name mechanic, conversational window, spontaneous music commentary, song recommendations, fallback emoji fix, bubble fade-out~~ ✅ COMPLETED (Feb 2026)
 - Dream Mode: shader backgrounds (port TV static noise to Phaser WebGL pipeline, per-world palette)
 - Dream Mode: collectible persistence end-to-end testing
 - Dream Mode Phase 2: combat system, more NPCs, additional dream worlds, sound effects
