@@ -1687,6 +1687,17 @@ AI responses are split into sentence chunks and delivered with staggered delays 
 - **Always explicit**: Music context always sent to AI — either `Currently playing: "title"` or `No music is playing right now. The bar is quiet.` Prevents false music references.
 - **Spontaneous commentary**: `notifyNpcMusicStarted(title)` called from `playNextJukeboxTrack()` in `JukeboxCommand.ts`. 30% chance, 2-5s delay. Sends system-tagged prompt for brief reaction.
 - **Song knowledge**: Prompt includes specific song titles for Denki Groove, Cornelius, YMO, Aphex Twin, Nujabes, etc. When asked what to play, suggests specific tracks.
+- **Silence nudge**: After 2 minutes with no music and humans present, Lily suggests someone play something. Repeats every 3 minutes while quiet. Tracked via `npcMusicSilenceSince` / `npcLastMusicSilenceCheck`.
+
+### Overwhelm Behavior
+
+Lily is a small being — she can't handle too many people talking at once:
+
+- **Tracking**: `npcRecentChatters[]` records `{ sessionId, at }` with a 30-second sliding window.
+- **Trigger**: If >3 unique players have chatted in the last 30s, Lily announces she needs a break.
+- **Cooldown**: `npcOverwhelmedUntil` set to `now + 30_000` — she silently ignores all messages for 30s.
+- **Recovery**: After 30s, the chatter list resets and she responds normally again.
+- **Phrases**: 4 overwhelm-specific phrases ("too many voices at once...", "I need a little break...").
 
 ### Greeting System
 
@@ -1705,10 +1716,10 @@ AI responses are split into sentence chunks and delivered with staggered delays 
 
 ### Bar Layout (Jukebox Room)
 
-- **BarIsland**: `H=0.50`, retro pastel colors with emissive materials (pink, mint, yellow, lavender). Front faces -X (room center). Chrome strip accent, flower vase.
+- **BarIsland**: `H=0.38`, retro pastel colors with emissive materials (pink, mint, yellow, lavender). Front faces -X (room center). Chrome strip accent, flower vase.
 - **BackShelf**: Cream/light wood frame, candy-bright bottles (emerald, ruby, gold, cobalt, amethyst). Rotated `[0, -Math.PI/2, 0]` against right wall.
-- **CounterStools**: Pastel pink seats (`#ffc1d3`) at `Y=0.40`, chrome bases, positioned at X=1.5.
-- **Collision**: `JB_BAR_ISLAND_BOX` in `usePlayerInput.ts` (`minX:170, maxX:450, minY:-50, maxY:340`).
+- **CounterStools**: Small pastel pink seats (`#ffc1d3`, radius 0.13) at `Y=0.28`, chrome bases, positioned at X=1.5. Each stool has its own collision box.
+- **Collision**: `JB_BAR_ISLAND_BOX` (bar island + bartender area) + 3 `JB_STOOL_BOX` boxes in `usePlayerInput.ts`.
 
 ### Chat Bubble Fade-Out
 
