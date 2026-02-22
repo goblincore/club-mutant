@@ -88,7 +88,7 @@ export class Collectible extends Phaser.GameObjects.Graphics {
     })
 
     // Persist
-    useDreamClientStore.getState().collectItem(this.collectibleId)
+    useDreamClientStore.getState().addCollectedItem(this.collectibleId)
     sendToParent({ type: 'DREAM_COLLECT', collectibleId: this.collectibleId })
   }
 }
