@@ -331,6 +331,8 @@ export class NetworkManager {
         textureId: player.textureId,
         animId: player.animId,
         scale: player.scale,
+        isNpc: player.isNpc ?? false,
+        npcCharacterPath: player.npcCharacterPath ?? '',
       })
 
       if (isLocal) {
@@ -356,7 +358,8 @@ export class NetworkManager {
         useGameStore.getState().updatePlayer(sessionId, { scale: value })
       })
 
-      if (player.name) {
+      // Don't show "joined" message for NPC players — they're always present
+      if (player.name && !player.isNpc) {
         chatStore.addMessage({
           id: crypto.randomUUID(),
           author: 'system',
@@ -375,12 +378,15 @@ export class NetworkManager {
 
       gameStore.removePlayer(sessionId)
 
-      chatStore.addMessage({
-        id: crypto.randomUUID(),
-        author: 'system',
-        content: `${name} left`,
-        createdAt: Date.now(),
-      })
+      // Don't show "left" message for NPC players
+      if (!existing?.isNpc) {
+        chatStore.addMessage({
+          id: crypto.randomUUID(),
+          author: 'system',
+          content: `${name} left`,
+          createdAt: Date.now(),
+        })
+      }
     })
 
     // Chat messages (from other players)

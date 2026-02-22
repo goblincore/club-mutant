@@ -32,6 +32,8 @@ export class Player extends Schema {
   @type('boolean') readyToConnect = false
   @type('boolean') connected = true
   @type('boolean') isDreaming = false
+  @type('boolean') isNpc = false
+  @type('string') npcCharacterPath = ''
   @type(['string']) collectibles = new ArraySchema<string>()
   roomQueuePlaylist: RoomQueuePlaylistItem[] = [] // Server-only, not synced (clients use targeted messages)
 }

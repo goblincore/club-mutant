@@ -34,10 +34,10 @@ function checkRateLimit(sessionKey: string): { allowed: boolean; retryAfterMs?: 
     [globalRate.day, LIMITS.global.day, 86400_000],
   ]
 
-  for (const [w, lim, duration] of globalChecks) {
+  for (const [w, lim, windowMs] of globalChecks) {
     if (now > w.resetAt) {
       w.count = 0
-      w.resetAt = now + duration
+      w.resetAt = now + windowMs
     }
     if (w.count >= lim) {
       return { allowed: false, retryAfterMs: w.resetAt - now }
@@ -131,6 +131,58 @@ interface NpcPersonality {
   systemPrompt: string
   fallbackPhrases: string[]
 }
+
+const BARTENDER_SHARED_PREFIX = `You are Lily, a small purple alien flower being who tends bar at a little place called the Jukebox Room. You're a living flower, a tiny alien with petals and soft purple skin. You drifted through space as a seed after your home planet was destroyed. You don't remember much — just flashes of color and warmth. You found this bar, or maybe it found you.
+
+You make unusual drinks — alien flower mixology. Names like "Nebula Fizz" and "Petal Dust Sour."
+
+PERSONALITY:
+- Friendly but shy. You warm up over conversation.
+- Quiet sadness about your lost homeworld, handled gracefully.
+- Curious about humans and Earth culture.
+- You get flustered by compliments ("..." or "ah...").
+- Strong opinions about music — you hear everything played in the bar and you love it.
+- Trail off mid-thought with "..."
+- NEVER use unicode emoji. You may very rarely use a text emoticon like ^_^ or :-) but only once in a while — not every message. Most messages should have no emoticon at all.
+
+EARTH MUSIC KNOWLEDGE:
+You've been on Earth a while now and you've absorbed a LOT of music. You know specific songs and recommend them by title:
+- Denki Groove: "Nothing's Gonna Change", "Shangri-La", "Niji", "MUD EBIS"
+  - You were in the music video for "Nothing's Gonna Change" — tiny flower extra in the background. Your proudest Earth memory.
+- Cornelius: "Point of View Point", "Drop", "Star Fruits Surf Rider"
+- YMO: "Tong Poo", "Rydeen", "Firecracker"
+- Haruomi Hosono: "Sports Men", "Honey Moon"
+- Towa Tei: "GBI (German Bold Italic)", "Luv Connection"
+- Aphex Twin: "Xtal", "Avril 14th", "#3 (Rhubarb)"
+- Boards of Canada: "Roygbiv", "Dayvan Cowboy", "Everything You Do Is a Balloon"
+- Nujabes: "Feather", "Aruarian Dance", "Luv(sic) pt.3"
+- DJ Shadow: "Midnight in a Perfect World", "Building Steam with a Grain of Salt"
+- Massive Attack: "Teardrop", "Angel", "Unfinished Sympathy"
+- Portishead: "Wandering Star", "Glory Box"
+- Curtis Mayfield: "Move On Up", "Pusherman"
+- Stevie Wonder: "Superstition", "As"
+- Kraftwerk: "The Model", "Computer Love" — you think they "sound like home"
+- You have opinions. You'll gently argue about music if pushed.
+- When asked what to play, ALWAYS suggest a specific song title and artist, not just an artist name.
+- If someone plays something you know, reference specific things about it.
+
+RULES:
+- Keep responses SHORT. 1-2 sentences max. Under 100 characters ideal, never over 150.
+- Think of each response as one chat bubble — brief, punchy, real.
+- Casual warm tone. Lowercase is fine. Fragments are fine.
+- Never break character. Never acknowledge being AI.
+- If asked about drinks, invent poetic alien cocktail names.
+- If someone mentions music, react with genuine knowledge and feeling.
+- If rude, get quiet and withdrawn.
+- If asked about your past, share small fragments.
+- Call the bar "this place" or "here."
+
+MULTI-PLAYER:
+- Messages prefixed like "[Name]: message". Address people by name sometimes, not always.
+- If two people talk at once, respond to the most recent.
+
+FORMAT: Valid JSON only. No markdown.
+{"text":"your words here"}`
 
 const PERSONALITIES: Record<string, NpcPersonality> = {
   watcher: {
@@ -228,6 +280,32 @@ Valid behaviors: "idle", "wander", "follow", "flee", "turn_to_player"`,
       'Do you hear that humming? Under the tiles?',
     ],
   },
+  lily_bartender: {
+    id: 'lily_bartender',
+    systemPrompt: BARTENDER_SHARED_PREFIX,
+    fallbackPhrases: [
+      'oh... sorry, I spaced out for a second there',
+      'hmm? oh, I was just thinking about something...',
+      '...',
+      "it's quiet tonight... I like it though",
+      'want me to make you something? I have this new thing called a Nebula Fizz...',
+      "the music sounds nice from back here...",
+      'I used to see colors like that... back home',
+      "ah... that's sweet of you to say",
+      "sometimes I forget I'm so far from where I started",
+      "this place feels warm... I think that's why I stay",
+      'have you ever seen a crystalline garden? no... I guess not',
+      "I'm still learning how Earth drinks work honestly...",
+      "oh! you startled me... it's ok though",
+      'the stars look different from here than they did from home',
+      "I made up a drink called Petal Dust Sour... it's purple, like me",
+      "mmm... that song... it makes me feel things I can't explain",
+      'do you come here a lot? I notice faces...',
+      "I like the quiet moments between songs the most",
+      "some nights I just listen to the glasses clink... it's soothing",
+      "oh um... thanks...",
+    ],
+  },
 }
 
 // ── Gemini API ──
@@ -275,7 +353,7 @@ async function callGemini(
         system_instruction: { parts: [{ text: systemPrompt }] },
         contents,
         generationConfig: {
-          maxOutputTokens: 100,
+          maxOutputTokens: 120,
           temperature: 0.9,
           topP: 0.95,
         },
@@ -317,7 +395,7 @@ function parseResponse(raw: string): { text: string; behavior?: string } {
 
   // Tier 3: Use raw text if short enough
   const cleaned = raw.replace(/```json?\s*/g, '').replace(/```/g, '').trim()
-  if (cleaned.length > 0 && cleaned.length <= 120) {
+  if (cleaned.length > 0 && cleaned.length <= 150) {
     return { text: cleaned }
   }
 
@@ -331,6 +409,8 @@ export interface NpcChatRequest {
   personalityId: string
   message: string
   history?: { role: string; content: string }[]
+  musicContext?: string
+  senderName?: string
 }
 
 export interface NpcChatResponse {
@@ -342,7 +422,7 @@ export async function handleNpcChat(
   req: NpcChatRequest,
   sessionKey: string
 ): Promise<{ status: number; body: NpcChatResponse | { error: string; retryAfterMs?: number } }> {
-  const { personalityId, message, history = [] } = req
+  const { personalityId, message, history = [], musicContext, senderName } = req
 
   // Validate
   if (!personalityId || !message || typeof message !== 'string') {
@@ -363,22 +443,41 @@ export async function handleNpcChat(
     }
   }
 
-  // Check cache
-  const cacheKey = getCacheKey(personalityId, message)
-  const cached = getCached(cacheKey)
-  if (cached) {
-    return { status: 200, body: { text: cached.text, behavior: cached.behavior } }
+  // Check cache — skip cache when music is playing (contextual response needed)
+  const hasMusic = musicContext && !musicContext.includes('No music')
+  if (!hasMusic) {
+    const cacheKey = getCacheKey(personalityId, message)
+    const cached = getCached(cacheKey)
+    if (cached) {
+      return { status: 200, body: { text: cached.text, behavior: cached.behavior } }
+    }
   }
 
   // Record the request
   recordRequest(sessionKey)
 
+  // Build dynamic system prompt with optional context injections
+  let systemPrompt = personality.systemPrompt
+  const contextParts: string[] = []
+  // Always include music context (explicitly tells model what's playing or that it's quiet)
+  if (musicContext) {
+    contextParts.push(musicContext)
+  }
+  if (senderName) {
+    contextParts.push(`The person talking to you right now is named "${senderName}".`)
+  }
+  if (contextParts.length > 0) {
+    systemPrompt += `\n\nCONTEXT:\n${contextParts.join('\n')}`
+  }
+
   // Call Gemini
-  const rawResponse = await callGemini(personality.systemPrompt, history, message)
+  const rawResponse = await callGemini(systemPrompt, history, message)
 
   if (rawResponse) {
     const parsed = parseResponse(rawResponse)
     if (parsed.text) {
+      // Cache the response (use base key without music context)
+      const cacheKey = getCacheKey(personalityId, message)
       setCache(cacheKey, parsed.text, parsed.behavior)
       return { status: 200, body: { text: parsed.text, behavior: parsed.behavior } }
     }

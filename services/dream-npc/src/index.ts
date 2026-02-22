@@ -11,9 +11,12 @@ app.use(
     origin: [
       'http://localhost:5176',
       'http://localhost:5175',
+      'http://localhost:2567',
       'http://127.0.0.1:5176',
       'http://127.0.0.1:5175',
+      'http://127.0.0.1:2567',
       'https://mutante.club',
+      'https://api.mutante.club',
     ],
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type'],
@@ -37,6 +40,21 @@ app.post('/dream/npc-chat', async (req, res) => {
     res.status(result.status).json(result.body)
   } catch (e) {
     console.error('[dreamNpc] Handler error:', e)
+    res.status(500).json({ error: 'Internal error' })
+  }
+})
+
+// Bartender NPC chat endpoint (called by Colyseus server)
+app.post('/bartender/npc-chat', async (req, res) => {
+  const body = req.body
+  // Use room-level rate limiting key (server calls this, not individual clients)
+  const sessionKey = `bartender:${body.roomId || 'default'}`
+
+  try {
+    const result = await handleNpcChat(body, sessionKey)
+    res.status(result.status).json(result.body)
+  } catch (e) {
+    console.error('[bartenderNpc] Handler error:', e)
     res.status(500).json({ error: 'Internal error' })
   }
 })

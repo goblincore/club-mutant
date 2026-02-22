@@ -59,18 +59,25 @@ function Players() {
 
   return (
     <>
-      {Array.from(players.entries()).map(([sessionId, player]) => (
-        <PlayerEntity
-          key={sessionId}
-          player={player}
-          isLocal={sessionId === mySessionId}
-          characterPath={
-            sessionId === mySessionId
-              ? selectedCharacterPath
-              : characterPathForTextureId(player.textureId)
-          }
-        />
-      ))}
+      {Array.from(players.entries()).map(([sessionId, player]) => {
+        let characterPath: string
+        if (sessionId === mySessionId) {
+          characterPath = selectedCharacterPath
+        } else if (player.isNpc && player.npcCharacterPath) {
+          characterPath = player.npcCharacterPath
+        } else {
+          characterPath = characterPathForTextureId(player.textureId)
+        }
+
+        return (
+          <PlayerEntity
+            key={sessionId}
+            player={player}
+            isLocal={sessionId === mySessionId}
+            characterPath={characterPath}
+          />
+        )
+      })}
     </>
   )
 }

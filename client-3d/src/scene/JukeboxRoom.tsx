@@ -261,72 +261,176 @@ function DinerTable({
   )
 }
 
-// ── Diner counter — long chrome + formica service counter ──
-function DinerCounter({
-  position,
-  rotation = [0, 0, 0],
-  length = 4.0,
-}: {
-  position: [number, number, number]
-  rotation?: [number, number, number]
-  length?: number
-}) {
-  const H = 0.92
+// ── Bar island — L-shaped counter, cute 60s retro style ──
+// Uses emissive to ensure pastel colors show through even in shadow
+function BarIsland({ position }: { position: [number, number, number] }) {
+  const H = 0.50          // low counter — waist height
   const D = 0.55
+  const MAIN_LEN = 3.6    // main bar runs along Z
+  const WING_LEN = 1.8    // short wing runs along X
+  const TOP_COLOR = '#f5ead0'     // warm cream formica
+  const FRONT_COLOR = '#ffc1d3'   // pastel pink (customer-facing)
+  const BACK_COLOR = '#f0d6e0'    // light pink (bartender side)
+  const CHROME_COLOR = '#d4cfc8'  // light silver
+  const RAIL_COLOR = '#c0b8b0'    // warm silver
+
+  // Single bar section helper — "front" = +Z side (chrome edge + foot rail)
+  const BarSection = ({ len, rot, pos }: { len: number; rot: [number, number, number]; pos: [number, number, number] }) => (
+    <group position={pos} rotation={rot}>
+      {/* Counter top — warm cream formica */}
+      <mesh position={[0, H, 0]}>
+        <boxGeometry args={[len, 0.04, D]} />
+        <meshStandardMaterial color={TOP_COLOR} emissive={TOP_COLOR} emissiveIntensity={0.3} roughness={0.4} metalness={0.02} />
+      </mesh>
+
+      {/* Chrome edge on counter top (front side) */}
+      <mesh position={[0, H - 0.006, D / 2 - 0.01]}>
+        <boxGeometry args={[len + 0.01, 0.024, 0.016]} />
+        <meshStandardMaterial color={CHROME_COLOR} metalness={0.5} roughness={0.25} />
+      </mesh>
+
+      {/* Front face — pastel pink panel (customer-facing) */}
+      <mesh position={[0, H / 2, D / 2]}>
+        <boxGeometry args={[len, H, 0.05]} />
+        <meshStandardMaterial color={FRONT_COLOR} emissive={FRONT_COLOR} emissiveIntensity={0.25} roughness={0.7} />
+      </mesh>
+
+      {/* Back panel — lighter pink */}
+      <mesh position={[0, H / 2, -D / 2]}>
+        <boxGeometry args={[len, H, 0.05]} />
+        <meshStandardMaterial color={BACK_COLOR} emissive={BACK_COLOR} emissiveIntensity={0.2} roughness={0.75} />
+      </mesh>
+
+      {/* Chrome foot rail (front side) */}
+      <mesh position={[0, 0.08, D / 2 + 0.04]}>
+        <boxGeometry args={[len - 0.1, 0.020, 0.020]} />
+        <meshStandardMaterial color={RAIL_COLOR} metalness={0.5} roughness={0.25} />
+      </mesh>
+    </group>
+  )
 
   return (
-    <group position={position} rotation={rotation}>
-      {/* Counter top */}
-      <mesh position={[0, H, 0]}>
-        <boxGeometry args={[length, 0.045, D]} />
-        <meshStandardMaterial color="#e0dbd0" roughness={0.35} metalness={0.05} />
-      </mesh>
+    <group position={position}>
+      {/* Main bar — runs along Z axis, front (chrome/rail) faces -X (room center) */}
+      <BarSection len={MAIN_LEN} rot={[0, -Math.PI / 2, 0]} pos={[0, 0, 0]} />
 
-      {/* Chrome edge on counter top */}
-      <mesh position={[0, H - 0.008, D / 2 - 0.01]}>
-        <boxGeometry args={[length + 0.01, 0.028, 0.018]} />
-        <meshStandardMaterial color="#c0c2c4" metalness={0.85} roughness={0.15} />
-      </mesh>
+      {/* Wing — extends from back end of main bar toward +X (right wall), closes off corridor */}
+      <BarSection len={WING_LEN} rot={[0, Math.PI, 0]} pos={[(WING_LEN / 2) - D / 2, 0, (MAIN_LEN / 2) + D / 2 - 0.05]} />
 
-      {/* Front face — red vinyl panel */}
-      <mesh position={[0, H / 2, D / 2]}>
-        <boxGeometry args={[length, H, 0.05]} />
-        <meshStandardMaterial color="#b81218" roughness={0.7} />
-      </mesh>
-
-      {/* Back panel */}
-      <mesh position={[0, H / 2, -D / 2]}>
-        <boxGeometry args={[length, H, 0.05]} />
-        <meshStandardMaterial color="#1a1a1a" roughness={0.85} />
-      </mesh>
-
-      {/* Chrome foot rail */}
-      <mesh position={[0, 0.12, D / 2 + 0.04]}>
-        <boxGeometry args={[length - 0.1, 0.022, 0.022]} />
-        <meshStandardMaterial color="#c0c2c4" metalness={0.85} roughness={0.15} />
-      </mesh>
+      {/* Small flower vase on counter top — cute 60s accent */}
+      <group position={[-0.05, H + 0.02, -0.3]}>
+        {/* Vase */}
+        <mesh position={[0, 0.05, 0]}>
+          <cylinderGeometry args={[0.03, 0.04, 0.10, 8]} />
+          <meshStandardMaterial color="#e8b4d0" emissive="#e8b4d0" emissiveIntensity={0.3} roughness={0.5} />
+        </mesh>
+        {/* Flower head */}
+        <mesh position={[0, 0.13, 0]}>
+          <sphereGeometry args={[0.04, 8, 6]} />
+          <meshStandardMaterial color="#ff88bb" emissive="#ff88bb" emissiveIntensity={0.35} roughness={0.6} />
+        </mesh>
+        {/* Stem */}
+        <mesh position={[0, 0.09, 0]}>
+          <cylinderGeometry args={[0.005, 0.005, 0.06, 4]} />
+          <meshStandardMaterial color="#66aa66" roughness={0.8} />
+        </mesh>
+      </group>
     </group>
   )
 }
 
-// ── Counter stool — chrome post + red vinyl seat ──
+// ── Back shelf — bottles behind the bar against the right wall — 60s retro ──
+// Rotation prop so it can be oriented flat against the wall
+function BackShelf({ position, rotation }: { position: [number, number, number]; rotation?: [number, number, number] }) {
+  const SHELF_W = 3.2
+  const SHELF_D = 0.25
+  const BACK_COLOR = '#f0e6da'       // light cream backing
+  const SHELF_WOOD = '#d4b896'       // warm light wood
+
+  // Candy-bright bottle colors for 60s retro vibe
+  const bottles = [
+    { x: -1.2, h: 0.22, color: '#88ddaa' },
+    { x: -0.9, h: 0.18, color: '#ee8899' },
+    { x: -0.6, h: 0.24, color: '#ffcc66' },
+    { x: -0.3, h: 0.16, color: '#aaccff' },
+    { x: 0.0, h: 0.20, color: '#cc99ff' },
+    { x: 0.3, h: 0.22, color: '#88ddaa' },
+    { x: 0.6, h: 0.18, color: '#ee8899' },
+    { x: 0.9, h: 0.24, color: '#ffcc66' },
+    { x: 1.2, h: 0.16, color: '#aaccff' },
+  ]
+
+  return (
+    <group position={position} rotation={rotation}>
+      {/* Back board — light cream, emissive so it glows */}
+      <mesh position={[0, 0.8, -SHELF_D / 2 - 0.02]}>
+        <boxGeometry args={[SHELF_W + 0.1, 1.4, 0.04]} />
+        <meshStandardMaterial color={BACK_COLOR} emissive={BACK_COLOR} emissiveIntensity={0.25} roughness={0.7} />
+      </mesh>
+
+      {/* Shelf 1 — lower */}
+      <mesh position={[0, 0.45, 0]}>
+        <boxGeometry args={[SHELF_W, 0.03, SHELF_D]} />
+        <meshStandardMaterial color={SHELF_WOOD} emissive={SHELF_WOOD} emissiveIntensity={0.15} roughness={0.6} />
+      </mesh>
+
+      {/* Shelf 2 — upper */}
+      <mesh position={[0, 0.85, 0]}>
+        <boxGeometry args={[SHELF_W, 0.03, SHELF_D]} />
+        <meshStandardMaterial color={SHELF_WOOD} emissive={SHELF_WOOD} emissiveIntensity={0.15} roughness={0.6} />
+      </mesh>
+
+      {/* Shelf 3 — top */}
+      <mesh position={[0, 1.25, 0]}>
+        <boxGeometry args={[SHELF_W, 0.03, SHELF_D]} />
+        <meshStandardMaterial color={SHELF_WOOD} emissive={SHELF_WOOD} emissiveIntensity={0.15} roughness={0.6} />
+      </mesh>
+
+      {/* Bottles on lower shelf — candy bright, emissive for pop */}
+      {bottles.map((b, i) => (
+        <mesh key={`low-${i}`} position={[b.x, 0.45 + b.h / 2 + 0.02, 0]}>
+          <cylinderGeometry args={[0.025, 0.03, b.h, 8]} />
+          <meshStandardMaterial color={b.color} emissive={b.color} emissiveIntensity={0.3} roughness={0.3} transparent opacity={0.8} />
+        </mesh>
+      ))}
+
+      {/* Bottles on upper shelf */}
+      {bottles.slice(0, 7).map((b, i) => (
+        <mesh key={`up-${i}`} position={[b.x + 0.15, 0.85 + b.h / 2 + 0.02, 0]}>
+          <cylinderGeometry args={[0.022, 0.028, b.h * 0.85, 8]} />
+          <meshStandardMaterial color={b.color} emissive={b.color} emissiveIntensity={0.3} roughness={0.3} transparent opacity={0.8} />
+        </mesh>
+      ))}
+
+      {/* A couple glasses on top shelf */}
+      {[-0.5, 0.1, 0.7].map((x, i) => (
+        <mesh key={`glass-${i}`} position={[x, 1.25 + 0.06, 0]}>
+          <cylinderGeometry args={[0.03, 0.025, 0.1, 8]} />
+          <meshStandardMaterial color="#e0e0e0" roughness={0.15} transparent opacity={0.4} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+// ── Counter stool — chrome post + pastel pink vinyl seat ──
 function CounterStool({ position }: { position: [number, number, number] }) {
   return (
     <group position={position}>
-      {/* Seat cushion */}
-      <mesh position={[0, 0.72, 0]}>
+      {/* Seat cushion — pastel pink to match bar (H=0.50 bar → seat at ~0.40) */}
+      <mesh position={[0, 0.40, 0]}>
         <cylinderGeometry args={[0.18, 0.18, 0.06, 10]} />
-        <meshStandardMaterial color="#c0151a" roughness={0.6} />
+        <meshStandardMaterial color="#ffc1d3" emissive="#ffc1d3" emissiveIntensity={0.2} roughness={0.6} />
       </mesh>
 
-      {/* Post */}
-      <mesh position={[0, 0.36, 0]}>
-        <cylinderGeometry args={[0.022, 0.022, 0.72, 8]} />
+      {/* Post — short to match low bar */}
+      <mesh position={[0, 0.20, 0]}>
+        <cylinderGeometry args={[0.022, 0.022, 0.40, 8]} />
         <meshStandardMaterial color="#c0c2c4" metalness={0.85} roughness={0.15} />
       </mesh>
 
       {/* Foot ring */}
-      <mesh position={[0, 0.28, 0]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh position={[0, 0.14, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.13, 0.012, 6, 14]} />
         <meshStandardMaterial color="#aaaaaa" metalness={0.7} roughness={0.2} />
       </mesh>
@@ -1164,22 +1268,20 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
         />
       </group>
 
-      {/* ── Service counter — along right wall, facing room ── */}
-      <DinerCounter
-        position={[HALF_W - 0.4, 0, -0.5]}
-        rotation={[0, Math.PI / 2, 0]}
-        length={4.5}
-      />
+      {/* ── Island bar — L-shaped, front faces room center (-X), bartender space behind (+X toward wall) ── */}
+      <BarIsland position={[2.5, 0, -1.5]} />
 
-      {/* ── Counter stools — in front of counter ── */}
-      <CounterStool position={[HALF_W - 1.3, 0, -2.0]} />
-      <CounterStool position={[HALF_W - 1.3, 0, -0.8]} />
-      <CounterStool position={[HALF_W - 1.3, 0, 0.4]} />
-      <CounterStool position={[HALF_W - 1.3, 0, 1.6]} />
+      {/* ── Back shelf with bottles — flat against right wall, rotated 90° so shelves run along Z ── */}
+      <BackShelf position={[HALF_W - 0.15, 0, -1.5]} rotation={[0, -Math.PI / 2, 0]} />
 
-      {/* Counter props */}
-      <CounterProps position={[HALF_W - 0.15, 0.92, -1.5]} />
-      <CounterProps position={[HALF_W - 0.15, 0.92, 0.8]} />
+      {/* ── Counter stools — in front of the island bar (on -X side facing room center) ── */}
+      <CounterStool position={[1.5, 0, -2.8]} />
+      <CounterStool position={[1.5, 0, -1.5]} />
+      <CounterStool position={[1.5, 0, -0.2]} />
+
+      {/* Counter props on bar top — lowered to match H=0.50 */}
+      <CounterProps position={[2.5, 0.50, -0.5]} />
+      <CounterProps position={[2.5, 0.50, -2.2]} />
 
       {/* ── Arcade Machines ── */}
       <InteractableObject onInteract={() => useUIStore.getState().setComputerIframeOpen(true)} occludeHighlight={false} interactDistance={2.5}>
@@ -1214,16 +1316,19 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
         <JukeboxMachine position={[-0.6, 0, -(HALF_D - 0.3)]} />
       </InteractableObject>
 
-      {/* ── Lighting ── bright cheerful diner ── */}
+      {/* ── Lighting ── bright cheerful 60s diner ── */}
 
-      {/* Ambient — dark and moody for gritty PSX feel */}
-      <ambientLight intensity={0.25} color="#ccaaaa" />
+      {/* Ambient — warmer and brighter for retro feel */}
+      <ambientLight intensity={0.35} color="#ffeecc" />
 
       {/* Main ceiling light — centre of room */}
       <pointLight position={[0, WALL_HEIGHT - 0.2, 0]} intensity={1.0} color="#ffddbb" distance={9} decay={2} />
 
-      {/* Counter area overhead */}
-      <pointLight position={[HALF_W - 1.0, WALL_HEIGHT - 0.2, -0.5]} intensity={0.8} color="#ffeedd" distance={5} decay={2} />
+      {/* Bar island area — warm bright overhead */}
+      <pointLight position={[2.5, WALL_HEIGHT - 0.2, -1.5]} intensity={1.3} color="#ffddaa" distance={5} decay={2} />
+
+      {/* Back shelf area — warm glow to show off bottles */}
+      <pointLight position={[HALF_W - 0.3, 1.2, -1.5]} intensity={0.7} color="#ffcc88" distance={3} decay={2} />
 
       {/* Stage spotlights — world Z ≈ 3.55 (stage center) */}
       <pointLight

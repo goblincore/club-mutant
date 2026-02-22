@@ -25,6 +25,7 @@ services:
       - NODE_ENV=production
       - PORT=2567
       - YOUTUBE_SERVICE_URL=http://youtube-api:8081
+      - DREAM_NPC_SERVICE_URL=http://dream-npc:4000
     expose:
       - '2567'
 
