@@ -652,20 +652,22 @@ function NeonSign({ position }: { position: [number, number, number] }) {
 }
 
 // ── Heavens Night Sign ──
-const MAX_SPARKS = 18
+const MAX_SPARKS = 16
 const _sparkMat = new THREE.Matrix4()
 const _sparkPos = new THREE.Vector3()
 
 function HeavensNightSign({ position, rotation }: { position: [number, number, number]; rotation?: [number, number, number] }) {
   const texture = useLoader(THREE.TextureLoader, '/textures/heavens_night.png')
 
-  const signMatRef = useRef<THREE.MeshBasicMaterial>(null)
-  const sparkRef   = useRef<THREE.InstancedMesh>(null)
+  const signMatRef  = useRef<THREE.MeshBasicMaterial>(null)
+  const sparkRef    = useRef<THREE.InstancedMesh>(null)
 
   // Per-spark state: [x, y, z, vx, vy, vz, life, maxLife, size]
-  const sparks   = useRef<Float32Array>(new Float32Array(MAX_SPARKS * 9).fill(0))
-  const flickerT = useRef(0)
-  const _color   = useMemo(() => new THREE.Color(), [])
+  const sparks      = useRef<Float32Array>(new Float32Array(MAX_SPARKS * 9).fill(0))
+  const flickerT    = useRef(0)
+  // Separate timer: fires a burst every 3–7s instead of constant drizzle
+  const nextBurstAt = useRef(3 + Math.random() * 4)
+  const _color      = useMemo(() => new THREE.Color(), [])
 
   useFrame((_, dt) => {
     flickerT.current += dt
@@ -682,22 +684,25 @@ function HeavensNightSign({ position, rotation }: { position: [number, number, n
       signMatRef.current.color.copy(_color)
     }
 
-    // ── Sparks: pop off the sign face and rain down into the room ──
+    // ── Sparks: intermittent burst every 3–7s, orange embers that drift to floor ──
     const sp = sparks.current
-    if (flicker > 0.8 && Math.random() < 0.3) {
-      for (let i = 0; i < MAX_SPARKS; i++) {
+    if (t >= nextBurstAt.current) {
+      nextBurstAt.current = t + 3 + Math.random() * 4
+      const count = 2 + Math.floor(Math.random() * 3)
+      let emitted = 0
+      for (let i = 0; i < MAX_SPARKS && emitted < count; i++) {
         const b = i * 9
         if (sp[b + 6] <= 0) {
-          sp[b + 0] = (Math.random() - 0.5) * 1.1    // x — random across text
-          sp[b + 1] = (Math.random() - 0.5) * 0.8    // y — random across text
-          sp[b + 2] = 0.05                            // z — start just off sign face
-          sp[b + 3] = (Math.random() - 0.5) * 0.3    // vx — slight sideways drift
-          sp[b + 4] = Math.random() * 0.15            // vy — tiny upward pop
-          sp[b + 5] = Math.random() * 0.8 + 0.4      // vz — outward into room
-          sp[b + 6] = 0.6 + Math.random() * 0.6      // life
+          sp[b + 0] = (Math.random() - 0.5) * 1.0    // x — across text width
+          sp[b + 1] = (Math.random() - 0.5) * 0.5    // y — across text height
+          sp[b + 2] = 0.05                            // z — just off sign face
+          sp[b + 3] = (Math.random() - 0.5) * 0.25   // vx — slight sideways
+          sp[b + 4] = Math.random() * 0.2 + 0.1      // vy — small upward pop
+          sp[b + 5] = Math.random() * 0.5 + 0.3      // vz — outward into room
+          sp[b + 6] = 1.8 + Math.random() * 1.2      // life — long enough to reach floor
           sp[b + 7] = sp[b + 6]                      // maxLife
-          sp[b + 8] = 0.012 + Math.random() * 0.016  // size
-          break
+          sp[b + 8] = 0.03 + Math.random() * 0.03    // size
+          emitted++
         }
       }
     }
@@ -711,7 +716,7 @@ function HeavensNightSign({ position, rotation }: { position: [number, number, n
       sp[b + 0] += sp[b + 3] * dt
       sp[b + 1] += sp[b + 4] * dt
       sp[b + 2] += sp[b + 5] * dt
-      sp[b + 4] -= 1.8 * dt   // gravity pulls down
+      sp[b + 4] -= 0.6 * dt   // gentle gravity so sparks drift slowly to floor
       const lifeRatio = sp[b + 6] / sp[b + 7]
       const s = sp[b + 8] * lifeRatio
       _sparkPos.set(sp[b + 0], sp[b + 1], sp[b + 2])
@@ -725,7 +730,7 @@ function HeavensNightSign({ position, rotation }: { position: [number, number, n
 
   return (
     <group position={position} rotation={rotation}>
-      {/* Sign — proper alpha PNG, NormalBlending, transparent background gone */}
+      {/* Sign — alpha PNG, NormalBlending */}
       <mesh>
         <planeGeometry args={[1.5, 1.5]} />
         <meshBasicMaterial
@@ -737,11 +742,11 @@ function HeavensNightSign({ position, rotation }: { position: [number, number, n
         />
       </mesh>
 
-      {/* Sparks — rain out from sign face into room, additive glow */}
+      {/* Sparks — intermittent orange embers raining down from sign */}
       <instancedMesh ref={sparkRef} args={[undefined, undefined, MAX_SPARKS]}>
         <planeGeometry args={[1, 1]} />
         <meshBasicMaterial
-          color="#ffaadd"
+          color="#ff8833"
           blending={THREE.AdditiveBlending}
           depthWrite={false}
           transparent
@@ -1384,8 +1389,6 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
       {/* Bar island area — warm bright overhead */}
       <pointLight position={[2.5, WALL_HEIGHT - 0.2, -1.5]} intensity={1.3} color="#ffddaa" distance={5} decay={2} />
 
-      {/* Back shelf area — warm glow to show off bottles */}
-      <pointLight position={[HALF_W - 0.3, 1.2, -1.5]} intensity={0.7} color="#ffcc88" distance={3} decay={2} />
 
       {/* Stage wash — single warm overhead fill at stage center */}
       <pointLight
