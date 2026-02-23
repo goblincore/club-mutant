@@ -62,10 +62,14 @@ const MYROOM_HALF_Y = 280 // 6 * 100 / 2 - 20 padding
 // Jukebox machine at world (-0.6, 0, -4.2) → server (-60, 420), machine ~1.0w × 0.6d
 const JB_JUKEBOX_BOX: CollisionBox = { minX: -120, maxX: 10, minY: 380, maxY: 450 }
 
-// Island bar + bartender area: bar at world X=2.5, front faces -X (room center)
-// Corridor behind bar toward right wall (+X). World X ~1.7 to 4.5, Z ~ -3.4 to 0.5
-// Server coords: X*100, -Z*100 → minX=170, maxX=450, minY=-50, maxY=340
-const JB_BAR_ISLAND_BOX: CollisionBox = { minX: 170, maxX: 450, minY: -50, maxY: 340 }
+// Island bar — L-shaped counter at world group pos [2.5, 0, -1.5]
+// Main bar: len=3.6 along Z, depth=0.55 along X → world X: 2.2–2.8, Z: -3.3–0.3
+// Wing bar: len=1.8 along X, depth=0.55 along Z → world X: 2.2–4.1, Z: 0.0–0.55
+// Server coords: X*100, -Z*100
+const JB_BAR_MAIN_BOX: CollisionBox  = { minX: 200, maxX: 310, minY: -35, maxY: 340 }
+const JB_BAR_WING_BOX: CollisionBox  = { minX: 200, maxX: 430, minY: -60, maxY:  10 }
+// Bartender corridor: space between bar and right wall (+X), blocked so players stay in front
+const JB_BAR_BACK_BOX: CollisionBox  = { minX: 310, maxX: 450, minY: -35, maxY: 330 }
 
 // Diner Booth 1 (world (-4.15, 0, -2.2) -> server (-415, 220), ~2.5w x 1.6d)
 // Actual position in JukeboxRoom: [-HALF_W + 0.35, 0, -2.2] = [-4.15, 0, -2.2]
@@ -87,7 +91,9 @@ const JB_STOOL3_BOX: CollisionBox = { minX: 130, maxX: 170, minY: 0, maxY: 40 } 
 
 const JUKEBOX_COLLISION_BOXES: CollisionBox[] = [
   JB_JUKEBOX_BOX,
-  JB_BAR_ISLAND_BOX,
+  JB_BAR_MAIN_BOX,
+  JB_BAR_WING_BOX,
+  JB_BAR_BACK_BOX,
   JB_BOOTH1_BOX,
   JB_BOOTH2_BOX,
   JB_ARCADE1_BOX,

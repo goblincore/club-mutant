@@ -306,6 +306,18 @@ function BarIsland({ position }: { position: [number, number, number] }) {
         <boxGeometry args={[len - 0.1, 0.020, 0.020]} />
         <meshStandardMaterial color={RAIL_COLOR} metalness={0.5} roughness={0.25} />
       </mesh>
+
+      {/* Left end cap */}
+      <mesh position={[-(len / 2), H / 2, 0]}>
+        <boxGeometry args={[0.05, H, D]} />
+        <meshStandardMaterial color={FRONT_COLOR} emissive={FRONT_COLOR} emissiveIntensity={0.22} roughness={0.7} />
+      </mesh>
+
+      {/* Right end cap */}
+      <mesh position={[len / 2, H / 2, 0]}>
+        <boxGeometry args={[0.05, H, D]} />
+        <meshStandardMaterial color={FRONT_COLOR} emissive={FRONT_COLOR} emissiveIntensity={0.22} roughness={0.7} />
+      </mesh>
     </group>
   )
 
@@ -317,24 +329,30 @@ function BarIsland({ position }: { position: [number, number, number] }) {
       {/* Wing — extends from back end of main bar toward +X (right wall), closes off corridor */}
       <BarSection len={WING_LEN} rot={[0, Math.PI, 0]} pos={[(WING_LEN / 2) - D / 2, 0, (MAIN_LEN / 2) + D / 2 - 0.05]} />
 
-      {/* Small flower vase on counter top — cute 60s accent */}
-      <group position={[-0.05, H + 0.02, -0.3]}>
-        {/* Vase */}
-        <mesh position={[0, 0.05, 0]}>
-          <cylinderGeometry args={[0.03, 0.04, 0.10, 8]} />
-          <meshStandardMaterial color="#e8b4d0" emissive="#e8b4d0" emissiveIntensity={0.3} roughness={0.5} />
-        </mesh>
-        {/* Flower head */}
-        <mesh position={[0, 0.13, 0]}>
-          <sphereGeometry args={[0.04, 8, 6]} />
-          <meshStandardMaterial color="#ff88bb" emissive="#ff88bb" emissiveIntensity={0.35} roughness={0.6} />
-        </mesh>
-        {/* Stem */}
-        <mesh position={[0, 0.09, 0]}>
-          <cylinderGeometry args={[0.005, 0.005, 0.06, 4]} />
-          <meshStandardMaterial color="#66aa66" roughness={0.8} />
-        </mesh>
-      </group>
+      {/* Flower vases on counter top — cute 60s accent */}
+      {([
+        { pos: [-0.05,  -0.3] as [number, number], vaseColor: '#e8b4d0', flowerColor: '#ff88bb' },
+        { pos: [-0.05, -1.4] as [number, number], vaseColor: '#b4d0e8', flowerColor: '#88ccff' },
+        { pos: [-0.05,  0.6] as [number, number], vaseColor: '#d0e8b4', flowerColor: '#aaee66' },
+      ]).map(({ pos: [px, pz], vaseColor, flowerColor }, i) => (
+        <group key={i} position={[px, H + 0.02, pz]}>
+          {/* Vase */}
+          <mesh position={[0, 0.05, 0]}>
+            <cylinderGeometry args={[0.03, 0.04, 0.10, 8]} />
+            <meshStandardMaterial color={vaseColor} emissive={vaseColor} emissiveIntensity={0.3} roughness={0.5} />
+          </mesh>
+          {/* Flower head */}
+          <mesh position={[0, 0.13, 0]}>
+            <sphereGeometry args={[0.04, 8, 6]} />
+            <meshStandardMaterial color={flowerColor} emissive={flowerColor} emissiveIntensity={0.35} roughness={0.6} />
+          </mesh>
+          {/* Stem */}
+          <mesh position={[0, 0.09, 0]}>
+            <cylinderGeometry args={[0.005, 0.005, 0.06, 4]} />
+            <meshStandardMaterial color="#66aa66" roughness={0.8} />
+          </mesh>
+        </group>
+      ))}
     </group>
   )
 }
@@ -821,49 +839,6 @@ function MicStand({ position }: { position: [number, number, number] }) {
   )
 }
 
-function SpotlightCone({
-  position,
-  targetPos,
-  color = '#ffffff',
-}: {
-  position: [number, number, number]
-  targetPos: [number, number, number]
-  color?: string
-}) {
-  // Hanging lamp housing
-  const lampPos = new THREE.Vector3(...position)
-  const tgt = new THREE.Vector3(...targetPos)
-  const dir = tgt.clone().sub(lampPos).normalize()
-  const up = new THREE.Vector3(0, -1, 0)
-  const q = new THREE.Quaternion().setFromUnitVectors(up, dir)
-  const euler = new THREE.Euler().setFromQuaternion(q)
-
-  return (
-    <group position={position}>
-      {/* Lamp housing — can-shaped, depthWrite off so it never occludes characters */}
-      <mesh rotation={[euler.x, euler.y, euler.z]} position={[0, 0, 0]}>
-        <cylinderGeometry args={[0.09, 0.13, 0.22, 10, 1, true]} />
-        <meshStandardMaterial color="#222" roughness={0.7} side={THREE.DoubleSide} depthWrite={false} />
-      </mesh>
-      {/* Lamp cap */}
-      <mesh>
-        <cylinderGeometry args={[0.095, 0.095, 0.04, 10]} />
-        <meshStandardMaterial color="#1a1a1a" roughness={0.8} depthWrite={false} />
-      </mesh>
-      {/* Emissive light face */}
-      <mesh rotation={[euler.x, euler.y, euler.z]} position={[dir.x * 0.11, dir.y * 0.11, dir.z * 0.11]}>
-        <circleGeometry args={[0.085, 12]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={3.0} depthWrite={false} />
-      </mesh>
-      {/* Hanging cable */}
-      <mesh position={[0, 0.2, 0]}>
-        <cylinderGeometry args={[0.005, 0.005, 0.4, 4]} />
-        <meshStandardMaterial color="#111" roughness={0.9} depthWrite={false} />
-      </mesh>
-    </group>
-  )
-}
-
 function Stage() {
   const WOOD = '#5a3318'
   const WOOD_EDGE = '#3d2010'
@@ -925,20 +900,6 @@ function Stage() {
 
       {/* Mic stand on stage */}
       <MicStand position={[0.3, STAGE_H, 0.1]} />
-
-      {/* Spotlight rigs — local coords relative to Stage group.
-          Stage group is at world Z = HALF_D - STAGE_D/2 - 0.05 ≈ 3.55.
-          Hang lights above stage center, aim down at mic stand at local [0.3, STAGE_H, 0.1] */}
-      <SpotlightCone
-        position={[-1.2, WALL_HEIGHT - 0.05, 0]}
-        targetPos={[0.3, STAGE_H + 0.3, 0]}
-        color="#fff8cc"
-      />
-      <SpotlightCone
-        position={[1.2, WALL_HEIGHT - 0.05, 0]}
-        targetPos={[0.3, STAGE_H + 0.3, 0]}
-        color="#ffccee"
-      />
     </group>
   )
 }
@@ -1026,9 +987,13 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
       if (!wall) continue
 
       const mat = wall.material as THREE.ShaderMaterial | THREE.MeshStandardMaterial
+      // Temporarily use DoubleSide for raycasting so backface hits (camera outside room) register
+      const prevSide = (mat as THREE.Material).side
+      ;(mat as THREE.Material).side = THREE.DoubleSide
       const isBlocking = raycaster
         .intersectObject(wall)
         .some((hit) => hit.distance < distToPlayer)
+      ;(mat as THREE.Material).side = prevSide
 
       const targetOpacity = isBlocking ? OCCLUDE_OPACITY : 1
       const t = 1 - Math.exp(-FADE_SPEED * delta)
@@ -1059,7 +1024,10 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
               emissiveIntensity?: number
               side?: number
             }
-            m.transparent = true
+            if (!m.transparent) {
+              m.transparent = true
+              m.needsUpdate = true
+            }
             // If the mesh uses meshBasicMaterial (like neon sign or video screen), we must lower its opacity explicitly
             m.opacity = opacity
             m.depthWrite = !faded
@@ -1330,27 +1298,12 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
       {/* Back shelf area — warm glow to show off bottles */}
       <pointLight position={[HALF_W - 0.3, 1.2, -1.5]} intensity={0.7} color="#ffcc88" distance={3} decay={2} />
 
-      {/* Stage spotlights — world Z ≈ 3.55 (stage center) */}
+      {/* Stage wash — single warm overhead fill at stage center */}
       <pointLight
-        position={[-1.2, WALL_HEIGHT - 0.15, HALF_D - STAGE_D / 2 - 0.05]}
-        intensity={3.5}
-        color="#fff8cc"
-        distance={4.5}
-        decay={2}
-      />
-      <pointLight
-        position={[1.2, WALL_HEIGHT - 0.15, HALF_D - STAGE_D / 2 - 0.05]}
+        position={[0.3, WALL_HEIGHT - 0.2, HALF_D - STAGE_D / 2 - 0.05]}
         intensity={2.5}
-        color="#ffccee"
+        color="#fff4cc"
         distance={4.0}
-        decay={2}
-      />
-      {/* Stage floor wash — low warm fill at mic stand */}
-      <pointLight
-        position={[0.3, STAGE_H + 0.4, HALF_D - STAGE_D / 2 - 0.05]}
-        intensity={1.2}
-        color="#ffe8aa"
-        distance={3.0}
         decay={2}
       />
 
