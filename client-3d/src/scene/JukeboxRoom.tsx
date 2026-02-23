@@ -659,48 +659,45 @@ const _sparkPos = new THREE.Vector3()
 function HeavensNightSign({ position, rotation }: { position: [number, number, number]; rotation?: [number, number, number] }) {
   const texture = useLoader(THREE.TextureLoader, '/textures/heavens_night.png')
 
-  const screenMatRef = useRef<THREE.MeshStandardMaterial>(null)
-  const glowMatRef   = useRef<THREE.MeshBasicMaterial>(null)
-  const sparkRef     = useRef<THREE.InstancedMesh>(null)
+  // MeshBasicMaterial — color multiplier drives brightness for flicker
+  const signMatRef  = useRef<THREE.MeshBasicMaterial>(null)
+  const sparkRef    = useRef<THREE.InstancedMesh>(null)
 
   // Per-spark state: [x, y, vx, vy, life, maxLife, size]
-  const sparks = useRef<Float32Array>(new Float32Array(MAX_SPARKS * 7).fill(0))
+  const sparks   = useRef<Float32Array>(new Float32Array(MAX_SPARKS * 7).fill(0))
   const flickerT = useRef(0)
+  // _color reused each frame to avoid allocation
+  const _color   = useMemo(() => new THREE.Color(), [])
 
   useFrame((_, dt) => {
     flickerT.current += dt
-
-    // ── Flicker ──
     const t = flickerT.current
-    // Layered noise: fast buzz + occasional stutter
-    const buzz   = hash(Math.floor(t * 40) * 1.1)
-    const stutter = hash(Math.floor(t *  6) * 3.7)
-    const flicker = buzz > 0.15 ? 1.0 : stutter > 0.25 ? 0.3 : 0.0
-    const intensity = 0.7 + flicker * 1.6
 
-    if (screenMatRef.current) {
-      screenMatRef.current.emissiveIntensity = intensity
-    }
-    if (glowMatRef.current) {
-      // halo plane opacity tracks flicker
-      (glowMatRef.current as THREE.MeshBasicMaterial & { opacity: number }).opacity = 0.18 + flicker * 0.22
+    // ── Flicker: layered fast buzz + occasional hard stutter ──
+    const buzz    = hash(Math.floor(t * 38) * 1.1)
+    const stutter = hash(Math.floor(t *  5) * 3.7)
+    // Most of the time fully on; occasionally dims or cuts
+    const flicker = buzz > 0.12 ? 1.0 : stutter > 0.3 ? 0.25 : 0.0
+    const bright  = 0.75 + flicker * 0.85  // range 0 – 1.6
+
+    if (signMatRef.current) {
+      _color.setRGB(bright, bright * 0.6, bright * 0.85)
+      signMatRef.current.color.copy(_color)
     }
 
-    // ── Sparks ──
+    // ── Sparks: spawn during bright moments ──
     const sp = sparks.current
-    // Occasionally spawn a new spark when sign is bright
-    if (flicker > 0.8 && Math.random() < 0.25) {
+    if (flicker > 0.8 && Math.random() < 0.22) {
       for (let i = 0; i < MAX_SPARKS; i++) {
-        const base = i * 7
-        if (sp[base + 4] <= 0) {
-          // spawn at random point on sign face
-          sp[base + 0] = (Math.random() - 0.5) * 1.1   // x
-          sp[base + 1] = (Math.random() - 0.5) * 0.8   // y
-          sp[base + 2] = (Math.random() - 0.5) * 0.9   // vx
-          sp[base + 3] = Math.random() * 1.2 + 0.3      // vy (upward)
-          sp[base + 4] = 0.4 + Math.random() * 0.5      // life
-          sp[base + 5] = sp[base + 4]                   // maxLife
-          sp[base + 6] = 0.008 + Math.random() * 0.014  // size
+        const b = i * 7
+        if (sp[b + 4] <= 0) {
+          sp[b + 0] = (Math.random() - 0.5) * 1.0    // x  (within text area)
+          sp[b + 1] = (Math.random() - 0.5) * 0.7    // y
+          sp[b + 2] = (Math.random() - 0.5) * 0.8    // vx
+          sp[b + 3] = Math.random() * 1.0 + 0.4      // vy upward
+          sp[b + 4] = 0.35 + Math.random() * 0.45    // life
+          sp[b + 5] = sp[b + 4]                      // maxLife
+          sp[b + 6] = 0.010 + Math.random() * 0.014  // size
           break
         }
       }
@@ -709,14 +706,14 @@ function HeavensNightSign({ position, rotation }: { position: [number, number, n
     if (!sparkRef.current) return
     let visible = 0
     for (let i = 0; i < MAX_SPARKS; i++) {
-      const base = i * 7
-      if (sp[base + 4] <= 0) continue
-      sp[base + 4] -= dt
-      sp[base + 0] += sp[base + 2] * dt
-      sp[base + 1] += sp[base + 3] * dt
-      sp[base + 3] -= 2.5 * dt  // gravity
-      const s = sp[base + 6] * (sp[base + 4] / sp[base + 5])
-      _sparkPos.set(sp[base + 0], sp[base + 1], 0.03)
+      const b = i * 7
+      if (sp[b + 4] <= 0) continue
+      sp[b + 4] -= dt
+      sp[b + 0] += sp[b + 2] * dt
+      sp[b + 1] += sp[b + 3] * dt
+      sp[b + 3] -= 2.8 * dt          // gravity
+      const s = sp[b + 6] * (sp[b + 4] / sp[b + 5])
+      _sparkPos.set(sp[b + 0], sp[b + 1], 0.02)
       _sparkMat.makeScale(s, s, s)
       _sparkMat.setPosition(_sparkPos)
       sparkRef.current.setMatrixAt(visible++, _sparkMat)
@@ -727,51 +724,24 @@ function HeavensNightSign({ position, rotation }: { position: [number, number, n
 
   return (
     <group position={position} rotation={rotation}>
-      {/* Opaque dark backing board — prevents any see-through glitch */}
-      <mesh position={[0, 0, -0.012]}>
-        <boxGeometry args={[1.52, 1.1, 0.018]} />
-        <meshStandardMaterial color="#0a0005" roughness={0.9} />
-      </mesh>
-
-      {/* Inner frame accent */}
-      <mesh position={[0, 0, -0.004]}>
-        <boxGeometry args={[1.46, 1.04, 0.008]} />
-        <meshStandardMaterial color="#1a0010" roughness={0.8} />
-      </mesh>
-
-      {/* Sign texture — NormalBlending so it sits cleanly on the board */}
-      <mesh position={[0, 0, 0.001]}>
-        <planeGeometry args={[1.38, 0.98]} />
-        <meshStandardMaterial
-          ref={screenMatRef}
-          map={texture}
-          color="#ff88cc"
-          emissive="#ff44aa"
-          emissiveMap={texture}
-          emissiveIntensity={1.5}
-          transparent
-          alphaTest={0.05}
-        />
-      </mesh>
-
-      {/* Soft additive glow halo behind the text — very subtle */}
-      <mesh position={[0, 0, -0.002]}>
-        <planeGeometry args={[1.55, 1.12]} />
+      {/* Neon sign — AdditiveBlending so black bg is invisible, only bright pixels show.
+          depthWrite=false prevents the plane from occluding geometry behind it. */}
+      <mesh>
+        <planeGeometry args={[1.5, 1.5]} />
         <meshBasicMaterial
-          ref={glowMatRef}
-          color="#ff44bb"
-          transparent
-          opacity={0.18}
+          ref={signMatRef}
+          map={texture}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
+          transparent
         />
       </mesh>
 
-      {/* Sparks — instanced small quads */}
+      {/* Sparks — tiny instanced quads, additive so they glow */}
       <instancedMesh ref={sparkRef} args={[undefined, undefined, MAX_SPARKS]}>
         <planeGeometry args={[1, 1]} />
         <meshBasicMaterial
-          color="#ffccee"
+          color="#ffaadd"
           blending={THREE.AdditiveBlending}
           depthWrite={false}
           transparent
