@@ -126,7 +126,7 @@ function bubbleTextSize(len: number): number {
   return 0.064
 }
 
-const STACK_GAP = 0.12
+const STACK_GAP = 0.04 // gap between bubbles (on top of measured height)
 const FADE_MS = 400
 
 // ── Nametag (troika Text + background mesh, layer 1) ──
@@ -212,12 +212,14 @@ function SingleBubble({
   showTail,
   useSide,
   flipLeft,
+  onHeightMeasured,
 }: {
   bubble: ChatBubbleData
   yOffset: number
   showTail: boolean
   useSide: boolean
   flipLeft: boolean
+  onHeightMeasured?: (id: string, height: number) => void
 }) {
   const bgRef = useRef<THREE.Mesh>(null)
   const tailRef = useRef<THREE.Mesh>(null)
@@ -290,7 +292,10 @@ function SingleBubble({
     bgRef.current.geometry.dispose()
     bgRef.current.geometry = makeRoundedRect(w, h, BUBBLE_RADIUS)
     bgRef.current.position.set(cx, cy, -0.003)
-  }, [])
+
+    // Report measured height to parent for dynamic stacking
+    onHeightMeasured?.(bubble.id, h)
+  }, [bubble.id, onHeightMeasured])
 
   const fontSize = bubbleTextSize(bubble.content.length)
 
@@ -338,6 +343,25 @@ function ChatBubble({
   const tempVec = useRef(new THREE.Vector3())
   const frameCount = useRef(0)
 
+  // Track measured heights per bubble id (ref-based, no re-renders)
+  const bubbleHeights = useRef<Map<string, number>>(new Map())
+
+  const handleHeightMeasured = useCallback((id: string, height: number) => {
+    bubbleHeights.current.set(id, height)
+  }, [])
+
+  // Clean up stale entries when bubbles change
+  useEffect(() => {
+    if (!bubbles?.length) {
+      bubbleHeights.current.clear()
+      return
+    }
+    const activeIds = new Set(bubbles.map((b) => b.id))
+    for (const key of bubbleHeights.current.keys()) {
+      if (!activeIds.has(key)) bubbleHeights.current.delete(key)
+    }
+  }, [bubbles])
+
   const useSide = visualTopY > TALL_THRESHOLD
 
   // Enable layer 1 on camera so bubbles render when post-processing is off
@@ -364,6 +388,18 @@ function ChatBubble({
         if (shouldFlip !== flipLeft) setFlipLeft(shouldFlip)
       }
     }
+
+    // Update bubble y-offsets based on measured heights
+    const group = outerRef.current
+    if (!group || !bubbles?.length) return
+    let accY = 0
+    for (let i = 0; i < bubbles.length; i++) {
+      const child = group.children[i] as THREE.Group | undefined
+      if (!child) continue
+      child.position.y = accY
+      const measuredH = bubbleHeights.current.get(bubbles[i].id)
+      accY += (measuredH ?? 0.12) + STACK_GAP
+    }
   })
 
   if (!bubbles?.length) return <group ref={markerRef} />
@@ -381,10 +417,11 @@ function ChatBubble({
           <SingleBubble
             key={bubble.id}
             bubble={bubble}
-            yOffset={i * STACK_GAP}
+            yOffset={0}
             showTail={i === 0}
             useSide={useSide}
             flipLeft={flipLeft}
+            onHeightMeasured={handleHeightMeasured}
           />
         ))}
       </group>
