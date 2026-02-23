@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 
 import { useGameStore, type RoomListEntry } from '../stores/gameStore'
 import { getNetwork } from '../network/NetworkManager'
@@ -17,6 +17,18 @@ export function CustomRoomBrowser({ playerName, textureId, onBack, onCreating, o
 
   const [joining, setJoining] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Search
+  const [searchQuery, setSearchQuery] = useState('')
+  const filteredRooms = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return availableRooms
+    return availableRooms.filter(
+      (room) =>
+        room.name.toLowerCase().includes(q) ||
+        room.description.toLowerCase().includes(q)
+    )
+  }, [availableRooms, searchQuery])
 
   // Password dialog state
   const [passwordRoom, setPasswordRoom] = useState<RoomListEntry | null>(null)
@@ -97,6 +109,28 @@ export function CustomRoomBrowser({ playerName, textureId, onBack, onCreating, o
         </div>
       )}
 
+      {/* Search input — only shown when connected and rooms exist */}
+      {lobbyJoined && availableRooms.length > 0 && (
+        <div className="mb-3">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setSearchQuery('')
+            }}
+            placeholder="search rooms..."
+            className="w-full bg-black/50 border border-white/20 rounded-lg px-3 py-2
+                       text-sm font-mono text-white placeholder-white/30
+                       focus:outline-none transition-all"
+            style={{
+              borderColor: searchQuery ? 'rgba(57, 255, 20, 0.5)' : undefined,
+              boxShadow: searchQuery ? '0 0 15px rgba(57, 255, 20, 0.15)' : undefined,
+            }}
+          />
+        </div>
+      )}
+
       {/* Room list */}
       {lobbyJoined && availableRooms.length === 0 && (
         <div className="text-center py-8">
@@ -105,10 +139,16 @@ export function CustomRoomBrowser({ playerName, textureId, onBack, onCreating, o
         </div>
       )}
 
-      {lobbyJoined && availableRooms.length > 0 && (
+      {lobbyJoined && availableRooms.length > 0 && filteredRooms.length === 0 && (
+        <div className="text-center py-6 mb-4">
+          <p className="text-white/40 text-sm">no rooms match "{searchQuery.trim()}"</p>
+        </div>
+      )}
+
+      {lobbyJoined && filteredRooms.length > 0 && (
         <div className="max-h-64 overflow-y-auto mb-4 custom-scrollbar">
           <div className="space-y-2">
-            {availableRooms.map((room) => (
+            {filteredRooms.map((room) => (
               <div
                 key={room.roomId}
                 className="flex items-center justify-between p-3 rounded-lg transition-colors"

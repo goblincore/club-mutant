@@ -32,6 +32,13 @@ export function LobbyScreen() {
     })
   }, [])
 
+  // Eagerly create NetworkManager so joinLobbyRoom() starts connecting
+  // before the user clicks "Go!". The constructor is cheap (just creates
+  // a Client object), and joinLobbyRoom() runs async in the background.
+  useEffect(() => {
+    getNetwork()
+  }, [])
+
   // Called from inside the r3f Canvas after a few frames have rendered
   const handleCarouselReady = useCallback(() => {
     setCarouselVisible(true)
