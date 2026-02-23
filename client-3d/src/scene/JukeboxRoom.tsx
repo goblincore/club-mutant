@@ -659,14 +659,12 @@ const _sparkPos = new THREE.Vector3()
 function HeavensNightSign({ position, rotation }: { position: [number, number, number]; rotation?: [number, number, number] }) {
   const texture = useLoader(THREE.TextureLoader, '/textures/heavens_night.png')
 
-  // MeshBasicMaterial — color multiplier drives brightness for flicker
-  const signMatRef  = useRef<THREE.MeshBasicMaterial>(null)
-  const sparkRef    = useRef<THREE.InstancedMesh>(null)
+  const signMatRef = useRef<THREE.MeshBasicMaterial>(null)
+  const sparkRef   = useRef<THREE.InstancedMesh>(null)
 
-  // Per-spark state: [x, y, vx, vy, life, maxLife, size]
-  const sparks   = useRef<Float32Array>(new Float32Array(MAX_SPARKS * 7).fill(0))
+  // Per-spark state: [x, y, z, vx, vy, vz, life, maxLife, size]
+  const sparks   = useRef<Float32Array>(new Float32Array(MAX_SPARKS * 9).fill(0))
   const flickerT = useRef(0)
-  // _color reused each frame to avoid allocation
   const _color   = useMemo(() => new THREE.Color(), [])
 
   useFrame((_, dt) => {
@@ -676,28 +674,29 @@ function HeavensNightSign({ position, rotation }: { position: [number, number, n
     // ── Flicker: layered fast buzz + occasional hard stutter ──
     const buzz    = hash(Math.floor(t * 38) * 1.1)
     const stutter = hash(Math.floor(t *  5) * 3.7)
-    // Most of the time fully on; occasionally dims or cuts
     const flicker = buzz > 0.12 ? 1.0 : stutter > 0.3 ? 0.25 : 0.0
-    const bright  = 0.75 + flicker * 0.85  // range 0 – 1.6
+    const bright  = 0.75 + flicker * 0.85
 
     if (signMatRef.current) {
-      _color.setRGB(bright, bright * 0.6, bright * 0.85)
+      _color.setRGB(bright, bright * 0.55, bright * 0.82)
       signMatRef.current.color.copy(_color)
     }
 
-    // ── Sparks: spawn during bright moments ──
+    // ── Sparks: pop off the sign face and rain down into the room ──
     const sp = sparks.current
-    if (flicker > 0.8 && Math.random() < 0.22) {
+    if (flicker > 0.8 && Math.random() < 0.3) {
       for (let i = 0; i < MAX_SPARKS; i++) {
-        const b = i * 7
-        if (sp[b + 4] <= 0) {
-          sp[b + 0] = (Math.random() - 0.5) * 1.0    // x  (within text area)
-          sp[b + 1] = (Math.random() - 0.5) * 0.7    // y
-          sp[b + 2] = (Math.random() - 0.5) * 0.8    // vx
-          sp[b + 3] = Math.random() * 1.0 + 0.4      // vy upward
-          sp[b + 4] = 0.35 + Math.random() * 0.45    // life
-          sp[b + 5] = sp[b + 4]                      // maxLife
-          sp[b + 6] = 0.010 + Math.random() * 0.014  // size
+        const b = i * 9
+        if (sp[b + 6] <= 0) {
+          sp[b + 0] = (Math.random() - 0.5) * 1.1    // x — random across text
+          sp[b + 1] = (Math.random() - 0.5) * 0.8    // y — random across text
+          sp[b + 2] = 0.05                            // z — start just off sign face
+          sp[b + 3] = (Math.random() - 0.5) * 0.3    // vx — slight sideways drift
+          sp[b + 4] = Math.random() * 0.15            // vy — tiny upward pop
+          sp[b + 5] = Math.random() * 0.8 + 0.4      // vz — outward into room
+          sp[b + 6] = 0.6 + Math.random() * 0.6      // life
+          sp[b + 7] = sp[b + 6]                      // maxLife
+          sp[b + 8] = 0.012 + Math.random() * 0.016  // size
           break
         }
       }
@@ -706,14 +705,16 @@ function HeavensNightSign({ position, rotation }: { position: [number, number, n
     if (!sparkRef.current) return
     let visible = 0
     for (let i = 0; i < MAX_SPARKS; i++) {
-      const b = i * 7
-      if (sp[b + 4] <= 0) continue
-      sp[b + 4] -= dt
-      sp[b + 0] += sp[b + 2] * dt
-      sp[b + 1] += sp[b + 3] * dt
-      sp[b + 3] -= 2.8 * dt          // gravity
-      const s = sp[b + 6] * (sp[b + 4] / sp[b + 5])
-      _sparkPos.set(sp[b + 0], sp[b + 1], 0.02)
+      const b = i * 9
+      if (sp[b + 6] <= 0) continue
+      sp[b + 6] -= dt
+      sp[b + 0] += sp[b + 3] * dt
+      sp[b + 1] += sp[b + 4] * dt
+      sp[b + 2] += sp[b + 5] * dt
+      sp[b + 4] -= 1.8 * dt   // gravity pulls down
+      const lifeRatio = sp[b + 6] / sp[b + 7]
+      const s = sp[b + 8] * lifeRatio
+      _sparkPos.set(sp[b + 0], sp[b + 1], sp[b + 2])
       _sparkMat.makeScale(s, s, s)
       _sparkMat.setPosition(_sparkPos)
       sparkRef.current.setMatrixAt(visible++, _sparkMat)
@@ -724,20 +725,19 @@ function HeavensNightSign({ position, rotation }: { position: [number, number, n
 
   return (
     <group position={position} rotation={rotation}>
-      {/* Neon sign — AdditiveBlending so black bg is invisible, only bright pixels show.
-          depthWrite=false prevents the plane from occluding geometry behind it. */}
+      {/* Sign — proper alpha PNG, NormalBlending, transparent background gone */}
       <mesh>
         <planeGeometry args={[1.5, 1.5]} />
         <meshBasicMaterial
           ref={signMatRef}
           map={texture}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
           transparent
+          alphaTest={0.05}
+          depthWrite={false}
         />
       </mesh>
 
-      {/* Sparks — tiny instanced quads, additive so they glow */}
+      {/* Sparks — rain out from sign face into room, additive glow */}
       <instancedMesh ref={sparkRef} args={[undefined, undefined, MAX_SPARKS]}>
         <planeGeometry args={[1, 1]} />
         <meshBasicMaterial
