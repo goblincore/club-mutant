@@ -25,7 +25,7 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Characters: paper-doll rigs (flat textured planes on bone hierarchy) from rig editor export
   - Key dirs:
     - `src/scene/` — Room (walls + DJ booth + wall occlusion with `depthWrite` fix for attachments), **JukeboxRoom** (vintage 50s diner with checkerboard floor, burgundy walls, stage + mic stand; see **Jukebox Room** below), **JapaneseRoom** (cozy nighttime bedroom; see **MyRoom** below), Camera (orbit + sway + **follow lerp delay** `FOLLOW_LERP=4` for trailing camera feel, exports `cameraDistance` + `cameraAzimuth` for fisheye scaling + camera-relative WASD), PlayerEntity (lerp + 3D chat bubbles + troika Text nametags on layer 1), GameScene (Canvas + ClickPlane + debug keyboard shortcuts: `` ` `` for FPS, `-`/`=` for render scale cycle), InteractableObject (proximity + hover highlight + cursor + click; see **Interactable object outline** below), **GLBModel** (reusable GLB loader component via drei's `useGLTF`, clones scene per instance, supports preload; see **GLB model pipeline** below)
-    - `src/character/` — PaperDoll, CharacterLoader, DistortMaterial (PaRappa vertex warp + clip-space vertex fisheye via `uVertexFisheye`), AnimationMixer, **characterRegistry** (auto-discovers characters by probing `default`..`default20` folders at startup, parallel fetch, singleton cache, preloads all, `characterPathForTextureId()` for sync lookup by remote players)
+    - `src/character/` — PaperDoll (bone hierarchy rendering + **group-level lean** + per-bone distortion info; see **Character Distortion System** below), CharacterLoader (manifest loading + `distortion`/`distortionOverrides` support), DistortMaterial (PaRappa vertex warp: squash-stretch, twist, wobble, bounce, billboard twist + clip-space vertex fisheye via `uVertexFisheye`; lean moved to group transforms — see **Character Distortion System**), AnimationMixer, **characterRegistry** (auto-discovers characters by probing `default`..`default20` folders at startup, parallel fetch, singleton cache, preloads all, `characterPathForTextureId()` for sync lookup by remote players)
     - `src/network/` — NetworkManager (Colyseus client, player/chat/music/DJ queue wiring, YouTube search, late-join sync for music + DJ queue from **schema-only callbacks** — `onAdd`/`onRemove`/`listen`, no separate `DJ_QUEUE_UPDATED` message handler; **reconnection**: `room.onDrop` → status `'reconnecting'`, `room.onReconnect` → status `'connected'` + TimeSync restart, `room.onLeave` → status `'disconnected'`; reconnection config: `maxRetries=10`, `maxDelay=8000`), TimeSync (client-server clock sync with `onReady` callback for deferred operations)
     - `src/stores/` — gameStore (+ `connectionStatus`: `'disconnected'` | `'connected'` | `'reconnecting'`, `selectedCharacterPath`, `lobbyJoined`, `availableRooms`, `roomType`, `musicMode`), chatStore (+ bubbles), musicStore, uiStore (+ debug: `showFps`, `renderScale` [0.75/0.5/0.35], `fisheyeOverride`, `vertexFisheye`, `vortexOob`; + `computerIframeOpen`, `magazineReaderOpen`), boothStore (DJ booth + queue + video bg, `videoBackgroundEnabled` defaults `true`), **jukeboxStore** (shared jukebox playlist synced from server schema)
     - `src/hooks/` — useVideoBackground (resolves YouTube video URL → `<video>` → `THREE.VideoTexture`, falls back to iframe mode), **useSlideshowTexture** (cycles through `/textures/slideshow/` images when no video playing, shown on wall display)
@@ -183,6 +183,7 @@ Works mathematically but visual feel needs more tuning. **Alternatives to explor
 - **Multiple `<Canvas>` elements = multiple WebGL contexts** — Each `<Canvas>` creates its own WebGL context, render loop, and scene graph. Two canvases rendering the same character means double the animation work, double the material updates, double the draw calls. Prefer CSS effects (drop-shadow, filters) on a single Canvas wrapper div instead of a second Canvas.
 - **Geometry created in `onSync` callbacks leaks** — troika text's `onSync` fires whenever text metrics change. Creating new `ShapeGeometry` each time leaks unless explicitly disposed. Cache geometries by quantized dimensions (e.g., `Math.round(w * 100) / 100`) — only ~5 distinct sizes for short phrases.
 - **uWebSockets transport + Express middleware incompatibility** — `@colyseus/uwebsockets-transport` invalidates `uWS.HttpRequest` after any async operation or route handler return. Express middleware that reads `req.headers` or calls `next()` (including `cors()`, body parsers, etc.) causes `uWS.HttpRequest must not be accessed after await` errors. Solution: don't add global middleware to the Express app inside `defineServer.express`. For CORS-needing endpoints, use a separate Express service (e.g., `dream-npc`), or use the Vite dev proxy in development. Matchmaker CORS is handled via `matchMaker.controller.getCorsHeaders`.
+- **Vertex shader distortion on paper-doll parts causes z-clipping and joint gaps** — When vertex effects (lean, twist) are applied per-mesh, child groups (head on torso) don't follow because vertex displacement doesn't affect the scene graph. Fix: apply body-coherent effects (lean) as **group-level transforms** so children inherit through the hierarchy. Also: never displace Z in vertex shader twist effects on flat paper-doll planes — Z displacement causes parts to clip through each other with no visual benefit.
 
 ## How to run
 
@@ -2067,6 +2068,7 @@ The service abstracts the model backend — swapping from API to Ollama requires
 - ~~Dream Mode Phase 1: Phaser app + iframe + NPC chat (core scaffolding)~~ ✅ COMPLETED (Feb 2026)
 - ~~Lily NPC bartender: server-side AI NPC, chat routing, bar redesign, music awareness~~ ✅ COMPLETED (Feb 2026)
 - ~~Lily NPC polish: emoticon reduction, chunk delay tuning, greeting name mechanic, conversational window, spontaneous music commentary, song recommendations, fallback emoji fix, bubble fade-out~~ ✅ COMPLETED (Feb 2026)
+- ~~Character distortion fix: group-level lean, z-clip prevention (no Z displacement in twist/billboard), per-bone distortion overrides, hChar propagation through bone hierarchy~~ ✅ COMPLETED (Feb 2026)
 - Dream Mode: shader backgrounds (port TV static noise to Phaser WebGL pipeline, per-world palette)
 - Dream Mode: collectible persistence end-to-end testing
 - Dream Mode Phase 2: combat system, more NPCs, additional dream worlds, sound effects
@@ -2129,6 +2131,61 @@ Known characters:
 - `worldHeight` — total character height in world units
 - `headTopY` — Y position of top of head part (for chat bubble anchor)
 - `visualTopY` — Y position of highest point of any part (for top-positioned chat bubbles)
+
+### Character Distortion System (Feb 2026)
+
+PaRappa-style vertex distortion applied to paper-doll characters during movement. The system splits effects into **group-level transforms** (applied to Three.js bone groups, inherited by children) and **vertex-level effects** (applied per-part in the shader).
+
+#### Architecture
+
+**Group-level lean** (`PaperDoll.tsx` `useFrame`):
+- Lean displacement applied to each bone group's `position.x` based on `velocityX` and a smoothstep curve of the bone's character-space height (`hChar`)
+- Children inherit parent lean through the scene graph automatically — no visual gap between head and torso
+- Uses incremental `leanFactor` (total lean minus inherited parent lean) to avoid double-counting
+- Undone each frame before `applyAnimation()` runs, then reapplied after, to coexist with animation position tracks
+
+**Vertex shader effects** (`DistortMaterial.ts` `onBeforeCompile`):
+- Squash-stretch (part-local, scaled by `dScale`)
+- Twist (body-coherent via `hChar`, X-axis only — no Z displacement)
+- Wobble (part-local, scaled by `dScale`)
+- Bounce (part-local, scaled by `dScale`)
+- Billboard twist (body-coherent via `hChar`, X-axis only — no Z displacement)
+- Clip-space vertex fisheye (`uVertexFisheye`)
+
+**Why no Z displacement**: Twist and billboard twist originally rotated vertices in both X and Z. The Z displacement caused parts to clip through each other (head through torso), breaking z-order. Removing Z writes eliminates this — the visual twist is almost entirely in X for these flat paper-doll planes.
+
+#### Per-bone distortion overrides
+
+Characters can specify per-bone-role distortion multipliers in their `manifest.json`:
+
+```json
+{
+  "distortion": 0.8,
+  "distortionOverrides": {
+    "head": 0.2
+  }
+}
+```
+
+- `distortion` (0..1, default 1): Global multiplier for all part-local effects
+- `distortionOverrides`: Per `boneRole` multiplier, combined as `globalDistortion × boneOverride`
+- Only affects part-local effects (squash, wobble, bounce). Body-coherent effects (twist, billboard twist) always use full speed for joint continuity.
+- Useful for tall characters with long necks where independent head wobble looks disconnected
+
+#### hChar propagation
+
+`computePartDistortInfo()` in `PaperDoll.tsx` processes parts in topological order (parents before children):
+- Root parts: `hChar` computed from character bounding box (0 = feet, 1 = head)
+- Child parts: inherit `hCharAtBone` from parent's bone position for joint continuity
+- Each part gets `hCharBottom`, `hCharTop` (passed to shader as uniforms for per-vertex interpolation), `hCharAtBone` (used for group-level lean), and `leanFactor` (incremental lean)
+
+#### Key files
+
+| File | Purpose |
+|------|---------|
+| `client-3d/src/character/DistortMaterial.ts` | Vertex shader effects + uniform management |
+| `client-3d/src/character/PaperDoll.tsx` | Group-level lean + `computePartDistortInfo()` + bone hierarchy rendering |
+| `client-3d/src/character/CharacterLoader.ts` | Manifest loading with `distortion`/`distortionOverrides` fields |
 
 ### 3D Chat Bubbles + Layer-Based Rendering (Feb 2026)
 
@@ -2209,7 +2266,7 @@ Seven optimizations applied to the lobby carousel and character system:
 Previously the carousel used two `<Canvas>` elements — one for the main scene and one solely for CSS `drop-shadow` glow on the selected character. This meant two WebGL contexts, two render loops, and the selected character rendered & animated twice every frame. Removed the glow Canvas entirely; applied `drop-shadow` CSS filter directly to the main Canvas wrapper. PaperDoll instances dropped from 13 to 12.
 
 **2. Distortion uniform skip for static PaperDolls**
-`PaperDoll.tsx` `useFrame` now early-returns after `applyAnimation()` when `speed === 0 && velocityX === 0 && billboardTwist === 0` — skips `distortTimeRef`, `useUIStore.getState()`, and the material uniform loop entirely. Always true for all 12 lobby PaperDolls. Saves ~120 uniform writes/frame.
+`PaperDoll.tsx` `useFrame` now early-returns after `applyAnimation()` when `speed === 0 && velocityX === 0 && billboardTwist === 0` — skips `distortTimeRef`, `useUIStore.getState()`, material uniform loop, and group-level lean entirely. Always true for all 12 lobby PaperDolls. Saves ~120 uniform writes/frame.
 
 **3. O(1) children lookup in PaperDoll (childrenByParent map)**
 `PartMesh` previously called `allParts.filter(p => p.parent === part.id)` on every render — O(N²) total across the bone tree. Now builds a `Map<string|null, ManifestPart[]>` once via `useMemo` in `PaperDoll`, passes to `PartMesh`. Lookup is O(1).
