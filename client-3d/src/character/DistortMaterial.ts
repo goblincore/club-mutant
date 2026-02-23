@@ -15,21 +15,28 @@ export function createDistortMaterial(texture: THREE.Texture): THREE.MeshBasicMa
   material.userData.uniforms = {
     uTime: { value: 0 },
     uSpeed: { value: 0 }, // movement speed magnitude (0..1 normalized)
-    uVelocityX: { value: 0 }, // horizontal velocity direction (-1..1)
     uBoundsY: { value: new THREE.Vector2(-0.5, 0.5) }, // min/max Y of the geometry
     uBillboardTwist: { value: 0 }, // angular velocity of billboard rotation (rad/s)
     uVertexFisheye: { value: 0 }, // clip-space barrel distortion intensity
+    uCharHBottom: { value: 0 }, // character-space h at this part's geometry bottom (h=0)
+    uCharHTop: { value: 1 }, // character-space h at this part's geometry top (h=1)
+    uDistortScale: { value: 1 }, // per-bone distortion scale multiplier (0..1)
   }
 
+  // Shared cache key — shader source is identical across all parts, so Three.js
+  // reuses the compiled GL program. Per-material uniforms are bound separately
+  // via onBeforeCompile + material.userData.shader.
+  material.customProgramCacheKey = () => 'distort-paperdoll'
+
   material.onBeforeCompile = (shader) => {
-    // Inject our uniforms
+    // Store shader reference so we can sync uniforms later
+    material.userData.shader = shader
+
+    // Bind our uniform objects to the shader
     const uniforms = material.userData.uniforms
-    shader.uniforms.uTime = uniforms.uTime
-    shader.uniforms.uSpeed = uniforms.uSpeed
-    shader.uniforms.uVelocityX = uniforms.uVelocityX
-    shader.uniforms.uBoundsY = uniforms.uBoundsY
-    shader.uniforms.uBillboardTwist = uniforms.uBillboardTwist
-    shader.uniforms.uVertexFisheye = uniforms.uVertexFisheye
+    for (const key of Object.keys(uniforms)) {
+      shader.uniforms[key] = uniforms[key]
+    }
 
     // Inject uniform declarations before main()
     shader.vertexShader = shader.vertexShader.replace(
@@ -37,10 +44,12 @@ export function createDistortMaterial(texture: THREE.Texture): THREE.MeshBasicMa
       `
       uniform float uTime;
       uniform float uSpeed;
-      uniform float uVelocityX;
       uniform vec2 uBoundsY;
       uniform float uBillboardTwist;
       uniform float uVertexFisheye;
+      uniform float uCharHBottom;
+      uniform float uCharHTop;
+      uniform float uDistortScale;
 
       void main() {
       `
@@ -52,49 +61,56 @@ export function createDistortMaterial(texture: THREE.Texture): THREE.MeshBasicMa
       `
       #include <begin_vertex>
 
-      // Normalized height: 0 at bottom, 1 at top
+      // Per-part normalized height: 0 at bottom, 1 at top
       float h = clamp((transformed.y - uBoundsY.x) / max(uBoundsY.y - uBoundsY.x, 0.001), 0.0, 1.0);
 
+      // Character-space height: propagated from parent bone chain
+      // Ensures continuity at joints (child bottom matches parent at attachment point)
+      float hChar = clamp(mix(uCharHBottom, uCharHTop, h), 0.0, 1.0);
+
+      // dScale: per-bone override for part-local effects only (wobble, squash, bounce)
+      // Body-coherent effects (lean, twist, billboard twist) always use full speed
+      // to maintain joint continuity between parent/child parts
+      float dScale = uDistortScale;
       float spd = uSpeed;
+      float spdLocal = uSpeed * dScale;
 
-      // 1. Lean — top of mesh shears in movement direction
-      transformed.x += h * h * uVelocityX * 0.15;
+      // 1. Lean — applied at GROUP level in PaperDoll.tsx (not vertex shader)
+      // This ensures children (head on torso) inherit lean through the scene graph.
+      // Vertex-level lean would move vertices but not child groups, causing gaps.
 
-      // 2. Squash-stretch — elongate vertically, compress horizontally when moving
-      float stretchY = 1.0 + spd * 0.12;
-      float squashX = 1.0 - spd * 0.06;
+      // 2. Squash-stretch — part-local (uses h, scaled by dScale)
+      float stretchY = 1.0 + spdLocal * 0.12;
+      float squashX = 1.0 - spdLocal * 0.06;
       transformed.y *= stretchY;
       transformed.x *= squashX;
 
-      // 3. Twist — rotate vertices around Y axis, more at top
-      float twistAngle = h * spd * 0.4 * sin(uTime * 4.0);
+      // 3. Twist — body-coherent (uses hChar, NOT scaled by dScale)
+      // Only X displacement (no Z) to prevent z-clipping between parts
+      float twistAngle = hChar * spd * 0.4 * sin(uTime * 4.0);
       float ct = cos(twistAngle);
       float st = sin(twistAngle);
-      float tx = transformed.x;
-      float tz = transformed.z;
-      transformed.x = tx * ct - tz * st;
-      transformed.z = tx * st + tz * ct;
+      transformed.x = transformed.x * ct - transformed.z * st;
+      // transformed.z intentionally unchanged — Z displacement causes parts to clip through each other
 
-      // 4. Wobble — organic sine-wave displacement
-      transformed.x += sin(h * 3.14159 + uTime * 6.0) * spd * 0.04;
-      transformed.y += sin(h * 2.5 + uTime * 5.0) * spd * 0.025;
+      // 4. Wobble — part-local (uses h, scaled by dScale)
+      transformed.x += sin(h * 3.14159 + uTime * 6.0) * spdLocal * 0.04;
+      transformed.y += sin(h * 2.5 + uTime * 5.0) * spdLocal * 0.025;
 
-      // 5. Bounce — subtle vertical bounce cycle
-      transformed.y += abs(sin(uTime * 8.0)) * spd * 0.03;
+      // 5. Bounce — part-local (scaled by dScale)
+      transformed.y += abs(sin(uTime * 8.0)) * spdLocal * 0.03;
 
-      // 6. Billboard twist — rubbery rotation, top twists more than bottom
-      float bTwist = uBillboardTwist;
-      float twistH = h * h; // quadratic: top moves way more
-      float bbAngle = twistH * bTwist * 2.5;
+      // 6. Billboard twist — body-coherent (uses hChar, NOT scaled by dScale)
+      // Only X displacement (no Z) to prevent z-clipping between parts
+      float twistH = hChar * hChar; // quadratic: top moves way more
+      float bbAngle = twistH * uBillboardTwist * 2.5;
       float bbc = cos(bbAngle);
       float bbs = sin(bbAngle);
-      float bbx = transformed.x;
-      float bbz = transformed.z;
-      transformed.x = bbx * bbc - bbz * bbs;
-      transformed.z = bbx * bbs + bbz * bbc;
+      transformed.x = transformed.x * bbc - transformed.z * bbs;
+      // transformed.z intentionally unchanged
 
       // Add subtle lateral shear from billboard twist (bendy feel)
-      transformed.x += twistH * bTwist * 0.12;
+      transformed.x += twistH * uBillboardTwist * 0.12;
       `
     )
 
@@ -121,12 +137,30 @@ export function createDistortMaterial(texture: THREE.Texture): THREE.MeshBasicMa
   return material
 }
 
+// Sync uniforms from material.userData to the compiled shader.
+// Must be called after onBeforeCompile has run (i.e., after first render frame).
+function syncUniforms(material: THREE.MeshBasicMaterial) {
+  const shader = material.userData.shader
+  if (!shader) return
+
+  const uniforms = material.userData.uniforms
+  if (!uniforms) return
+
+  // Ensure shader.uniforms references point to our uniform objects.
+  // This handles the case where Three.js program caching may have
+  // disconnected the uniform bindings.
+  for (const key of Object.keys(uniforms)) {
+    if (shader.uniforms[key] !== uniforms[key]) {
+      shader.uniforms[key] = uniforms[key]
+    }
+  }
+}
+
 // Update the distortion uniforms for a material
 export function updateDistortUniforms(
   material: THREE.MeshBasicMaterial,
   time: number,
   speed: number,
-  velocityX: number,
   billboardTwist: number = 0
 ) {
   const u = material.userData.uniforms
@@ -134,8 +168,10 @@ export function updateDistortUniforms(
 
   u.uTime.value = time
   u.uSpeed.value = speed
-  u.uVelocityX.value = velocityX
   u.uBillboardTwist.value = billboardTwist
+
+  // Re-sync uniform references every frame to handle context loss / program re-caching
+  syncUniforms(material)
 }
 
 // Set the vertex-level fisheye intensity (0 = off)
@@ -152,4 +188,25 @@ export function setDistortBounds(material: THREE.MeshBasicMaterial, minY: number
   if (!u) return
 
   u.uBoundsY.value.set(minY, maxY)
+}
+
+// Set character-space height bounds for joint-continuous distortion
+export function setCharacterSpaceBounds(
+  material: THREE.MeshBasicMaterial,
+  hCharBottom: number,
+  hCharTop: number
+) {
+  const u = material.userData.uniforms
+  if (!u) return
+
+  u.uCharHBottom.value = hCharBottom
+  u.uCharHTop.value = hCharTop
+}
+
+// Set the per-bone distortion scale multiplier (0..1)
+export function setDistortScale(material: THREE.MeshBasicMaterial, scale: number) {
+  const u = material.userData.uniforms
+  if (!u) return
+
+  u.uDistortScale.value = scale
 }
