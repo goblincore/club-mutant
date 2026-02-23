@@ -4,6 +4,8 @@ import * as THREE from 'three'
 export interface CharacterManifest {
   name: string
   scale?: number
+  distortion?: number // Global distortion intensity multiplier (0..1, default 1.0)
+  distortionOverrides?: Record<string, number> // Per bone-role distortion multipliers
   parts: ManifestPart[]
   animations: ManifestAnimation[]
 }

@@ -10,6 +10,8 @@ import {
   updateDistortUniforms,
   setDistortBounds,
   setVertexFisheye,
+  setCharacterSpaceBounds,
+  setDistortScale,
 } from './DistortMaterial'
 import { useUIStore } from '../stores/uiStore'
 
@@ -120,6 +122,134 @@ function computeCharacterLayout(parts: ManifestPart[], manifestScale: number): C
   return { charScale, groundOffsetY, worldHeight, headTopY, visualTopY }
 }
 
+// Per-part distortion info computed from the bone hierarchy
+interface PartDistortInfo {
+  hCharBottom: number
+  hCharTop: number
+  hCharAtBone: number // character-space h at this part's bone pivot (for group-level lean)
+  leanFactor: number // incremental lean factor (subtracts inherited parent lean)
+  distortScale: number
+}
+
+// Compute character-space height bounds for each part, propagating through the bone chain.
+// This ensures joint continuity: a child part's bottom hChar matches the parent's hChar at the
+// attachment point, eliminating visual gaps between head and torso during distortion.
+function computePartDistortInfo(
+  parts: ManifestPart[],
+  globalDistortion: number,
+  distortionOverrides: Record<string, number>
+): Map<string, PartDistortInfo> {
+  const byId = new Map<string, ManifestPart>()
+  for (const p of parts) byId.set(p.id, p)
+
+  function absY(part: ManifestPart): number {
+    let y = part.offset[1]
+    let cur = part.parent ? byId.get(part.parent) : undefined
+    while (cur) {
+      y += cur.offset[1]
+      cur = cur.parent ? byId.get(cur.parent) : undefined
+    }
+    return y
+  }
+
+  // Find character bounding box in Y-down manifest space
+  let charMinY = Infinity
+  let charMaxY = -Infinity
+  for (const part of parts) {
+    const ay = absY(part)
+    const h = part.size[1]
+    const pivot = part.pivot[1]
+    const top = ay - pivot * h
+    const bottom = ay + (1 - pivot) * h
+    if (top < charMinY) charMinY = top
+    if (bottom > charMaxY) charMaxY = bottom
+  }
+  const charHeight = charMaxY - charMinY
+
+  if (charHeight <= 0) {
+    const result = new Map<string, PartDistortInfo>()
+    for (const part of parts) {
+      const boneOverride = part.boneRole ? (distortionOverrides[part.boneRole] ?? 1) : 1
+      result.set(part.id, { hCharBottom: 0, hCharTop: 1, hCharAtBone: 0.5, leanFactor: 0.5, distortScale: globalDistortion * boneOverride })
+    }
+    return result
+  }
+
+  // Process parts parent-first (topological order) to propagate hChar through bone chain
+  const partInfo = new Map<string, { hCharBottom: number; hCharTop: number; hCharAtBone: number }>()
+  const processed = new Set<string>()
+  const queue = parts.filter((p) => p.parent === null)
+
+  while (queue.length > 0) {
+    const part = queue.shift()!
+    const pivot = part.pivot[1]
+    const partHeightFrac = part.size[1] / charHeight
+
+    if (part.parent === null) {
+      // Root part: compute from character bounding box
+      const ay = absY(part)
+      const partTop = ay - pivot * part.size[1]
+      const partBottom = ay + (1 - pivot) * part.size[1]
+      // hChar: 0 = feet (charMaxY), 1 = head (charMinY)
+      const hBottom = (charMaxY - partBottom) / charHeight
+      const hTop = (charMaxY - partTop) / charHeight
+      const hAtBone = hBottom + pivot * (hTop - hBottom)
+      partInfo.set(part.id, { hCharBottom: hBottom, hCharTop: hTop, hCharAtBone: hAtBone })
+    } else {
+      // Child part: inherit from parent's bone position for joint continuity
+      const parentInfo = partInfo.get(part.parent)!
+      const hAtPivot = parentInfo.hCharAtBone
+      // Child's pivot connects to parent's bone; geometry extends in both directions from pivot
+      const hBottom = hAtPivot - pivot * partHeightFrac
+      const hTop = hAtPivot + (1 - pivot) * partHeightFrac
+      const hAtBone = hBottom + pivot * (hTop - hBottom)
+      partInfo.set(part.id, { hCharBottom: hBottom, hCharTop: hTop, hCharAtBone: hAtBone })
+    }
+
+    processed.add(part.id)
+    for (const child of parts) {
+      if (child.parent === part.id && !processed.has(child.id)) {
+        queue.push(child)
+      }
+    }
+  }
+
+  // Helper: smoothstep for lean curve
+  function smoothstep01(x: number): number {
+    const c = Math.max(0, Math.min(1, x))
+    return c * c * (3 - 2 * c)
+  }
+
+  const result = new Map<string, PartDistortInfo>()
+  for (const part of parts) {
+    const info = partInfo.get(part.id)
+    const boneOverride = part.boneRole ? (distortionOverrides[part.boneRole] ?? 1) : 1
+    const hAtBone = info?.hCharAtBone ?? 0.5
+
+    // Incremental lean factor: total lean at this bone minus inherited parent lean.
+    // Children in the scene graph inherit parent group transforms, so we only apply
+    // the difference. For a head attached at the same hChar as the torso bone,
+    // the incremental lean is zero — the head rides on the torso's lean.
+    let leanFactor = smoothstep01(hAtBone)
+    if (part.parent) {
+      const parentInfo = partInfo.get(part.parent)
+      if (parentInfo) {
+        leanFactor -= smoothstep01(parentInfo.hCharAtBone)
+      }
+    }
+
+    result.set(part.id, {
+      hCharBottom: info?.hCharBottom ?? 0,
+      hCharTop: info?.hCharTop ?? 1,
+      hCharAtBone: hAtBone,
+      leanFactor,
+      distortScale: globalDistortion * boneOverride,
+    })
+  }
+
+  return result
+}
+
 interface PaperDollProps {
   characterPath: string
   animationName?: string
@@ -138,6 +268,7 @@ function PartMesh({
   textures,
   registerBone,
   onMaterialCreated,
+  partDistortMap,
 }: {
   part: ManifestPart
   childrenByParent: Map<string | null, ManifestPart[]>
@@ -145,6 +276,7 @@ function PartMesh({
   textures: Map<string, THREE.Texture>
   registerBone: (id: string, boneRole: string | null, group: THREE.Group | null) => void
   onMaterialCreated: (mat: THREE.MeshBasicMaterial) => void
+  partDistortMap: Map<string, PartDistortInfo>
 }) {
   const groupRef = useRef<THREE.Group>(null)
 
@@ -174,8 +306,15 @@ function PartMesh({
     const box = geo.boundingBox!
     setDistortBounds(material, box.min.y, box.max.y)
 
+    // Apply character-space height bounds for joint-continuous distortion
+    const distInfo = partDistortMap.get(part.id)
+    if (distInfo) {
+      setCharacterSpaceBounds(material, distInfo.hCharBottom, distInfo.hCharTop)
+      setDistortScale(material, distInfo.distortScale)
+    }
+
     return geo
-  }, [part.size, part.pivot, material])
+  }, [part.size, part.pivot, material, partDistortMap, part.id])
 
   const children = childrenByParent.get(part.id) ?? []
 
@@ -200,6 +339,7 @@ function PartMesh({
             textures={textures}
             registerBone={registerBone}
             onMaterialCreated={onMaterialCreated}
+            partDistortMap={partDistortMap}
           />
         )
       })}
@@ -270,26 +410,66 @@ export function PaperDoll({
     }
   }, [])
 
+  // partDistortMapRef is populated after partDistortMap useMemo below
+  const partDistortMapRef = useRef<Map<string, PartDistortInfo>>(new Map())
+
   // Animate + update distortion
   useFrame((_, delta) => {
     if (!activeAnim) return
 
-    clockRef.current += delta
-    applyAnimation(activeAnim, boneRefs.current, clockRef.current, PX_SCALE)
+    // 1. Undo previous frame's lean and run bone animation
+    const pdMap = partDistortMapRef.current
+    const bones = boneRefs.current
+    for (const [id] of pdMap) {
+      const group = bones.get(id)
+      if (group && group.userData.leanOffset) {
+        group.position.x -= group.userData.leanOffset
+        group.userData.leanOffset = 0
+      }
+    }
 
-    // Skip distortion uniform loop when no movement (e.g. lobby carousel)
+    clockRef.current += delta
+    applyAnimation(activeAnim, bones, clockRef.current, PX_SCALE)
+
+    // Skip distortion when not moving (e.g. lobby carousel)
     if (speed === 0 && velocityX === 0 && billboardTwist === 0) return
 
-    // Update distortion uniforms on all part materials
+    // 2. Update vertex shader distortion uniforms
     distortTimeRef.current += delta
-
     const vFisheye = useUIStore.getState().vertexFisheye
-
     for (const mat of materialsRef.current) {
-      updateDistortUniforms(mat, distortTimeRef.current, speed, velocityX, billboardTwist)
+      updateDistortUniforms(mat, distortTimeRef.current, speed, billboardTwist)
       setVertexFisheye(mat, vFisheye)
     }
+
+    // 3. Apply group-level lean (only when there's lateral velocity)
+    if (velocityX !== 0) {
+      const vx015 = velocityX * 0.15
+      for (const [id, info] of pdMap) {
+        if (info.leanFactor === 0) continue // skip children with zero incremental lean
+        const group = bones.get(id)
+        if (!group) continue
+        const leanOffset = info.leanFactor * vx015
+        group.position.x += leanOffset
+        group.userData.leanOffset = leanOffset
+      }
+    }
   })
+
+  // Compute per-part character-space distortion info from bone hierarchy
+  const partDistortMap = useMemo(() => {
+    if (!loaded) return new Map<string, PartDistortInfo>()
+    return computePartDistortInfo(
+      loaded.manifest.parts,
+      loaded.manifest.distortion ?? 1,
+      loaded.manifest.distortionOverrides ?? {}
+    )
+  }, [loaded])
+
+  // Sync partDistortMap to ref so useFrame can read it without closure deps
+  useEffect(() => {
+    partDistortMapRef.current = partDistortMap
+  }, [partDistortMap])
 
   // Build children lookup map once (O(N) instead of O(N²) filter per PartMesh render)
   const childrenByParent = useMemo(() => {
@@ -353,6 +533,7 @@ export function PaperDoll({
             textures={loaded.textures}
             registerBone={registerBone}
             onMaterialCreated={onMaterialCreated}
+            partDistortMap={partDistortMap}
           />
         )
       })}
