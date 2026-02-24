@@ -37,9 +37,8 @@ export function LobbyScreen() {
     })
   }, [])
 
-  // Eagerly create NetworkManager so joinLobbyRoom() starts connecting
-  // before the user clicks "Go!". The constructor is cheap (just creates
-  // a Client object), and joinLobbyRoom() runs async in the background.
+  // Initialize NetworkManager but do NOT eagerly connect to the lobby.
+  // We'll connect when the user decides they want to see the server list.
   useEffect(() => {
     getNetwork()
   }, [])
@@ -127,12 +126,9 @@ export function LobbyScreen() {
   const handleGo = () => {
     const trimmed = name.trim()
     if (!trimmed || !selectedChar) return
-    useGameStore.getState().setSelectedCharacterPath(selectedChar.path)
-    // Trigger lazy NetworkManager creation so joinLobbyRoom() fires in the constructor.
-    // This starts the lobby connection before Screen 2 renders.
+    // Trigger lazy NetworkManager creation if not already created.
     getNetwork()
 
-    // If we have a pending room link, auto-join instead of showing room select
     if (pendingRoomId) {
       attemptDirectJoin(pendingRoomId, null)
       return
@@ -425,8 +421,18 @@ export function LobbyScreen() {
 
                       {/* Custom Rooms button */}
                       <button
-                        onClick={() => setRoomSubView('browse')}
-                        disabled={!lobbyJoined}
+                        onClick={async () => {
+                          setConnecting(true)
+                          try {
+                            await getNetwork().ensureLobbyJoined()
+                            setRoomSubView('browse')
+                          } catch (err) {
+                            setError('Failed to load room list')
+                          } finally {
+                            setConnecting(false)
+                          }
+                        }}
+                        disabled={connecting}
                         className="lobby-btn w-full relative overflow-hidden group
                                    bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-4
                                    text-base font-mono font-bold text-white
@@ -437,7 +443,14 @@ export function LobbyScreen() {
                         <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
                                         translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
                         <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
-                          {lobbyJoined ? 'Custom Rooms' : 'connecting...'}
+                          {connecting ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              CONNECTING...
+                            </span>
+                          ) : (
+                            'Custom Rooms'
+                          )}
                         </span>
                       </button>
 

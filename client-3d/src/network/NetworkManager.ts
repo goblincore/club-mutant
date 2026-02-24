@@ -56,9 +56,6 @@ export class NetworkManager {
 
     this.client = new Client(url)
     this.httpBaseUrl = url.replace(/^ws/, 'http')
-
-    // Connect to Colyseus LobbyRoom for room discovery (non-blocking)
-    this.joinLobbyRoom()
   }
 
   /**
@@ -66,7 +63,8 @@ export class NetworkManager {
    * Filters to only CUSTOM rooms (the public room also appears but we skip it).
    * Retries with exponential backoff on failure.
    */
-  private async joinLobbyRoom(maxRetries = 3, baseDelay = 1000) {
+  public async ensureLobbyJoined(maxRetries = 3, baseDelay = 1000) {
+    if (this.lobby) return // Already connected or connecting
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const timeout = attempt === 0 ? 5000 : 4000
@@ -149,6 +147,8 @@ export class NetworkManager {
         this.client.joinOrCreate<IOfficeState>(RoomType.PUBLIC, {
           name: playerName,
           playerId: getOrCreatePlayerId(),
+          spawnX: 0,
+          spawnY: 0,
           ...(textureId != null ? { textureId } : {}),
         }),
         8000,
@@ -172,6 +172,8 @@ export class NetworkManager {
           name: playerName,
           playerId: getOrCreatePlayerId(),
           textureId,
+          spawnX: 0,
+          spawnY: 0,
         }),
         8000,
         'Join MyRoom'
@@ -202,6 +204,8 @@ export class NetworkManager {
           musicMode: 'jukebox',
           playerId: getOrCreatePlayerId(),
           textureId,
+          spawnX: 0,
+          spawnY: 0,
         }),
         8000,
         'Create jukebox room'
@@ -234,6 +238,8 @@ export class NetworkManager {
           musicMode,
           playerId: getOrCreatePlayerId(),
           textureId,
+          spawnX: 0,
+          spawnY: 0,
         }),
         8000,
         'Create custom room'
@@ -261,6 +267,8 @@ export class NetworkManager {
           password,
           playerId: getOrCreatePlayerId(),
           textureId,
+          spawnX: 0,
+          spawnY: 0,
         }),
         8000,
         'Join custom room'
@@ -297,68 +305,36 @@ export class NetworkManager {
     // that carry the server's legacy 2D default position (705, 500).
     const freshRemotes = new Set<string>()
 
-    // Player add/remove/change
-    playersProxy.onAdd((player: IPlayer, sessionId: string) => {
-      const gameStore = useGameStore.getState()
-      const chatStore = useChatStore.getState()
+      // Player add/remove/change
+      playersProxy.onAdd((player: IPlayer, sessionId: string) => {
+        const gameStore = useGameStore.getState()
+        const chatStore = useChatStore.getState()
 
-      const cx = clampPos(player.x)
-      const cy = clampPos(player.y)
+        const cx = clampPos(player.x)
+        const cy = clampPos(player.y)
 
-      console.log(
-        `[network] onAdd ${sessionId} textureId=${player.textureId} name=${player.name} pos=(${player.x},${player.y})→(${cx},${cy})`
-      )
+        console.log(
+          `[network] onAdd ${sessionId} textureId=${player.textureId} name=${player.name} pos=(${player.x},${player.y})→(${cx},${cy})`
+        )
 
-      const isLocal = sessionId === this.room?.sessionId
-      const localSessionId = this.room?.sessionId
+        const isLocal = sessionId === this.room?.sessionId
+        const localSessionId = this.room?.sessionId
+        
+        const playerProxy = $(player) as any
 
-      // Detect players still at the server's legacy 2D default position (705, 500).
-      // These are freshly-spawned players who haven't sent a 3D position yet.
-      const isDefault2dSpawn = Math.abs(player.x - 705) < 2 && Math.abs(player.y - 500) < 2
+        playerProxy.listen('x', (value: number) => {
+          if (sessionId === localSessionId) return
+          const pos = getPlayerPosition(sessionId)
+          if (pos) pos.x = clampPos(value)
+        })
 
-      // Only guard freshly-spawned remote players at the 2D default —
-      // their listen callback would echo 705/500 before they send (0,0).
-      // Existing players with real positions should NOT be guarded.
-      if (!isLocal && isDefault2dSpawn) {
-        freshRemotes.add(sessionId)
-        setTimeout(() => {
-          freshRemotes.delete(sessionId)
-          console.log(`[network] ${sessionId} no longer fresh, accepting listen updates`)
-        }, 300)
-      }
+        playerProxy.listen('y', (value: number) => {
+          if (sessionId === localSessionId) return
+          const pos = getPlayerPosition(sessionId)
+          if (pos) pos.y = clampPos(value)
+        })
 
-      const playerProxy = $(player) as any
-
-      playerProxy.listen('x', (value: number) => {
-        if (sessionId === localSessionId) return
-
-        if (freshRemotes.has(sessionId)) {
-          console.log(`[network] SKIP listen x=${value} for fresh remote ${sessionId}`)
-          return
-        }
-
-        const pos = getPlayerPosition(sessionId)
-        if (pos) pos.x = clampPos(value)
-      })
-
-      playerProxy.listen('y', (value: number) => {
-        if (sessionId === localSessionId) return
-
-        if (freshRemotes.has(sessionId)) {
-          console.log(`[network] SKIP listen y=${value} for fresh remote ${sessionId}`)
-          return
-        }
-
-        const pos = getPlayerPosition(sessionId)
-        if (pos) pos.y = clampPos(value)
-      })
-
-      // Use (0,0) for local player and freshly-spawned remotes at the 2D default.
-      // Existing players with real positions keep their actual server position.
-      const spawnX = isLocal || isDefault2dSpawn ? 0 : cx
-      const spawnY = isLocal || isDefault2dSpawn ? 0 : cy
-
-      setPlayerPosition(sessionId, spawnX, spawnY)
+        setPlayerPosition(sessionId, cx, cy)
 
       gameStore.addPlayer(sessionId, {
         sessionId,

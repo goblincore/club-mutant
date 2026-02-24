@@ -89,6 +89,12 @@ export class JukeboxAddCommand extends Command<ClubMutant, AddPayload> {
       return
     }
 
+    // Cap the playlist size to 50 items to prevent huge room state payloads
+    if (this.state.jukeboxPlaylist.length >= 50) {
+      console.log('[Jukebox] Add rejected - playlist full (max 50 tracks)')
+      return
+    }
+
     const jukeboxItem = new JukeboxItem()
     jukeboxItem.id = uuidv4()
     jukeboxItem.title = String(item.title)

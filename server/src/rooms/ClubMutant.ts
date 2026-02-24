@@ -654,7 +654,7 @@ export class ClubMutant extends Room {
   private broadcastNpcMessage(content: string) {
     // Store in chat messages schema (for late joiners)
     const chatMessages = this.state.chatMessages
-    if (chatMessages.length >= 100) chatMessages.shift()
+    if (chatMessages.length >= 25) chatMessages.shift()
     const msg = new ChatMessage()
     msg.author = NPC_NAME
     msg.content = content
@@ -894,6 +894,9 @@ export class ClubMutant extends Room {
     this.onMessage(Message.ADD_CHAT_MESSAGE, (client, message: { content: string }) => {
       if (this.throttle(client, Message.ADD_CHAT_MESSAGE, 500)) return
       // update the message array (so that players join later can also see the message)
+      if (this.state.chatMessages.length >= 25) {
+        this.state.chatMessages.shift()
+      }
       this.dispatcher.dispatch(new ChatMessageUpdateCommand(), {
         client,
         content: message.content,
@@ -1094,6 +1097,10 @@ export class ClubMutant extends Room {
       const rawTextureId = options?.textureId
       player.textureId = rawTextureId != null ? sanitizeTextureId(rawTextureId) : TEXTURE_IDS.mutant
       player.animId = packDirectionalAnimId('idle', 'down')
+
+      // Use exact coordinates provided by client or default to 0,0 instead of 2D 705,500
+      player.x = typeof options?.spawnX === 'number' ? options.spawnX : 0
+      player.y = typeof options?.spawnY === 'number' ? options.spawnY : 0
 
       if (this.isPublic) {
         const playerName = options?.name?.trim()
