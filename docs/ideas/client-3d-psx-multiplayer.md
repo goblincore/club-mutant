@@ -76,8 +76,9 @@ client-3d/
 │   │   ├── PsxMaterial.ts       # PSX vertex snap + dithering + color reduction
 │   │   └── PsxPostProcess.tsx   # Full-screen PSX post-processing pass
 │   ├── ui/
-│   │   ├── ChatPanel.tsx
-│   │   ├── PlaylistPanel.tsx
+│   │   ├── ChatInput.tsx
+│   │   ├── RightPanel.tsx
+│   │   ├── DjQueuePanel.tsx
 │   │   ├── DJQueuePanel.tsx
 │   │   ├── NowPlaying.tsx
 │   │   ├── YouTubePlayer.tsx
@@ -280,7 +281,7 @@ playersProxy.onAdd((player, sessionId) => {
 
 - `NetworkManager` stores `httpBaseUrl` computed from the WebSocket URL (`ws→http` replace)
 - YouTube search: `GET {httpBaseUrl}/youtube/{query}` — server proxies to Go youtube-api service
-- Search results have inconsistent field casing from Go service (`Title` vs `title`) — mapped in PlaylistPanel
+- Search results have inconsistent field casing from Go service (`Title` vs `title`) — mapped in DjQueuePanel / MyPlaylistsPanel
 
 ### UI layout (M2.5)
 

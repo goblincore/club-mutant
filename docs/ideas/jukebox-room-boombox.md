@@ -86,7 +86,7 @@ Mechanically identical to `'jukebox'` — same `jukeboxPlaylist` ArraySchema, sa
 | `MUSIC_STREAM_TICK` | Same 5s drift correction |
 | `musicStore` (client) | Same playback state |
 | `NowPlaying.tsx` | Adapt — show play/stop/skip for all (no DJ gating) |
-| `PlaylistPanel.tsx` | Adapt — jukebox shows shared playlist + add-from-personal |
+| `DjQueuePanel.tsx` | Adapt — jukebox shows shared playlist + add-from-personal |
 | `playlistStore` | Same — personal playlists in localStorage |
 | `TimeSync` | Same |
 | Track watchdog | Same pattern |
@@ -178,7 +178,7 @@ interface JukeboxState {
   - `onEnded` → `getNetwork().jukeboxTrackComplete()`
   - Show "added by {name}" instead of DJ name
 
-**`client-3d/src/ui/PlaylistPanel.tsx`**
+**`client-3d/src/ui/DjQueuePanel.tsx`**
 - When `musicMode === 'jukebox' || 'personal'`:
   - Replace "DJ Queue" tab with "Jukebox" tab showing shared `jukeboxStore.playlist`
   - Each track: title, duration, who added it, remove button (own tracks only)
@@ -204,7 +204,7 @@ interface JukeboxState {
 A retro bar/lounge vibe room. Smaller than the club (8×8 instead of 12×12).
 
 Layout concept:
-- **Centerpiece**: A retro jukebox machine (GLB model) against the back wall, wrapped in `<InteractableObject>` — clicking it opens `PlaylistPanel`
+- **Centerpiece**: A retro jukebox machine (GLB model) against the back wall, wrapped in `<InteractableObject>` — clicking it opens `DjQueuePanel`
 - **Floor**: Checkered tile pattern (new shader or reuse TvStaticFloor with different colors)
 - **Walls**: Dark wood paneling (procedural shader or BrickWallMaterial variant)
 - **Furniture**: A few bar stools/tables scattered around, a neon sign on the wall
@@ -231,8 +231,8 @@ Note: Custom rooms with `musicMode: 'jukebox'` use the same scene as regular cus
 
 **`client-3d/src/scene/JapaneseRoom.tsx`**
 - Add boombox GLB on the low table or near the computer desk
-- Wrap in `<InteractableObject interactDistance={2.0} onInteract={() => openPlaylistPanel()}>`
-- Clicking opens `PlaylistPanel` in jukebox/personal mode
+- Wrap in `<InteractableObject interactDistance={2.0} onInteract={() => openDjQueue()}>`
+- Clicking opens `DjQueuePanel` in jukebox/personal mode
 
 ### Phase 8: GLB Models
 
@@ -284,7 +284,7 @@ Note: Custom rooms with `musicMode: 'jukebox'` use the same scene as regular cus
 | Modify | `client-3d/src/stores/gameStore.ts` — roomType + musicMode |
 | Modify | `client-3d/src/network/NetworkManager.ts` — Schema sync + methods |
 | Modify | `client-3d/src/ui/NowPlaying.tsx` — Jukebox controls |
-| Modify | `client-3d/src/ui/PlaylistPanel.tsx` — Jukebox tab |
+| Modify | `client-3d/src/ui/DjQueuePanel.tsx` — Jukebox tab |
 | Modify | `client-3d/src/ui/CreateRoomForm.tsx` — Music mode selector |
 | Modify | `client-3d/src/ui/CustomRoomBrowser.tsx` — Music mode badge |
 | Modify | `client-3d/src/ui/LobbyScreen.tsx` — Minor (jukebox rooms in browser) |
