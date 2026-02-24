@@ -891,7 +891,7 @@ export class ClubMutant extends Room {
     })
 
     // when a player send a chat message, update the message array and broadcast to all connected clients except the sender
-    this.onMessage(Message.ADD_CHAT_MESSAGE, (client, message: { content: string }) => {
+    this.onMessage(Message.ADD_CHAT_MESSAGE, (client, message: { content: string; imageUrl?: string }) => {
       if (this.throttle(client, Message.ADD_CHAT_MESSAGE, 500)) return
       // update the message array (so that players join later can also see the message)
       if (this.state.chatMessages.length >= 25) {
@@ -900,20 +900,24 @@ export class ClubMutant extends Room {
       this.dispatcher.dispatch(new ChatMessageUpdateCommand(), {
         client,
         content: message.content,
+        imageUrl: message.imageUrl,
       })
 
       // broadcast to all currently connected clients except the sender (to render in-game dialog on top of the character)
       this.broadcast(
         Message.ADD_CHAT_MESSAGE,
-        { clientId: client.sessionId, content: message.content },
+        { clientId: client.sessionId, content: message.content, imageUrl: message.imageUrl },
         { except: client }
       )
 
       // ── NPC chat routing ──
+      // Skip image-only messages for NPC routing (Lily can't see images)
+      const content = message.content.trim()
+      if (!content && message.imageUrl) return // image-only, skip NPC
+
       // Check if message is addressed to Lily (prefix "lily," or "lily ") or if player is alone with her
       // or if player is in a conversational window (recently talked to Lily)
       if (this.state.players.has(NPC_SESSION_ID)) {
-        const content = message.content.trim()
         const addressedToLily = /^lily[,\s]/i.test(content)
         const isAloneWithNpc = this.getHumanPlayerCount() === 1
         const lastConvo = this.npcConversationWindows.get(client.sessionId) ?? 0
@@ -926,6 +930,18 @@ export class ClubMutant extends Room {
           )
         }
       }
+    })
+
+    // ── Chat History ──
+    // Client requests chat history on join (replaces schema-synced chatMessages for initial load)
+    this.onMessage(Message.CHAT_HISTORY, (client) => {
+      const messages = this.state.chatMessages.toArray().map((m) => ({
+        author: m.author,
+        content: m.content,
+        imageUrl: m.imageUrl,
+        createdAt: m.createdAt,
+      }))
+      client.send(Message.CHAT_HISTORY, messages)
     })
 
     // ──────── DJ Queue Management (djqueue mode only) ────────

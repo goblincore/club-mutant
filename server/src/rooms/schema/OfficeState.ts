@@ -42,6 +42,7 @@ export class ChatMessage extends Schema {
   @type('string') author = ''
   @type('number') createdAt = new Date().getTime()
   @type('string') content = ''
+  @type('string') imageUrl = '' // CDN URL for uploaded image (empty = no image)
 }
 
 export class DJUserInfo extends Schema {

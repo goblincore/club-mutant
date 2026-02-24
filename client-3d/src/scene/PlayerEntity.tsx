@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import * as THREE from 'three'
@@ -129,6 +129,58 @@ function bubbleTextSize(len: number): number {
 const STACK_GAP = 0.04 // gap between bubbles (on top of measured height)
 const FADE_MS = 400
 
+// ── Bubble image constants + texture cache (LRU, max 20) ──
+
+const IMAGE_SQUARE = 0.4 // fixed square size in world units (bigger, chunky)
+const IMAGE_BORDER_PAD = 0.02
+const IMAGE_GAP = 0.03
+const MAX_TEX_CACHE = 20
+
+const _texLoader = new THREE.TextureLoader()
+const _texCache = new Map<string, THREE.Texture>()
+const _texLRU: string[] = []
+
+function loadBubbleTexture(url: string, onLoad: (tex: THREE.Texture) => void) {
+  const cached = _texCache.get(url)
+  if (cached) {
+    const idx = _texLRU.indexOf(url)
+    if (idx >= 0) _texLRU.splice(idx, 1)
+    _texLRU.push(url)
+    onLoad(cached)
+    return
+  }
+  _texLoader.load(url, (tex) => {
+    tex.minFilter = THREE.NearestFilter
+    tex.magFilter = THREE.NearestFilter
+    tex.colorSpace = THREE.SRGBColorSpace
+
+    // Cover-crop to square: center the image and crop the longer edge
+    const img = tex.image as { width: number; height: number } | undefined
+    if (img) {
+      const aspect = img.width / img.height
+      if (aspect > 1) {
+        // Wider than tall — crop sides
+        tex.repeat.set(1 / aspect, 1)
+        tex.offset.set((1 - 1 / aspect) / 2, 0)
+      } else if (aspect < 1) {
+        // Taller than wide — crop top/bottom
+        tex.repeat.set(1, aspect)
+        tex.offset.set(0, (1 - aspect) / 2)
+      }
+    }
+
+    _texCache.set(url, tex)
+    _texLRU.push(url)
+    while (_texLRU.length > MAX_TEX_CACHE) {
+      const evictUrl = _texLRU.shift()!
+      const evictTex = _texCache.get(evictUrl)
+      if (evictTex) evictTex.dispose()
+      _texCache.delete(evictUrl)
+    }
+    onLoad(tex)
+  })
+}
+
 // ── Nametag (troika Text + background mesh, layer 1) ──
 
 const NAME_FONT_SIZE = 0.065
@@ -234,12 +286,70 @@ function SingleBubble({
     matRef.current.transparent = true
   }
 
+  const hasText = bubble.content.trim().length > 0
+  const hasImage = !!bubble.imageUrl
+
+  // ── Image texture loading ──
+  const [imgTex, setImgTex] = useState<THREE.Texture | null>(null)
+  const imgGroupRef = useRef<THREE.Group>(null)
+  const imgBorderRef = useRef<THREE.Mesh>(null)
+  const imgPlaneRef = useRef<THREE.Mesh>(null)
+  const imgMatRef = useRef<THREE.MeshBasicMaterial | null>(null)
+  const imgBorderMatRef = useRef<THREE.MeshBasicMaterial | null>(null)
+
+  // Lazy material creation for image (synchronous, so they're ready for first render)
+  if (hasImage && !imgMatRef.current) {
+    imgMatRef.current = new THREE.MeshBasicMaterial({ transparent: true })
+  }
+  if (hasImage && !imgBorderMatRef.current) {
+    imgBorderMatRef.current = bubbleMat.clone()
+    imgBorderMatRef.current.transparent = true
+  }
+
+  // Fixed square dimensions (cover-crop is handled by texture UV)
+  const imgDims = useMemo(() => {
+    if (!imgTex?.image) return null
+    return { w: IMAGE_SQUARE, h: IMAGE_SQUARE }
+  }, [imgTex])
+
+  // Sync texture to material
+  if (imgMatRef.current && imgTex && imgMatRef.current.map !== imgTex) {
+    imgMatRef.current.map = imgTex
+    imgMatRef.current.needsUpdate = true
+  }
+
+  // Load image texture
+  useEffect(() => {
+    if (!bubble.imageUrl) return
+    loadBubbleTexture(bubble.imageUrl, setImgTex)
+  }, [bubble.imageUrl])
+
   // Layer setup + cleanup
   useEffect(() => {
     bgRef.current?.layers.set(1)
     tailRef.current?.layers.set(1)
-    return () => { matRef.current?.dispose() }
+    return () => {
+      matRef.current?.dispose()
+      imgMatRef.current?.dispose()
+      imgBorderMatRef.current?.dispose()
+    }
   }, [])
+
+  // Layer setup for image meshes (fires when imgDims appear)
+  useEffect(() => {
+    if (imgDims) {
+      imgBorderRef.current?.layers.set(1)
+      imgPlaneRef.current?.layers.set(1)
+    }
+  }, [imgDims])
+
+  // Report height for image-only bubbles (no text → handleSync won't fire)
+  useEffect(() => {
+    if (!hasText && imgDims) {
+      // Image square + border
+      onHeightMeasured?.(bubble.id, imgDims.h + IMAGE_BORDER_PAD * 2)
+    }
+  }, [hasText, imgDims, bubble.id, onHeightMeasured])
 
   useFrame((_, delta) => {
     if (!groupRef.current) return
@@ -257,20 +367,44 @@ function SingleBubble({
     const ease = 1 - (1 - animRef.current) * (1 - animRef.current)
     groupRef.current.scale.setScalar(ease * (animRef.current < 1 ? 1 : fadeScale))
 
-    // Opacity fade
+    // Opacity fade (text + image)
     if (matRef.current) matRef.current.opacity = fadeT
     if (textRef.current) textRef.current.fillOpacity = fadeT
+    if (imgMatRef.current) imgMatRef.current.opacity = fadeT
+    if (imgBorderMatRef.current) imgBorderMatRef.current.opacity = fadeT
 
-    // Tail position
+    // Position image group ABOVE text (or at origin for image-only)
+    if (imgGroupRef.current && imgDims) {
+      if (hasText) {
+        const { cy, h } = bgBounds.current
+        // Image sits above the text bubble
+        imgGroupRef.current.position.y = cy + h / 2 + IMAGE_GAP + imgDims.h / 2 + IMAGE_BORDER_PAD
+      } else {
+        imgGroupRef.current.position.y = 0
+      }
+    }
+
+    // Tail position — always below the lowest element
     if (tailRef.current) {
       const { cx, cy, w, h } = bgBounds.current
 
       if (useSide) {
         tailRef.current.rotation.z = flipLeft ? -Math.PI / 2 : Math.PI / 2
-        tailRef.current.position.set(flipLeft ? cx + w / 2 : cx - w / 2, cy, 0)
+        if (hasText) {
+          tailRef.current.position.set(flipLeft ? cx + w / 2 : cx - w / 2, cy, 0)
+        } else if (imgDims) {
+          const halfW = imgDims.w / 2 + IMAGE_BORDER_PAD
+          tailRef.current.position.set(flipLeft ? halfW : -halfW, 0, 0)
+        }
       } else {
         tailRef.current.rotation.z = 0
-        tailRef.current.position.set(cx, cy - h / 2, 0)
+        if (hasText) {
+          // Tail below text (image is above)
+          tailRef.current.position.set(cx, cy - h / 2, 0)
+        } else if (imgDims) {
+          // Image-only: tail below image border
+          tailRef.current.position.set(0, -(imgDims.h / 2 + IMAGE_BORDER_PAD), 0)
+        }
       }
     }
   })
@@ -293,31 +427,54 @@ function SingleBubble({
     bgRef.current.geometry = makeRoundedRect(w, h, BUBBLE_RADIUS)
     bgRef.current.position.set(cx, cy, -0.003)
 
-    // Report measured height to parent for dynamic stacking
-    onHeightMeasured?.(bubble.id, h)
-  }, [bubble.id, onHeightMeasured])
+    // Report combined height (text + optional image)
+    let totalH = h
+    if (imgDims) {
+      totalH += IMAGE_GAP + imgDims.h + IMAGE_BORDER_PAD * 2
+    }
+    onHeightMeasured?.(bubble.id, totalH)
+  }, [bubble.id, onHeightMeasured, imgDims])
 
   const fontSize = bubbleTextSize(bubble.content.length)
 
   return (
     <group ref={groupRef} position={[0, yOffset, 0]} scale={0}>
-      <Text
-        ref={textRef}
-        fontSize={fontSize}
-        maxWidth={0.6}
-        color="#000000"
-        anchorX="center"
-        anchorY="bottom"
-        textAlign="center"
-        font="/fonts/courier-prime.woff"
-        onSync={handleSync}
-      >
-        {bubble.content}
-      </Text>
+      {/* Text content (only if message has text) */}
+      {hasText && (
+        <>
+          <Text
+            ref={textRef}
+            fontSize={fontSize}
+            maxWidth={0.6}
+            color="#000000"
+            anchorX="center"
+            anchorY="bottom"
+            textAlign="center"
+            font="/fonts/courier-prime.woff"
+            onSync={handleSync}
+          >
+            {bubble.content}
+          </Text>
 
-      <mesh ref={bgRef} material={matRef.current!}>
-        <planeGeometry args={[0.1, 0.1]} />
-      </mesh>
+          <mesh ref={bgRef} material={matRef.current!}>
+            <planeGeometry args={[0.1, 0.1]} />
+          </mesh>
+        </>
+      )}
+
+      {/* Image plane — polaroid frame with NearestFilter for chunky PSX pixels */}
+      {imgDims && imgMatRef.current && imgBorderMatRef.current && (
+        <group ref={imgGroupRef}>
+          {/* White border (polaroid frame) */}
+          <mesh ref={imgBorderRef} material={imgBorderMatRef.current}>
+            <planeGeometry args={[imgDims.w + IMAGE_BORDER_PAD * 2, imgDims.h + IMAGE_BORDER_PAD * 2]} />
+          </mesh>
+          {/* Image texture */}
+          <mesh ref={imgPlaneRef} material={imgMatRef.current} position={[0, 0, 0.001]}>
+            <planeGeometry args={[imgDims.w, imgDims.h]} />
+          </mesh>
+        </group>
+      )}
 
       {showTail && <mesh ref={tailRef} geometry={tailGeo} material={matRef.current!} />}
     </group>

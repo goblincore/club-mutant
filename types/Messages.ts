@@ -67,4 +67,7 @@ export enum Message {
   DREAM_SLEEP, // Player is going to sleep (entering dream)
   DREAM_WAKE, // Player is waking up (leaving dream)
   DREAM_COLLECT, // Player collected a dream item { collectibleId: string }
+
+  // Chat History
+  CHAT_HISTORY, // Request/receive chat history on join
 }

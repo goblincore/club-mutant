@@ -4,12 +4,14 @@ export interface ChatMessage {
   id: string
   author: string
   content: string
+  imageUrl?: string
   createdAt: number
 }
 
 export interface ChatBubble {
   id: string
   content: string
+  imageUrl?: string
   timestamp: number
 }
 
@@ -19,8 +21,9 @@ interface ChatState {
   bubbles: Map<string, ChatBubble[]> // sessionId → stacked bubbles (newest first)
 
   addMessage: (msg: ChatMessage) => void
+  setMessages: (msgs: ChatMessage[]) => void
   setInputValue: (value: string) => void
-  setBubble: (sessionId: string, content: string) => void
+  setBubble: (sessionId: string, content: string, imageUrl?: string) => void
   clearBubble: (sessionId: string) => void
 }
 
@@ -38,9 +41,11 @@ export const useChatStore = create<ChatState>((set) => ({
       messages: [...s.messages.slice(-99), msg],
     })),
 
+  setMessages: (msgs) => set({ messages: msgs.slice(-100) }),
+
   setInputValue: (value) => set({ inputValue: value }),
 
-  setBubble: (sessionId, content) => {
+  setBubble: (sessionId, content, imageUrl?) => {
     const id = `${sessionId}-${Date.now()}`
 
     // Per-bubble auto-clear timer
@@ -69,7 +74,7 @@ export const useChatStore = create<ChatState>((set) => ({
     set((s) => {
       const next = new Map(s.bubbles)
       const existing = next.get(sessionId) ?? []
-      const updated = [{ id, content, timestamp: Date.now() }, ...existing].slice(0, MAX_STACK)
+      const updated = [{ id, content, imageUrl, timestamp: Date.now() }, ...existing].slice(0, MAX_STACK)
       next.set(sessionId, updated)
       return { bubbles: next }
     })

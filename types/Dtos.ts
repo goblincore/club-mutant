@@ -32,6 +32,14 @@ export interface DJQueueEntryDto {
   queuePosition: number
 }
 
+// Chat message (for history endpoint)
+export interface ChatMessageDto {
+  author: string
+  content: string
+  imageUrl: string
+  createdAt: number
+}
+
 // Jukebox (shared room playlist) item
 export interface JukeboxItemDto {
   id: string

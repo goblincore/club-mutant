@@ -15,6 +15,7 @@ services:
       - server
       - youtube-api
       - dream-npc
+      - image-upload
 
   server:
     build:
@@ -57,6 +58,20 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
     expose:
       - '4000'
+
+  image-upload:
+    build:
+      context: ../../services/image-upload
+    restart: unless-stopped
+    environment:
+      - PORT=4001
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=club-mutant-images
+      - R2_PUBLIC_URL=https://cdn.mutante.club
+    expose:
+      - '4001'
 
   pot-provider:
     image: ghcr.io/jim60105/bgutil-pot:latest

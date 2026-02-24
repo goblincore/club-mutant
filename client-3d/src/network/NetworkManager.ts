@@ -139,6 +139,9 @@ export class NetworkManager {
 
     // Only mark connected AFTER listeners are wired — prevents half-initialized state
     useGameStore.getState().setConnected(true, this.room.sessionId)
+
+    // Request chat history (lazy load instead of schema sync)
+    this.requestChatHistory()
   }
 
   async joinPublicRoom(playerName: string, textureId?: number): Promise<void> {
@@ -401,7 +404,7 @@ export class NetworkManager {
     })
 
     // Chat messages (from other players)
-    this.room.onMessage(Message.ADD_CHAT_MESSAGE, (data: { clientId: string; content: string }) => {
+    this.room.onMessage(Message.ADD_CHAT_MESSAGE, (data: { clientId: string; content: string; imageUrl?: string }) => {
       const player = useGameStore.getState().players.get(data.clientId)
       const chatStore = useChatStore.getState()
 
@@ -409,13 +412,28 @@ export class NetworkManager {
         id: crypto.randomUUID(),
         author: player?.name ?? data.clientId,
         content: data.content,
+        imageUrl: data.imageUrl || undefined,
         createdAt: Date.now(),
       })
 
       // Show in-world chat bubble
       if (data.clientId) {
-        chatStore.setBubble(data.clientId, data.content)
+        chatStore.setBubble(data.clientId, data.content, data.imageUrl || undefined)
       }
+    })
+
+    // Chat history (bulk load on join)
+    this.room.onMessage(Message.CHAT_HISTORY, (messages: Array<{ author: string; content: string; imageUrl: string; createdAt: number }>) => {
+      const chatStore = useChatStore.getState()
+      chatStore.setMessages(
+        messages.map((m) => ({
+          id: crypto.randomUUID(),
+          author: m.author,
+          content: m.content,
+          imageUrl: m.imageUrl || undefined,
+          createdAt: m.createdAt,
+        }))
+      )
     })
 
     // Music stream messages
@@ -623,9 +641,9 @@ export class NetworkManager {
     })
   }
 
-  // Send chat message
-  sendChat(content: string) {
-    this.room?.send(Message.ADD_CHAT_MESSAGE, { content })
+  // Send chat message (with optional image URL from CDN upload)
+  sendChat(content: string, imageUrl?: string) {
+    this.room?.send(Message.ADD_CHAT_MESSAGE, { content, imageUrl })
 
     if (this.room?.sessionId) {
       const myName =
@@ -636,12 +654,42 @@ export class NetworkManager {
         id: crypto.randomUUID(),
         author: myName,
         content,
+        imageUrl,
         createdAt: Date.now(),
       })
 
       // Show local player's own bubble immediately
-      useChatStore.getState().setBubble(this.room.sessionId, content)
+      useChatStore.getState().setBubble(this.room.sessionId, content, imageUrl)
     }
+  }
+
+  // Request chat history from server (called after room join)
+  requestChatHistory() {
+    this.room?.send(Message.CHAT_HISTORY)
+  }
+
+  // Upload image to CDN, returns the CDN URL
+  async uploadImage(file: File): Promise<string> {
+    const uploadUrl = import.meta.env.VITE_IMAGE_UPLOAD_URL || 'http://localhost:4001'
+    const sessionId = this.room?.sessionId
+    if (!sessionId) throw new Error('Not connected to room')
+
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('sessionId', sessionId)
+
+    const res = await fetch(`${uploadUrl}/upload`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Upload failed' }))
+      throw new Error(err.error || `Upload failed: ${res.status}`)
+    }
+
+    const data = await res.json()
+    return data.url
   }
 
   // Send position update (throttled)

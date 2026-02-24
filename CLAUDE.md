@@ -304,12 +304,13 @@ express: (app) => {
   - `deploy/hetzner/docker-compose.yml`: Orchestrates server + youtube-api + dream-npc + caddy
   - Deploy: `ssh vps "cd /path/to/club-mutant && git pull && docker-compose up -d --build server"`
 
-- **Client (Netlify)**:
-  - Config: `netlify.toml`
-  - Build command: `corepack enable && pnpm install --frozen-lockfile && pnpm --filter club-mutant-3d build`
-  - Publish dir: `client-3d/dist`
-  - **Switched from 2D client (`client/`) to 3D client (`client-3d/`) in Feb 2026**
-  - Env vars set in `netlify.toml`: `VITE_WS_ENDPOINT`, `VITE_HTTP_ENDPOINT`, `VITE_YOUTUBE_SERVICE_URL`
+- **Client (Cloudflare Pages)** — migrated from Netlify Feb 2026:
+  - SPA routing: `client-3d/public/_redirects` (dream sub-app fallback + catch-all)
+  - Build command: `corepack enable && pnpm install --frozen-lockfile && pnpm --filter club-mutant-dream build && mkdir -p client-3d/public/dream && cp -r client-dream/dist/* client-3d/public/dream/ && pnpm --filter club-mutant-3d build`
+  - Build output dir: `client-3d/dist`
+  - Root dir: `/` (project root, so pnpm workspaces resolve)
+  - Env vars (Cloudflare Pages dashboard): `NODE_VERSION=22`, `VITE_WS_ENDPOINT`, `VITE_HTTP_ENDPOINT`, `VITE_YOUTUBE_SERVICE_URL`, `VITE_DREAM_SERVICE_URL`
+  - Custom domain: `mutante.club` (CNAME → `club-mutant.pages.dev`, proxied)
   - The 3D client reads `VITE_WS_ENDPOINT` (not `VITE_SERVER_URL`) for the Colyseus server URL
 
 ## Reconnection (Feb 2026)
@@ -2077,6 +2078,12 @@ The service abstracts the model backend — swapping from API to Ollama requires
 - Textured DJ booth furniture
 - Sound effects (footsteps, UI clicks, punch impacts)
 - Mobile support (touch controls, responsive UI)
+- ~~Migrate frontend from Netlify to Cloudflare Pages~~ ✅ COMPLETED (Feb 2026)
+- Cloudflare R2 bucket setup for image/asset CDN (`cdn.mutante.club`)
+- Self-hosted PostgreSQL on Hetzner VPS (Docker, user accounts, playlists, collectibles)
+- Supabase Auth integration (email/password + OAuth, JWT verification on server)
+- User accounts system (registration, login, profile, persisted playlists)
+- Image upload pipeline (avatar upload → server validation/resize → R2 storage → CDN serve)
 
 ## Recent noteworthy commits (Jan 2026)
 
@@ -2770,13 +2777,93 @@ This repo now includes a working VPS deployment bundle under `deploy/hetzner/` t
 - `YOUTUBE_COOKIES` (optional; for age-restricted content)
 - `GEMINI_API_KEY` (required for dream-npc service)
 
-#### Client build config (Netlify)
+#### Client build config (Cloudflare Pages)
 
-The client uses these at build time (see `netlify.toml`):
+The client uses these at build time (set in Cloudflare Pages dashboard → Environment variables):
 
+- `NODE_VERSION=22`
 - `VITE_WS_ENDPOINT=wss://api.mutante.club`
 - `VITE_HTTP_ENDPOINT=https://api.mutante.club`
+- `VITE_YOUTUBE_SERVICE_URL=https://yt.mutante.club`
 - `VITE_DREAM_SERVICE_URL=https://dream.mutante.club`
+
+SPA routing handled by `client-3d/public/_redirects` (not `netlify.toml`).
+
+#### DNS (Cloudflare)
+
+All DNS managed via Cloudflare (nameservers at registrar point to Cloudflare):
+
+| Type | Name | Target | Proxy |
+|------|------|--------|-------|
+| CNAME | `mutante.club` | `club-mutant.pages.dev` | Proxied (required for Pages) |
+| A | `api` | `<Hetzner IP>` | DNS-only (grey cloud — direct for WebSocket latency) |
+| A | `yt` | `<Hetzner IP>` | DNS-only (grey cloud — direct for video streaming) |
+| A | `dream` | `<Hetzner IP>` | DNS-only (grey cloud) |
+
+## Infrastructure Roadmap (Feb 2026)
+
+Planned infrastructure for upcoming features (user accounts, image uploads, persisted data).
+
+### Cloudflare R2 — Image/Asset CDN
+
+S3-compatible object storage with zero egress fees. Planned for user-uploaded content (character avatars, custom room backgrounds, etc.).
+
+- **Bucket**: Create via Cloudflare dashboard or Wrangler CLI
+- **Custom domain**: `cdn.mutante.club` (bind to R2 bucket for public access via Cloudflare CDN)
+- **Upload flow**: Client → Colyseus server (validates + resizes) → R2 via S3 SDK (`@aws-sdk/client-s3`)
+- **Serving**: Direct public bucket URL (`cdn.mutante.club/avatars/abc123.webp`), cached at Cloudflare edge
+- **Free tier**: 10 GB storage, 10M reads/month, 1M writes/month
+- **Why R2 over alternatives**: Zero egress fees (vs S3/Supabase Storage), same Cloudflare account as Pages, custom domain with built-in CDN
+
+### Self-Hosted PostgreSQL — Persistent Data Store
+
+PostgreSQL running on the existing Hetzner VPS via Docker. Co-located with the Colyseus game server for sub-millisecond query latency.
+
+- **Deployment**: Add `postgres` service to `deploy/hetzner/docker-compose.yml`
+- **Volume**: Persistent Docker volume for data durability across container restarts
+- **Backups**: `pg_dump` cron job → compressed SQL dump → R2 bucket (or local disk)
+- **Data**: User accounts (linked to Supabase Auth UUID), saved playlists, collected items, room history, play statistics
+- **Access**: Game server connects via Docker internal network (`postgres://postgres:password@postgres:5432/clubmutant`)
+- **Migrations**: Use a lightweight migration tool (e.g., `node-pg-migrate` or raw SQL files with version tracking)
+- **Why self-hosted over managed**: Zero cost (already paying for VPS), no storage/MAU limits, co-located with game server, full control
+
+### Supabase Auth — User Authentication
+
+Supabase Auth as a standalone service for user authentication. Only using Supabase's auth module — database and storage are self-hosted (Postgres on Hetzner, R2 for assets).
+
+- **Supabase project**: Create free-tier project at `supabase.com` (50K MAU on free tier)
+- **Auth methods**: Email/password + OAuth (Google, Discord, GitHub)
+- **Client integration**: `@supabase/supabase-js` in `client-3d/` for login/signup UI
+- **Server verification**: Colyseus server verifies JWT on room join using Supabase's JWT secret (no Supabase SDK needed server-side — just standard JWT verification)
+- **Flow**: Client signs in via Supabase → gets JWT → sends JWT in Colyseus join options → server verifies + links to Postgres user record
+- **Why Supabase Auth standalone**: Battle-tested auth (password reset, OAuth, email verification, rate limiting) without self-hosting complexity. Works independently of Supabase's DB/storage offerings.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Client (Cloudflare Pages — mutante.club)                   │
+│    @supabase/supabase-js (auth only)                        │
+│    @colyseus/sdk (game)                                     │
+│    Images served from cdn.mutante.club (R2)                 │
+└─────────────┬──────────────────┬────────────────────────────┘
+              │ WebSocket        │ HTTPS
+              ▼                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Hetzner VPS (Docker Compose)                               │
+│  ┌─────────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐ │
+│  │  Colyseus    │ │ youtube  │ │ dream-npc│ │ PostgreSQL │ │
+│  │  server      │ │ -api (Go)│ │ (Express)│ │            │ │
+│  │  :2567       │ │ :8081    │ │ :4000    │ │ :5432      │ │
+│  └──────┬───────┘ └──────────┘ └──────────┘ └────────────┘ │
+│         │ S3 API                                            │
+│         ▼                                                   │
+│  ┌─────────────────────┐  ┌──────────────────────────────┐ │
+│  │ Cloudflare R2       │  │ Supabase Auth (hosted)       │ │
+│  │ cdn.mutante.club    │  │ JWT verification only        │ │
+│  └─────────────────────┘  └──────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ### Local Development 403 Troubleshooting (Feb 2026)
 

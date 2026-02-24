@@ -20,6 +20,12 @@ dream.mutante.club {
   reverse_proxy dream-npc:4000
 }
 
+upload.mutante.club {
+  encode gzip
+  # CORS handled by Go service corsMiddleware
+  reverse_proxy image-upload:4001
+}
+
 proxy.mutante.club {
   encode gzip
 
