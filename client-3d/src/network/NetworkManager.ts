@@ -780,6 +780,10 @@ export class NetworkManager {
     return this.room?.sessionId
   }
 
+  getRoomId(): string | null {
+    return this.room?.roomId ?? null
+  }
+
   get timeSync(): TimeSync | null {
     return this._timeSync
   }

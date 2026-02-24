@@ -62,6 +62,7 @@ export interface GameState {
   availableRooms: RoomListEntry[]
   roomType: 'public' | 'custom' | 'myroom' | 'jukebox' | null
   musicMode: 'djqueue' | 'jukebox' | 'personal' | null
+  pendingRoomId: string | null
 
   // Players
   players: Map<string, PlayerState>
@@ -87,6 +88,7 @@ export interface GameState {
   updatePlayer: (sessionId: string, updates: Partial<PlayerState>) => void
   setLocalPosition: (x: number, y: number) => void
   setSelectedCharacterPath: (path: string) => void
+  setPendingRoomId: (id: string | null) => void
 }
 
 export const useGameStore = create<GameState>((set) => ({
@@ -98,6 +100,7 @@ export const useGameStore = create<GameState>((set) => ({
   availableRooms: [],
   roomType: null,
   musicMode: null,
+  pendingRoomId: null,
 
   players: new Map(),
 
@@ -134,6 +137,8 @@ export const useGameStore = create<GameState>((set) => ({
   setRoomType: (type) => set({ roomType: type }),
 
   setMusicMode: (mode) => set({ musicMode: mode }),
+
+  setPendingRoomId: (id) => set({ pendingRoomId: id }),
 
   addPlayer: (sessionId, player) =>
     set((s) => {

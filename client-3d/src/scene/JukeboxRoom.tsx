@@ -1373,7 +1373,7 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
       {/* ── Jukebox — back-center wall, slightly left ── */}
       <InteractableObject
         interactDistance={2.5}
-        onInteract={() => useUIStore.getState().setPlaylistOpen(true)}
+        onInteract={() => useUIStore.getState().setDjQueueOpen(true)}
       >
         <JukeboxMachine position={[-0.6, 0, -(HALF_D - 0.3)]} />
       </InteractableObject>

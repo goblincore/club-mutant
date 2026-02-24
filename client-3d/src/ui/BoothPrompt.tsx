@@ -21,7 +21,7 @@ export function BoothPrompt() {
     // Connect to booth + join queue with chosen slot
     getNetwork().connectToBooth(0)
     getNetwork().joinDJQueue(slotIndex)
-    useUIStore.getState().setPlaylistOpen(true)
+    useUIStore.getState().setDjQueueOpen(true)
 
     // Teleport to the slot position the player clicked
     const offsetX = getDJSlotWorldX(slotIndex)

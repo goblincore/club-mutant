@@ -21,6 +21,11 @@ export function LobbyScreen() {
   const [screen, setScreen] = useState<Screen>('character-select')
   const [roomSubView, setRoomSubView] = useState<RoomSubView>('choose')
 
+  // Direct room link state
+  const pendingRoomId = useGameStore((s) => s.pendingRoomId)
+  const [linkPassword, setLinkPassword] = useState('')
+  const [showLinkPasswordPrompt, setShowLinkPasswordPrompt] = useState(false)
+
   const lobbyJoined = useGameStore((s) => s.lobbyJoined)
   // Carousel fade-in: stays invisible until the r3f scene signals readiness
   // (after a few frames, so textures are loaded and rendered)
@@ -37,6 +42,15 @@ export function LobbyScreen() {
   // a Client object), and joinLobbyRoom() runs async in the background.
   useEffect(() => {
     getNetwork()
+  }, [])
+
+  // Detect ?room=ROOM_ID in URL for direct room join links
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const roomParam = params.get('room')
+    if (roomParam) {
+      useGameStore.getState().setPendingRoomId(roomParam)
+    }
   }, [])
 
   // Called from inside the r3f Canvas after a few frames have rendered
@@ -74,6 +88,41 @@ export function LobbyScreen() {
     return () => window.removeEventListener('keydown', handler)
   }, [characters.length, screen, roomSubView, selectedIndex])
 
+  // Direct room link: attempt to join the pending room
+  const attemptDirectJoin = async (roomId: string, password: string | null) => {
+    const trimmed = name.trim()
+    if (!trimmed || !selectedChar) return
+
+    setConnecting(true)
+    setError(null)
+
+    try {
+      await getNetwork().joinCustomById(roomId, password, trimmed, selectedChar.textureId)
+      getNetwork().sendReady()
+      getNetwork().sendPlayerName(trimmed)
+      // Clear URL param so refresh doesn't re-join
+      history.replaceState(null, '', window.location.pathname)
+      useGameStore.getState().setPendingRoomId(null)
+      setShowLinkPasswordPrompt(false)
+    } catch (err: any) {
+      const msg = err?.message ?? String(err)
+      if (msg.includes('403') || msg.includes('password')) {
+        // Room is password-protected — show password prompt
+        setShowLinkPasswordPrompt(true)
+        setError(null)
+      } else {
+        // Room gone or other error — clear and fall through to normal flow
+        setError('Room not found or no longer available')
+        useGameStore.getState().setPendingRoomId(null)
+        history.replaceState(null, '', window.location.pathname)
+        setScreen('room-select')
+        setRoomSubView('choose')
+      }
+    } finally {
+      setConnecting(false)
+    }
+  }
+
   // Screen 1: "Go!" button — save character + transition to room select
   const handleGo = () => {
     const trimmed = name.trim()
@@ -82,6 +131,13 @@ export function LobbyScreen() {
     // Trigger lazy NetworkManager creation so joinLobbyRoom() fires in the constructor.
     // This starts the lobby connection before Screen 2 renders.
     getNetwork()
+
+    // If we have a pending room link, auto-join instead of showing room select
+    if (pendingRoomId) {
+      attemptDirectJoin(pendingRoomId, null)
+      return
+    }
+
     setScreen('room-select')
     setRoomSubView('choose')
     setError(null)
@@ -210,10 +266,69 @@ export function LobbyScreen() {
                 />
               </div>
 
+              {/* Room link indicator */}
+              {pendingRoomId && !showLinkPasswordPrompt && (
+                <p className="text-white/60 text-xs font-mono text-center">
+                  joining room via invite link...
+                </p>
+              )}
+
+              {/* Password prompt for direct room link */}
+              {showLinkPasswordPrompt && pendingRoomId && (
+                <div className="w-full flex flex-col gap-2">
+                  <p className="text-yellow-300 text-xs font-mono text-center">
+                    this room requires a password
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={linkPassword}
+                      onChange={(e) => setLinkPassword(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && linkPassword) {
+                          attemptDirectJoin(pendingRoomId, linkPassword)
+                        }
+                        if (e.key === 'Escape') {
+                          setShowLinkPasswordPrompt(false)
+                          useGameStore.getState().setPendingRoomId(null)
+                          history.replaceState(null, '', window.location.pathname)
+                        }
+                      }}
+                      placeholder="enter room code"
+                      className="flex-1 bg-black/50 border border-yellow-400/50 rounded-lg px-3 py-2
+                                 text-sm font-mono text-white placeholder-white/30
+                                 focus:border-yellow-400 focus:outline-none transition-colors"
+                      style={{ WebkitTextSecurity: 'disc' } as React.CSSProperties}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => attemptDirectJoin(pendingRoomId, linkPassword)}
+                      disabled={!linkPassword || connecting}
+                      className="px-4 py-2 rounded-lg text-sm font-mono font-bold
+                                 bg-yellow-500/20 border border-yellow-400 text-yellow-300
+                                 hover:bg-yellow-500/30 disabled:opacity-30 disabled:cursor-not-allowed
+                                 transition-all"
+                    >
+                      {connecting ? '...' : 'join'}
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowLinkPasswordPrompt(false)
+                      useGameStore.getState().setPendingRoomId(null)
+                      history.replaceState(null, '', window.location.pathname)
+                    }}
+                    className="text-white/40 hover:text-white text-xs font-mono transition-colors"
+                  >
+                    cancel
+                  </button>
+                </div>
+              )}
+
               {/* Go! button */}
               <button
                 onClick={handleGo}
-                disabled={!name.trim()}
+                disabled={!name.trim() || connecting}
                 className="lobby-btn w-full relative overflow-hidden group
                            bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-3
                            text-base font-mono font-bold text-white
@@ -225,9 +340,23 @@ export function LobbyScreen() {
                 <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
                                 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
                 <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
-                  Go!
+                  {connecting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      JOINING...
+                    </span>
+                  ) : (
+                    'Go!'
+                  )}
                 </span>
               </button>
+
+              {/* Error from direct join attempt */}
+              {error && screen === 'character-select' && (
+                <p className="text-sm font-mono font-bold text-center" style={{ color: '#ff0080' }}>
+                  {error}
+                </p>
+              )}
             </div>
           </div>
         </>

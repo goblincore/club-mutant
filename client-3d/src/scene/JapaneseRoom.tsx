@@ -306,7 +306,7 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
       {/* Boombox on the low table — interactable, opens playlist panel */}
       <InteractableObject
         interactDistance={2.0}
-        onInteract={() => useUIStore.getState().setPlaylistOpen(true)}
+        onInteract={() => useUIStore.getState().setDjQueueOpen(true)}
       >
         <group position={[1.0, 0.21, 0.5]} rotation={[0, -0.3, 0]}>
           {/* Placeholder boombox (will be replaced by GLB model) */}

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 
 import { useUIStore } from '../stores/uiStore'
+import { useGameStore } from '../stores/gameStore'
+import { getNetwork } from '../network/NetworkManager'
 
 // Debug overlay — FPS counter + render controls.
 // Toggled by backtick (`) key.
@@ -13,6 +15,8 @@ export function FpsCounter() {
   const renderScale = useUIStore((s) => s.renderScale)
   const fisheyeOverride = useUIStore((s) => s.fisheyeOverride)
   const vertexFisheye = useUIStore((s) => s.vertexFisheye)
+  const roomType = useGameStore((s) => s.roomType)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     let rafId: number
@@ -47,6 +51,16 @@ export function FpsCounter() {
 
   const handleVertexFisheyeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     useUIStore.getState().setVertexFisheye(parseFloat(e.target.value))
+  }, [])
+
+  const handleCopyLink = useCallback(() => {
+    const roomId = getNetwork().getRoomId()
+    if (!roomId) return
+    const url = `${window.location.origin}/?room=${roomId}`
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
   }, [])
 
   return (
@@ -114,6 +128,20 @@ export function FpsCounter() {
 
         <span className="text-white/40">vortex OOB</span>
       </label>
+
+      {(roomType === 'custom' || roomType === 'jukebox') && (
+        <button
+          onClick={handleCopyLink}
+          className="mt-1 w-full text-[10px] py-1 rounded border transition-all"
+          style={{
+            borderColor: copied ? 'rgba(57, 255, 20, 0.6)' : 'rgba(255, 255, 255, 0.2)',
+            color: copied ? '#39ff14' : 'rgba(255, 255, 255, 0.5)',
+            backgroundColor: copied ? 'rgba(57, 255, 20, 0.1)' : 'transparent',
+          }}
+        >
+          {copied ? 'copied!' : 'copy invite link'}
+        </button>
+      )}
     </div>
   )
 }
