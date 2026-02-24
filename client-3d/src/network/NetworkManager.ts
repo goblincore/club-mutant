@@ -16,6 +16,16 @@ import { TimeSync } from './TimeSync'
 
 const PLAYER_ID_KEY = 'club-mutant-3d:player-id'
 
+/** Race a promise against a timeout. Rejects with a descriptive error if the timeout fires first. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ])
+}
+
 function getOrCreatePlayerId(): string {
   let id = localStorage.getItem(PLAYER_ID_KEY)
 
@@ -59,7 +69,12 @@ export class NetworkManager {
   private async joinLobbyRoom(maxRetries = 3, baseDelay = 1000) {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        this.lobby = await this.client.joinOrCreate(RoomType.LOBBY)
+        const timeout = attempt === 0 ? 5000 : 4000
+        this.lobby = await withTimeout(
+          this.client.joinOrCreate(RoomType.LOBBY),
+          timeout,
+          'Lobby join'
+        )
 
         this.lobby.onMessage('rooms', (rooms: any[]) => {
           const listedRooms: RoomListEntry[] = rooms
@@ -130,11 +145,15 @@ export class NetworkManager {
 
   async joinPublicRoom(playerName: string, textureId?: number): Promise<void> {
     try {
-      this.room = await this.client.joinOrCreate<IOfficeState>(RoomType.PUBLIC, {
-        name: playerName,
-        playerId: getOrCreatePlayerId(),
-        ...(textureId != null ? { textureId } : {}),
-      })
+      this.room = await withTimeout(
+        this.client.joinOrCreate<IOfficeState>(RoomType.PUBLIC, {
+          name: playerName,
+          playerId: getOrCreatePlayerId(),
+          ...(textureId != null ? { textureId } : {}),
+        }),
+        8000,
+        'Join public room'
+      )
 
       const gs = useGameStore.getState()
       gs.setRoomType('public')
@@ -148,11 +167,15 @@ export class NetworkManager {
 
   async joinMyRoom(playerName: string, textureId: number): Promise<void> {
     try {
-      this.room = await this.client.joinOrCreate<IOfficeState>(RoomType.MYROOM, {
-        name: playerName,
-        playerId: getOrCreatePlayerId(),
-        textureId,
-      })
+      this.room = await withTimeout(
+        this.client.joinOrCreate<IOfficeState>(RoomType.MYROOM, {
+          name: playerName,
+          playerId: getOrCreatePlayerId(),
+          textureId,
+        }),
+        8000,
+        'Join MyRoom'
+      )
 
       const gs = useGameStore.getState()
       gs.setRoomType('myroom')
@@ -170,15 +193,19 @@ export class NetworkManager {
     textureId: number
   ): Promise<void> {
     try {
-      this.room = await this.client.create<IOfficeState>(RoomType.JUKEBOX, {
-        name: roomData.name,
-        description: roomData.description,
-        password: roomData.password,
-        autoDispose: true,
-        musicMode: 'jukebox',
-        playerId: getOrCreatePlayerId(),
-        textureId,
-      })
+      this.room = await withTimeout(
+        this.client.create<IOfficeState>(RoomType.JUKEBOX, {
+          name: roomData.name,
+          description: roomData.description,
+          password: roomData.password,
+          autoDispose: true,
+          musicMode: 'jukebox',
+          playerId: getOrCreatePlayerId(),
+          textureId,
+        }),
+        8000,
+        'Create jukebox room'
+      )
 
       const gs = useGameStore.getState()
       gs.setRoomType('jukebox')
@@ -198,15 +225,19 @@ export class NetworkManager {
     try {
       const musicMode = roomData.musicMode ?? 'djqueue'
 
-      this.room = await this.client.create<IOfficeState>(RoomType.CUSTOM, {
-        name: roomData.name,
-        description: roomData.description,
-        password: roomData.password,
-        autoDispose: true,
-        musicMode,
-        playerId: getOrCreatePlayerId(),
-        textureId,
-      })
+      this.room = await withTimeout(
+        this.client.create<IOfficeState>(RoomType.CUSTOM, {
+          name: roomData.name,
+          description: roomData.description,
+          password: roomData.password,
+          autoDispose: true,
+          musicMode,
+          playerId: getOrCreatePlayerId(),
+          textureId,
+        }),
+        8000,
+        'Create custom room'
+      )
 
       const gs = useGameStore.getState()
       gs.setRoomType('custom')
@@ -225,11 +256,15 @@ export class NetworkManager {
     textureId: number
   ): Promise<void> {
     try {
-      this.room = await this.client.joinById<IOfficeState>(roomId, {
-        password,
-        playerId: getOrCreatePlayerId(),
-        textureId,
-      })
+      this.room = await withTimeout(
+        this.client.joinById<IOfficeState>(roomId, {
+          password,
+          playerId: getOrCreatePlayerId(),
+          textureId,
+        }),
+        8000,
+        'Join custom room'
+      )
 
       // Determine musicMode from lobby's room listing (available before join)
       const gs = useGameStore.getState()
