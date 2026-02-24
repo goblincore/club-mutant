@@ -393,97 +393,81 @@ export function LobbyScreen() {
                     }}
                   >
                     <div className="flex flex-col gap-3">
-                      {/* Global Lobby button */}
-                      <button
-                        onClick={handleJoinPublic}
-                        onKeyDown={handleKeyDown}
-                        disabled={connecting}
-                        className="lobby-btn w-full relative overflow-hidden group
-                                   bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-4
-                                   text-base font-mono font-bold text-white
-                                   hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
-                                   disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-green-700/40
-                                   transition-all duration-300"
-                      >
-                        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
-                                        translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
-                        <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
-                          {connecting ? (
-                            <span className="flex items-center justify-center gap-2">
-                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                              CONNECTING...
+                      {connecting ? (
+                        <div className="flex flex-col items-center justify-center p-8 gap-4">
+                          <span className="w-8 h-8 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span className="text-white font-mono font-bold text-lg animate-pulse tracking-widest">
+                            CONNECTING...
+                          </span>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Global Lobby button */}
+                          <button
+                            onClick={handleJoinPublic}
+                            onKeyDown={handleKeyDown}
+                            className="lobby-btn w-full relative overflow-hidden group
+                                       bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-4
+                                       text-base font-mono font-bold text-white
+                                       hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
+                                       transition-all duration-300"
+                          >
+                            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
+                                            translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+                            <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
+                              Global Lobby
                             </span>
-                          ) : (
-                            'Global Lobby'
-                          )}
-                        </span>
-                      </button>
+                          </button>
 
-                      {/* Custom Rooms button */}
-                      <button
-                        onClick={async () => {
-                          setConnecting(true)
-                          try {
-                            await getNetwork().ensureLobbyJoined()
-                            setRoomSubView('browse')
-                          } catch (err) {
-                            setError('Failed to load room list')
-                          } finally {
-                            setConnecting(false)
-                          }
-                        }}
-                        disabled={connecting}
-                        className="lobby-btn w-full relative overflow-hidden group
-                                   bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-4
-                                   text-base font-mono font-bold text-white
-                                   hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
-                                   disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-green-700/40
-                                   transition-all duration-300"
-                      >
-                        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
-                                        translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
-                        <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
-                          {connecting ? (
-                            <span className="flex items-center justify-center gap-2">
-                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                              CONNECTING...
+                          {/* Custom Rooms button */}
+                          <button
+                            onClick={async () => {
+                              setConnecting(true)
+                              try {
+                                await getNetwork().ensureLobbyJoined()
+                                setRoomSubView('browse')
+                              } catch (err) {
+                                setError('Failed to load room list')
+                              } finally {
+                                setConnecting(false)
+                              }
+                            }}
+                            className="lobby-btn w-full relative overflow-hidden group
+                                       bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-4
+                                       text-base font-mono font-bold text-white
+                                       hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
+                                       transition-all duration-300"
+                          >
+                            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
+                                            translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+                            <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
+                              Custom Rooms
                             </span>
-                          ) : (
-                            'Custom Rooms'
-                          )}
-                        </span>
-                      </button>
+                          </button>
 
-                      {/* My Room button */}
-                      <button
-                        onClick={handleJoinMyRoom}
-                        disabled={connecting}
-                        className="lobby-btn w-full relative overflow-hidden group
-                                   bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-4
-                                   text-base font-mono font-bold text-white
-                                   hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
-                                   disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-green-700/40
-                                   transition-all duration-300"
-                      >
-                        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
-                                        translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
-                        <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
-                          {connecting ? (
-                            <span className="flex items-center justify-center gap-2">
-                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                              CONNECTING...
+                          {/* My Room button */}
+                          <button
+                            onClick={handleJoinMyRoom}
+                            className="lobby-btn w-full relative overflow-hidden group
+                                       bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-4
+                                       text-base font-mono font-bold text-white
+                                       hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
+                                       transition-all duration-300"
+                          >
+                            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
+                                            translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+                            <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
+                              My Room
                             </span>
-                          ) : (
-                            'My Room'
-                          )}
-                        </span>
-                      </button>
+                          </button>
 
-                      {/* Error message */}
-                      {error && (
-                        <p className="lobby-error-enter text-rave-pink text-sm font-mono text-center font-bold">
-                          {error}
-                        </p>
+                          {/* Error message */}
+                          {error && (
+                            <p className="lobby-error-enter text-rave-pink text-sm font-mono text-center font-bold">
+                              {error}
+                            </p>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
