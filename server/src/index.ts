@@ -81,8 +81,6 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason)
 })
 
-import * as youtube from './Youtube'
-import { searchYouTube, resolveYouTubeVideo, proxyYouTubeVideo } from './youtubeService'
 import { RoomType } from '@club-mutant/types/Rooms'
 
 import { ClubMutant } from './rooms/ClubMutant'
@@ -135,51 +133,8 @@ const server = defineServer({
       res.json({ status: 'ok' })
     })
 
-    app.get('/youtube/resolve/:videoId', async (req, res) => {
-      const videoId = req.params.videoId
-
-      try {
-        const resolved = await resolveYouTubeVideo(videoId)
-        res.json(resolved)
-      } catch (e) {
-        console.error('[youtube] Resolve failed for', videoId, e)
-        res.status(500).json({ error: 'Failed to resolve video' })
-      }
-    })
-
-    app.get('/youtube/proxy/:videoId', async (req, res) => {
-      const videoId = req.params.videoId
-      const rangeHeader = req.headers.range
-
-      try {
-        await proxyYouTubeVideo(videoId, rangeHeader, res)
-      } catch (e) {
-        console.error('[youtube] Proxy failed for', videoId, e)
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'Failed to proxy video' })
-        }
-      }
-    })
-
-    app.get('/youtube/:search', async (req, res) => {
-      const search = req.params.search
-      console.log('[youtube] search:', search)
-
-      try {
-        const videos = await searchYouTube(search, 24)
-        res.json(videos)
-      } catch (e) {
-        console.log('[youtube] Go service failed, falling back to legacy scraping')
-
-        try {
-          const videos = await youtube.GetData(search, false, 24)
-          res.json(videos)
-        } catch (fallbackError) {
-          console.log('[youtube] Legacy fallback also failed:', fallbackError)
-          res.status(500).json({ error: 'Search failed' })
-        }
-      }
-    })
+    // YouTube routes removed — client-3d now calls the Go YouTube service (yt.mutante.club) directly.
+    // Server-side prefetch is still available via youtubeService.ts (used by DJ queue/jukebox commands).
   },
 })
 

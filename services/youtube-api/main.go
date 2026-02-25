@@ -1545,10 +1545,11 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 func corsMiddleware(next http.Handler) http.Handler {
 	allowedOrigins := map[string]bool{
-		"https://mutante.club":  true,
-		"http://localhost:5173": true,
-		"http://localhost:5175": true,
-		"http://localhost:3000": true,
+		"https://mutante.club":     true,
+		"https://www.mutante.club": true,
+		"http://localhost:5173":    true,
+		"http://localhost:5175":    true,
+		"http://localhost:3000":    true,
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

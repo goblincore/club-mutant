@@ -37,6 +37,16 @@ function getOrCreatePlayerId(): string {
   return id
 }
 
+/** Parse a duration string like "2:21" or "1:03:45" into total seconds. Returns 0 for unparseable values. */
+function parseDurationToSeconds(dur: string): number {
+  if (!dur || dur === 'LIVE') return 0
+  const parts = dur.split(':').map(Number)
+  if (parts.some(isNaN)) return 0
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
+  if (parts.length === 2) return parts[0] * 60 + parts[1]
+  return parts[0] || 0
+}
+
 export class NetworkManager {
   private client: Client
   private room: Room<IOfficeState> | null = null
@@ -44,6 +54,7 @@ export class NetworkManager {
   private _lobbyPromise: Promise<void> | null = null
   private moveThrottleTimer: ReturnType<typeof setTimeout> | null = null
   private httpBaseUrl: string
+  private youtubeBaseUrl: string
   private _timeSync: TimeSync | null = null
   private _myTextureId: number = 0
 
@@ -57,6 +68,9 @@ export class NetworkManager {
 
     this.client = new Client(url)
     this.httpBaseUrl = url.replace(/^ws/, 'http')
+    this.youtubeBaseUrl =
+      import.meta.env.VITE_YOUTUBE_SERVICE_URL ||
+      (window.location.hostname === 'localhost' ? 'http://localhost:8081' : `${this.httpBaseUrl}/youtube`)
   }
 
   /**
@@ -821,28 +835,36 @@ export class NetworkManager {
     this.room?.send(Message.DREAM_COLLECT, { collectibleId })
   }
 
-  // YouTube search (via server)
+  // YouTube search (calls Go service directly)
   async searchYouTube(query: string): Promise<any[]> {
-    const res = await fetch(`${this.httpBaseUrl}/youtube/${encodeURIComponent(query)}`)
+    const res = await fetch(`${this.youtubeBaseUrl}/search?q=${encodeURIComponent(query)}&limit=24`)
     if (!res.ok) throw new Error('Search failed')
 
     const data = await res.json()
+    const items = data.items ?? []
 
-    // Go service returns { items: [...] }, legacy scraper returns raw array
-    return Array.isArray(data) ? data : (data.items ?? [])
+    // Go service returns duration as formatted string ("2:21", "1:03:45", "LIVE").
+    // Parse to seconds so the server schema (which expects a number) doesn't reject it.
+    for (const item of items) {
+      if (typeof item.duration === 'string') {
+        item.duration = parseDurationToSeconds(item.duration)
+      }
+    }
+
+    return items
   }
 
   // Resolve direct video URL for WebGL texture rendering
   async resolveYouTube(videoId: string): Promise<{ url: string; expiresAtMs: number | null }> {
-    const res = await fetch(`${this.httpBaseUrl}/youtube/resolve/${videoId}`)
+    const res = await fetch(`${this.youtubeBaseUrl}/resolve/${videoId}`)
     if (!res.ok) throw new Error('Resolve failed')
 
     return res.json()
   }
 
-  // Get proxied video URL (same-origin, avoids CORS issues with googlevideo)
+  // Get proxied video URL (via Go YouTube service)
   getYouTubeProxyUrl(videoId: string): string {
-    return `${this.httpBaseUrl}/youtube/proxy/${videoId}`
+    return `${this.youtubeBaseUrl}/proxy/${videoId}`
   }
 
   get sessionId(): string | undefined {
