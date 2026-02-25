@@ -50,7 +50,7 @@ services:
 
   dream-npc:
     build:
-      context: ../../services/dream-npc
+      context: ../../services/dream-npc-go
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
