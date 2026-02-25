@@ -5,7 +5,7 @@ export interface DreamInitPayload {
   playerName: string
   collectedItems: string[]
   serverHttpUrl: string // base URL for Colyseus server
-  dreamServiceUrl: string // base URL for dream-npc service (POST /dream/npc-chat)
+  dreamServiceUrl: string // base URL for dream-npc-go service (POST /dream/npc-chat)
 }
 
 export type DreamBridgeMessage =

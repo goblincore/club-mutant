@@ -49,7 +49,7 @@ export async function chatWithNpc(
   }
   lastRequestTime = now
 
-  // In dev, Vite proxies /dream/* to the standalone dream-npc service (port 4000).
+  // In dev, Vite proxies /dream/* to the standalone dream-npc-go service (port 4000).
   // In production, dreamServiceUrl points to https://dream.mutante.club
   const baseUrl = import.meta.env.DEV ? '' : dreamServiceUrl
 

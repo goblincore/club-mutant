@@ -124,7 +124,7 @@ const server = defineServer({
   express: (app) => {
     // CORS is handled per-layer:
     // - Matchmaker routes: via matchMaker.controller.getCorsHeaders
-    // - Dream NPC chat: moved to standalone dream-npc service (port 4000)
+    // - Dream NPC chat: moved to standalone dream-npc-go service (port 4000)
     // - YouTube routes: called server-to-server, no browser CORS needed
     // Don't add global CORS middleware here — it conflicts with uWebSockets transport.
     app.use(helmet())
