@@ -5,6 +5,10 @@ import { useBoothStore } from '../stores/boothStore'
 import { useMusicStore } from '../stores/musicStore'
 import { getNetwork } from '../network/NetworkManager'
 
+const LOAD_TIMEOUT_MS = 15_000
+const RETRY_DELAY_MS = 30_000
+const MAX_ATTEMPTS = 3
+
 // Extract YouTube video ID from a URL or link field (which may already be just an ID)
 function extractVideoId(link: string): string | null {
   const patterns = [
@@ -22,9 +26,10 @@ function extractVideoId(link: string): string | null {
 
 /**
  * Manages the video background lifecycle:
- * 1. When enabled + stream playing → tries to resolve a direct video URL
- * 2. If successful → creates a <video> element → THREE.VideoTexture (for floor)
- * 3. If resolve/playback fails → falls back to iframe mode (react-player overlay)
+ * 1. When enabled + stream playing → tries to load video via proxy URL
+ * 2. If successful → creates a <video> element → THREE.VideoTexture (for wall display)
+ * 3. If load fails → retries up to MAX_ATTEMPTS with RETRY_DELAY_MS between attempts
+ * 4. After all retries exhausted → falls back to iframe mode (react-player overlay)
  *
  * Returns the VideoTexture (or null) for use in the 3D scene.
  */
@@ -41,12 +46,18 @@ export function useVideoBackground(): THREE.VideoTexture | null {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const activeVideoId = useRef<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     // Cleanup previous attempt
     const cleanup = () => {
       abortRef.current?.abort()
       abortRef.current = null
+
+      if (retryTimerRef.current !== null) {
+        clearTimeout(retryTimerRef.current)
+        retryTimerRef.current = null
+      }
 
       if (videoRef.current) {
         videoRef.current.pause()
@@ -87,18 +98,24 @@ export function useVideoBackground(): THREE.VideoTexture | null {
     abortRef.current = abort
 
     const booth = useBoothStore.getState()
-    booth.setVideoBgMode('webgl')
-    booth.setVideoBgLabel('resolving...')
 
-    // Try WebGL path first
-    void (async () => {
+    const attemptLoad = async (attempt: number) => {
+      if (abort.signal.aborted) return
+
+      booth.setVideoBgMode('webgl')
+      booth.setVideoBgLabel(attempt === 0 ? 'loading video...' : `retrying... (${attempt + 1}/${MAX_ATTEMPTS})`)
+
+      // Clean up any previous video element from a failed attempt
+      if (videoRef.current) {
+        videoRef.current.pause()
+        videoRef.current.src = ''
+        videoRef.current = null
+      }
+
       try {
-        // Use the proxy URL directly — avoids CORS issues with googlevideo.com
         const proxyUrl = getNetwork().getYouTubeProxyUrl(videoId)
 
         if (abort.signal.aborted) return
-
-        booth.setVideoBgLabel('loading video...')
 
         const video = document.createElement('video')
         video.crossOrigin = 'anonymous'
@@ -127,12 +144,11 @@ export function useVideoBackground(): THREE.VideoTexture | null {
           video.addEventListener('canplay', onCanPlay)
           video.addEventListener('error', onError)
 
-          // Timeout after 8s
           setTimeout(() => {
             video.removeEventListener('canplay', onCanPlay)
             video.removeEventListener('error', onError)
             reject(new Error('Video load timeout'))
-          }, 8000)
+          }, LOAD_TIMEOUT_MS)
 
           video.load()
         })
@@ -169,13 +185,9 @@ export function useVideoBackground(): THREE.VideoTexture | null {
         booth.setVideoBgMode('webgl')
         booth.setVideoBgLabel('webgl')
       } catch (err) {
-        console.warn('[VideoBackground] WebGL failed, falling back to iframe:', err)
-
         if (abort.signal.aborted) return
 
-        // Fallback to iframe mode
-        booth.setVideoBgMode('iframe')
-        booth.setVideoBgLabel('iframe')
+        const nextAttempt = attempt + 1
 
         // Clean up the failed video element
         if (videoRef.current) {
@@ -184,9 +196,27 @@ export function useVideoBackground(): THREE.VideoTexture | null {
           videoRef.current = null
         }
 
-        setTexture(null)
+        if (nextAttempt < MAX_ATTEMPTS) {
+          console.warn(
+            `[VideoBackground] Attempt ${nextAttempt}/${MAX_ATTEMPTS} failed, retrying in ${RETRY_DELAY_MS / 1000}s:`,
+            err
+          )
+          booth.setVideoBgLabel(`retry in ${RETRY_DELAY_MS / 1000}s...`)
+
+          retryTimerRef.current = setTimeout(() => {
+            retryTimerRef.current = null
+            void attemptLoad(nextAttempt)
+          }, RETRY_DELAY_MS)
+        } else {
+          console.warn('[VideoBackground] All attempts failed, falling back to iframe:', err)
+          booth.setVideoBgMode('iframe')
+          booth.setVideoBgLabel('iframe')
+          setTexture(null)
+        }
       }
-    })()
+    }
+
+    void attemptLoad(0)
 
     return cleanup
   }, [enabled, isPlaying, currentLink, startTime])

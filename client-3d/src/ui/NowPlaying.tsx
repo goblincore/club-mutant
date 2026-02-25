@@ -228,7 +228,7 @@ export function NowPlaying() {
             }`}
             title={videoBackground ? 'Hide video background' : 'Show video background'}
           >
-            <span className="text-[13px]">📹</span>
+            <span className="text-[13px]">📺</span>
           </button>
         )}
       </div>
