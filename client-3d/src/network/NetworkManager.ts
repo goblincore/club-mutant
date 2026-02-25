@@ -41,6 +41,7 @@ export class NetworkManager {
   private client: Client
   private room: Room<IOfficeState> | null = null
   private lobby: Room | null = null
+  private _lobbyPromise: Promise<void> | null = null
   private moveThrottleTimer: ReturnType<typeof setTimeout> | null = null
   private httpBaseUrl: string
   private _timeSync: TimeSync | null = null
@@ -63,8 +64,17 @@ export class NetworkManager {
    * Filters to only CUSTOM rooms (the public room also appears but we skip it).
    * Retries with exponential backoff on failure.
    */
-  public async ensureLobbyJoined(maxRetries = 3, baseDelay = 1000) {
-    if (this.lobby) return // Already connected or connecting
+  public ensureLobbyJoined(maxRetries = 3, baseDelay = 1000): Promise<void> {
+    if (this.lobby) return Promise.resolve()
+    // Deduplicate concurrent callers — share a single in-flight promise
+    if (this._lobbyPromise) return this._lobbyPromise
+    this._lobbyPromise = this._doLobbyJoin(maxRetries, baseDelay).finally(() => {
+      this._lobbyPromise = null
+    })
+    return this._lobbyPromise
+  }
+
+  private async _doLobbyJoin(maxRetries: number, baseDelay: number) {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const timeout = attempt === 0 ? 5000 : 4000
