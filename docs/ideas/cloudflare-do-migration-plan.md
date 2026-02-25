@@ -2,7 +2,16 @@
 
 This document outlines the step-by-step strategy for building a shadow/parallel multiplayer backend using Cloudflare Durable Objects (specifically using the [PartyKit](https://partykit.io) framework) while keeping the current Hetzner VPS setup active. The goal is to have an infinitely scalable version of Club Mutant ready if traffic skyrockets.
 
-## Phase 1: Setup and Foundation
+## Phase 1: Stateless Services (dream-npc)
+
+The `dream-npc` service is currently a Go service running on the VPS to minimize memory footprint. Because it is largely stateless (relying only on in-memory rate-limiting and LRU caching), it is a prime candidate for a raw Cloudflare Worker if VPS resources become constrained or if we want edge-location latency for AI NPC responses.
+
+1. **Worker Conversion**
+   - Port the Go routing logic into a standard Cloudflare Worker `fetch` event handler using TypeScript.
+   - The rate-limiting and caching can be handled by **Cloudflare KV** and the **Rate Limiting API**.
+   - No Durable Objects are required for this specific service since it doesn't need strict synchronization or long-lived websocket connections; just standard HTTP Request/Response.
+
+## Phase 2: Setup and Foundation (Stateful Multiplayer)
 
 1. **Initialize PartyKit Workspace**
    - Create a new directory alongside `server/` (e.g., `server-cf/` or `party/`).
