@@ -24,15 +24,16 @@
     "@club-mutant/types": "workspace:*",
     "@colyseus/command": "^0.2.1",
     "@colyseus/core": "^0.17.0",
-    "bcrypt": "^5.1.1",
-    "uuid": "^8.3.2",
     "@colyseus/monitor": "^0.17.0",
     "@colyseus/schema": "^4.0.0",
     "@colyseus/tools": "^0.17.0",
     "@colyseus/uwebsockets-transport": "^0.17.12",
+    "bcrypt": "^5.1.1",
     "colyseus": "^0.17.0",
     "cors": "^2.8.5",
     "express": "^5.0.0",
+    "helmet": "^8.1.0",
+    "uuid": "^8.3.2",
     "uwebsockets-express": "^2.0.2"
   }
 }

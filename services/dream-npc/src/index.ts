@@ -1,9 +1,13 @@
 import express from 'express'
+import helmet from 'helmet'
 import cors from 'cors'
 import { handleNpcChat } from './dreamNpc.js'
 
 const app = express()
 const PORT = Number(process.env.PORT || 4000)
+
+app.use(helmet())
+app.disable('x-powered-by')
 
 // CORS — allow dream client dev server + production origin
 app.use(

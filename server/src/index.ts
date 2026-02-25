@@ -1,4 +1,5 @@
 import express from 'express'
+import helmet from 'helmet'
 import { defineServer, defineRoom, LobbyRoom, matchMaker, logger } from 'colyseus'
 import { uWebSocketsTransport } from '@colyseus/uwebsockets-transport'
 
@@ -126,6 +127,8 @@ const server = defineServer({
     // - Dream NPC chat: moved to standalone dream-npc service (port 4000)
     // - YouTube routes: called server-to-server, no browser CORS needed
     // Don't add global CORS middleware here — it conflicts with uWebSockets transport.
+    app.use(helmet())
+    app.disable('x-powered-by')
     app.use(express.json())
 
     app.get('/health', (_req, res) => {
