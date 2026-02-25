@@ -28,7 +28,7 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
     - `src/character/` — PaperDoll (bone hierarchy rendering + **group-level lean** + per-bone distortion info; see **Character Distortion System** below), CharacterLoader (manifest loading + `distortion`/`distortionOverrides` support), DistortMaterial (PaRappa vertex warp: squash-stretch, twist, wobble, bounce, billboard twist + clip-space vertex fisheye via `uVertexFisheye`; lean moved to group transforms — see **Character Distortion System**), AnimationMixer, **characterRegistry** (auto-discovers characters by probing `default`..`default20` folders at startup, parallel fetch, singleton cache, preloads all, `characterPathForTextureId()` for sync lookup by remote players)
     - `src/network/` — NetworkManager (Colyseus client, player/chat/music/DJ queue wiring, YouTube search, late-join sync for music + DJ queue from **schema-only callbacks** — `onAdd`/`onRemove`/`listen`, no separate `DJ_QUEUE_UPDATED` message handler; **reconnection**: `room.onDrop` → status `'reconnecting'`, `room.onReconnect` → status `'connected'` + TimeSync restart, `room.onLeave` → status `'disconnected'`; reconnection config: `maxRetries=10`, `maxDelay=8000`), TimeSync (client-server clock sync with `onReady` callback for deferred operations)
     - `src/stores/` — gameStore (+ `connectionStatus`: `'disconnected'` | `'connected'` | `'reconnecting'`, `selectedCharacterPath`, `lobbyJoined`, `availableRooms`, `roomType`, `musicMode`), chatStore (+ bubbles), musicStore, uiStore (+ debug: `showFps`, `renderScale` [0.75/0.5/0.35], `fisheyeOverride`, `vertexFisheye`, `vortexOob`; + RightPanel states, `computerIframeOpen`, `magazineReaderOpen`), boothStore (DJ booth + queue + video bg, `videoBackgroundEnabled` defaults `true`), **jukeboxStore** (shared jukebox playlist synced from server schema)
-    - `src/hooks/` — useVideoBackground (resolves YouTube video URL → `<video>` → `THREE.VideoTexture`, falls back to iframe mode), **useSlideshowTexture** (cycles through `/textures/slideshow/` images when no video playing, shown on wall display)
+    - `src/hooks/` — useVideoBackground (loads video via Go YouTube service proxy → `<video>` → `THREE.VideoTexture`; 15s load timeout, retries up to 3 attempts with 30s delay, falls back to iframe mode after all retries exhausted), **useSlideshowTexture** (cycles through `/textures/slideshow/` images when no video playing, shown on wall display)
     - `src/shaders/` — PsxPostProcess (VHS+bloom+fisheye post-processing, **dynamic fisheye** via `u_fisheye` uniform scaled by camera zoom distance [closer = stronger], configurable `renderScale` from uiStore [0.75/0.5/0.35] replaces hardcoded `RES_SCALE`; **half-res bloom**: scene RT downsampled to `BLOOM_SCALE=0.5` RT with LinearFilter, 16-tap bloom sampling (4 iterations × 4 cardinal); **layer-based rendering**: layer 0 for scene with VHS, layer 1 for UI/chat bubbles/nametags rendered clean, layer 2 for highlight mask; **screen-space outline**: mask RT + dilation in VHS shader, see **Interactable object outline** below), TvStaticFloor (animated TV noise floor material, `FLOOR_SEGMENTS=48`, samples baked displacement texture + PSX integer stepping via `DISP_STEPS=10`), TrampolineGrid (`GRID_SEGMENTS=48`, same displacement texture sampling + integer stepping), **DisplacementBaker.ts** (bakes ripple displacement from `getDisplacementAt` into 64×64 Float32 `DataTexture` each frame, frame-deduplicated, short-circuits when no ripples active; sampled by floor+grid vertex shaders instead of per-vertex ripple loops), TrippySky (Win95-style blue sky + animated procedural clouds skybox, drift speed 0.4), **VortexGridSky** (spinning polar grid vortex on dark cloudy FBM background — not currently used in scene, kept for future skybox option), BrickWallMaterial (procedural brick wall shader), **TatamiFloorMaterial** (procedural herringbone tatami floor for MyRoom), **StripedWallMaterial** (vertical stripe wallpaper with uOpacity for wall occlusion), **OceanViewMaterial** (animated ocean window view — moonlit nighttime), **NightSky** (dark dusk/night skybox with stars and faint clouds). **Vortex OOB** in PsxPostProcess: renders a spinning green polar grid to a tiny 128×128 offscreen RT with NearestFilter for chunky pixels; fills fisheye barrel distortion out-of-bounds areas when `vortexOob` toggle is on (default off, toggle in FpsCounter debug panel); RT rendering completely skipped when disabled
     - `src/scene/TrampolineRipples.ts` — Module-level ripple state manager (max 16 analytical ripples). Has its own `performance.now()`-based clock (`getTime()`) — no dependency on r3f clock or useFrame ordering. Provides CPU-side `getDisplacementAt(x,z)` used by DisplacementBaker (baked to texture) and directly by PlayerEntity/Room furniture for Y offset. `getRippleVec4s()`/`getRippleCount()` still available but no longer used by shaders (replaced by texture sampling). Shared by DisplacementBaker, PlayerEntity, Room furniture, and NetworkManager (remote jump ripples).
     - `src/input/` — usePlayerInput (WASD camera-relative + click-to-move + spacebar jump with cooldown + **collision detection**: room boundary clamp at ±580 server px + AABB push-out via `clampPosition()` for DJ booth, old Dell desk, and magazine rack — add new furniture by appending to `COLLISION_BOXES` array)
@@ -64,7 +64,7 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
     - Key files: `src/index.ts` (Express server + CORS), `src/dreamNpc.ts` (Gemini API, rate limiting, caching, NPC personalities)
     - Endpoint: `POST /dream/npc-chat`
     - Production: `dream.mutante.club` (Caddy reverse proxy → dream-npc-go:4000)
-  - `youtube-api/` — Go microservice for YouTube search + video URL resolution + proxy. See `services/youtube-api/README.md`. Key endpoints: `GET /search?q=...`, `GET /resolve?id=...`, `GET /proxy?id=...` (streams video through server to avoid CORS), `GET /browse?url=...` (proxies arbitrary URLs for iframe embedding — server-side only, client disabled). Deployed via Docker in `deploy/hetzner/docker-compose.yml`.
+  - `youtube-api/` — Go microservice for YouTube search + video URL resolution + proxy. Called directly by client-3d (no Colyseus proxy). See `services/youtube-api/README.md`. Key endpoints: `GET /search?q=...`, `GET /resolve/{videoId}`, `GET /proxy/{videoId}` (streams video to avoid CORS), `GET /browse?url=...` (proxies arbitrary URLs for iframe embedding — server-side only, client disabled), `POST /prefetch/{videoId}` (server-initiated cache warming). Deployed via Docker in `deploy/hetzner/docker-compose.yml`.
   - `pot-provider-rust/` — PO token provider for YouTube auth
 - `tools/`
   - `paper-rig-editor/` — Vite + React + r3f character rig editor for building paper-doll characters. See `tools/paper-rig-editor/README.md` for full docs.
@@ -505,7 +505,7 @@ A round-robin DJ queue system where multiple users can join the DJ booth and tak
 - **Play**: Starts playback. For the first DJ in an empty room, this sends `DJ_PLAY` to the server.
 - **Stop**: Stops playback and broadcasts `DJ_STOP` to all clients (everyone's stream stops).
 - **Visibility**: Controls are only visible to the **current DJ** (`isCurrentDJ`). Non-current DJs see no playback controls.
-- **Background video toggle**: Camera icon button in the mini bar, next to playback controls. Toggles `videoBackgroundEnabled` (local-only Redux state). Only visible to current DJ, disabled when nothing is streaming.
+- **Background video toggle**: TV icon (📺) button in the mini bar, next to playback controls. Toggles `videoBackgroundEnabled` (local-only Redux state). Only visible to current DJ, disabled when nothing is streaming.
 - **Status text**: Track status shows "Now playing" when actively streaming, "Up next" when queued but not yet playing, "Played" for history.
 
 ### TV Static + Background Video Interaction
@@ -2449,17 +2449,16 @@ The current `server/Youtube.js` uses fragile HTML/JSON scraping that runs inline
    - Uses `github.com/raitonoberu/ytsearch` library
    - In-memory cache with TTL
 
-2. **Phase 2: Colyseus integration** ✅
-   - `server/youtubeService.ts` client wrapper
-   - Fallback to `Youtube.js` if Go service unavailable
+2. **Phase 2: Direct client access** ✅
+   - Client-3d calls Go service directly via `youtubeBaseUrl` (derived from `VITE_YOUTUBE_SERVICE_URL`)
+   - `server/youtubeService.ts` retained only for server-initiated `prefetchVideo()` (DJ queue/jukebox commands)
+   - YouTube proxy routes removed from Colyseus server (no more double-hop through Node.js)
 
 3. **Phase 3: Resolve & proxy endpoints** ✅
    - `GET /resolve/{videoId}` - returns direct stream URL
    - `GET /resolve/{videoId}?videoOnly=true` - video-only (no audio)
    - `GET /proxy/{videoId}` - proxies stream (default: video-only)
-   - Uses pure Go: `github.com/kkdai/youtube/v2` (no yt-dlp!)
    - Supports Range headers for seeking
-   - Fallback to yt-dlp in Node if Go service unavailable
 
 4. **Phase 4: Redis caching** (pending)
    - Redis for shared cache across instances
@@ -3050,15 +3049,16 @@ matchMaker.controller.getCorsHeaders = function (requestHeaders) {
 }
 ```
 
-### YouTube API Proxy Chain
+### YouTube API — Direct Client Access (Feb 2026)
 
-Video streaming goes through multiple layers:
+Client-3d now calls the Go YouTube service (`yt.mutante.club`) directly, bypassing the Colyseus server:
 
-1. **Client** calls `api.mutante.club/youtube/proxy/{videoId}`
-2. **Colyseus server** proxies to `youtube-api:8081/proxy/{videoId}`
-3. **Go service** fetches from YouTube via ISP proxy (for IP consistency)
+1. **Client** calls `yt.mutante.club/search?q=...`, `/resolve/{videoId}`, `/proxy/{videoId}` directly
+2. **Go service** fetches from YouTube via ISP proxy (for IP consistency)
 
-**Missing route gotcha**: The `/youtube/proxy/:videoId` Express route was imported but never registered. Symptom: "Provisional headers shown" in Network tab, request fails silently.
+The `youtubeBaseUrl` in `NetworkManager.ts` is derived from `VITE_YOUTUBE_SERVICE_URL`, falling back to `localhost:8081` for local dev. The Go service duration format (`"2:21"`) is parsed to seconds by `parseDurationToSeconds()` in NetworkManager before being sent to the server schema.
+
+Server-side `youtubeService.ts` is retained only for `prefetchVideo()` (used by DJ queue/jukebox commands to pre-warm the video cache).
 
 ### Prefetch System
 
