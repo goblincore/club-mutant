@@ -58,12 +58,12 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Schema state: `server/src/rooms/schema/OfficeState.ts`
   - Commands: `server/src/rooms/commands/*`
 - `services/`
-  - `dream-npc/` — Standalone Express 4 microservice for Dream NPC AI chat. Separated from Colyseus server to avoid uWebSockets transport conflicts with Express middleware.
+  - `dream-npc-go/` — Standalone Express 4 microservice for Dream NPC AI chat. Separated from Colyseus server to avoid uWebSockets transport conflicts with Express middleware.
     - Tech: Express 4 + cors + tsx
-    - Dev server: port 4000 (`cd services/dream-npc && GEMINI_API_KEY=... npm start`)
+    - Dev server: port 4000 (`cd services/dream-npc-go && GEMINI_API_KEY=... npm start`)
     - Key files: `src/index.ts` (Express server + CORS), `src/dreamNpc.ts` (Gemini API, rate limiting, caching, NPC personalities)
     - Endpoint: `POST /dream/npc-chat`
-    - Production: `dream.mutante.club` (Caddy reverse proxy → dream-npc:4000)
+    - Production: `dream.mutante.club` (Caddy reverse proxy → dream-npc-go:4000)
   - `youtube-api/` — Go microservice for YouTube search + video URL resolution + proxy. See `services/youtube-api/README.md`. Key endpoints: `GET /search?q=...`, `GET /resolve?id=...`, `GET /proxy?id=...` (streams video through server to avoid CORS), `GET /browse?url=...` (proxies arbitrary URLs for iframe embedding — server-side only, client disabled). Deployed via Docker in `deploy/hetzner/docker-compose.yml`.
   - `rusty-ytdl-hybrid/` — Rust CLI for fast YouTube URL resolution (used by youtube-api as primary resolver, falls back to yt-dlp)
   - `pot-provider-rust/` — PO token provider for YouTube auth
@@ -182,7 +182,7 @@ Works mathematically but visual feel needs more tuning. **Alternatives to explor
 - **`useState` inside `<Canvas>` wastes re-renders** — Inside r3f Canvas, rendering is `useFrame`-driven. `useState` triggers React reconciliation that does nothing visible. Use `useRef` for mutable state and read it imperatively in `useFrame`. Only use `useState` when you need React to add/remove JSX children.
 - **Multiple `<Canvas>` elements = multiple WebGL contexts** — Each `<Canvas>` creates its own WebGL context, render loop, and scene graph. Two canvases rendering the same character means double the animation work, double the material updates, double the draw calls. Prefer CSS effects (drop-shadow, filters) on a single Canvas wrapper div instead of a second Canvas.
 - **Geometry created in `onSync` callbacks leaks** — troika text's `onSync` fires whenever text metrics change. Creating new `ShapeGeometry` each time leaks unless explicitly disposed. Cache geometries by quantized dimensions (e.g., `Math.round(w * 100) / 100`) — only ~5 distinct sizes for short phrases.
-- **uWebSockets transport + Express middleware incompatibility** — `@colyseus/uwebsockets-transport` invalidates `uWS.HttpRequest` after any async operation or route handler return. Express middleware that reads `req.headers` or calls `next()` (including `cors()`, body parsers, etc.) causes `uWS.HttpRequest must not be accessed after await` errors. Solution: don't add global middleware to the Express app inside `defineServer.express`. For CORS-needing endpoints, use a separate Express service (e.g., `dream-npc`), or use the Vite dev proxy in development. Matchmaker CORS is handled via `matchMaker.controller.getCorsHeaders`.
+- **uWebSockets transport + Express middleware incompatibility** — `@colyseus/uwebsockets-transport` invalidates `uWS.HttpRequest` after any async operation or route handler return. Express middleware that reads `req.headers` or calls `next()` (including `cors()`, body parsers, etc.) causes `uWS.HttpRequest must not be accessed after await` errors. Solution: don't add global middleware to the Express app inside `defineServer.express`. For CORS-needing endpoints, use a separate Express service (e.g., `dream-npc-go`), or use the Vite dev proxy in development. Matchmaker CORS is handled via `matchMaker.controller.getCorsHeaders`.
 - **Vertex shader distortion on paper-doll parts causes z-clipping and joint gaps** — When vertex effects (lean, twist) are applied per-mesh, child groups (head on torso) don't follow because vertex displacement doesn't affect the scene graph. Fix: apply body-coherent effects (lean) as **group-level transforms** so children inherit through the hierarchy. Also: never displace Z in vertex shader twist effects on flat paper-doll planes — Z displacement causes parts to clip through each other with no visual benefit.
 
 ## How to run
@@ -193,10 +193,10 @@ Works mathematically but visual feel needs more tuning. **Alternatives to explor
 - **Client**: `cd client && npm run dev`
   - Runs Vite dev server
 - **3D Client**: `cd client-3d && pnpm dev` (port 5175)
-- **Dream NPC Service**: `cd services/dream-npc && GEMINI_API_KEY=... npm start` (port 4000)
+- **Dream NPC Service**: `cd services/dream-npc-go && GEMINI_API_KEY=... npm start` (port 4000)
   - Standalone Express service for AI NPC chat (separated from Colyseus to avoid uWS conflicts)
 - **Dream Client**: `cd client-dream && pnpm dev` (port 5176)
-  - For dream mode development, run all four: server + dream-npc + client-3d + client-dream
+  - For dream mode development, run all four: server + dream-npc-go + client-3d + client-dream
 
 ## Colyseus 0.17 Migration (Feb 2026)
 
@@ -301,7 +301,7 @@ express: (app) => {
 
 - **Server (Hetzner VPS)**:
   - `Dockerfile.server`: Multi-stage build using pnpm workspaces
-  - `deploy/hetzner/docker-compose.yml`: Orchestrates server + youtube-api + dream-npc + caddy
+  - `deploy/hetzner/docker-compose.yml`: Orchestrates server + youtube-api + dream-npc-go + caddy
   - Deploy: `ssh vps "cd /path/to/club-mutant && git pull && docker-compose up -d --build server"`
 
 - **Client (Cloudflare Pages)** — migrated from Netlify Feb 2026:
@@ -1295,8 +1295,8 @@ YouTube ID into a direct playable video URL:
 - **Jukebox store**: `client-3d/src/stores/jukeboxStore.ts`
 - **Shared message enum**: `types/Messages.ts`
 - **Room types + music modes**: `types/Rooms.ts`
-- **Dream NPC chat handler**: `services/dream-npc/src/dreamNpc.ts`
-- **Dream NPC service entry**: `services/dream-npc/src/index.ts`
+- **Dream NPC chat handler**: `services/dream-npc-go/src/dreamNpc.ts`
+- **Dream NPC service entry**: `services/dream-npc-go/src/index.ts`
 - **Dream iframe bridge (3D client)**: `client-3d/src/ui/DreamIframe.tsx`
 - **Dream store (3D client)**: `client-3d/src/dream/dreamStore.ts`
 - **Dream scene (Phaser)**: `client-dream/src/phaser/scenes/DreamScene.ts`
@@ -1634,7 +1634,7 @@ Room-type-aware in `usePlayerInput.ts`:
 
 ## Lily NPC Bartender — Jukebox Room (Feb 2026)
 
-A server-side AI bartender NPC named Lily who lives in the Jukebox Room. She's a shy alien flower being who tends bar and chats with players via Gemini 2.5 Flash-Lite API through the dream-npc microservice.
+A server-side AI bartender NPC named Lily who lives in the Jukebox Room. She's a shy alien flower being who tends bar and chats with players via Gemini 2.5 Flash-Lite API through the dream-npc-go microservice.
 
 ### Architecture
 
@@ -1650,7 +1650,7 @@ A server-side AI bartender NPC named Lily who lives in the Jukebox Room. She's a
 │              │ HTTP POST                 │
 │              ▼                           │
 │  ┌────────────────────────────────────┐  │
-│  │  dream-npc (Express 4, port 4000) │  │
+│  │  dream-npc-go (Express 4, port 4000) │  │
 │  │  POST /bartender/npc-chat         │  │
 │  │  Gemini 2.5 Flash-Lite            │  │
 │  └────────────────────────────────────┘  │
@@ -1708,7 +1708,7 @@ Lily is a small being — she can't handle too many people talking at once:
 
 ### Dream-NPC Service (`POST /bartender/npc-chat`)
 
-- **Endpoint**: `services/dream-npc/src/index.ts` registers `/bartender/npc-chat` alongside the existing `/dream/npc-chat`.
+- **Endpoint**: `services/dream-npc-go/src/index.ts` registers `/bartender/npc-chat` alongside the existing `/dream/npc-chat`.
 - **Request**: `{ personalityId, message, history, roomId, senderName, musicContext }`
 - **Response**: `{ text, behavior? }` — same format as dream NPC chat.
 - **Personality**: `lily_bartender` in `dreamNpc.ts` — system prompt with backstory, music knowledge, rules, multi-player attribution format.
@@ -1736,8 +1736,8 @@ Lily is a small being — she can't handle too many people talking at once:
 |------|---------|
 | `server/src/rooms/ClubMutant.ts` | NPC spawn, FSM, chat routing, conversational window, chunked delivery, music commentary |
 | `server/src/rooms/commands/JukeboxCommand.ts` | `notifyNpcMusicStarted()` hook in `playNextJukeboxTrack()` |
-| `services/dream-npc/src/dreamNpc.ts` | Lily personality, Gemini API, rate limiting, caching, fallbacks |
-| `services/dream-npc/src/index.ts` | `/bartender/npc-chat` endpoint registration |
+| `services/dream-npc-go/src/dreamNpc.ts` | Lily personality, Gemini API, rate limiting, caching, fallbacks |
+| `services/dream-npc-go/src/index.ts` | `/bartender/npc-chat` endpoint registration |
 | `client-3d/public/npc/denkiqt/` | Lily's PaperDoll character assets (manifest + PNGs) |
 | `client-3d/src/scene/JukeboxRoom.tsx` | BarIsland, BackShelf, CounterStool, bar lighting |
 | `client-3d/src/scene/PlayerEntity.tsx` | Bubble fade-out animation (FADE_MS, per-bubble opacity) |
@@ -1768,7 +1768,7 @@ A Yume Nikki-inspired dream mode where players sleep on the futon in MyRoom and 
                      │                      │
                      ▼                      ▼
 ┌────────────────────────────────┐ ┌────────────────────────────────┐
-│  server (Colyseus)             │ │  dream-npc (Express 4)         │
+│  server (Colyseus)             │ │  dream-npc-go (Express 4)         │
 │    Colyseus: DREAM_SLEEP/WAKE/ │ │    POST /dream/npc-chat        │
 │    COLLECT messages             │ │    ← Gemini 2.5 Flash-Lite    │
 │    Port 2567                   │ │    Port 4000                   │
@@ -1869,13 +1869,13 @@ interface DreamWorldDef {
 **Chat data flow**:
 1. Player types in `DreamChatPanel` → player bubble appears (immediate)
 2. NPC shows "..." thinking bubble (immediate)
-3. `npcService.chatWithNpc()` → `POST /dream/npc-chat` to dream-npc service
+3. `npcService.chatWithNpc()` → `POST /dream/npc-chat` to dream-npc-go service
 4. Dream-npc service: rate limit → cache check → Gemini API → parse response
 5. NPC bubble with response text + optional behavior change
 
 ### Dream NPC Service — `POST /dream/npc-chat`
 
-**Service**: `services/dream-npc/` (standalone Express 4 microservice, port 4000)
+**Service**: `services/dream-npc-go/` (standalone Express 4 microservice, port 4000)
 **Files**: `src/index.ts` (server + CORS), `src/dreamNpc.ts` (handler + personalities)
 
 Separated from the Colyseus server to avoid uWebSockets transport conflicts with Express middleware. Handles NPC chat with model-agnostic architecture (currently Gemini 2.5 Flash-Lite, swappable to self-hosted Ollama later).
@@ -1925,7 +1925,7 @@ Separated from the Colyseus server to avoid uWebSockets transport conflicts with
 - ~2-3s per response on 4-core shared CPU
 - Makes sense above ~3,000-5,000 messages/day
 
-The service abstracts the model backend — swapping from API to Ollama requires changing only `services/dream-npc/src/dreamNpc.ts`, not client code.
+The service abstracts the model backend — swapping from API to Ollama requires changing only `services/dream-npc-go/src/dreamNpc.ts`, not client code.
 
 ### NPC System Prompt Structure
 
@@ -1969,13 +1969,13 @@ The service abstracts the model backend — swapping from API to Ollama requires
 | `client-3d/src/ui/DreamIframe.tsx` | Fullscreen iframe overlay + bridge |
 | `client-3d/src/dream/dreamStore.ts` | Simplified isDreaming + collectedItems |
 | `client-3d/src/dream/dreamBridgeTypes.ts` | Bridge type definitions |
-| `services/dream-npc/src/index.ts` | Dream NPC Express server (port 4000, CORS) |
-| `services/dream-npc/src/dreamNpc.ts` | NPC chat: rate limiting, caching, Gemini API, personalities |
+| `services/dream-npc-go/src/index.ts` | Dream NPC Express server (port 4000, CORS) |
+| `services/dream-npc-go/src/dreamNpc.ts` | NPC chat: rate limiting, caching, Gemini API, personalities |
 
 ### How to Test Dream Mode
 
 1. `cd server && npm run start` (port 2567)
-2. `cd services/dream-npc && GEMINI_API_KEY=... npm start` (port 4000)
+2. `cd services/dream-npc-go && GEMINI_API_KEY=... npm start` (port 4000)
 3. `cd client-3d && pnpm dev` (port 5175)
 4. `cd client-dream && pnpm dev` (port 5176)
 4. Join MyRoom from lobby
@@ -2759,7 +2759,7 @@ This repo now includes a working VPS deployment bundle under `deploy/hetzner/` t
 - `deploy/hetzner/docker-compose.yml`
 - `deploy/hetzner/Caddyfile`
 - `deploy/hetzner/.env.example` (copy to `.env` on the VPS; do not commit)
-- `services/dream-npc/Dockerfile`
+- `services/dream-npc-go/Dockerfile`
 
 #### Ports
 
@@ -2768,14 +2768,14 @@ This repo now includes a working VPS deployment bundle under `deploy/hetzner/` t
 - Container-internal:
   - `2567` (server)
   - `8081` (youtube-api)
-  - `4000` (dream-npc)
+  - `4000` (dream-npc-go)
   - `4416` (pot-provider)
 
 #### Environment variables (VPS)
 
 - `PROXY_URL` (recommended)
 - `YOUTUBE_COOKIES` (optional; for age-restricted content)
-- `GEMINI_API_KEY` (required for dream-npc service)
+- `GEMINI_API_KEY` (required for dream-npc-go service)
 
 #### Client build config (Cloudflare Pages)
 
@@ -2852,7 +2852,7 @@ Supabase Auth as a standalone service for user authentication. Only using Supaba
 ┌─────────────────────────────────────────────────────────────┐
 │  Hetzner VPS (Docker Compose)                               │
 │  ┌─────────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐ │
-│  │  Colyseus    │ │ youtube  │ │ dream-npc│ │ PostgreSQL │ │
+│  │  Colyseus    │ │ youtube  │ │ dream-npc-go│ │ PostgreSQL │ │
 │  │  server      │ │ -api (Go)│ │ (Express)│ │            │ │
 │  │  :2567       │ │ :8081    │ │ :4000    │ │ :5432      │ │
 │  └──────┬───────┘ └──────────┘ └──────────┘ └────────────┘ │

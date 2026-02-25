@@ -20,7 +20,6 @@ export default defineConfig({
     '@colyseus/schema',
     '@colyseus/tools',
     '@colyseus/uwebsockets-transport',
-    'bcrypt',
     'uuid',
     'uwebsockets-express',
     'axios',

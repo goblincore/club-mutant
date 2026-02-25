@@ -16,7 +16,8 @@ export function LobbyScreen() {
   const [characters, setCharacters] = useState<CharacterEntry[]>(() => getCharactersSync())
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [name, setName] = useState('')
-  const [connecting, setConnecting] = useState(false)
+  const [connectingTarget, setConnectingTarget] = useState<'public' | 'myroom' | 'custom' | null>(null)
+  const connecting = connectingTarget !== null
   const [error, setError] = useState<string | null>(null)
   const [screen, setScreen] = useState<Screen>('character-select')
   const [roomSubView, setRoomSubView] = useState<RoomSubView>('choose')
@@ -37,11 +38,21 @@ export function LobbyScreen() {
     })
   }, [])
 
-  // Initialize NetworkManager but do NOT eagerly connect to the lobby.
-  // We'll connect when the user decides they want to see the server list.
+  // Initialize NetworkManager eagerly
   useEffect(() => {
     getNetwork()
   }, [])
+
+  // Warm up the server connection and start lobby join when Screen 2 mounts.
+  // The health fetch establishes a live HTTP/2 connection (TLS session reuse),
+  // and the lobby join runs in the background so "Custom Rooms" is instant.
+  useEffect(() => {
+    if (screen !== 'room-select') return
+    const net = getNetwork()
+    const httpUrl = (import.meta.env.VITE_WS_ENDPOINT || 'ws://localhost:2567').replace(/^ws/, 'http')
+    fetch(`${httpUrl}/health`, { mode: 'cors' }).catch(() => {})
+    net.ensureLobbyJoined().catch(() => {})
+  }, [screen])
 
   // Detect ?room=ROOM_ID in URL for direct room join links
   useEffect(() => {
@@ -92,7 +103,7 @@ export function LobbyScreen() {
     const trimmed = name.trim()
     if (!trimmed || !selectedChar) return
 
-    setConnecting(true)
+    setConnectingTarget('custom')
     setError(null)
 
     try {
@@ -118,7 +129,7 @@ export function LobbyScreen() {
         setRoomSubView('choose')
       }
     } finally {
-      setConnecting(false)
+      setConnectingTarget(null)
     }
   }
 
@@ -144,7 +155,7 @@ export function LobbyScreen() {
     const trimmed = name.trim()
     if (!trimmed || !selectedChar) return
 
-    setConnecting(true)
+    setConnectingTarget('public')
     setError(null)
 
     try {
@@ -154,7 +165,7 @@ export function LobbyScreen() {
       setError('Failed to connect. Is the server running?')
       console.error(err)
     } finally {
-      setConnecting(false)
+      setConnectingTarget(null)
     }
   }
 
@@ -163,7 +174,7 @@ export function LobbyScreen() {
     const trimmed = name.trim()
     if (!trimmed || !selectedChar) return
 
-    setConnecting(true)
+    setConnectingTarget('myroom')
     setError(null)
 
     try {
@@ -173,7 +184,7 @@ export function LobbyScreen() {
       setError('Failed to connect. Is the server running?')
       console.error(err)
     } finally {
-      setConnecting(false)
+      setConnectingTarget(null)
     }
   }
 
@@ -393,81 +404,96 @@ export function LobbyScreen() {
                     }}
                   >
                     <div className="flex flex-col gap-3">
-                      {connecting ? (
-                        <div className="flex flex-col items-center justify-center p-8 gap-4">
-                          <span className="w-8 h-8 border-4 border-white/30 border-t-white rounded-full animate-spin" />
-                          <span className="text-white font-mono font-bold text-lg animate-pulse tracking-widest">
-                            CONNECTING...
-                          </span>
-                        </div>
-                      ) : (
-                        <>
-                          {/* Global Lobby button */}
-                          <button
-                            onClick={handleJoinPublic}
-                            onKeyDown={handleKeyDown}
-                            className="lobby-btn w-full relative overflow-hidden group
-                                       bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-4
-                                       text-base font-mono font-bold text-white
-                                       hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
-                                       transition-all duration-300"
-                          >
-                            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
-                                            translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
-                            <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
-                              Global Lobby
+                      {/* Global Lobby button */}
+                      <button
+                        onClick={handleJoinPublic}
+                        onKeyDown={handleKeyDown}
+                        disabled={connecting}
+                        className="lobby-btn w-full relative overflow-hidden group
+                                   bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-4
+                                   text-base font-mono font-bold text-white
+                                   hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
+                                   disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-700/40
+                                   transition-all duration-300"
+                      >
+                        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
+                                        translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+                        <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
+                          {connectingTarget === 'public' ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              connecting...
                             </span>
-                          </button>
+                          ) : 'Global Lobby'}
+                        </span>
+                      </button>
 
-                          {/* Custom Rooms button */}
-                          <button
-                            onClick={async () => {
-                              setConnecting(true)
-                              try {
-                                await getNetwork().ensureLobbyJoined()
-                                setRoomSubView('browse')
-                              } catch (err) {
-                                setError('Failed to load room list')
-                              } finally {
-                                setConnecting(false)
-                              }
-                            }}
-                            className="lobby-btn w-full relative overflow-hidden group
-                                       bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-4
-                                       text-base font-mono font-bold text-white
-                                       hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
-                                       transition-all duration-300"
-                          >
-                            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
-                                            translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
-                            <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
-                              Custom Rooms
+                      {/* Custom Rooms button */}
+                      <button
+                        onClick={async () => {
+                          // If lobby already joined eagerly, skip straight to browse
+                          if (lobbyJoined) {
+                            setRoomSubView('browse')
+                            return
+                          }
+                          setConnectingTarget('custom')
+                          try {
+                            await getNetwork().ensureLobbyJoined()
+                            setRoomSubView('browse')
+                          } catch (err) {
+                            setError('Failed to load room list')
+                          } finally {
+                            setConnectingTarget(null)
+                          }
+                        }}
+                        disabled={connecting}
+                        className="lobby-btn w-full relative overflow-hidden group
+                                   bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-4
+                                   text-base font-mono font-bold text-white
+                                   hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
+                                   disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-700/40
+                                   transition-all duration-300"
+                      >
+                        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
+                                        translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+                        <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
+                          {connectingTarget === 'custom' ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              connecting...
                             </span>
-                          </button>
+                          ) : 'Custom Rooms'}
+                        </span>
+                      </button>
 
-                          {/* My Room button */}
-                          <button
-                            onClick={handleJoinMyRoom}
-                            className="lobby-btn w-full relative overflow-hidden group
-                                       bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-4
-                                       text-base font-mono font-bold text-white
-                                       hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
-                                       transition-all duration-300"
-                          >
-                            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
-                                            translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
-                            <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
-                              My Room
+                      {/* My Room button */}
+                      <button
+                        onClick={handleJoinMyRoom}
+                        disabled={connecting}
+                        className="lobby-btn w-full relative overflow-hidden group
+                                   bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-4
+                                   text-base font-mono font-bold text-white
+                                   hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
+                                   disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-700/40
+                                   transition-all duration-300"
+                      >
+                        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
+                                        translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+                        <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
+                          {connectingTarget === 'myroom' ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              connecting...
                             </span>
-                          </button>
+                          ) : 'My Room'}
+                        </span>
+                      </button>
 
-                          {/* Error message */}
-                          {error && (
-                            <p className="lobby-error-enter text-rave-pink text-sm font-mono text-center font-bold">
-                              {error}
-                            </p>
-                          )}
-                        </>
+                      {/* Error message */}
+                      {error && (
+                        <p className="lobby-error-enter text-rave-pink text-sm font-mono text-center font-bold">
+                          {error}
+                        </p>
                       )}
                     </div>
                   </div>

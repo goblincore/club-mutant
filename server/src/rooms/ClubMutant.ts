@@ -1,4 +1,4 @@
-import bcrypt from 'bcrypt'
+import { createHash, timingSafeEqual } from 'crypto'
 import { Room, Client, ServerError, CloseCode } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
 
@@ -711,8 +711,7 @@ export class ClubMutant extends Room {
 
     let hasPassword = false
     if (password) {
-      const salt = await bcrypt.genSalt(10)
-      this.password = await bcrypt.hash(password, salt)
+      this.password = createHash('sha256').update(password).digest('hex')
       hasPassword = true
     }
     this.setMetadata({ name, description, hasPassword, musicMode: this.musicMode })
@@ -1087,14 +1086,15 @@ export class ClubMutant extends Room {
     })
   }
 
-  async onAuth(client: Client, options: { password: string | null }) {
+  onAuth(client: Client, options: { password: string | null }) {
     if (this.password) {
       if (!options.password) {
         throw new ServerError(403, 'Password is required!')
       }
 
-      const isValidPassword = await bcrypt.compare(options.password, this.password)
-      if (!isValidPassword) {
+      const inputHash = createHash('sha256').update(options.password).digest('hex')
+      const isValid = timingSafeEqual(Buffer.from(this.password), Buffer.from(inputHash))
+      if (!isValid) {
         throw new ServerError(403, 'Password is incorrect!')
       }
     }
