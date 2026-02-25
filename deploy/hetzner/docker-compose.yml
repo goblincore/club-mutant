@@ -42,7 +42,6 @@ services:
       - PROXY_URL=${PROXY_URL}
       - POT_PROVIDER_URL=http://pot-provider:4416
       - YOUTUBE_COOKIES=${YOUTUBE_COOKIES}
-      - USE_RUSTY_YTDL=${USE_RUSTY_YTDL:-false}
     expose:
       - '8081'
     depends_on:

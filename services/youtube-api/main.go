@@ -538,94 +538,8 @@ func isBotDetectionError(stderr string) bool {
 	return false
 }
 
-// RustyYtdlResponse matches the JSON output from rusty-ytdl-hybrid binary
-type RustyYtdlResponse struct {
-	URL        string  `json:"url"`
-	ExpiresAt  int64   `json:"expires_at"`
-	Quality    string  `json:"quality"`
-	VideoOnly  bool    `json:"video_only"`
-	ResolvedAt int64   `json:"resolved_at"`
-	Error      *string `json:"error,omitempty"`
-}
-
-// resolveWithRustyYtdl calls the Rust-based hybrid resolver (faster than yt-dlp)
-func (s *Server) resolveWithRustyYtdl(videoID string, videoOnly bool) (*ResolveResponse, error) {
-	// Use 144 to match yt-dlp's "160/133/134" format preference (144p first)
-	args := []string{"--resolve", videoID, "--quality", "144"}
-	if videoOnly {
-		args = append(args, "--video-only")
-	}
-
-	// Add proxy if configured
-	proxyURL := os.Getenv("PROXY_URL")
-	if proxyURL != "" {
-		args = append(args, "--proxy", proxyURL)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	log.Printf("[rusty-ytdl] Running: rusty-ytdl-hybrid %v", args)
-	cmd := exec.CommandContext(ctx, "rusty-ytdl-hybrid", args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	startTime := time.Now()
-	err := cmd.Run()
-	elapsed := time.Since(startTime)
-
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			log.Printf("[rusty-ytdl] TIMEOUT after %v for %s", elapsed, videoID)
-		} else {
-			log.Printf("[rusty-ytdl] Failed for %s after %v: %v, stderr: %s", videoID, elapsed, err, stderr.String())
-		}
-		return nil, err
-	}
-
-	log.Printf("[rusty-ytdl] Completed %s in %v", videoID, elapsed)
-	log.Printf("[rusty-ytdl] Raw output for %s: %s", videoID, stdout.String())
-
-	var resp RustyYtdlResponse
-	if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
-		log.Printf("[rusty-ytdl] Failed to parse JSON for %s: %v, stdout: %s", videoID, err, stdout.String())
-		return nil, fmt.Errorf("failed to parse rusty-ytdl output: %v", err)
-	}
-
-	if resp.Error != nil {
-		return nil, fmt.Errorf("rusty-ytdl error: %s", *resp.Error)
-	}
-
-	if resp.URL == "" {
-		return nil, fmt.Errorf("rusty-ytdl returned empty URL")
-	}
-
-	expiresAtMs := resp.ExpiresAt
-	return &ResolveResponse{
-		VideoID:          videoID,
-		URL:              resp.URL,
-		ExpiresAtMs:      &expiresAtMs,
-		ResolvedAt:       resp.ResolvedAt,
-		VideoOnly:        resp.VideoOnly,
-		Quality:          resp.Quality,
-		ResolvedViaProxy: proxyURL != "",
-	}, nil
-}
-
-// resolveVideo tries rusty-ytdl if enabled, otherwise uses yt-dlp
+// resolveVideo resolves a YouTube video URL via yt-dlp
 func (s *Server) resolveVideo(videoID string, videoOnly bool) (*ResolveResponse, error) {
-	// Default to yt-dlp - rusty-ytdl's n-param transform is broken for current YouTube players
-	useRusty := os.Getenv("USE_RUSTY_YTDL") == "true"
-
-	if useRusty {
-		resp, err := s.resolveWithRustyYtdl(videoID, videoOnly)
-		if err == nil {
-			return resp, nil
-		}
-		log.Printf("[resolve] rusty-ytdl failed for %s, falling back to yt-dlp: %v", videoID, err)
-	}
-
 	return s.resolveWithYtDlp(videoID, videoOnly)
 }
 
@@ -1584,11 +1498,7 @@ func main() {
 
 	log.Printf("YouTube API service starting on port %s", port)
 	log.Printf("Cache TTL: %d seconds", cacheTTLSeconds)
-	if os.Getenv("USE_RUSTY_YTDL") == "true" {
-		log.Printf("[resolver] Using rusty-ytdl with yt-dlp fallback")
-	} else {
-		log.Printf("[resolver] Using yt-dlp only (default)")
-	}
+	log.Printf("[resolver] Using yt-dlp")
 
 	// Pre-warm PO token cache in background
 	go prewarmPOToken()

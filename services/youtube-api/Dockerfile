@@ -24,10 +24,6 @@ RUN apk add --no-cache ca-certificates python3 py3-pip ffmpeg nodejs && \
 # Copy Go binary
 COPY --from=go-builder /app/youtube-api /youtube-api
 
-# Note: Rust rusty-ytdl-hybrid build removed - n-param transform broken for current YouTube players
-# To re-enable, restore rust-builder stage and COPY command below:
-# COPY --from=rust-builder /rust-app/rusty-ytdl-hybrid/target/release/rusty-ytdl-hybrid /usr/local/bin/rusty-ytdl-hybrid
-
 ENV PORT=8081
 
 EXPOSE 8081

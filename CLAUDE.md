@@ -65,7 +65,6 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
     - Endpoint: `POST /dream/npc-chat`
     - Production: `dream.mutante.club` (Caddy reverse proxy → dream-npc-go:4000)
   - `youtube-api/` — Go microservice for YouTube search + video URL resolution + proxy. See `services/youtube-api/README.md`. Key endpoints: `GET /search?q=...`, `GET /resolve?id=...`, `GET /proxy?id=...` (streams video through server to avoid CORS), `GET /browse?url=...` (proxies arbitrary URLs for iframe embedding — server-side only, client disabled). Deployed via Docker in `deploy/hetzner/docker-compose.yml`.
-  - `rusty-ytdl-hybrid/` — Rust CLI for fast YouTube URL resolution (used by youtube-api as primary resolver, falls back to yt-dlp)
   - `pot-provider-rust/` — PO token provider for YouTube auth
 - `tools/`
   - `paper-rig-editor/` — Vite + React + r3f character rig editor for building paper-doll characters. See `tools/paper-rig-editor/README.md` for full docs.
@@ -339,48 +338,21 @@ Uses Colyseus 0.17's `onDrop`/`onReconnect` lifecycle for graceful reconnection 
   - `'reconnecting'` → spinner + "Reconnecting..." message
   - `'disconnected'` (after having been connected) → "Disconnected" + "Refresh" button (`window.location.reload()`)
 
-## YouTube Video Resolution (rusty-ytdl-hybrid)
+## YouTube Video Resolution
 
-The `youtube-api` Go service resolves YouTube video URLs for streaming. It has two resolution paths:
-
-### Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Go youtube-api service                   │
-│                                                             │
-│  resolveVideo() → tries rusty-ytdl first, falls back to yt-dlp
-│         │                           │                       │
-│         ▼                           ▼                       │
-│  rusty-ytdl-hybrid (Rust)      yt-dlp (Python)             │
-│    ~2-3s resolve                  ~4-5s resolve            │
-└─────────────────────────────────────────────────────────────┘
-```
+The `youtube-api` Go service resolves YouTube video URLs for streaming via yt-dlp.
 
 ### Key Files
 
 | File                              | Purpose                                                         |
 | --------------------------------- | --------------------------------------------------------------- |
-| `services/youtube-api/main.go`    | Go service with `resolveWithRustyYtdl()` + `resolveWithYtDlp()` |
-| `services/rusty-ytdl-hybrid/`     | Rust CLI binary using rusty_ytdl + ytdlp-ejs                    |
-| `services/rusty_ytdl_fork/`       | Local fork with `client_type` option                            |
-| `services/youtube-api/Dockerfile` | Multi-stage build (Rust nightly + Go)                           |
-
-### The 403 Problem & Solution
-
-**Problem**: rusty_ytdl hardcodes ANDROID innertube client. ANDROID URLs get 403 errors on Hetzner.
-
-**Solution**: Created local fork (`rusty_ytdl_fork`) that adds configurable `client_type`:
-
-- Added `client_type: Option<String>` to `RequestOptions` in `structs.rs`
-- Modified `info.rs` to use configured client instead of hardcoded `android_sdkless`
-- Set to `"web"` in resolver to match yt-dlp's behavior
+| `services/youtube-api/main.go`    | Go service with `resolveWithYtDlp()`                            |
+| `services/youtube-api/Dockerfile` | Go + yt-dlp runtime                                             |
 
 ### Environment Variables
 
 | Variable           | Default | Description                                |
 | ------------------ | ------- | ------------------------------------------ |
-| `USE_RUSTY_YTDL`   | `true`  | Use Rust resolver (set `false` to disable) |
 | `PROXY_URL`        | -       | ISP proxy for resolution                   |
 | `POT_PROVIDER_URL` | -       | PO token provider fallback                 |
 
@@ -392,14 +364,6 @@ cd deploy/hetzner && docker compose build --no-cache youtube-api
 docker compose up -d --force-recreate youtube-api
 docker compose logs -f youtube-api  # Check logs
 ```
-
-### Log Indicators
-
-- **Success**: `[rusty-ytdl] Completed <id>` + `[prefetch] Successfully prefetched`
-- **403 error**: `[prefetch] Bad status: 403` → falls back to yt-dlp
-- **WEB client**: Look for `c=WEB` in URLs (vs `c=ANDROID`)
-
-See `docs/rusty-ytdl-hybrid-plan.md` for full details.
 
 ## Core runtime model
 
