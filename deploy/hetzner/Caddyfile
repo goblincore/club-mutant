@@ -5,11 +5,7 @@
 api.mutante.club {
   encode gzip
   # CORS handled by Colyseus server via matchMaker.controller.getCorsHeaders
-  reverse_proxy server:2567 {
-    transport http {
-      dial_timeout 5s
-    }
-  }
+  reverse_proxy server:2567
 }
 
 yt.mutante.club {
