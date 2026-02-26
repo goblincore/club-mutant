@@ -10,6 +10,7 @@ import { useGameStore, getPlayerPosition } from '../stores/gameStore'
 import { useUIStore } from '../stores/uiStore'
 import { NightSky } from '../shaders/NightSky'
 import { InteractableObject } from './InteractableObject'
+import { AudioReactiveVideoMaterial } from '../shaders/AudioReactiveVideoMaterial'
 
 interface JukeboxRoomProps {
   videoTexture?: THREE.VideoTexture | null
@@ -849,11 +850,11 @@ function VideoDisplay({
         <boxGeometry args={[SCREEN_W + 0.08, SCREEN_H + 0.08, 0.08]} />
         <meshStandardMaterial color="#111" roughness={0.7} />
       </mesh>
-      {/* Screen */}
+      {/* Screen — audio-reactive shader when video, basic when slideshow/off */}
       <mesh position={[0, 0, 0.001]}>
         <planeGeometry args={[SCREEN_W, SCREEN_H]} />
         {displayTexture ? (
-          <meshBasicMaterial map={displayTexture} toneMapped={false} />
+          <AudioReactiveVideoMaterial videoTexture={displayTexture} />
         ) : (
           <meshStandardMaterial color="#060810" emissive="#030408" emissiveIntensity={0.5} />
         )}
@@ -1108,22 +1109,20 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
       if (attachments) {
         attachments.traverse((child) => {
           if (child instanceof THREE.Mesh && child.material) {
-            const m = child.material as THREE.Material & {
-              opacity?: number
-              depthWrite?: boolean
-              emissiveIntensity?: number
-              side?: number
+            const m = child.material as any
+            // Handle ShaderMaterial (AudioReactiveVideoMaterial) via uOpacity uniform
+            if (m.uniforms?.uOpacity) {
+              m.uniforms.uOpacity.value = opacity
+              m.depthWrite = !faded
+              m.side = faded ? THREE.DoubleSide : THREE.FrontSide
+              return
             }
             if (!m.transparent) {
               m.transparent = true
               m.needsUpdate = true
             }
-            // If the mesh uses meshBasicMaterial (like neon sign or video screen), we must lower its opacity explicitly
             m.opacity = opacity
             m.depthWrite = !faded
-            // When faded, render both sides so attachments are visible from
-            // behind the wall (planes/circles default to FrontSide which
-            // faces the room interior — invisible when camera is outside).
             m.side = faded ? THREE.DoubleSide : THREE.FrontSide
             // Scale down emissive glow so neon signs etc. fade with the wall
             if (typeof m.emissiveIntensity === 'number') {

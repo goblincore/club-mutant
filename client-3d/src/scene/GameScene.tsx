@@ -14,6 +14,7 @@ import { PlayerEntity } from './PlayerEntity'
 import { useGameStore } from '../stores/gameStore'
 import { usePlayerInput, setClickTarget } from '../input/usePlayerInput'
 import { useVideoBackground } from '../hooks/useVideoBackground'
+import { useAudioAnalyser } from '../hooks/useAudioAnalyser'
 import { useSlideshowTexture } from '../hooks/useSlideshowTexture'
 import { characterPathForTextureId } from '../character/characterRegistry'
 
@@ -95,6 +96,7 @@ function DynamicBackground() {
 
 function SceneContent() {
   const videoTexture = useVideoBackground()
+  useAudioAnalyser() // Frequency analysis → module-level state for audio-reactive shaders
   const slideshowTexture = useSlideshowTexture(!videoTexture)
   const roomType = useGameStore((s) => s.roomType)
   const musicMode = useGameStore((s) => s.musicMode)

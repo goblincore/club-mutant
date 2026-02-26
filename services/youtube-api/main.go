@@ -107,6 +107,7 @@ type ResolveResponse struct {
 	ExpiresAtMs      *int64 `json:"expiresAtMs"`
 	ResolvedAt       int64  `json:"resolvedAtMs"`
 	VideoOnly        bool   `json:"videoOnly"`
+	AudioOnly        bool   `json:"audioOnly"`
 	Quality          string `json:"quality"`
 	ResolvedViaProxy bool   `json:"resolvedViaProxy"` // Track if proxy was used for resolution
 }
@@ -426,13 +427,29 @@ func parseExpiresFromURL(rawURL string) *int64 {
 	return &expireMs
 }
 
-func detectQualityFromURL(rawURL string, videoOnly bool) string {
+func detectQualityFromURL(rawURL string, videoOnly bool, audioOnly bool) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
 		return "unknown"
 	}
 
 	itag := parsed.Query().Get("itag")
+
+	if audioOnly {
+		// Audio-only itag mapping
+		itagAudio := map[string]string{
+			"139": "48kbps AAC",
+			"140": "128kbps AAC",
+			"141": "256kbps AAC",
+			"249": "50kbps Opus",
+			"250": "70kbps Opus",
+			"251": "160kbps Opus",
+		}
+		if label, ok := itagAudio[itag]; ok {
+			return label + " audio-only"
+		}
+		return "unknown audio-only"
+	}
 
 	// Common YouTube itag -> resolution mapping
 	itagResolutions := map[string]string{
@@ -539,18 +556,18 @@ func isBotDetectionError(stderr string) bool {
 }
 
 // resolveVideo resolves a YouTube video URL via yt-dlp
-func (s *Server) resolveVideo(videoID string, videoOnly bool) (*ResolveResponse, error) {
-	return s.resolveWithYtDlp(videoID, videoOnly)
+func (s *Server) resolveVideo(videoID string, videoOnly bool, audioOnly bool) (*ResolveResponse, error) {
+	return s.resolveWithYtDlp(videoID, videoOnly, audioOnly)
 }
 
 // resolveWithYtDlp calls yt-dlp - tries ISP proxy first (faster), falls back to PO token
-func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveResponse, error) {
+func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool, audioOnly bool) (*ResolveResponse, error) {
 	proxyURL := os.Getenv("PROXY_URL")
 	potProviderURL := os.Getenv("POT_PROVIDER_URL")
 
 	// If ISP proxy is configured, try without PO token first (faster ~4s vs ~7s)
 	if proxyURL != "" {
-		resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, false)
+		resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, audioOnly, false)
 		if err == nil {
 			resp.ResolvedViaProxy = true
 			return resp, nil
@@ -560,7 +577,7 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 
 	// If PO provider is configured, use PO token
 	if potProviderURL != "" {
-		resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, true)
+		resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, audioOnly, true)
 		if err == nil {
 			resp.ResolvedViaProxy = false
 		}
@@ -570,7 +587,7 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 	// Local dev: neither proxy nor PO provider configured - try basic yt-dlp
 	// This may fail for some videos due to bot detection, but works for many
 	log.Printf("[resolve] No proxy or PO provider configured, trying basic yt-dlp for %s", videoID)
-	resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, false)
+	resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, audioOnly, false)
 	if err == nil {
 		resp.ResolvedViaProxy = false
 	}
@@ -578,7 +595,7 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool) (*ResolveRespo
 }
 
 // resolveWithYtDlpInternal is the actual yt-dlp call with optional PO token support
-func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOToken bool) (*ResolveResponse, error) {
+func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, audioOnly bool, usePOToken bool) (*ResolveResponse, error) {
 	// Acquire semaphore to limit concurrent yt-dlp processes
 	ytdlpSemaphore <- struct{}{}
 	defer func() { <-ytdlpSemaphore }()
@@ -590,7 +607,17 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 	// - PO token path: use selectors (JS runtime available)
 	proxyURL := os.Getenv("PROXY_URL")
 	var formatArg string
-	if proxyURL != "" && !usePOToken {
+	if audioOnly {
+		// Audio-only: prefer lowest bitrate for frequency analysis (48kbps is plenty)
+		if proxyURL != "" && !usePOToken {
+			// Proxy path itags: 139=48kbps AAC, 140=128kbps AAC, 249=50kbps Opus
+			formatArg = "139/249/140"
+		} else {
+			// PO token path: best audio ≤64kbps, fallback to any audio
+			formatArg = "ba[abr<=64]/ba"
+		}
+		log.Printf("[yt-dlp] Using audio-only format: %s", formatArg)
+	} else if proxyURL != "" && !usePOToken {
 		// Proxy path - use itags: 160=144p, 133=240p, 134=360p, 18=360p combined
 		// Prefer lowest resolution first (144p) — video wall renders through PSX shader at reduced res
 		formatArg = "18/160/133/134"
@@ -697,7 +724,7 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 	}
 
 	// Detect resolution from URL parameters (itag) or default
-	qualityLabel := detectQualityFromURL(resolvedURL, videoOnly)
+	qualityLabel := detectQualityFromURL(resolvedURL, videoOnly, audioOnly)
 	log.Printf("[yt-dlp] Resolved %s -> %s", videoID, qualityLabel)
 
 	return &ResolveResponse{
@@ -706,6 +733,7 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 		ExpiresAtMs: parseExpiresFromURL(resolvedURL),
 		ResolvedAt:  time.Now().UnixMilli(),
 		VideoOnly:   videoOnly,
+		AudioOnly:   audioOnly,
 		Quality:     qualityLabel,
 	}, nil
 }
@@ -722,9 +750,12 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	videoOnly := r.URL.Query().Get("videoOnly") != "false"
+	audioOnly := r.URL.Query().Get("audioOnly") == "true"
+	videoOnly := !audioOnly && r.URL.Query().Get("videoOnly") != "false"
 	cacheKey := videoID
-	if videoOnly {
+	if audioOnly {
+		cacheKey += ":audio"
+	} else if videoOnly {
 		cacheKey += ":video"
 	}
 
@@ -736,8 +767,8 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 
 	// Use singleflight to coalesce duplicate requests for the same video
 	result, err, shared := resolveGroup.Do(cacheKey, func() (interface{}, error) {
-		log.Printf("[resolve] Resolving %s (videoOnly=%v)", videoID, videoOnly)
-		return s.resolveVideo(videoID, videoOnly)
+		log.Printf("[resolve] Resolving %s (videoOnly=%v, audioOnly=%v)", videoID, videoOnly, audioOnly)
+		return s.resolveVideo(videoID, videoOnly, audioOnly)
 	})
 
 	if shared {
@@ -769,19 +800,26 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	videoOnly := r.URL.Query().Get("videoOnly") != "false"
+	audioOnly := r.URL.Query().Get("audioOnly") == "true"
+	videoOnly := !audioOnly && r.URL.Query().Get("videoOnly") != "false"
 	cacheKey := videoID
-	if videoOnly {
+	if audioOnly {
+		cacheKey += ":audio"
+	} else if videoOnly {
 		cacheKey += ":video"
 	}
 
 	rangeHeader := r.Header.Get("Range")
 
-	// Check video byte cache first (only for non-range requests or initial request)
+	// Check byte cache first (only for non-range requests or initial request)
 	if rangeHeader == "" || rangeHeader == "bytes=0-" {
 		if cachedData, found := s.videoCache.Get(cacheKey); found {
-			log.Printf("[proxy] Video cache hit for %s (%d bytes)", videoID, len(cachedData))
-			w.Header().Set("Content-Type", "video/mp4")
+			contentType := "video/mp4"
+			if audioOnly {
+				contentType = "audio/mp4"
+			}
+			log.Printf("[proxy] Cache hit for %s (%d bytes)", videoID, len(cachedData))
+			w.Header().Set("Content-Type", contentType)
 			w.Header().Set("Content-Length", strconv.Itoa(len(cachedData)))
 			w.Header().Set("Accept-Ranges", "bytes")
 			w.Header().Set("Cache-Control", "public, max-age=3600")
@@ -796,8 +834,8 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	if !found {
 		// Use singleflight to coalesce duplicate requests
 		result, err, _ := resolveGroup.Do(cacheKey, func() (interface{}, error) {
-			log.Printf("[proxy] Resolving %s (videoOnly=%v)", videoID, videoOnly)
-			return s.resolveVideo(videoID, videoOnly)
+			log.Printf("[proxy] Resolving %s (videoOnly=%v, audioOnly=%v)", videoID, videoOnly, audioOnly)
+			return s.resolveVideo(videoID, videoOnly, audioOnly)
 		})
 
 		if err != nil {
@@ -877,7 +915,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		// Re-resolve with fresh cache key to bypass any cached result
 		result, err, _ := resolveGroup.Do(cacheKey+":retry", func() (interface{}, error) {
 			log.Printf("[proxy] Re-resolving %s via yt-dlp after 403", videoID)
-			return s.resolveWithYtDlp(videoID, videoOnly)
+			return s.resolveWithYtDlp(videoID, videoOnly, audioOnly)
 		})
 
 		if err != nil {
@@ -1023,7 +1061,7 @@ func (s *Server) handlePrefetch(w http.ResponseWriter, r *http.Request) {
 
 		// Resolve the video URL
 		result, err, _ := resolveGroup.Do(cacheKey, func() (interface{}, error) {
-			return s.resolveVideo(videoID, true)
+			return s.resolveVideo(videoID, true, false)
 		})
 
 		if err != nil {

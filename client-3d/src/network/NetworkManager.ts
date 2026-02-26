@@ -867,6 +867,11 @@ export class NetworkManager {
     return `${this.youtubeBaseUrl}/proxy/${videoId}`
   }
 
+  // Get proxied audio-only URL for frequency analysis (48kbps AAC, ~360KB/min)
+  getYouTubeAudioProxyUrl(videoId: string): string {
+    return `${this.youtubeBaseUrl}/proxy/${videoId}?audioOnly=true&videoOnly=false`
+  }
+
   get sessionId(): string | undefined {
     return this.room?.sessionId
   }

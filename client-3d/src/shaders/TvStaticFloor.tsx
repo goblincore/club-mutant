@@ -4,6 +4,7 @@ import * as THREE from 'three'
 
 import { getTime } from '../scene/TrampolineRipples'
 import { bakeDisplacement, getDisplacementTexture, DISP_ROOM_SIZE } from './DisplacementBaker'
+import { audioBass, audioEnergy, audioAnalyserActive } from '../hooks/useAudioAnalyser'
 
 // Animated TV static floor material — ported from 2D client's TvStaticPostFxPipeline
 // Renders per-pixel noise with frame jitter and subtle color tinting
@@ -52,6 +53,8 @@ varying vec2 vUv;
 
 uniform float uTime;
 uniform vec2 uScale;
+uniform float uAudioBass;
+uniform float uAudioEnergy;
 
 // High quality hash — matches 2D client
 float hash(vec2 p) {
@@ -84,12 +87,18 @@ void main() {
   vec3 tintA = vec3(0.15, 0.05, 0.25); // dark purple
   vec3 tintB = vec3(0.05, 0.15, 0.2);  // dark teal
 
-  // Slowly shift tint over time
-  float tintMix = sin(uTime * 0.3) * 0.5 + 0.5;
+  // Audio-reactive: shift tint faster with energy, bass pushes toward brighter teal
+  float tintMix = sin(uTime * (0.3 + uAudioEnergy * 2.0)) * 0.5 + 0.5;
+  tintMix = clamp(tintMix + uAudioBass * 0.3, 0.0, 1.0);
   vec3 tint = mix(tintA, tintB, tintMix);
 
   // Mix noise with tint — mostly dark with bright speckles
-  vec3 color = tint + vec3(noise) * 0.45;
+  // Audio-reactive: bass boosts the noise brightness (floor flashes on kicks)
+  float noiseBrightness = 0.45 + uAudioBass * 0.35;
+  vec3 color = tint + vec3(noise) * noiseBrightness;
+
+  // Audio-reactive: overall energy lifts the base brightness
+  color += vec3(uAudioEnergy * 0.08);
 
   // Horizontal scan bands (subtle)
   float scanline = sin(pixCoord.y * 3.14159 * 2.0) * 0.03;
@@ -118,6 +127,8 @@ export function TvStaticFloorMaterial() {
       uScale: { value: new THREE.Vector2(120, 120) },
       uDisplacementMap: { value: getDisplacementTexture() },
       uRoomSize: { value: DISP_ROOM_SIZE },
+      uAudioBass: { value: 0 },
+      uAudioEnergy: { value: 0 },
     }),
     []
   )
@@ -125,6 +136,15 @@ export function TvStaticFloorMaterial() {
   useFrame(() => {
     if (!matRef.current) return
     updateDisplacementUniforms(matRef.current)
+
+    // Feed audio frequency data to floor shader
+    if (audioAnalyserActive) {
+      matRef.current.uniforms.uAudioBass.value = audioBass
+      matRef.current.uniforms.uAudioEnergy.value = audioEnergy
+    } else {
+      matRef.current.uniforms.uAudioBass.value *= 0.95
+      matRef.current.uniforms.uAudioEnergy.value *= 0.95
+    }
   })
 
   return (

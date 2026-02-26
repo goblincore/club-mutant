@@ -6,6 +6,7 @@ import { useGameStore, getPlayerPosition } from '../stores/gameStore'
 import { useBoothStore } from '../stores/boothStore'
 import { useUIStore } from '../stores/uiStore'
 import { TvStaticFloorMaterial, FLOOR_SEGMENTS } from '../shaders/TvStaticFloor'
+import { AudioReactiveVideoMaterial } from '../shaders/AudioReactiveVideoMaterial'
 import { TrampolineGrid } from '../shaders/TrampolineGrid'
 import { TrippySky } from '../shaders/TrippySky'
 import { BrickWallMaterial } from '../shaders/BrickWallMaterial'
@@ -572,11 +573,11 @@ function VideoDisplay({
         <meshStandardMaterial color="#0a0a0a" />
       </mesh>
 
-      {/* Screen surface */}
+      {/* Screen surface — audio-reactive shader when video, basic when slideshow/off */}
       <mesh position={[0, 0, 0.001]}>
         <planeGeometry args={[SCREEN_W, SCREEN_H]} />
         {displayTexture ? (
-          <meshBasicMaterial map={displayTexture} toneMapped={false} />
+          <AudioReactiveVideoMaterial videoTexture={displayTexture} />
         ) : (
           <meshStandardMaterial color="#080812" emissive="#060610" emissiveIntensity={0.3} />
         )}
@@ -791,7 +792,14 @@ export function Room({ videoTexture, slideshowTexture }: RoomProps) {
       if (attachments) {
         attachments.traverse((child) => {
           if (child instanceof THREE.Mesh && child.material) {
-            const m = child.material as THREE.MeshStandardMaterial | THREE.MeshBasicMaterial
+            const m = child.material as any
+            // Handle ShaderMaterial (AudioReactiveVideoMaterial) via uOpacity uniform
+            if (m.uniforms?.uOpacity) {
+              m.uniforms.uOpacity.value = opacity
+              m.depthWrite = !faded
+              m.side = faded ? THREE.DoubleSide : THREE.FrontSide
+              return
+            }
             m.transparent = true
             m.opacity = opacity
             m.depthWrite = !faded
