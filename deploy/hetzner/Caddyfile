@@ -37,13 +37,14 @@ upload.mutante.club {
   reverse_proxy image-upload:4001
 }
 
-proxy.mutante.club {
-  encode gzip
-
-  # Strip iframe-blocking headers so the 3D client can embed external sites
-  reverse_proxy https://jmail.world {
-    header_up Host jmail.world
-    header_down -X-Frame-Options
-    header_down -Content-Security-Policy
-  }
-}
+# DISABLED — proxy.mutante.club has no DNS record, causing Caddy to loop
+# on TLS cert provisioning (NXDOMAIN) which blocks all other domains.
+# Re-enable once a DNS A record is created for proxy.mutante.club.
+# proxy.mutante.club {
+#   encode gzip
+#   reverse_proxy https://jmail.world {
+#     header_up Host jmail.world
+#     header_down -X-Frame-Options
+#     header_down -Content-Security-Policy
+#   }
+# }
