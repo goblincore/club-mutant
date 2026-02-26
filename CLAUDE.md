@@ -58,11 +58,11 @@ This file is a high-signal, “get back up to speed fast” reference for the `g
   - Schema state: `server/src/rooms/schema/OfficeState.ts`
   - Commands: `server/src/rooms/commands/*`
 - `services/`
-  - `dream-npc-go/` — Standalone Express 4 microservice for Dream NPC AI chat. Separated from Colyseus server to avoid uWebSockets transport conflicts with Express middleware.
-    - Tech: Express 4 + cors + tsx
-    - Dev server: port 4000 (`cd services/dream-npc-go && GEMINI_API_KEY=... npm start`)
-    - Key files: `src/index.ts` (Express server + CORS), `src/dreamNpc.ts` (Gemini API, rate limiting, caching, NPC personalities)
-    - Endpoint: `POST /dream/npc-chat`
+  - `dream-npc-go/` — Standalone Go microservice for Dream NPC + Lily bartender AI chat. Separated from Colyseus server to avoid uWebSockets transport conflicts.
+    - Tech: Go + Fiber v2
+    - Dev server: port 4000 (`cd services/dream-npc-go && GEMINI_API_KEY=... MEM0_API_KEY=... go run .`)
+    - Key dirs: `npc/` (chat handler, personalities, mem0 client, caching, rate limiting, types), `main.go` (Fiber server + CORS)
+    - Endpoints: `POST /dream/npc-chat`, `POST /bartender/npc-chat`
     - Production: `dream.mutante.club` (Caddy reverse proxy → dream-npc-go:4000)
   - `youtube-api/` — Go microservice for YouTube search + video URL resolution + proxy. Called directly by client-3d (no Colyseus proxy). See `services/youtube-api/README.md`. Key endpoints: `GET /search?q=...`, `GET /resolve/{videoId}`, `GET /proxy/{videoId}` (streams video to avoid CORS), `GET /browse?url=...` (proxies arbitrary URLs for iframe embedding — server-side only, client disabled), `POST /prefetch/{videoId}` (server-initiated cache warming). Deployed via Docker in `deploy/hetzner/docker-compose.yml`.
   - `pot-provider-rust/` — PO token provider for YouTube auth
@@ -192,8 +192,8 @@ Works mathematically but visual feel needs more tuning. **Alternatives to explor
 - **Client**: `cd client && npm run dev`
   - Runs Vite dev server
 - **3D Client**: `cd client-3d && pnpm dev` (port 5175)
-- **Dream NPC Service**: `cd services/dream-npc-go && GEMINI_API_KEY=... npm start` (port 4000)
-  - Standalone Express service for AI NPC chat (separated from Colyseus to avoid uWS conflicts)
+- **Dream NPC Service**: `cd services/dream-npc-go && GEMINI_API_KEY=... MEM0_API_KEY=... go run .` (port 4000)
+  - Standalone Go/Fiber service for AI NPC chat (separated from Colyseus to avoid uWS conflicts)
 - **Dream Client**: `cd client-dream && pnpm dev` (port 5176)
   - For dream mode development, run all four: server + dream-npc-go + client-3d + client-dream
 
@@ -1259,8 +1259,10 @@ YouTube ID into a direct playable video URL:
 - **Jukebox store**: `client-3d/src/stores/jukeboxStore.ts`
 - **Shared message enum**: `types/Messages.ts`
 - **Room types + music modes**: `types/Rooms.ts`
-- **Dream NPC chat handler**: `services/dream-npc-go/src/dreamNpc.ts`
-- **Dream NPC service entry**: `services/dream-npc-go/src/index.ts`
+- **Dream NPC chat handler**: `services/dream-npc-go/npc/chat.go`
+- **Dream NPC personalities**: `services/dream-npc-go/npc/personalities.go`
+- **Dream NPC mem0 memory**: `services/dream-npc-go/npc/mem0.go`
+- **Dream NPC service entry**: `services/dream-npc-go/main.go`
 - **Dream iframe bridge (3D client)**: `client-3d/src/ui/DreamIframe.tsx`
 - **Dream store (3D client)**: `client-3d/src/dream/dreamStore.ts`
 - **Dream scene (Phaser)**: `client-dream/src/phaser/scenes/DreamScene.ts`
@@ -1611,12 +1613,20 @@ A server-side AI bartender NPC named Lily who lives in the Jukebox Room. She's a
 │    - Chat routing + chunked delivery     │
 │    - Conversational window (20s)         │
 │    - Spontaneous music commentary        │
+│    - Passes playerId for mem0 identity   │
 │              │ HTTP POST                 │
 │              ▼                           │
 │  ┌────────────────────────────────────┐  │
-│  │  dream-npc-go (Express 4, port 4000) │  │
-│  │  POST /bartender/npc-chat         │  │
-│  │  Gemini 2.5 Flash-Lite            │  │
+│  │  dream-npc-go (Go/Fiber, port 4000)│  │
+│  │  POST /bartender/npc-chat          │  │
+│  │  Gemini 2.5 Flash-Lite + mem0      │  │
+│  └───────────────┬────────────────────┘  │
+│                  │ HTTP (parallel search, │
+│                  │ fire-and-forget add)   │
+│                  ▼                        │
+│  ┌────────────────────────────────────┐  │
+│  │  mem0 Platform API                 │  │
+│  │  api.mem0.ai (managed)             │  │
 │  └────────────────────────────────────┘  │
 └──────────────────────────────────────────┘
 ```
@@ -1672,13 +1682,41 @@ Lily is a small being — she can't handle too many people talking at once:
 
 ### Dream-NPC Service (`POST /bartender/npc-chat`)
 
-- **Endpoint**: `services/dream-npc-go/src/index.ts` registers `/bartender/npc-chat` alongside the existing `/dream/npc-chat`.
-- **Request**: `{ personalityId, message, history, roomId, senderName, musicContext }`
+- **Endpoint**: `services/dream-npc-go/main.go` registers `/bartender/npc-chat` alongside the existing `/dream/npc-chat`.
+- **Request**: `{ personalityId, message, history, roomId, senderName, musicContext, playerId }`
 - **Response**: `{ text, behavior? }` — same format as dream NPC chat.
-- **Personality**: `lily_bartender` in `dreamNpc.ts` — system prompt with backstory, music knowledge, rules, multi-player attribution format.
+- **Personality**: `lily_bartender` in `npc/personalities.go` — system prompt with backstory, music knowledge, rules, multi-player attribution format, MEMORY instructions.
 - **Rate limiting**: Same per-session limits as dream NPCs (6/min, 60/hr, 200/day).
-- **Caching**: Skipped when music is playing (contextual). Active when bar is quiet.
+- **Caching**: Skipped when music is playing (contextual). Active when bar is quiet. Cache keys include playerId for per-player responses.
 - **Fallback phrases**: 18 in-character phrases used when API fails. No unicode emoji.
+
+### Persistent Memory with mem0 (Feb 2026)
+
+Lily has cross-session memory via [mem0](https://mem0.ai) — she remembers returning visitors, their names, music tastes, and past conversations. Currently uses the mem0 Platform API (free tier).
+
+**Architecture**:
+- `dream-npc-go` Go service calls mem0 REST API directly (no SDK — thin HTTP client in `npc/mem0.go`)
+- Player identity: `lily:<playerId>` where playerId is the persistent 8-char UUID from localStorage
+- Search runs in parallel goroutine alongside prompt building (3s timeout)
+- Storage is fire-and-forget after successful Gemini response
+
+**Flow**:
+1. Player sends message → server passes `playerId` to dream-npc service
+2. `Mem0Search()` fires in parallel goroutine while prompt is being built
+3. Results injected as `THINGS YOU REMEMBER ABOUT THIS PERSON FROM PAST VISITS` in CONTEXT block
+4. Gemini generates response with memory context
+5. `Mem0Add()` stores `[senderName]: message` + Lily's response (fire-and-forget goroutine)
+
+**Cache**: Keys include playerId (`personalityId::message::playerId`) so same question from different players gets different memory-contextualized responses. Cache skipped when music is playing (same as before).
+
+**Graceful degradation**: If `MEM0_API_KEY` is unset, `mem0Client` stays nil — all calls are no-ops. Lily works identically to pre-mem0 behavior. Search timeouts (>3s) return empty. Add failures are logged but never affect response delivery.
+
+**API endpoints used**:
+- Search: `POST https://api.mem0.ai/v2/memories/search/` with `filters: { AND: [{ user_id }] }`, `top_k`, `version: "v2"`
+- Add: `POST https://api.mem0.ai/v1/memories/` with `messages` array + `user_id`
+- Auth: `Authorization: Token <MEM0_API_KEY>`
+
+**Environment**: `MEM0_API_KEY` env var (set in `deploy/hetzner/.env`, passed via docker-compose.yml). Free tier: 1K API calls/month.
 
 ### Bar Layout (Jukebox Room)
 
@@ -1700,8 +1738,11 @@ Lily is a small being — she can't handle too many people talking at once:
 |------|---------|
 | `server/src/rooms/ClubMutant.ts` | NPC spawn, FSM, chat routing, conversational window, chunked delivery, music commentary |
 | `server/src/rooms/commands/JukeboxCommand.ts` | `notifyNpcMusicStarted()` hook in `playNextJukeboxTrack()` |
-| `services/dream-npc-go/src/dreamNpc.ts` | Lily personality, Gemini API, rate limiting, caching, fallbacks |
-| `services/dream-npc-go/src/index.ts` | `/bartender/npc-chat` endpoint registration |
+| `services/dream-npc-go/npc/chat.go` | Chat handler, Gemini API, mem0 integration, caching |
+| `services/dream-npc-go/npc/personalities.go` | NPC personalities with MEMORY prompt instructions |
+| `services/dream-npc-go/npc/mem0.go` | mem0 HTTP client: search + add memories |
+| `services/dream-npc-go/npc/types.go` | Request/response types including playerId |
+| `services/dream-npc-go/main.go` | Fiber server entry point, endpoint registration |
 | `client-3d/public/npc/denkiqt/` | Lily's PaperDoll character assets (manifest + PNGs) |
 | `client-3d/src/scene/JukeboxRoom.tsx` | BarIsland, BackShelf, CounterStool, bar lighting |
 | `client-3d/src/scene/PlayerEntity.tsx` | Bubble fade-out animation (FADE_MS, per-bubble opacity) |
@@ -1732,7 +1773,7 @@ A Yume Nikki-inspired dream mode where players sleep on the futon in MyRoom and 
                      │                      │
                      ▼                      ▼
 ┌────────────────────────────────┐ ┌────────────────────────────────┐
-│  server (Colyseus)             │ │  dream-npc-go (Express 4)         │
+│  server (Colyseus)             │ │  dream-npc-go (Go/Fiber)          │
 │    Colyseus: DREAM_SLEEP/WAKE/ │ │    POST /dream/npc-chat        │
 │    COLLECT messages             │ │    ← Gemini 2.5 Flash-Lite    │
 │    Port 2567                   │ │    Port 4000                   │
@@ -1839,10 +1880,10 @@ interface DreamWorldDef {
 
 ### Dream NPC Service — `POST /dream/npc-chat`
 
-**Service**: `services/dream-npc-go/` (standalone Express 4 microservice, port 4000)
-**Files**: `src/index.ts` (server + CORS), `src/dreamNpc.ts` (handler + personalities)
+**Service**: `services/dream-npc-go/` (standalone Go/Fiber microservice, port 4000)
+**Files**: `main.go` (Fiber server + CORS), `npc/chat.go` (handler), `npc/personalities.go` (NPC configs)
 
-Separated from the Colyseus server to avoid uWebSockets transport conflicts with Express middleware. Handles NPC chat with model-agnostic architecture (currently Gemini 2.5 Flash-Lite, swappable to self-hosted Ollama later).
+Separated from the Colyseus server to avoid uWebSockets transport conflicts. Handles NPC chat with model-agnostic architecture (currently Gemini 2.5 Flash-Lite, swappable to self-hosted Ollama later).
 
 **Request**: `{ personalityId, message, history: [{ role, content }] }`
 **Response**: `{ text, behavior? }` or `{ error, retryAfterMs? }`
@@ -1875,7 +1916,7 @@ Separated from the Colyseus server to avoid uWebSockets transport conflicts with
 - Timeout (> 8s): random fallback phrase from server pool
 - Server down: random phrase from client-side generic pool (bundled, ~20 phrases)
 
-**Environment**: Requires `GEMINI_API_KEY` env var.
+**Environment**: Requires `GEMINI_API_KEY` env var. Optional `MEM0_API_KEY` for Lily's persistent memory.
 
 ### AI Model Strategy
 
@@ -1889,7 +1930,7 @@ Separated from the Colyseus server to avoid uWebSockets transport conflicts with
 - ~2-3s per response on 4-core shared CPU
 - Makes sense above ~3,000-5,000 messages/day
 
-The service abstracts the model backend — swapping from API to Ollama requires changing only `services/dream-npc-go/src/dreamNpc.ts`, not client code.
+The service abstracts the model backend — swapping from API to Ollama requires changing only `services/dream-npc-go/npc/chat.go`, not client code.
 
 ### NPC System Prompt Structure
 
@@ -1933,13 +1974,15 @@ The service abstracts the model backend — swapping from API to Ollama requires
 | `client-3d/src/ui/DreamIframe.tsx` | Fullscreen iframe overlay + bridge |
 | `client-3d/src/dream/dreamStore.ts` | Simplified isDreaming + collectedItems |
 | `client-3d/src/dream/dreamBridgeTypes.ts` | Bridge type definitions |
-| `services/dream-npc-go/src/index.ts` | Dream NPC Express server (port 4000, CORS) |
-| `services/dream-npc-go/src/dreamNpc.ts` | NPC chat: rate limiting, caching, Gemini API, personalities |
+| `services/dream-npc-go/main.go` | Dream NPC Go/Fiber server (port 4000, CORS) |
+| `services/dream-npc-go/npc/chat.go` | NPC chat: rate limiting, caching, Gemini API, mem0 integration |
+| `services/dream-npc-go/npc/personalities.go` | NPC personality definitions |
+| `services/dream-npc-go/npc/mem0.go` | mem0 persistent memory client |
 
 ### How to Test Dream Mode
 
 1. `cd server && npm run start` (port 2567)
-2. `cd services/dream-npc-go && GEMINI_API_KEY=... npm start` (port 4000)
+2. `cd services/dream-npc-go && GEMINI_API_KEY=... MEM0_API_KEY=... go run .` (port 4000)
 3. `cd client-3d && pnpm dev` (port 5175)
 4. `cd client-dream && pnpm dev` (port 5176)
 4. Join MyRoom from lobby
@@ -2711,7 +2754,7 @@ This repo now includes a working VPS deployment bundle under `deploy/hetzner/` t
 - **Caddy** reverse proxy (automatic HTTPS)
 - **Colyseus Node server** (port `2567` internal)
 - **YouTube API (Go)** (port `8081` internal)
-- **Dream NPC (Node/Express 4)** (port `4000` internal)
+- **Dream NPC (Go/Fiber)** (port `4000` internal)
 - **PO token provider** (port `4416` internal)
 
 #### Domains
@@ -2742,6 +2785,7 @@ This repo now includes a working VPS deployment bundle under `deploy/hetzner/` t
 - `PROXY_URL` (recommended)
 - `YOUTUBE_COOKIES` (optional; for age-restricted content)
 - `GEMINI_API_KEY` (required for dream-npc-go service)
+- `MEM0_API_KEY` (optional; enables Lily's persistent memory via mem0)
 
 #### Client build config (Cloudflare Pages)
 
@@ -2819,7 +2863,7 @@ Supabase Auth as a standalone service for user authentication. Only using Supaba
 │  Hetzner VPS (Docker Compose)                               │
 │  ┌─────────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐ │
 │  │  Colyseus    │ │ youtube  │ │ dream-npc-go│ │ PostgreSQL │ │
-│  │  server      │ │ -api (Go)│ │ (Express)│ │            │ │
+│  │  server      │ │ -api (Go)│ │ (Go)     │ │            │ │
 │  │  :2567       │ │ :8081    │ │ :4000    │ │ :5432      │ │
 │  └──────┬───────┘ └──────────┘ └──────────┘ └────────────┘ │
 │         │ S3 API                                            │
