@@ -22,6 +22,8 @@ void main() {
 const fragmentShader = `
 precision highp float;
 
+varying vec2 vUv;
+
 uniform sampler2D tVideo;
 uniform float uBass;
 uniform float uMid;
