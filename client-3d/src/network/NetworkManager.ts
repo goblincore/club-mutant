@@ -91,7 +91,7 @@ export class NetworkManager {
   private async _doLobbyJoin(maxRetries: number, baseDelay: number) {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const timeout = attempt === 0 ? 5000 : 4000
+        const timeout = attempt === 0 ? 15000 : 12000
         this.lobby = await withTimeout(
           this.client.joinOrCreate(RoomType.LOBBY),
           timeout,
@@ -178,7 +178,7 @@ export class NetworkManager {
           spawnY: 0,
           ...(textureId != null ? { textureId } : {}),
         }),
-        8000,
+        15000,
         'Join public room'
       )
 
@@ -202,7 +202,7 @@ export class NetworkManager {
           spawnX: 0,
           spawnY: 0,
         }),
-        8000,
+        15000,
         'Join MyRoom'
       )
 
@@ -234,7 +234,7 @@ export class NetworkManager {
           spawnX: 0,
           spawnY: 0,
         }),
-        8000,
+        15000,
         'Create jukebox room'
       )
 
@@ -268,7 +268,7 @@ export class NetworkManager {
           spawnX: 0,
           spawnY: 0,
         }),
-        8000,
+        15000,
         'Create custom room'
       )
 
@@ -297,7 +297,7 @@ export class NetworkManager {
           spawnX: 0,
           spawnY: 0,
         }),
-        8000,
+        15000,
         'Join custom room'
       )
 
