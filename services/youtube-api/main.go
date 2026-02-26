@@ -592,6 +592,7 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 	var formatArg string
 	if proxyURL != "" && !usePOToken {
 		// Proxy path - use itags: 160=144p, 133=240p, 134=360p, 18=360p combined
+		// Prefer lowest resolution first (144p) — video wall renders through PSX shader at reduced res
 		formatArg = "18/160/133/134"
 		if videoOnly {
 			formatArg = "160/133/134"
@@ -599,9 +600,10 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, usePOT
 		log.Printf("[yt-dlp] Using proxy path with format: %s", formatArg)
 	} else {
 		// PO token path - use selectors (JS runtime available)
+		// Prefer lowest resolution for video-only (wall texture doesn't need high res)
 		formatArg = "best[height<=360]/best"
 		if videoOnly {
-			formatArg = "bv[height<=360]/bv"
+			formatArg = "bv[height<=144]/bv[height<=240]/bv[height<=360]/bv"
 		}
 		log.Printf("[yt-dlp] Using PO token path with format: %s", formatArg)
 	}
@@ -782,7 +784,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "video/mp4")
 			w.Header().Set("Content-Length", strconv.Itoa(len(cachedData)))
 			w.Header().Set("Accept-Ranges", "bytes")
-			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Cache-Control", "public, max-age=3600")
 			w.WriteHeader(http.StatusOK)
 			w.Write(cachedData)
 			return
@@ -935,8 +937,8 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Accept-Ranges", "bytes")
 
-	// Safari needs these for proper video handling
-	w.Header().Set("Cache-Control", "no-cache")
+	// Allow browser to cache video for 1 hour (avoids re-fetching on replay)
+	w.Header().Set("Cache-Control", "public, max-age=3600")
 
 	w.WriteHeader(resp.StatusCode)
 

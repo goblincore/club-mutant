@@ -1,6 +1,7 @@
 import type { ClubMutant } from '../ClubMutant'
 import { DJUserInfo } from '../schema/OfficeState'
 import { Message } from '@club-mutant/types/Messages'
+import { prefetchVideo } from '../../youtubeService'
 
 /**
  * Play the first unplayed track in the current DJ's roomQueuePlaylist.
@@ -43,4 +44,30 @@ export function playTrackForCurrentDJ(room: ClubMutant) {
     djSessionId: djId,
     trackId: track.id,
   })
+
+  // Prefetch the next DJ's first unplayed track so rotation is instant
+  prefetchNextDJTrack(room, djId)
+}
+
+/**
+ * Look ahead in the DJ queue and prefetch the next DJ's first unplayed track.
+ * Fire-and-forget — failures are logged but don't affect playback.
+ */
+function prefetchNextDJTrack(room: ClubMutant, currentDjId: string) {
+  for (let i = 0; i < room.state.djQueue.length; i++) {
+    const entry = room.state.djQueue[i]
+    if (entry.sessionId === currentDjId) continue
+
+    const nextPlayer = room.state.players.get(entry.sessionId)
+    if (!nextPlayer) continue
+
+    for (let j = 0; j < nextPlayer.roomQueuePlaylist.length; j++) {
+      if (!nextPlayer.roomQueuePlaylist[j].played) {
+        const nextTrack = nextPlayer.roomQueuePlaylist[j]
+        console.log('[DJQueue] Prefetching next DJ track:', nextTrack.title, 'by:', entry.name)
+        prefetchVideo(nextTrack.link)
+        return
+      }
+    }
+  }
 }

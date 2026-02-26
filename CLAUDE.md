@@ -1250,7 +1250,7 @@ YouTube ID into a direct playable video URL:
 - **Client UI playback**: `client/src/components/YoutubePlayer.tsx`
 - **My Playlists + DJ Queue UI**: `client/src/components/MyPlaylistPanel.tsx` (unified panel with DJ Queue section)
 - **DJ Queue logic**: `server/src/rooms/commands/DJQueueCommand.ts`
-- **DJ helpers (shared)**: `server/src/rooms/commands/djHelpers.ts` (`playTrackForCurrentDJ`)
+- **DJ helpers (shared)**: `server/src/rooms/commands/djHelpers.ts` (`playTrackForCurrentDJ`, `prefetchNextDJTrack`)
 - **Debug mode config**: `client/src/config.ts`
 - **Room Queue Playlist**: `server/src/rooms/commands/RoomQueuePlaylistCommand.ts`
 - **Clock sync**: `client-3d/src/network/TimeSync.ts` (client-server clock sync with `onReady` callback)
@@ -2543,7 +2543,9 @@ Key metrics to watch:
 #### Defaults
 
 - `videoOnly=true` on both `/resolve/` and `/proxy/` endpoints (smaller files, faster)
+- Video-only format prefers lowest available resolution: 144p → 240p → 360p (video wall renders through PSX shader at reduced res, high resolution is wasted)
 - Cache TTL: based on resolved URL expiry (~6 hours), with a 5-minute safety buffer (never cache past expiry)
+- Browser cache: `Cache-Control: public, max-age=3600` on all proxy responses
 
 ### ISP Proxy Integration (Feb 2026)
 
@@ -2665,6 +2667,7 @@ VIDEO_CACHE_SIZE_MB=1000  // 1000MB cache (see deploy/hetzner/docker-compose.yml
 - **TTL**: Based on URL expiry (~6 hours), with 5-minute safety buffer
 - **Only caches** non-range requests (full video downloads)
 - **Max entry size**: 10MB (larger videos stream without caching)
+- **Browser caching**: Proxy responses include `Cache-Control: public, max-age=3600` so browsers cache video bytes on disk — repeat plays of the same video are instant with zero network
 
 #### Cache Flow
 
@@ -3067,6 +3070,8 @@ Server-side `youtubeService.ts` is retained only for `prefetchVideo()` (used by 
 - **Proxy** streams cached bytes: `GET /proxy/{videoId}`
 
 The prefetch must use the same `httpClient` (with proxy configured) as the resolve, otherwise YouTube rejects the request due to IP mismatch.
+
+**Next-DJ prefetch**: When `playTrackForCurrentDJ` starts a track, `prefetchNextDJTrack` looks ahead in the DJ queue for the next DJ with unplayed tracks and prefetches their first track. This ensures DJ rotation transitions are near-instant when videos are already cached.
 
 ### Docker + Native Modules
 
