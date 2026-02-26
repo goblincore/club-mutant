@@ -26,7 +26,7 @@ This guide covers how to load test the Colyseus game server, what to measure, kn
 | `patchRate` | **100ms** (10 fps) | Halves broadcast volume, visually smooth with client lerp |
 | Move throttle | **100ms** | Matches patchRate on both server and client |
 | Dead-zone | **< 1px skip** | Idle players generate zero position patches |
-| `console.log` | **Guarded** | `LOG_ENABLED = process.env.NODE_ENV !== 'production'` |
+| `console.log` | **Lifecycle: always-on; debug: guarded** | Lifecycle hooks (onCreate/onJoin/onLeave/etc.) log unconditionally; verbose logs gated by `LOG_ENABLED` |
 | Chat throttle | **500ms** | Per-client rate limit |
 | Jump throttle | **1000ms** | Per-client rate limit |
 | DJ queue throttle | **2000ms** | Per-client rate limit on join/leave |
@@ -230,11 +230,11 @@ File changed:
 
 Hard cap of 50 clients per room. Beyond this, Colyseus returns an error to joining clients.
 
-### 5. Production log guards ✅
+### 5. Production log guards ✅ (updated Feb 2026)
 
-**Impact: Eliminates unnecessary I/O in production**
+**Impact: Eliminates unnecessary I/O in production while keeping lifecycle visibility**
 
-All `console.log` calls in `ClubMutant.ts` wrapped with `if (LOG_ENABLED)` where `LOG_ENABLED = process.env.NODE_ENV !== 'production'`. Error logs remain unconditional.
+Verbose/debug logs in `ClubMutant.ts` are wrapped with `if (LOG_ENABLED)` where `LOG_ENABLED = process.env.NODE_ENV !== 'production'`. Key lifecycle hooks (`onCreate`, `onAuth`, `onJoin`, `onDrop`, `onReconnect`, `onLeave`, `onDispose`) now log **unconditionally** — these are low-volume (one line per event) and essential for diagnosing connection issues in production.
 
 ### Future: StateView per-client filtering
 

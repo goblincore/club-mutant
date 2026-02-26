@@ -480,6 +480,7 @@ func detectQualityFromURL(rawURL string, videoOnly bool, audioOnly bool) string 
 }
 
 const cookiesFilePath = "/tmp/youtube_cookies.txt"
+const cookiesMountPath = "/etc/youtube-api/cookies.txt"
 
 // Semaphore to limit concurrent yt-dlp processes (prevents OOM)
 var ytdlpSemaphore = make(chan struct{}, 2)
@@ -521,11 +522,25 @@ func warmupYtDlp() {
 	}()
 }
 
-// initCookiesFile writes YouTube cookies from env var to a file (called once at startup)
+// initCookiesFile makes YouTube cookies available for yt-dlp.
+// Priority: mounted file at /etc/youtube-api/cookies.txt > YOUTUBE_COOKIES env var.
 func initCookiesFile() {
+	// Prefer volume-mounted file (no env var needed, easy to update via scp)
+	if _, err := os.Stat(cookiesMountPath); err == nil {
+		// Symlink mounted file to the path yt-dlp reads from
+		os.Remove(cookiesFilePath)
+		if err := os.Symlink(cookiesMountPath, cookiesFilePath); err != nil {
+			log.Printf("[cookies] Failed to symlink mounted cookies: %v", err)
+			return
+		}
+		log.Println("[cookies] Using volume-mounted cookies file")
+		return
+	}
+
+	// Fallback: write env var contents to file (legacy approach)
 	cookies := os.Getenv("YOUTUBE_COOKIES")
 	if cookies == "" {
-		log.Println("[cookies] No YOUTUBE_COOKIES env var set, age-restricted videos may fail")
+		log.Println("[cookies] No cookies file mounted and no YOUTUBE_COOKIES env var set, age-restricted videos may fail")
 		return
 	}
 
@@ -534,7 +549,7 @@ func initCookiesFile() {
 		return
 	}
 
-	log.Println("[cookies] YouTube cookies file initialized")
+	log.Println("[cookies] YouTube cookies file initialized from env var")
 }
 
 // isBotDetectionError checks if the error indicates YouTube bot detection
