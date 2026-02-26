@@ -1013,15 +1013,35 @@ export class ClubMutant extends Room {
 
     // ──────── Jukebox Management (jukebox + personal modes) ────────
     if (this.musicMode === 'jukebox' || this.musicMode === 'personal') {
+      // Exclusive access: one player at a time
+      this.onMessage(Message.JUKEBOX_CONNECT, (client) => {
+        if (this.state.jukeboxUserId && this.state.jukeboxUserId !== client.sessionId) {
+          client.send('jukebox_busy', { name: this.state.jukeboxUserName })
+          return
+        }
+        const player = this.state.players.get(client.sessionId)
+        this.state.jukeboxUserId = client.sessionId
+        this.state.jukeboxUserName = player?.name ?? 'someone'
+      })
+
+      this.onMessage(Message.JUKEBOX_DISCONNECT, (client) => {
+        if (this.state.jukeboxUserId === client.sessionId) {
+          this.state.jukeboxUserId = ''
+          this.state.jukeboxUserName = ''
+        }
+      })
+
       this.onMessage(
         Message.JUKEBOX_ADD,
         (client, message: { title: string; link: string; duration: number }) => {
+          if (this.state.jukeboxUserId !== client.sessionId) return
           this.dispatcher.dispatch(new JukeboxAddCommand(), { client, item: message })
           this.startWatchdogIfPlaying()
         }
       )
 
       this.onMessage(Message.JUKEBOX_REMOVE, (client, message: { itemId: string }) => {
+        if (this.state.jukeboxUserId !== client.sessionId) return
         this.clearTrackWatchdog()
         this.dispatcher.dispatch(new JukeboxRemoveCommand(), {
           client,
@@ -1031,21 +1051,25 @@ export class ClubMutant extends Room {
       })
 
       this.onMessage(Message.JUKEBOX_PLAY, (client) => {
+        if (this.state.jukeboxUserId !== client.sessionId) return
         this.dispatcher.dispatch(new JukeboxPlayCommand(), { client })
         this.startWatchdogIfPlaying()
       })
 
       this.onMessage(Message.JUKEBOX_STOP, (client) => {
+        if (this.state.jukeboxUserId !== client.sessionId) return
         this.clearTrackWatchdog()
         this.dispatcher.dispatch(new JukeboxStopCommand(), { client })
       })
 
       this.onMessage(Message.JUKEBOX_SKIP, (client) => {
+        if (this.state.jukeboxUserId !== client.sessionId) return
         this.clearTrackWatchdog()
         this.dispatcher.dispatch(new JukeboxSkipCommand(), { client })
         this.startWatchdogIfPlaying()
       })
 
+      // Track complete: no guard — any client can report (server deduplicates via streamId)
       this.onMessage(Message.JUKEBOX_TRACK_COMPLETE, (client, message) => {
         this.clearTrackWatchdog()
         this.dispatcher.dispatch(new JukeboxTrackCompleteCommand(), {
@@ -1212,6 +1236,12 @@ export class ClubMutant extends Room {
 
     if (this.state.players.has(client.sessionId)) {
       this.state.players.delete(client.sessionId)
+    }
+
+    // Release jukebox if this player was occupying it (music keeps playing)
+    if (this.state.jukeboxUserId === client.sessionId) {
+      this.state.jukeboxUserId = ''
+      this.state.jukeboxUserName = ''
     }
 
     this.state.musicBooths.forEach((musicBooth, index) => {

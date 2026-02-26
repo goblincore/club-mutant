@@ -3,6 +3,7 @@ import { useState, useCallback, useRef } from 'react'
 import { getNetwork } from '../network/NetworkManager'
 import { useToastStore } from '../stores/toastStore'
 import { useGameStore } from '../stores/gameStore'
+import { useJukeboxStore } from '../stores/jukeboxStore'
 import { usePlaylistStore, type PlaylistTrack } from '../stores/playlistStore'
 
 interface SearchResult {
@@ -51,7 +52,10 @@ function extractThumbnail(value: unknown): string {
 
 export function MyPlaylistsPanel() {
   const musicMode = useGameStore((s) => s.musicMode)
+  const mySessionId = useGameStore((s) => s.mySessionId)
+  const jukeboxOccupantId = useJukeboxStore((s) => s.occupantId)
   const isJukeboxMode = musicMode === 'jukebox' || musicMode === 'personal'
+  const canAddToQueue = !isJukeboxMode || jukeboxOccupantId === mySessionId
   const queueLabel = isJukeboxMode ? 'jukebox' : 'dj queue'
 
   const playlists = usePlaylistStore((s) => s.playlists)
@@ -224,7 +228,7 @@ export function MyPlaylistsPanel() {
 
       {detailTab === 'tracks' ? (
         <div className="flex-1 overflow-y-auto px-3 py-2">
-          {viewingPlaylist.items.length > 0 && (
+          {canAddToQueue && viewingPlaylist.items.length > 0 && (
             <button
               onClick={() => handleAddAllToQueue(viewingPlaylist.id)}
               className={`mb-2 w-full py-1.5 text-[12px] font-mono border rounded transition-colors ${
@@ -293,17 +297,19 @@ export function MyPlaylistsPanel() {
                 >
                   ✕
                 </button>
-                <button
-                  onClick={() => handleAddTrackToQueue(track)}
-                  className={`w-6 h-6 flex items-center justify-center text-[13px] transition-colors ${
-                    recentlyAdded.has(`queue-${track.id}`)
-                      ? 'text-green-400'
-                      : 'text-white/45 hover:text-green-400'
-                  }`}
-                  title={`Add to ${queueLabel}`}
-                >
-                  {recentlyAdded.has(`queue-${track.id}`) ? '✓' : '+'}
-                </button>
+                {canAddToQueue && (
+                  <button
+                    onClick={() => handleAddTrackToQueue(track)}
+                    className={`w-6 h-6 flex items-center justify-center text-[13px] transition-colors ${
+                      recentlyAdded.has(`queue-${track.id}`)
+                        ? 'text-green-400'
+                        : 'text-white/45 hover:text-green-400'
+                    }`}
+                    title={`Add to ${queueLabel}`}
+                  >
+                    {recentlyAdded.has(`queue-${track.id}`) ? '✓' : '+'}
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -426,7 +432,7 @@ export function MyPlaylistsPanel() {
             </div>
           </div>
           <div className="flex gap-1 flex-shrink-0">
-            {pl.items.length > 0 && (
+            {canAddToQueue && pl.items.length > 0 && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()

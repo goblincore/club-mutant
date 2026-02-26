@@ -8,9 +8,12 @@ function hash(n: number) { return fract(Math.sin(n) * 43758.5453) }
 
 import { useGameStore, getPlayerPosition } from '../stores/gameStore'
 import { useUIStore } from '../stores/uiStore'
+import { useJukeboxStore } from '../stores/jukeboxStore'
+import { getNetwork } from '../network/NetworkManager'
 import { NightSky } from '../shaders/NightSky'
 import { InteractableObject } from './InteractableObject'
 import { AudioReactiveVideoMaterial } from '../shaders/AudioReactiveVideoMaterial'
+import { Html } from '@react-three/drei'
 
 interface JukeboxRoomProps {
   videoTexture?: THREE.VideoTexture | null
@@ -463,6 +466,39 @@ function CounterStool({ position }: { position: [number, number, number] }) {
         <cylinderGeometry args={[0.13, 0.13, 0.03, 8]} />
         <meshStandardMaterial color="#c0c2c4" metalness={0.8} roughness={0.2} />
       </mesh>
+    </group>
+  )
+}
+
+// ── Jukebox occupant status — HTML speech bubble above jukebox ──
+function JukeboxStatusBubble({ position }: { position: [number, number, number] }) {
+  const occupantName = useJukeboxStore((s) => s.occupantName)
+  const occupantId = useJukeboxStore((s) => s.occupantId)
+  const mySessionId = useGameStore((s) => s.mySessionId)
+
+  if (!occupantId) return null
+
+  const isMe = occupantId === mySessionId
+  const label = isMe ? 'you are using the jukebox' : `${occupantName} is using the jukebox`
+
+  return (
+    <group position={position}>
+      <Html center distanceFactor={4} style={{ pointerEvents: 'none' }}>
+        <div style={{
+          background: '#fff',
+          color: '#111',
+          fontFamily: 'monospace',
+          fontSize: '13px',
+          fontWeight: 600,
+          padding: '5px 12px',
+          borderRadius: '14px',
+          whiteSpace: 'nowrap',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+          userSelect: 'none',
+        }}>
+          {label}
+        </div>
+      </Html>
     </group>
   )
 }
@@ -1372,10 +1408,17 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
       {/* ── Jukebox — back-center wall, slightly left ── */}
       <InteractableObject
         interactDistance={2.5}
-        onInteract={() => useUIStore.getState().setDjQueueOpen(true)}
+        onInteract={() => {
+          // Send connect request — if accepted, the schema callback auto-opens the panel.
+          // If someone else is using it, server sends jukebox_busy toast.
+          getNetwork().jukeboxConnect()
+        }}
       >
         <JukeboxMachine position={[-0.6, 0, -(HALF_D - 0.3)]} />
       </InteractableObject>
+
+      {/* Jukebox occupant status bubble */}
+      <JukeboxStatusBubble position={[-0.6, 2.25, -(HALF_D - 0.3)]} />
 
       {/* ── Lighting ── bright cheerful 60s diner ── */}
 

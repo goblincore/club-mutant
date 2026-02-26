@@ -88,6 +88,8 @@ export class OfficeState extends Schema {
   @type([DJQueueEntry]) djQueue = new ArraySchema<DJQueueEntry>()
   @type('string') currentDjSessionId: string | null = null
   @type([JukeboxItem]) jukeboxPlaylist = new ArraySchema<JukeboxItem>()
+  @type('string') jukeboxUserId = ''
+  @type('string') jukeboxUserName = ''
 }
 
 // const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'

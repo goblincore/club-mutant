@@ -121,9 +121,9 @@ export function App() {
   // Show full panel only when open AND not minimized
   const showFullPanel = playlistOpen && !playlistMinimized
 
-  // NowPlaying is visible when something is playing OR the current user is the DJ
+  // NowPlaying mini bar is only visible in DJ queue mode (jukebox mode hides it)
   const isCurrentDJ = currentDjSessionId === mySessionId
-  const nowPlayingVisible = (streamIsPlaying && !!streamCurrentLink) || isCurrentDJ
+  const nowPlayingVisible = !isJukeboxMode && ((streamIsPlaying && !!streamCurrentLink) || isCurrentDJ)
 
   // Playlist panel starts below NowPlaying when visible, otherwise full height
   const playlistTop = nowPlayingVisible ? 68 : 0
@@ -149,8 +149,8 @@ export function App() {
         <NowPlaying />
       </div>
 
-      {/* Minimized booth bar — shown when panel is open but minimized */}
-      {playlistOpen && playlistMinimized && (isAtBooth || isJukeboxMode) && (
+      {/* Minimized booth bar — shown when DJ queue panel is open but minimized (booth only, not jukebox) */}
+      {playlistOpen && playlistMinimized && isAtBooth && !isJukeboxMode && (
         <div className="absolute top-14" style={{ left: 12, zIndex: 20 }}>
           <MinimizedBoothBar />
         </div>

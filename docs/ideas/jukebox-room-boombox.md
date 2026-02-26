@@ -54,30 +54,41 @@ The `CreateRoomForm` gets a music mode toggle (radio buttons or dropdown: "DJ Qu
 
 New message types (cleaner than reusing orphaned `ROOM_PLAYLIST_*`):
 ```
-JUKEBOX_ADD, JUKEBOX_REMOVE, JUKEBOX_PLAY, JUKEBOX_STOP, JUKEBOX_SKIP, JUKEBOX_TRACK_COMPLETE
+JUKEBOX_ADD, JUKEBOX_REMOVE, JUKEBOX_PLAY, JUKEBOX_STOP, JUKEBOX_SKIP, JUKEBOX_TRACK_COMPLETE,
+JUKEBOX_CONNECT, JUKEBOX_DISCONNECT
 ```
 
-### D4: Playback Logic
+### D4: Exclusive Access (Occupant Model) — IMPLEMENTED
+
+The jukebox uses an **exclusive access** model — only one player (the "occupant") can use it at a time, like a real jukebox. This was a design change from the original "anyone can play/stop/skip" plan.
+
+- **Walk-up interaction**: Player approaches jukebox `<InteractableObject>` and interacts → sends `JUKEBOX_CONNECT`
+- **Server tracks occupant**: `OfficeState.jukeboxOccupantId` + `jukeboxOccupantName` (schema-synced to all clients)
+- **Busy guard**: If someone else is already using it, server sends `jukebox_busy` toast to the requesting player
+- **Disconnect**: Occupant closes the panel or walks away → sends `JUKEBOX_DISCONNECT`, clears occupant fields
+- **Controls gated to occupant**: Only the occupant can add/remove tracks, play/stop/skip
+- **Everyone sees the playlist**: The shared `jukeboxPlaylist` ArraySchema syncs to all clients, but only the occupant has interactive controls
+
+### D5: Playback Logic — IMPLEMENTED
 
 - **Auto-play on first add**: Adding a track when jukebox is idle auto-starts it
 - **Auto-advance**: On `JUKEBOX_TRACK_COMPLETE`, server removes finished track and starts next
 - **Any client reports track end**: Any connected client can send `JUKEBOX_TRACK_COMPLETE`. Server deduplicates via `streamId`. Watchdog timer is backup (duration + 10s)
-- **Anyone can play/stop/skip**: No DJ gating
+- **Occupant-gated controls**: Only the jukebox occupant can play/stop/skip
 - **Destructive**: Played tracks are removed via `splice()` — not cursor-based like the old 2D system
 
-### D5: Track Ownership
+### D6: Track Ownership — IMPLEMENTED
 
 - Each `JukeboxItem` stores `addedBySessionId`
-- Anyone can add tracks
-- Only the adder can remove their own tracks (server-enforced)
+- Only the occupant can add/remove tracks (server-enforced via occupant check)
 - Currently-playing track (index 0) CAN be removed (triggers skip)
 - Tracks persist if the adder disconnects (removed only by play-through or explicit remove)
 
-### D6: MyRoom "Personal" Mode
+### D7: MyRoom "Personal" Mode
 
 Mechanically identical to `'jukebox'` — same `jukeboxPlaylist` ArraySchema, same commands. Since MyRoom is `autoDispose: true` and typically single-player, it's effectively personal. No special server logic needed.
 
-### D7: Infrastructure Reuse
+### D8: Infrastructure Reuse
 
 | Component | Reuse |
 |-----------|-------|
@@ -85,8 +96,9 @@ Mechanically identical to `'jukebox'` — same `jukeboxPlaylist` ArraySchema, sa
 | `START_MUSIC_STREAM` / `STOP_MUSIC_STREAM` | Same broadcast messages |
 | `MUSIC_STREAM_TICK` | Same 5s drift correction |
 | `musicStore` (client) | Same playback state |
-| `NowPlaying.tsx` | Adapt — show play/stop/skip for all (no DJ gating) |
-| `DjQueuePanel.tsx` | Adapt — jukebox shows shared playlist + add-from-personal |
+| `NowPlaying.tsx` | Adapted — hides visible UI in jukebox mode, renders only hidden ReactPlayer for audio |
+| `DjQueuePanel.tsx` | Adapted — jukebox mode: occupant status, now-playing mini player at top, search, shared track list |
+| `MyPlaylistsPanel.tsx` | Adapted — "add to jukebox" buttons hidden for non-occupants |
 | `playlistStore` | Same — personal playlists in localStorage |
 | `TimeSync` | Same |
 | Track watchdog | Same pattern |
@@ -113,78 +125,87 @@ Mechanically identical to `'jukebox'` — same `jukeboxPlaylist` ArraySchema, sa
 - Add `JukeboxItem extends Schema` with `@type` decorators for all fields
 - Add `@type([JukeboxItem]) jukeboxPlaylist` to `OfficeState`
 
-### Phase 2: Server Commands
+### Phase 2: Server Commands — IMPLEMENTED
 
-**New file: `server/src/rooms/commands/JukeboxCommand.ts`**
+**`server/src/rooms/commands/JukeboxCommand.ts`**
 
 Helpers:
 - `playNextJukeboxTrack(room)` — reads `jukeboxPlaylist[0]`, sets `musicStream` fields, increments `streamId`, broadcasts `START_MUSIC_STREAM`, starts watchdog
 - `stopJukeboxStream(room)` — clears `musicStream`, broadcasts `STOP_MUSIC_STREAM`, clears watchdog
 
 Commands:
-- **`JukeboxAddCommand`** — push `JukeboxItem`, `prefetchVideo()`, auto-start if idle
-- **`JukeboxRemoveCommand`** — validate `addedBySessionId`, splice. If removing index 0: stop + start next
-- **`JukeboxPlayCommand`** — start/resume if tracks exist
-- **`JukeboxStopCommand`** — stop stream but keep tracks in list
-- **`JukeboxSkipCommand`** — remove index 0, start next or stop
-- **`JukeboxTrackCompleteCommand`** — dedup via `streamId`, remove index 0, start next or stop
+- **`JukeboxConnectCommand`** — sets `jukeboxOccupantId`/`jukeboxOccupantName` on state; rejects if already occupied (sends `jukebox_busy`)
+- **`JukeboxDisconnectCommand`** — clears occupant fields
+- **`JukeboxAddCommand`** — validates occupant, push `JukeboxItem`, `prefetchVideo()`, auto-start if idle
+- **`JukeboxRemoveCommand`** — validates occupant, splice. If removing index 0: stop + start next
+- **`JukeboxPlayCommand`** — validates occupant, start/resume if tracks exist
+- **`JukeboxStopCommand`** — validates occupant, stop stream but keep tracks in list
+- **`JukeboxSkipCommand`** — validates occupant, remove index 0, start next or stop
+- **`JukeboxTrackCompleteCommand`** — dedup via `streamId`, remove index 0, start next or stop (any client can report)
 
-### Phase 3: Server Room Integration
+### Phase 3: Server Room Integration — IMPLEMENTED
 
 **`server/src/rooms/ClubMutant.ts`**
-- Add `musicMode` field, computed in `onCreate()`:
-  - If `isPublic` → `'djqueue'`
-  - If room options include `musicMode` → use it
-  - If `RoomType.MYROOM` → `'personal'`
-  - Default → `'djqueue'`
-- Register `JUKEBOX_*` handlers gated on `musicMode !== 'djqueue'`
-- Guard `DJ_QUEUE_*` and `ROOM_QUEUE_PLAYLIST_*` handlers with `musicMode === 'djqueue'`
-- `onLeave`: jukebox tracks from disconnected player stay in playlist
-- Reuse existing `startTrackWatchdog()` / `clearTrackWatchdog()` / tick interval for jukebox
+- `musicMode` field computed in `onCreate()` from room options
+- Registers `JUKEBOX_CONNECT` and `JUKEBOX_DISCONNECT` handlers for exclusive access
+- Registers `JUKEBOX_*` handlers gated on `musicMode !== 'djqueue'`
+- Guards `DJ_QUEUE_*` handlers with `musicMode === 'djqueue'`
+- `onLeave`: if leaving player is jukebox occupant, clears occupant fields; jukebox tracks stay in playlist
 
-**`server/src/index.ts`**
-- Register `RoomType.JUKEBOX` with `enableRealtimeListing()` and `musicMode: 'jukebox'`
-- Update `RoomType.MYROOM` options to include `musicMode: 'personal'`
+**`server/src/rooms/schema/OfficeState.ts`**
+- Added `@type("string") jukeboxOccupantId` and `@type("string") jukeboxOccupantName` to `OfficeState`
 
-### Phase 4: Client Network + Stores
+**`types/Messages.ts`**
+- Added `JUKEBOX_CONNECT` and `JUKEBOX_DISCONNECT` message types
 
-**New file: `client-3d/src/stores/jukeboxStore.ts`**
+### Phase 4: Client Network + Stores — IMPLEMENTED
+
+**`client-3d/src/stores/jukeboxStore.ts`**
 ```ts
 interface JukeboxState {
   playlist: JukeboxItemDto[]   // from schema sync
+  occupantId: string | null    // who is using the jukebox
+  occupantName: string | null  // display name of occupant
   setPlaylist(items: JukeboxItemDto[]): void
   addItem(item: JukeboxItemDto): void
   removeItem(id: string): void
+  setOccupant(id: string | null, name: string | null): void
   clear(): void
 }
 ```
 
 **`client-3d/src/stores/gameStore.ts`**
-- Extend `roomType`: `'public' | 'custom' | 'myroom' | 'jukebox' | null`
-- Add `musicMode: 'djqueue' | 'jukebox' | 'personal' | null`
+- `musicMode: 'djqueue' | 'jukebox' | 'personal' | null` — set from room metadata on join
 
 **`client-3d/src/network/NetworkManager.ts`**
-- In `wireRoomListeners()`: add `jukeboxPlaylist` schema `onAdd`/`onRemove` callbacks → update `jukeboxStore`
-- New methods: `addToJukebox()`, `removeFromJukebox()`, `jukeboxPlay()`, `jukeboxStop()`, `jukeboxSkip()`, `jukeboxTrackComplete()`
-- New join methods: `joinJukeboxRoom()`, `createJukeboxRoom()` (or extend `createCustomRoom` with `musicMode` option)
+- Schema listeners: `jukeboxPlaylist` `onAdd`/`onRemove` → `jukeboxStore`, `jukeboxOccupantId`/`jukeboxOccupantName` `.listen()` → `jukeboxStore.setOccupant()`
+- `jukebox_busy` message handler → toast notification
+- Methods: `jukeboxConnect()`, `jukeboxDisconnect()`, `addToJukebox()`, `removeFromJukebox()`, `jukeboxPlay()`, `jukeboxStop()`, `jukeboxSkip()`, `jukeboxTrackComplete(streamId)`
 
-### Phase 5: Client UI
+### Phase 5: Client UI — IMPLEMENTED
 
 **`client-3d/src/ui/NowPlaying.tsx`**
-- When `musicMode === 'jukebox' || 'personal'`:
-  - Play/stop/skip available to ALL players (no DJ gating)
-  - Show track title + elapsed time
-  - "Up next: {jukeboxPlaylist[1].title}" from `jukeboxStore`
-  - `onEnded` → `getNetwork().jukeboxTrackComplete()`
-  - Show "added by {name}" instead of DJ name
+- In jukebox/personal mode: renders **only** the hidden `<ReactPlayer>` for audio playback — no visible mini player bar
+- All visible UI (playback controls, track info, status) is handled by `DjQueuePanel` to avoid duplicate controls
+- `onEnded` → `getNetwork().jukeboxTrackComplete(streamId)` with streamId dedup guard
+- DJ queue mode: unchanged (shows mini player bar with controls for current DJ)
 
 **`client-3d/src/ui/DjQueuePanel.tsx`**
 - When `musicMode === 'jukebox' || 'personal'`:
-  - Replace "DJ Queue" tab with "Jukebox" tab showing shared `jukeboxStore.playlist`
-  - Each track: title, duration, who added it, remove button (own tracks only)
-  - Index 0 highlighted as "now playing"
-  - "My Playlists" tab: same as now, but "+" adds to jukebox via `addToJukebox()`
-  - Search adds to jukebox directly
+  - Header: "● jukebox (N)" or "● boombox (N)" with close button (also disconnects occupant)
+  - **Occupant status bar**: shows "● you are using the jukebox" (green) or "● {name} is using the jukebox" (amber)
+  - **Now-playing mini player** (top, below status): current track title + stop/skip buttons (occupant only) — styled consistently with the DJ queue NowPlaying mini bar (w-7 h-7 icon buttons)
+  - **When stopped**: play button + "stopped — press ▶ to play" (occupant) or "N tracks queued" (non-occupant)
+  - **Search bar**: YouTube search, only shown to occupant
+  - **Track list**: shared `jukeboxStore.playlist`, index 0 highlighted as now playing with ♪ indicator, remove button (occupant only)
+  - **Empty state**: occupant sees "search above or add from playlists" link; non-occupant sees "no tracks in the jukebox yet"
+
+**`client-3d/src/ui/MyPlaylistsPanel.tsx`**
+- "Add to Jukebox" / "+" buttons are **hidden for non-occupant users** via `canAddToQueue` guard
+- Guards applied to: "add all to queue" in detail view, per-track "+" button, "+all" on playlist list view
+
+**`client-3d/src/App.tsx`**
+- `nowPlayingVisible = false` in jukebox mode, so the playlist panel starts at `top: 0` (no gap for hidden mini player)
 
 **`client-3d/src/ui/CreateRoomForm.tsx`**
 - Add music mode selector (two radio buttons or toggle):
@@ -197,21 +218,16 @@ interface JukeboxState {
 - The room browser shows music mode icon/label per room
 - No need for a separate "Jukebox" lobby button — they're created via custom room flow with jukebox mode selected
 
-### Phase 6: Jukebox Room Scene
+### Phase 6: Jukebox Room Scene — IMPLEMENTED
 
-**New file: `client-3d/src/scene/JukeboxRoom.tsx`**
+**`client-3d/src/scene/JukeboxRoom.tsx`**
 
-A retro bar/lounge vibe room. Smaller than the club (8×8 instead of 12×12).
+A retro diner/bar vibe room. Existing scene with jukebox interactable.
 
-Layout concept:
-- **Centerpiece**: A retro jukebox machine (GLB model) against the back wall, wrapped in `<InteractableObject>` — clicking it opens `DjQueuePanel`
-- **Floor**: Checkered tile pattern (new shader or reuse TvStaticFloor with different colors)
-- **Walls**: Dark wood paneling (procedural shader or BrickWallMaterial variant)
-- **Furniture**: A few bar stools/tables scattered around, a neon sign on the wall
-- **Lighting**: Warm dim ambient + colored accent lights from the jukebox (purple/pink glow)
-- **Skybox**: `NightSky` (reuse from MyRoom)
-- **Video display**: Wall-mounted screen (same `VideoDisplay` pattern as Room.tsx) showing current track's video
-- **No DJ booth / no eggs** — the jukebox IS the music interaction point
+Key elements:
+- **Jukebox interactable**: `<InteractableObject>` — clicking sends `JUKEBOX_CONNECT` and opens `DjQueuePanel`
+- **JukeboxStatusBubble**: `<Html>` (from drei) positioned above the jukebox, renders a white pill speech bubble with monospace text showing who's using the jukebox ("you are using the jukebox" / "{name} is using the jukebox"). Only visible when occupied.
+- **No DJ booth** — the jukebox IS the music interaction point
 
 **`client-3d/src/scene/GameScene.tsx`** routing:
 ```tsx
@@ -271,28 +287,30 @@ Note: Custom rooms with `musicMode: 'jukebox'` use the same scene as regular cus
 
 ## Files Summary
 
-| Action | File |
-|--------|------|
-| Modify | `types/Rooms.ts` — Add JUKEBOX enum, musicMode to IRoomData |
-| Modify | `types/Messages.ts` — Add JUKEBOX_* enums |
-| Modify | `types/Dtos.ts` — Add JukeboxItemDto |
-| Modify | `server/src/rooms/schema/OfficeState.ts` — JukeboxItem + jukeboxPlaylist |
-| Create | `server/src/rooms/commands/JukeboxCommand.ts` — All jukebox commands |
-| Modify | `server/src/rooms/ClubMutant.ts` — musicMode, jukebox handlers, guard DJ handlers |
-| Modify | `server/src/index.ts` — Register JUKEBOX room |
-| Create | `client-3d/src/stores/jukeboxStore.ts` — Shared jukebox state |
-| Modify | `client-3d/src/stores/gameStore.ts` — roomType + musicMode |
-| Modify | `client-3d/src/network/NetworkManager.ts` — Schema sync + methods |
-| Modify | `client-3d/src/ui/NowPlaying.tsx` — Jukebox controls |
-| Modify | `client-3d/src/ui/DjQueuePanel.tsx` — Jukebox tab |
-| Modify | `client-3d/src/ui/CreateRoomForm.tsx` — Music mode selector |
-| Modify | `client-3d/src/ui/CustomRoomBrowser.tsx` — Music mode badge |
-| Modify | `client-3d/src/ui/LobbyScreen.tsx` — Minor (jukebox rooms in browser) |
-| Create | `client-3d/src/scene/JukeboxRoom.tsx` — New scene |
-| Modify | `client-3d/src/scene/JapaneseRoom.tsx` — Boombox interactable |
-| Modify | `client-3d/src/scene/GameScene.tsx` — Route jukebox room |
-| Modify | `scripts/build-models.mjs` — Jukebox + boombox + bar stool + neon sign |
-| Modify | `client-3d/src/input/usePlayerInput.ts` — Jukebox collision boxes |
+| Status | Action | File |
+|--------|--------|------|
+| ✅ | Modify | `types/Rooms.ts` — Add JUKEBOX enum, musicMode to IRoomData |
+| ✅ | Modify | `types/Messages.ts` — Add JUKEBOX_* enums + JUKEBOX_CONNECT/DISCONNECT |
+| ✅ | Modify | `types/Dtos.ts` — Add JukeboxItemDto |
+| ✅ | Modify | `server/src/rooms/schema/OfficeState.ts` — JukeboxItem + jukeboxPlaylist + jukeboxOccupantId/Name |
+| ✅ | Create | `server/src/rooms/commands/JukeboxCommand.ts` — All jukebox commands incl. connect/disconnect |
+| ✅ | Modify | `server/src/rooms/ClubMutant.ts` — musicMode, jukebox handlers, occupant tracking, guard DJ handlers |
+| ✅ | Modify | `server/src/index.ts` — Register JUKEBOX room |
+| ✅ | Create | `client-3d/src/stores/jukeboxStore.ts` — Shared jukebox state + occupant tracking |
+| ✅ | Modify | `client-3d/src/stores/gameStore.ts` — musicMode |
+| ✅ | Modify | `client-3d/src/network/NetworkManager.ts` — Schema sync + methods + jukebox_busy toast |
+| ✅ | Modify | `client-3d/src/ui/NowPlaying.tsx` — Hide visible UI in jukebox mode (audio-only ReactPlayer) |
+| ✅ | Modify | `client-3d/src/ui/DjQueuePanel.tsx` — Jukebox mode: occupant status, mini player at top, search, track list |
+| ✅ | Modify | `client-3d/src/ui/MyPlaylistsPanel.tsx` — Hide "add to jukebox" for non-occupants |
+| ✅ | Modify | `client-3d/src/App.tsx` — nowPlayingVisible=false in jukebox mode, playlist panel top:0 |
+| ✅ | Create | `client-3d/src/scene/JukeboxRoom.tsx` — Scene with jukebox interactable + Html speech bubble status |
+| ✅ | Modify | `client-3d/src/scene/GameScene.tsx` — Route jukebox room |
+| | Modify | `client-3d/src/ui/CreateRoomForm.tsx` — Music mode selector |
+| | Modify | `client-3d/src/ui/CustomRoomBrowser.tsx` — Music mode badge |
+| | Modify | `client-3d/src/ui/LobbyScreen.tsx` — Minor (jukebox rooms in browser) |
+| | Modify | `client-3d/src/scene/JapaneseRoom.tsx` — Boombox interactable |
+| | Modify | `scripts/build-models.mjs` — Jukebox + boombox + bar stool + neon sign |
+| | Modify | `client-3d/src/input/usePlayerInput.ts` — Jukebox collision boxes |
 
 ---
 

@@ -56,6 +56,8 @@ export enum Message {
   PLAYER_JUMP, // Player jumped (cosmetic, broadcast to others)
 
   // Jukebox (shared room playlist — used by jukebox + personal music modes)
+  JUKEBOX_CONNECT, // Claim exclusive jukebox access
+  JUKEBOX_DISCONNECT, // Release jukebox access
   JUKEBOX_ADD, // Add track to shared jukebox playlist
   JUKEBOX_REMOVE, // Remove own track from jukebox
   JUKEBOX_PLAY, // Start/resume playback

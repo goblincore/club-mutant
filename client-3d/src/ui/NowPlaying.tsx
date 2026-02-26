@@ -5,7 +5,6 @@ import { getNetwork } from '../network/NetworkManager'
 import { useMusicStore } from '../stores/musicStore'
 import { useBoothStore } from '../stores/boothStore'
 import { useGameStore } from '../stores/gameStore'
-import { useJukeboxStore } from '../stores/jukeboxStore'
 import { useUIStore } from '../stores/uiStore'
 
 function formatTime(seconds: number): string {
@@ -24,7 +23,6 @@ export function NowPlaying() {
   const mySessionId = useGameStore((s) => s.mySessionId)
   const isInQueue = useBoothStore((s) => s.isInQueue)
   const musicMode = useGameStore((s) => s.musicMode)
-  const jukeboxPlaylist = useJukeboxStore((s) => s.playlist)
   const isCurrentDJ = currentDjSessionId === mySessionId
   const muted = useUIStore((s) => s.muted)
 
@@ -95,15 +93,9 @@ export function NowPlaying() {
     return () => clearInterval(id)
   }, [isPlaying, stream.startTime, stream.currentLink])
 
-  // Build "up next" text based on mode
-  let upNextText: string | null = null
-  if (isJukeboxMode) {
-    const nextTrack = jukeboxPlaylist.length > 1 ? jukeboxPlaylist[1] : null
-    upNextText = nextTrack ? `Up next: ${nextTrack.title}` : null
-  } else {
-    const nextDJ = djQueue.length > 1 ? djQueue[1] : null
-    upNextText = nextDJ ? `Up next: ${nextDJ.name}` : null
-  }
+  // Build "up next" text (DJ queue mode only — jukebox returns early above)
+  const nextDJ = djQueue.length > 1 ? djQueue[1] : null
+  const upNextText = nextDJ ? `Up next: ${nextDJ.name}` : null
 
   // Time display
   const timeText =
@@ -113,21 +105,36 @@ export function NowPlaying() {
         ? formatTime(elapsed)
         : null
 
-  // Visibility logic:
-  // Jukebox/personal: show when playing or when playlist has tracks
-  // DJ queue: show for DJs in queue or when something is playing
+  // Jukebox/personal mode: only render the hidden audio player — the DjQueuePanel
+  // handles all visible UI (playlist, controls, status) to avoid duplicate controls.
   if (isJukeboxMode) {
-    if (!isPlaying && jukeboxPlaylist.length === 0) return null
-  } else {
-    if (!isPlaying && !isCurrentDJ && !isInQueue) return null
+    if (!isPlaying) return null
+    return (
+      <div className="fixed -left-[9999px] -top-[9999px] w-1 h-1 overflow-hidden">
+        <ReactPlayer
+          ref={playerRef}
+          url={stream.currentLink!}
+          playing={stream.isPlaying}
+          volume={muted ? 0 : 0.5}
+          width={1}
+          height={1}
+          onEnded={handleEnded}
+          config={{
+            playerVars: {
+              autoplay: 1,
+              controls: 0,
+            },
+          }}
+        />
+      </div>
+    )
   }
 
-  // Controls:
-  // Jukebox/personal: play/stop/skip available to ALL players
-  // DJ queue: play/stop/skip only for current DJ or DJs in queue when stopped
-  const showControls = isJukeboxMode
-    ? true
-    : isCurrentDJ || (isInQueue && !isPlaying)
+  // DJ queue mode: show for DJs in queue or when something is playing
+  if (!isPlaying && !isCurrentDJ && !isInQueue) return null
+
+  // Controls: play/stop/skip only for current DJ or DJs in queue when stopped
+  const showControls = isCurrentDJ || (isInQueue && !isPlaying)
 
   return (
     <>
@@ -152,16 +159,14 @@ export function NowPlaying() {
         </div>
       )}
 
-      {/* Mini player bar */}
+      {/* Mini player bar — DJ queue mode only */}
       <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm border border-white/10 rounded-lg px-3 py-2 min-w-[320px] max-w-[500px]">
         {/* Controls: play/stop toggle + skip */}
         {showControls && (
           <div className="flex items-center gap-1 flex-shrink-0">
             {isPlaying ? (
               <button
-                onClick={() =>
-                  isJukeboxMode ? getNetwork().jukeboxStop() : getNetwork().djStop()
-                }
+                onClick={() => getNetwork().djStop()}
                 className="w-7 h-7 flex items-center justify-center bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded transition-colors"
                 title="Stop"
               >
@@ -169,9 +174,7 @@ export function NowPlaying() {
               </button>
             ) : (
               <button
-                onClick={() =>
-                  isJukeboxMode ? getNetwork().jukeboxPlay() : getNetwork().djPlay()
-                }
+                onClick={() => getNetwork().djPlay()}
                 className="w-7 h-7 flex items-center justify-center bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded transition-colors"
                 title="Play"
               >
@@ -180,9 +183,7 @@ export function NowPlaying() {
             )}
 
             <button
-              onClick={() =>
-                isJukeboxMode ? getNetwork().jukeboxSkip() : getNetwork().djTurnComplete()
-              }
+              onClick={() => getNetwork().djTurnComplete()}
               className="w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 border border-white/15 rounded transition-colors"
               title="Skip to next"
             >
@@ -200,9 +201,6 @@ export function NowPlaying() {
               </div>
 
               <div className="text-[11px] font-mono text-white/60 truncate">
-                {isJukeboxMode && stream.currentDjName && (
-                  <span className="text-white/40">added by {stream.currentDjName} · </span>
-                )}
                 {timeText}
                 {timeText && upNextText && ' · '}
                 {upNextText}
@@ -210,9 +208,7 @@ export function NowPlaying() {
             </>
           ) : (
             <div className="text-[13px] font-mono text-white/60">
-              {isJukeboxMode && jukeboxPlaylist.length > 0
-                ? `${jukeboxPlaylist.length} track${jukeboxPlaylist.length !== 1 ? 's' : ''} queued — press ▶`
-                : 'stopped — press ▶ to play'}
+              stopped — press ▶ to play
             </div>
           )}
         </div>

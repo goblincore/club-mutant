@@ -9,6 +9,8 @@ import { useChatStore } from '../stores/chatStore'
 import { useMusicStore } from '../stores/musicStore'
 import { useBoothStore } from '../stores/boothStore'
 import { useJukeboxStore } from '../stores/jukeboxStore'
+import { useUIStore } from '../stores/uiStore'
+import { useToastStore } from '../stores/toastStore'
 import type { JukeboxItemDto } from '@club-mutant/types/Dtos'
 import { triggerRemoteJump } from '../scene/PlayerEntity'
 import { addRipple } from '../scene/TrampolineRipples'
@@ -581,6 +583,36 @@ export class NetworkManager {
       console.warn('[network] Schema callbacks for jukeboxPlaylist failed:', err)
     }
 
+    // Jukebox occupant sync — track who's using the jukebox
+    try {
+      const syncJukeboxOccupant = () => {
+        const rs = this.room?.state as any
+        const uid = rs?.jukeboxUserId ?? ''
+        const uname = rs?.jukeboxUserName ?? ''
+        useJukeboxStore
+          .getState()
+          .setOccupant(uid || null, uname || null)
+
+        // Auto-open panel if we just became the occupant
+        if (uid === useGameStore.getState().mySessionId) {
+          useUIStore.getState().setDjQueueOpen(true)
+        }
+      }
+
+      stateProxy.listen('jukeboxUserId', syncJukeboxOccupant)
+      stateProxy.listen('jukeboxUserName', syncJukeboxOccupant)
+
+      // Late-join: sync initial occupant state
+      syncJukeboxOccupant()
+    } catch (err) {
+      console.warn('[network] Schema callbacks for jukebox occupant failed:', err)
+    }
+
+    // Jukebox busy rejection — server tells us someone else is using it
+    this.room.onMessage('jukebox_busy', (data: { name: string }) => {
+      useToastStore.getState().addToast(`${data.name} is using the jukebox`)
+    })
+
     // Late-join: sync music state AFTER TimeSync is ready (correct seek offset)
     if (this._timeSync) {
       this._timeSync.onReady(() => {
@@ -795,6 +827,15 @@ export class NetworkManager {
 
   reorderQueuePlaylist(fromIndex: number, toIndex: number) {
     this.room?.send(Message.ROOM_QUEUE_PLAYLIST_REORDER, { fromIndex, toIndex })
+  }
+
+  // Jukebox exclusive access
+  jukeboxConnect() {
+    this.room?.send(Message.JUKEBOX_CONNECT, {})
+  }
+
+  jukeboxDisconnect() {
+    this.room?.send(Message.JUKEBOX_DISCONNECT, {})
   }
 
   // Jukebox (shared room playlist — jukebox + personal music modes)
