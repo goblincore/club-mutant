@@ -5,13 +5,24 @@
 api.mutante.club {
   encode gzip
   # CORS handled by Colyseus server via matchMaker.controller.getCorsHeaders
-  reverse_proxy server:2567
+  reverse_proxy server:2567 {
+    transport http {
+      dial_timeout 5s
+    }
+  }
 }
 
 yt.mutante.club {
-  encode gzip
-  # CORS handled by Go service corsMiddleware
-  reverse_proxy youtube-api:8081
+  # No gzip — video content is already compressed; gzip just wastes CPU
+  # and causes Caddy to buffer responses that then get cancelled by Safari's
+  # aggressive byte-range retry behaviour, flooding the connection pool.
+  reverse_proxy youtube-api:8081 {
+    flush_interval -1
+    transport http {
+      response_header_timeout 30s
+      dial_timeout 5s
+    }
+  }
 }
 
 dream.mutante.club {

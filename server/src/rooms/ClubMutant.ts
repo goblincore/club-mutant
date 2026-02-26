@@ -684,6 +684,7 @@ export class ClubMutant extends Room {
   }
 
   async onCreate(options: IRoomData) {
+    console.log(`[onCreate] room=${this.roomId} name=${options.name} musicMode=${options.musicMode ?? 'default'}`)
     const { name, description, password, autoDispose, isPublic } = options
     this.name = name
     this.description = description
@@ -1088,6 +1089,7 @@ export class ClubMutant extends Room {
   }
 
   onAuth(client: Client, options: { password: string | null }) {
+    console.log(`[onAuth] client=${client.sessionId} room=${this.roomId}`)
     if (this.password) {
       if (!options.password) {
         throw new ServerError(403, 'Password is required!')
@@ -1104,7 +1106,7 @@ export class ClubMutant extends Room {
 
   // when a new player joins, send room data
   onJoin(client: Client, options: any) {
-    if (LOG_ENABLED) console.log('////onJoin, client', client.sessionId)
+    console.log(`[onJoin] client=${client.sessionId} room=${this.roomId} name=${options?.name ?? '?'} players=${this.state.players.size}`)
 
     const existingPlayer = this.state.players.get(client.sessionId)
     const player = existingPlayer ?? new Player()
@@ -1178,7 +1180,7 @@ export class ClubMutant extends Room {
   }
 
   onDrop(client: Client, code: number) {
-    if (LOG_ENABLED) console.log(`[onDrop] client ${client.sessionId} dropped, code=${code}`)
+    console.log(`[onDrop] client=${client.sessionId} code=${code} room=${this.roomId} players=${this.state.players.size}`)
 
     // Allow 60 seconds for reconnection
     this.allowReconnection(client, 60)
@@ -1192,7 +1194,7 @@ export class ClubMutant extends Room {
   }
 
   onReconnect(client: Client) {
-    if (LOG_ENABLED) console.log(`[onReconnect] client ${client.sessionId} reconnected!`)
+    console.log(`[onReconnect] client=${client.sessionId} room=${this.roomId}`)
 
     const player = this.state.players.get(client.sessionId)
 
@@ -1202,7 +1204,7 @@ export class ClubMutant extends Room {
   }
 
   async onLeave(client: Client, code: number) {
-    if (LOG_ENABLED) console.log(`[onLeave] client ${client.sessionId} left, code=${code}`)
+    console.log(`[onLeave] client=${client.sessionId} code=${code} room=${this.roomId} players=${this.state.players.size}`)
 
     this.lastPlayerActionAtMsBySessionId.delete(client.sessionId)
     this.messageThrottles.delete(client.sessionId)
@@ -1244,7 +1246,7 @@ export class ClubMutant extends Room {
   }
 
   onDispose() {
-    if (LOG_ENABLED) console.log('room', this.roomId, 'disposing...')
+    console.log(`[onDispose] room=${this.roomId} players=${this.state.players.size}`)
 
     this.cleanupNpc()
     this.clearTrackWatchdog()
