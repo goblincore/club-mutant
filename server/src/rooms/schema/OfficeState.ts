@@ -36,6 +36,7 @@ export class Player extends Schema {
   @type('string') npcCharacterPath = ''
   @type(['string']) collectibles = new ArraySchema<string>()
   roomQueuePlaylist: RoomQueuePlaylistItem[] = [] // Server-only, not synced (clients use targeted messages)
+  playerId = '' // Server-only: persistent client identity for NPC memory (not synced)
 }
 
 export class ChatMessage extends Schema {

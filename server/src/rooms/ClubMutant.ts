@@ -536,6 +536,7 @@ export class ClubMutant extends Room {
           roomId: this.roomId,
           senderName,
           musicContext,
+          playerId: this.state.players.get(senderSessionId)?.playerId || '',
         }),
         signal: AbortSignal.timeout(8000),
       })
@@ -1110,6 +1111,7 @@ export class ClubMutant extends Room {
 
     if (!existingPlayer) {
       const playerId = options?.playerId || client.sessionId.slice(0, 8)
+      player.playerId = playerId
       const rawTextureId = options?.textureId
       player.textureId = rawTextureId != null ? sanitizeTextureId(rawTextureId) : TEXTURE_IDS.mutant
       player.animId = packDirectionalAnimId('idle', 'down')

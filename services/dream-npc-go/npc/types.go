@@ -7,6 +7,7 @@ type NpcChatRequest struct {
 	MusicContext  string    `json:"musicContext,omitempty"`
 	SenderName    string    `json:"senderName,omitempty"`
 	RoomID        string    `json:"roomId,omitempty"`
+	PlayerID      string    `json:"playerId,omitempty"`
 }
 
 type Message struct {

@@ -55,6 +55,7 @@ services:
     environment:
       - PORT=4000
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - MEM0_API_KEY=${MEM0_API_KEY}
     expose:
       - '4000'
 

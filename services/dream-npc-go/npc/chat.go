@@ -22,6 +22,7 @@ func init() {
 	cache = NewCache(500, 3600_000)
 	rateLimiter = NewRateLimiter()
 	client = &http.Client{Timeout: 8 * time.Second}
+	InitMem0()
 }
 
 func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
@@ -39,9 +40,13 @@ func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
 		return 429, NpcErrorResponse{Error: "Rate limited", RetryAfterMs: retry}
 	}
 
-	// Cache check (skip if music is playing)
+	// Cache check (skip if music is playing; include playerId for per-player cache)
 	hasMusic := req.MusicContext != "" && !strings.Contains(req.MusicContext, "No music")
-	cacheKey := GetCacheKey(req.PersonalityID, req.Message)
+	cacheMsg := req.Message
+	if req.PlayerID != "" {
+		cacheMsg = req.Message + "::" + req.PlayerID
+	}
+	cacheKey := GetCacheKey(req.PersonalityID, cacheMsg)
 
 	if !hasMusic {
 		if entry, found := cache.Get(cacheKey); found {
@@ -52,6 +57,18 @@ func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
 	// Record request
 	rateLimiter.Record(sessionKey)
 
+	// Start mem0 search in parallel with prompt building
+	mem0UserID := ""
+	var memCh chan []Mem0Memory
+	if req.PlayerID != "" && mem0Client != nil {
+		mem0UserID = "lily:" + req.PlayerID
+		memCh = make(chan []Mem0Memory, 1)
+		go func() {
+			results := Mem0Search(req.Message, mem0UserID, 5)
+			memCh <- results
+		}()
+	}
+
 	// Build dynamic prompt
 	sysPrompt := personality.SystemPrompt
 	var contextParts []string
@@ -61,6 +78,21 @@ func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
 	if req.SenderName != "" {
 		contextParts = append(contextParts, "The person talking to you right now is named \""+req.SenderName+"\".")
 	}
+
+	// Collect mem0 results (blocks until search completes or was never started)
+	if memCh != nil {
+		memories := <-memCh
+		if len(memories) > 0 {
+			var lines []string
+			for _, m := range memories {
+				lines = append(lines, "- "+m.Memory)
+			}
+			contextParts = append(contextParts,
+				"THINGS YOU REMEMBER ABOUT THIS PERSON FROM PAST VISITS:\n"+
+					strings.Join(lines, "\n"))
+		}
+	}
+
 	if len(contextParts) > 0 {
 		sysPrompt += "\n\nCONTEXT:\n" + strings.Join(contextParts, "\n")
 	}
@@ -72,6 +104,16 @@ func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
 		parsedText, parsedBehavior := parseResponse(rawResponse)
 		if parsedText != "" {
 			cache.Set(cacheKey, parsedText, parsedBehavior)
+
+			// Store conversation in mem0 (fire-and-forget)
+			if mem0UserID != "" {
+				taggedMsg := req.Message
+				if req.SenderName != "" {
+					taggedMsg = "[" + req.SenderName + "]: " + req.Message
+				}
+				go Mem0Add(taggedMsg, parsedText, mem0UserID)
+			}
+
 			return 200, NpcChatResponse{Text: parsedText, Behavior: parsedBehavior}
 		}
 	}
