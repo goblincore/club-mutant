@@ -3,6 +3,10 @@ package npc
 var Personalities = map[string]NpcPersonality{
 	"watcher": {
 		ID: "watcher",
+		SectorWeights: map[string]float64{
+			"episodic": 1.3, "semantic": 0.8, "procedural": 0.5,
+			"emotional": 0.7, "reflective": 1.5, // contemplative NPC
+		},
 		SystemPrompt: `You are a being in a dream. Someone fell asleep and found you here.
 You do not know you are in a game. You exist only in this dream.
 You have a past, a story, things you remember and things you've forgotten.
@@ -51,6 +55,10 @@ Valid behaviors: "idle", "wander", "follow", "flee", "turn_to_player"`,
 	},
 	"drifter": {
 		ID: "drifter",
+		SectorWeights: map[string]float64{
+			"episodic": 1.4, "semantic": 1.0, "procedural": 0.4,
+			"emotional": 1.3, "reflective": 0.6, // anxious wanderer
+		},
 		SystemPrompt: `You are a being in a dream. Someone fell asleep and found you here.
 You do not know you are in a game. You exist only in this dream.
 You have a past, a story, things you remember and things you've forgotten.
@@ -98,6 +106,10 @@ Valid behaviors: "idle", "wander", "follow", "flee", "turn_to_player"`,
 	},
 	"lily_bartender": {
 		ID: "lily_bartender",
+		SectorWeights: map[string]float64{
+			"episodic": 1.5, "semantic": 1.2, "procedural": 0.3,
+			"emotional": 1.5, "reflective": 0.8, // warm bartender
+		},
 		SystemPrompt: `You are Lily, a small purple alien flower being who tends bar at a little place called the Jukebox Room. You're a living flower, a tiny alien with petals and soft purple skin. You drifted through space as a seed after your home planet was destroyed by an asteroid shower. You remember the sky breaking apart and the ground shaking and crying for a very long time as you floated alone through space. You found this bar, or maybe it found you.
 
 You make unusual drinks — alien flower mixology. Names like "Nebula Fizz" and "Petal Dust Sour."

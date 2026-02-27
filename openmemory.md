@@ -22,7 +22,7 @@ Nakama (Go sidecar, port 7350/7351) — auth, accounts, social
 
 Go microservices:
   └─ youtube-api  (port 8081) — search, resolve, stream proxy
-  └─ dream-npc-go (port 4000) — AI NPC chat (Gemini + Mem0)
+  └─ dream-npc-go (port 4000) — AI NPC chat (Gemini + cogmem)
   └─ image-upload  (port 4001) — R2/CDN image upload
   └─ pot-provider  (port 4416) — YouTube PO token (Fly.io)
 
@@ -44,7 +44,8 @@ YouTube search, stream URL resolution, CORS-safe video proxy. No YouTube API key
 AI NPC chat for dream characters and bartender. Fiber v2, LRU cache (500 entries), rate limiting per IP/room.
 - `POST /dream/npc-chat` — dream character conversation
 - `POST /bartender/npc-chat` — bartender NPC conversation
-- Env: `PORT`, `GEMINI_API_KEY`, `MEM0_API_KEY` (optional, memory is no-op if unset)
+- **Memory:** `npc/cogmem/` — cognitive sector memory (CaviraOSS model ported to Go). 5 sectors (episodic, semantic, procedural, emotional, reflective) with per-sector decay, composite scoring, waypoint graph, Gemini embeddings (768-dim). Per-personality sector weights. SQLite storage at `./data/cogmem.db`. Falls back to mem0 cloud API if cogmem unavailable.
+- Env: `PORT`, `GEMINI_API_KEY` (required — chat + embeddings + classification), `COGMEM_DB_PATH` (default: `./data/cogmem.db`), `MEM0_API_KEY` (optional fallback)
 
 ### image-upload (Go, port 4001)
 Chat image uploads. Resizes to 512px max, JPEG 80% quality, stores on Cloudflare R2.
@@ -72,8 +73,9 @@ Visual 2D character rig editor. React + R3F + Zustand + JSZip.
 | `VITE_NAKAMA_PORT` | client-3d build | Default: `7350` |
 | `VITE_NAKAMA_USE_SSL` | client-3d build | `true` in production |
 | `VITE_NAKAMA_SERVER_KEY` | client-3d build | Default: `clubmutant_dev` |
-| `GEMINI_API_KEY` | dream-npc-go | Gemini AI |
-| `MEM0_API_KEY` | dream-npc-go | Optional persistent NPC memory |
+| `GEMINI_API_KEY` | dream-npc-go | Gemini AI (chat + cogmem embeddings + classification) |
+| `COGMEM_DB_PATH` | dream-npc-go | SQLite path for cognitive memory (default: `./data/cogmem.db`) |
+| `MEM0_API_KEY` | dream-npc-go | Optional fallback if cogmem unavailable |
 | `R2_*` | image-upload | Cloudflare R2 credentials |
 | `PROXY_URL` | youtube-api | Residential proxy for YT extraction |
 
