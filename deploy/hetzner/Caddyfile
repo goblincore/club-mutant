@@ -33,6 +33,23 @@ upload.mutante.club {
   reverse_proxy image-upload:4001
 }
 
+nakama.mutante.club {
+  encode gzip
+
+  @cors_preflight method OPTIONS
+  handle @cors_preflight {
+    header Access-Control-Allow-Origin "https://mutante.club"
+    header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    header Access-Control-Allow-Headers "Authorization, Content-Type, Accept"
+    header Access-Control-Max-Age "2592000"
+    respond "" 204
+  }
+
+  header Access-Control-Allow-Origin "https://mutante.club"
+
+  reverse_proxy nakama:7350
+}
+
 # DISABLED — proxy.mutante.club has no DNS record, causing Caddy to loop
 # on TLS cert provisioning (NXDOMAIN) which blocks all other domains.
 # Re-enable once a DNS A record is created for proxy.mutante.club.

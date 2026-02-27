@@ -1,6 +1,9 @@
 import { getNetwork } from './network/NetworkManager'
 import { useGameStore } from './stores/gameStore'
 import { useUIStore } from './stores/uiStore'
+import { useAuthStore } from './stores/authStore'
+import { AuthScreen } from './ui/AuthScreen'
+import { ProfileBadge } from './ui/ProfileBadge'
 import { useBoothStore } from './stores/boothStore'
 import { useMusicStore } from './stores/musicStore'
 import { GameScene } from './scene/GameScene'
@@ -111,11 +114,28 @@ export function App() {
   const showIframe =
     videoBackgroundEnabled && videoBgMode === 'iframe' && streamIsPlaying && !!streamCurrentLink
 
+  // Auth screen — shown before lobby if user hasn't chosen guest or logged in
+  const authReady = useAuthStore((s) => s.authReady)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+
+  if (!authReady) {
+    return <AuthScreen />
+  }
+
   // Never connected yet — show lobby
   const neverConnected = connectionStatus === 'disconnected' && !mySessionId
 
   if (neverConnected) {
-    return <LobbyScreen />
+    return (
+      <div className="relative w-full h-full">
+        <LobbyScreen />
+        {isAuthenticated && (
+          <div className="absolute top-3 right-3" style={{ zIndex: 100 }}>
+            <ProfileBadge />
+          </div>
+        )}
+      </div>
+    )
   }
 
   // Show full panel only when open AND not minimized
@@ -148,6 +168,13 @@ export function App() {
       <div className="absolute top-3 left-3" style={{ zIndex: 30 }}>
         <NowPlaying />
       </div>
+
+      {/* Profile badge — top-right corner */}
+      {isAuthenticated && (
+        <div className="absolute top-3 right-3" style={{ zIndex: 30 }}>
+          <ProfileBadge />
+        </div>
+      )}
 
       {/* Minimized booth bar — shown when DJ queue panel is open but minimized (booth only, not jukebox) */}
       {playlistOpen && playlistMinimized && isAtBooth && !isJukeboxMode && (

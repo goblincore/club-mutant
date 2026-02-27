@@ -1,0 +1,56 @@
+# Local dev only — Nakama + PostgreSQL for auth development
+# Usage: docker compose -f docker-compose.dev.yml up -d
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nakama
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: localdev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  nakama:
+    image: heroiclabs/nakama:3.24.2
+    platform: linux/amd64
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - NAKAMA_CONSOLE_USERNAME=admin
+      - NAKAMA_CONSOLE_PASSWORD=password
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        /nakama/nakama migrate up --database.address=postgres:localdev@postgres:5432/nakama &&
+        exec /nakama/nakama \
+          --database.address=postgres:localdev@postgres:5432/nakama \
+          --socket.server_key=clubmutant_dev \
+          --session.encryption_key=clubmutant_dev_encryption_key_32ch \
+          --session.token_expiry_sec=7200 \
+          --session.refresh_token_expiry_sec=2592000 \
+          --console.username=admin \
+          --console.password=password
+    ports:
+      - '7350:7350'   # Client API (gRPC + HTTP)
+      - '7351:7351'   # Admin console
+      - '7349:7349'   # gRPC API
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', '/nakama/nakama', 'healthcheck']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

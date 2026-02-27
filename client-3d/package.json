@@ -11,6 +11,7 @@
   "dependencies": {
     "@club-mutant/types": "workspace:*",
     "@colyseus/sdk": "^0.17.22",
+    "@heroiclabs/nakama-js": "^2.8.0",
     "@react-three/drei": "^9.119.0",
     "@react-three/fiber": "^8.17.0",
     "@react-three/postprocessing": "^2.16.0",

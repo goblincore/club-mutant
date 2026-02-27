@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'crypto'
 import { Room, Client, ServerError, CloseCode } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
+import { verifyNakamaToken, type NakamaTokenPayload } from '../lib/verifyNakamaToken'
 
 import { Player, OfficeState, MusicBooth, ChatMessage } from './schema/OfficeState'
 import { IRoomData, type MusicMode } from '@club-mutant/types/Rooms'
@@ -1112,8 +1113,10 @@ export class ClubMutant extends Room {
     })
   }
 
-  onAuth(client: Client, options: { password: string | null }) {
-    console.log(`[onAuth] client=${client.sessionId} room=${this.roomId}`)
+  onAuth(client: Client, options: { password: string | null; nakamaToken?: string }) {
+    console.log(`[onAuth] client=${client.sessionId} room=${this.roomId} hasToken=${!!options.nakamaToken}`)
+
+    // 1. Room password check (unchanged — applies to both guests and authenticated users)
     if (this.password) {
       if (!options.password) {
         throw new ServerError(403, 'Password is required!')
@@ -1125,18 +1128,35 @@ export class ClubMutant extends Room {
         throw new ServerError(403, 'Password is incorrect!')
       }
     }
+
+    // 2. Nakama token verification (optional — guests skip this)
+    if (options.nakamaToken) {
+      const payload = verifyNakamaToken(options.nakamaToken)
+      if (!payload) {
+        throw new ServerError(401, 'Invalid or expired auth token')
+      }
+      // Return payload — Colyseus passes onAuth return value as `auth` to onJoin
+      return payload
+    }
+
+    // 3. Guest access — no token, allow through
     return true
   }
 
   // when a new player joins, send room data
-  onJoin(client: Client, options: any) {
-    console.log(`[onJoin] client=${client.sessionId} room=${this.roomId} name=${options?.name ?? '?'} players=${this.state.players.size}`)
+  onJoin(client: Client, options: any, auth?: NakamaTokenPayload | true) {
+    const isAuthenticated = auth && typeof auth === 'object' && 'uid' in auth
+    console.log(`[onJoin] client=${client.sessionId} room=${this.roomId} name=${options?.name ?? '?'} players=${this.state.players.size} auth=${isAuthenticated ? (auth as NakamaTokenPayload).uid.slice(0, 8) : 'guest'}`)
 
     const existingPlayer = this.state.players.get(client.sessionId)
     const player = existingPlayer ?? new Player()
 
     if (!existingPlayer) {
-      const playerId = options?.playerId || client.sessionId.slice(0, 8)
+      // Authenticated users: use Nakama user ID as persistent playerId
+      // Guests: use client-provided playerId or fall back to session ID prefix
+      const playerId = isAuthenticated
+        ? (auth as NakamaTokenPayload).uid
+        : (options?.playerId || client.sessionId.slice(0, 8))
       player.playerId = playerId
       const rawTextureId = options?.textureId
       player.textureId = rawTextureId != null ? sanitizeTextureId(rawTextureId) : TEXTURE_IDS.mutant
@@ -1147,13 +1167,15 @@ export class ClubMutant extends Room {
       player.y = typeof options?.spawnY === 'number' ? options.spawnY : 0
 
       if (this.isPublic) {
+        // Authenticated users: prefer options.name, then Nakama username, then fallback
         const playerName = options?.name?.trim()
-        player.name = playerName || `mutant-${playerId}`
+          || (isAuthenticated ? (auth as NakamaTokenPayload).usn : '')
+        player.name = playerName || `mutant-${playerId.slice(0, 8)}`
       }
 
       if (LOG_ENABLED)
         console.log(
-          `[onJoin] name=${player.name} textureId=${player.textureId} (raw=${rawTextureId}) public=${this.isPublic}`
+          `[onJoin] name=${player.name} textureId=${player.textureId} (raw=${rawTextureId}) public=${this.isPublic} authenticated=${isAuthenticated}`
         )
     }
 

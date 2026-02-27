@@ -3,6 +3,8 @@ import type { IOfficeState, IPlayer } from '@club-mutant/types/IOfficeState'
 import { Message } from '@club-mutant/types/Messages'
 import { RoomType } from '@club-mutant/types/Rooms'
 import type { RoomListEntry } from '../stores/gameStore'
+import { useAuthStore } from '../stores/authStore'
+import { getValidToken } from './nakamaClient'
 
 import { useGameStore, setPlayerPosition, getPlayerPosition } from '../stores/gameStore'
 import { useChatStore } from '../stores/chatStore'
@@ -17,6 +19,22 @@ import { addRipple } from '../scene/TrampolineRipples'
 import { TimeSync } from './TimeSync'
 
 const PLAYER_ID_KEY = 'club-mutant-3d:player-id'
+
+// -- Session lock: prevent duplicate in-game tabs -------------------------
+const SESSION_LOCK_KEY = 'club-mutant:session-lock'
+const SESSION_LOCK_TTL = 30_000 // 30 seconds
+
+export function isSessionActive(): boolean {
+  const raw = localStorage.getItem(SESSION_LOCK_KEY)
+  if (!raw) return false
+  try {
+    const { ts } = JSON.parse(raw) as { ts: number }
+    return Date.now() - ts < SESSION_LOCK_TTL
+  } catch {
+    return false
+  }
+}
+// -------------------------------------------------------------------------
 
 /** Race a promise against a timeout. Rejects with a descriptive error if the timeout fires first. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -59,6 +77,9 @@ export class NetworkManager {
   private youtubeBaseUrl: string
   private _timeSync: TimeSync | null = null
   private _myTextureId: number = 0
+  private _tabId: string = crypto.randomUUID()
+  private _heartbeatInterval: ReturnType<typeof setInterval> | null = null
+  private _onUnload = () => this.releaseSessionLock()
 
   constructor(serverUrl?: string) {
     const url =
@@ -73,6 +94,20 @@ export class NetworkManager {
     this.youtubeBaseUrl =
       import.meta.env.VITE_YOUTUBE_SERVICE_URL ||
       (window.location.hostname === 'localhost' ? 'http://localhost:8081' : `${this.httpBaseUrl}/youtube`)
+  }
+
+  /**
+   * Build auth options to include in Colyseus room join/create calls.
+   * Returns { nakamaToken } if authenticated, empty object for guests.
+   */
+  private async getAuthOptions(): Promise<{ nakamaToken?: string }> {
+    const authState = useAuthStore.getState()
+    if (!authState.isAuthenticated) return {}
+
+    const token = await getValidToken()
+    if (!token) return {}
+
+    return { nakamaToken: token }
   }
 
   /**
@@ -145,6 +180,37 @@ export class NetworkManager {
     console.warn('[network] Failed to join lobby room after all retries')
   }
 
+  private claimSessionLock(): void {
+    const write = () =>
+      localStorage.setItem(SESSION_LOCK_KEY, JSON.stringify({ tabId: this._tabId, ts: Date.now() }))
+    write()
+    if (!this._heartbeatInterval) {
+      this._heartbeatInterval = setInterval(write, 10_000)
+    }
+    window.addEventListener('beforeunload', this._onUnload)
+  }
+
+  private releaseSessionLock(): void {
+    const raw = localStorage.getItem(SESSION_LOCK_KEY)
+    if (raw) {
+      try {
+        const { tabId } = JSON.parse(raw) as { tabId: string }
+        if (tabId === this._tabId) localStorage.removeItem(SESSION_LOCK_KEY)
+      } catch { /* ignore */ }
+    }
+    if (this._heartbeatInterval) {
+      clearInterval(this._heartbeatInterval)
+      this._heartbeatInterval = null
+    }
+    window.removeEventListener('beforeunload', this._onUnload)
+  }
+
+  private checkNoActiveSession(): void {
+    if (useAuthStore.getState().isAuthenticated && isSessionActive()) {
+      throw new Error('You already have an active session in another tab. Please close it first.')
+    }
+  }
+
   /**
    * Shared room setup: reconnection config, TimeSync, listeners, mark connected.
    * Called by joinPublicRoom, createCustomRoom, joinCustomById after room is joined.
@@ -152,6 +218,7 @@ export class NetworkManager {
   private setupRoom(textureId: number) {
     if (!this.room) return
 
+    this.claimSessionLock()
     this._myTextureId = textureId
 
     // Configure reconnection: max 10 retries, up to 8s delay
@@ -172,6 +239,8 @@ export class NetworkManager {
 
   async joinPublicRoom(playerName: string, textureId?: number): Promise<void> {
     try {
+      this.checkNoActiveSession()
+      const authOpts = await this.getAuthOptions()
       this.room = await withTimeout(
         this.client.joinOrCreate<IOfficeState>(RoomType.PUBLIC, {
           name: playerName,
@@ -179,6 +248,7 @@ export class NetworkManager {
           spawnX: 0,
           spawnY: 0,
           ...(textureId != null ? { textureId } : {}),
+          ...authOpts,
         }),
         15000,
         'Join public room'
@@ -196,6 +266,8 @@ export class NetworkManager {
 
   async joinMyRoom(playerName: string, textureId: number): Promise<void> {
     try {
+      this.checkNoActiveSession()
+      const authOpts = await this.getAuthOptions()
       this.room = await withTimeout(
         this.client.joinOrCreate<IOfficeState>(RoomType.MYROOM, {
           name: playerName,
@@ -203,6 +275,7 @@ export class NetworkManager {
           textureId,
           spawnX: 0,
           spawnY: 0,
+          ...authOpts,
         }),
         15000,
         'Join MyRoom'
@@ -224,6 +297,8 @@ export class NetworkManager {
     textureId: number
   ): Promise<void> {
     try {
+      this.checkNoActiveSession()
+      const authOpts = await this.getAuthOptions()
       this.room = await withTimeout(
         this.client.create<IOfficeState>(RoomType.JUKEBOX, {
           name: roomData.name,
@@ -235,6 +310,7 @@ export class NetworkManager {
           textureId,
           spawnX: 0,
           spawnY: 0,
+          ...authOpts,
         }),
         15000,
         'Create jukebox room'
@@ -256,7 +332,9 @@ export class NetworkManager {
     textureId: number
   ): Promise<void> {
     try {
+      this.checkNoActiveSession()
       const musicMode = roomData.musicMode ?? 'djqueue'
+      const authOpts = await this.getAuthOptions()
 
       this.room = await withTimeout(
         this.client.create<IOfficeState>(RoomType.CUSTOM, {
@@ -269,6 +347,7 @@ export class NetworkManager {
           textureId,
           spawnX: 0,
           spawnY: 0,
+          ...authOpts,
         }),
         15000,
         'Create custom room'
@@ -291,6 +370,8 @@ export class NetworkManager {
     textureId: number
   ): Promise<void> {
     try {
+      this.checkNoActiveSession()
+      const authOpts = await this.getAuthOptions()
       this.room = await withTimeout(
         this.client.joinById<IOfficeState>(roomId, {
           password,
@@ -298,6 +379,7 @@ export class NetworkManager {
           textureId,
           spawnX: 0,
           spawnY: 0,
+          ...authOpts,
         }),
         15000,
         'Join custom room'
@@ -688,7 +770,7 @@ export class NetworkManager {
     // Room leave — permanent (either consented or failed to reconnect)
     this.room.onLeave((code: number) => {
       console.log('[network] Left room, code:', code)
-
+      this.releaseSessionLock()
       useGameStore.getState().setConnectionStatus('disconnected')
       useMusicStore.getState().clearStream()
       useBoothStore.getState().setBoothConnected(false)
@@ -928,6 +1010,7 @@ export class NetworkManager {
   disconnect() {
     this._timeSync?.stop()
     this._timeSync = null
+    this.releaseSessionLock()
     this.room?.leave()
     this.room = null
   }
