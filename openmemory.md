@@ -41,10 +41,17 @@ YouTube search, stream URL resolution, CORS-safe video proxy. No YouTube API key
 - Env: `PORT`, `YOUTUBE_API_CACHE_TTL`, `PROXY_URL`, `POT_PROVIDER_URL`
 
 ### dream-npc-go (Go, port 4000)
-AI NPC chat for dream characters and bartender. Fiber v2, LRU cache (500 entries), rate limiting per IP/room.
+AI NPC chat for dream characters and bartender (Lily). Fiber v2, LRU cache (500 entries, 1hr TTL — skipped when music playing), rate limiting per IP/room. Gemini 2.5 Flash Lite.
 - `POST /dream/npc-chat` — dream character conversation
-- `POST /bartender/npc-chat` — bartender NPC conversation
-- **Memory:** `npc/cogmem/` — cognitive sector memory (CaviraOSS model ported to Go). 5 sectors (episodic, semantic, procedural, emotional, reflective) with per-sector decay, composite scoring, waypoint graph, Gemini embeddings (768-dim). Per-personality sector weights. SQLite storage at `./data/cogmem.db`. Falls back to mem0 cloud API if cogmem unavailable.
+- `POST /bartender/npc-chat` — bartender NPC conversation (+ cogmem search if playerId present)
+- **Memory:** `npc/cogmem/` — cognitive sector memory (CaviraOSS model ported to Go). 5 sectors (episodic, semantic, procedural, emotional, reflective) with per-sector decay, composite scoring `(0.6×sim + 0.2×salience + 0.1×recency + 0.1×linkWeight) × sectorWeight`, waypoint graph, Gemini embeddings (768-dim). Per-personality sector weights. SQLite storage at `./data/cogmem.db`. Falls back to mem0 cloud API if cogmem unavailable.
+  - `buildConversationSummary()` — two-sided "user msg → npc response" (200 chars)
+  - `guaranteeHighSalience()` — always surfaces memories with salience ≥ 0.6 regardless of query similarity
+  - `cmd/cogmem-inspect/` — CLI tool to browse/inspect stored memories
+- **Personality:** Open-ended MUSIC knowledge (Gemini inherent), personal favorites for character. MaxOutputTokens: 160. Music questions get 2-3 sentence allowance.
+- **Server-initiated behaviors** (via `[SYSTEM]` prompts from ClubMutant.ts):
+  - `greetPlayerWithMemory()` — memory-aware greetings for authenticated returning players
+  - `suggestMusicDynamically()` — specific song suggestions when bar is quiet (every 3min after 2min silence)
 - Env: `PORT`, `GEMINI_API_KEY` (required — chat + embeddings + classification), `COGMEM_DB_PATH` (default: `./data/cogmem.db`), `MEM0_API_KEY` (optional fallback)
 
 ### image-upload (Go, port 4001)

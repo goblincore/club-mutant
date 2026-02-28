@@ -163,13 +163,14 @@ func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
 
 			// Store conversation in memory (fire-and-forget)
 			if memUserID != "" {
-				taggedMsg := req.Message
-				if req.SenderName != "" {
-					taggedMsg = "[" + req.SenderName + "]: " + req.Message
-				}
 				if cogMemInstance != nil {
-					go cogMemInstance.Add(taggedMsg, parsedText, memUserID)
+					// cogmem tracks userID separately — no need for name prefix
+					go cogMemInstance.Add(req.Message, parsedText, memUserID)
 				} else if mem0Client != nil {
+					taggedMsg := req.Message
+					if req.SenderName != "" {
+						taggedMsg = "[" + req.SenderName + "]: " + req.Message
+					}
 					go Mem0Add(taggedMsg, parsedText, "lily:"+req.PlayerID)
 				}
 			}
@@ -197,7 +198,7 @@ func callGemini(systemPrompt string, history []Message, message string) string {
 		SystemInstruction: GeminiInstruction{Parts: []GeminiPart{{Text: systemPrompt}}},
 		Contents:          []GeminiContent{},
 		GenerationConfig: GeminiConfig{
-			MaxOutputTokens: 120,
+			MaxOutputTokens: 160,
 			Temperature:     0.9,
 			TopP:            0.95,
 		},

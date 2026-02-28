@@ -332,6 +332,73 @@ export class ClubMutant extends Room {
     }, 2000 + Math.random() * 3000) // 2-5s after track starts
   }
 
+  /**
+   * Generate a memory-aware greeting for a returning authenticated player.
+   * Calls the NPC chat service which searches cogmem for past interactions.
+   * Returns null on failure — caller should fall back to hardcoded greeting.
+   */
+  private async greetPlayerWithMemory(player: Player): Promise<string | null> {
+    try {
+      const res = await fetch(`${NPC_SERVICE_URL}/bartender/npc-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personalityId: NPC_PERSONALITY_ID,
+          message: `[SYSTEM]: ${player.name} just walked into the bar. They are a returning visitor. Greet them naturally using what you remember about them. If they asked you to greet them a specific way, do that.`,
+          history: [],
+          roomId: this.roomId,
+          senderName: player.name,
+          playerId: player.playerId,
+        }),
+        signal: AbortSignal.timeout(6000),
+      })
+
+      if (!res.ok) return null
+      const data = (await res.json()) as { text?: string }
+      return data.text || null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Generate a dynamic music suggestion when the bar has been quiet.
+   * Uses the NPC chat service so Lily can suggest a specific song.
+   * Returns null on failure — caller should fall back to hardcoded nudge phrases.
+   */
+  private async suggestMusicDynamically(): Promise<string | null> {
+    try {
+      const ms = this.state.musicStream
+      const lastTrack = ms.currentTitle && ms.status !== 'playing' ? ms.currentTitle : null
+
+      let systemMsg =
+        '[SYSTEM]: The bar has been quiet for a while. Suggest a specific song someone should play — give the song title and artist.'
+      if (lastTrack) {
+        systemMsg += ` The last song that was playing was "${lastTrack}".`
+      }
+
+      const res = await fetch(`${NPC_SERVICE_URL}/bartender/npc-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personalityId: NPC_PERSONALITY_ID,
+          message: systemMsg,
+          history: [],
+          roomId: this.roomId,
+          senderName: '',
+          playerId: '',
+        }),
+        signal: AbortSignal.timeout(5000),
+      })
+
+      if (!res.ok) return null
+      const data = (await res.json()) as { text?: string }
+      return data.text || null
+    } catch {
+      return null
+    }
+  }
+
   private randomIdleTime(): number {
     return 3000 + Math.random() * 5000 // 3-8 seconds
   }
@@ -450,8 +517,12 @@ export class ClubMutant extends Room {
         now >= this.npcOverwhelmedUntil
       ) {
         this.npcLastMusicSilenceCheck = now
-        const phrase = this.npcSuggestMusicPhrases[Math.floor(Math.random() * this.npcSuggestMusicPhrases.length)]
-        this.broadcastNpcMessage(phrase)
+        this.suggestMusicDynamically().then((suggestion) => {
+          const msg =
+            suggestion ??
+            this.npcSuggestMusicPhrases[Math.floor(Math.random() * this.npcSuggestMusicPhrases.length)]
+          this.broadcastNpcMessage(msg)
+        })
       }
     }
   }
@@ -521,7 +592,7 @@ export class ClubMutant extends Room {
     let musicContext: string
     const ms = this.state.musicStream
     if (ms.status === 'playing' && ms.currentTitle && !ms.isAmbient) {
-      musicContext = `Currently playing: "${ms.currentTitle}". You can hear this in the background. Comment on it only if relevant.`
+      musicContext = `The song playing in the bar RIGHT NOW is: "${ms.currentTitle}". When someone asks about "this song" or "what's playing" or comments on the music, they mean THIS specific track.`
     } else {
       musicContext = 'No music is playing right now. The bar is quiet.'
     }
@@ -1214,12 +1285,25 @@ export class ClubMutant extends Room {
         this.npcLastGreetingAt = now
         const delay = 1500 + Math.random() * 1500 // 1.5–3s randomized delay
         const greetingSessionId = client.sessionId
-        setTimeout(() => {
-          // Verify player is still connected before sending
-          if (this.state.players.has(greetingSessionId)) {
-            const greeting = this.npcGreetings[Math.floor(Math.random() * this.npcGreetings.length)]
-            this.broadcastNpcMessage(greeting)
+        const playerIsAuthenticated = isAuthenticated // capture for closure
+
+        setTimeout(async () => {
+          if (!this.state.players.has(greetingSessionId)) return
+
+          const player = this.state.players.get(greetingSessionId)!
+          let greeting: string | null = null
+
+          // Authenticated returning players: try memory-aware greeting via NPC service
+          if (playerIsAuthenticated && player.playerId) {
+            greeting = await this.greetPlayerWithMemory(player)
           }
+
+          // Fallback: hardcoded intro (for guests, new players, or service failure)
+          if (!greeting) {
+            greeting = this.npcGreetings[Math.floor(Math.random() * this.npcGreetings.length)]
+          }
+
+          this.broadcastNpcMessage(greeting)
         }, delay)
       }
     }

@@ -7,6 +7,12 @@ import (
 	"sync"
 )
 
+// scored pairs a memory+vector with its computed similarity to the query.
+type scored struct {
+	memoryWithVector
+	similarity float64
+}
+
 // CogMem is the cognitive memory engine.
 // It provides Search and Add methods as drop-in replacements for mem0.
 type CogMem struct {
@@ -74,10 +80,6 @@ func (cm *CogMem) Search(query, userID string, limit int, weights SectorWeights)
 	}
 
 	// 3. Compute similarity for each candidate
-	type scored struct {
-		memoryWithVector
-		similarity float64
-	}
 	var scoredCandidates []scored
 	for _, c := range candidates {
 		if c.Vector == nil {
@@ -134,6 +136,12 @@ func (cm *CogMem) Search(query, userID string, limit int, weights SectorWeights)
 		results = results[:limit]
 	}
 
+	// 6b. High-salience guarantee: always surface the user's most important
+	// memories even if their semantic similarity to the current query is low.
+	// This ensures explicit user requests ("call me X", "greet me with Y")
+	// are never lost just because the new query doesn't match semantically.
+	results = guaranteeHighSalience(results, scoredCandidates, weights, linkWeights, limit)
+
 	// 7. Reinforce accessed memories
 	for _, r := range results {
 		if err := cm.store.ReinforceSalience(r.ID, 0.15); err != nil {
@@ -167,8 +175,8 @@ func (cm *CogMem) Add(userMessage, assistantMessage, userID string) {
 		log.Printf("[cogmem] Embed failed, storing without vector: %v", err)
 	}
 
-	// 4. Generate summary (truncate to ~100 chars)
-	summary := truncateSummary(assistantMessage, 100)
+	// 4. Generate summary (captures both sides of the conversation)
+	summary := buildConversationSummary(userMessage, assistantMessage, 200)
 
 	// 5. Store memory
 	mem := Memory{
@@ -215,6 +223,81 @@ func (cm *CogMem) Close() error {
 		cm.cancelDecay()
 	}
 	return cm.store.Close()
+}
+
+// guaranteeHighSalience ensures the user's highest-salience memories appear in
+// results even if their semantic similarity to the current query is low.
+// This prevents explicit user requests ("greet me with X") from being buried
+// when the new query is a casual greeting that doesn't match semantically.
+func guaranteeHighSalience(results []SearchResult, allScored []scored, weights SectorWeights, linkWeights map[int64]float64, limit int) []SearchResult {
+	const salienceThreshold = 0.6 // only boost memories that have been reinforced
+	const maxBoosts = 2           // inject at most 2 high-salience memories
+
+	// Collect IDs already in results
+	inResults := make(map[int64]bool)
+	for _, r := range results {
+		inResults[r.ID] = true
+	}
+
+	// Find high-salience memories not yet in results
+	var candidates []SearchResult
+	for _, sc := range allScored {
+		if inResults[sc.ID] || sc.Salience < salienceThreshold {
+			continue
+		}
+		sectorWeight := weights[sc.Sector]
+		if sectorWeight == 0 {
+			sectorWeight = 1.0
+		}
+		lw := linkWeights[sc.ID]
+		days := DaysSince(sc.LastAccessedAt)
+		composite := CompositeScore(sc.similarity, sc.DecayScore, days, lw, sectorWeight)
+		candidates = append(candidates, SearchResult{
+			Memory:         sc.Memory,
+			CompositeScore: composite,
+			Similarity:     sc.similarity,
+		})
+	}
+
+	if len(candidates) == 0 {
+		return results
+	}
+
+	// Sort candidates by salience (highest first)
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].Salience > candidates[j].Salience
+	})
+
+	// Inject top high-salience candidates, replacing the lowest-scored results
+	injected := 0
+	for _, c := range candidates {
+		if injected >= maxBoosts {
+			break
+		}
+		if len(results) >= limit {
+			// Replace the lowest-scored result
+			results[len(results)-1] = c
+		} else {
+			results = append(results, c)
+		}
+		injected++
+	}
+
+	return results
+}
+
+// buildConversationSummary creates a summary from both sides of the exchange.
+// Prioritizes the user message since that's what matters for recall.
+// Format: "user message → npc response" with 60/40 budget split.
+func buildConversationSummary(userMessage, assistantMessage string, maxLen int) string {
+	// Budget: ~60% for user message, ~40% for NPC response
+	userBudget := maxLen * 60 / 100
+	npcBudget := maxLen - userBudget - 5 // account for " → " separator
+
+	userPart := truncateSummary(userMessage, userBudget)
+	npcPart := truncateSummary(assistantMessage, npcBudget)
+
+	return userPart + " → " + npcPart
 }
 
 // truncateSummary returns the first n characters of s, breaking at a word boundary.
