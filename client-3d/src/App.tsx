@@ -126,20 +126,23 @@ function MainApp() {
     return <AuthScreen />
   }
 
+  // Badge/bell: fixed overlay, always on top regardless of lobby or game view
+  const socialBar = isAuthenticated && (
+    <div className="fixed top-3 right-3 flex items-center gap-2" style={{ zIndex: 200 }}>
+      <NotificationBell />
+      <ProfileBadge />
+    </div>
+  )
+
   // Never connected yet — show lobby
   const neverConnected = connectionStatus === 'disconnected' && !mySessionId
 
   if (neverConnected) {
     return (
-      <div className="relative w-full h-full">
+      <>
         <LobbyScreen />
-        {isAuthenticated && (
-          <div className="absolute top-3 right-3 flex items-center gap-2" style={{ zIndex: 100 }}>
-            <NotificationBell />
-            <ProfileBadge />
-          </div>
-        )}
-      </div>
+        {socialBar}
+      </>
     )
   }
 
@@ -174,13 +177,8 @@ function MainApp() {
         <NowPlaying />
       </div>
 
-      {/* Profile badge + notification bell — top-right corner */}
-      {isAuthenticated && (
-        <div className="absolute top-3 right-3 flex items-center gap-2" style={{ zIndex: 30 }}>
-          <NotificationBell />
-          <ProfileBadge />
-        </div>
-      )}
+      {/* Profile badge + notification bell — rendered as fixed overlay in socialBar above */}
+      {socialBar}
 
       {/* Minimized booth bar — shown when DJ queue panel is open but minimized (booth only, not jukebox) */}
       {playlistOpen && playlistMinimized && isAtBooth && !isJukeboxMode && (
