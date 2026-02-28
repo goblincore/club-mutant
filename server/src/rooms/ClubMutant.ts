@@ -1229,6 +1229,7 @@ export class ClubMutant extends Room {
         ? (auth as NakamaTokenPayload).uid
         : (options?.playerId || client.sessionId.slice(0, 8))
       player.playerId = playerId
+      player.nakamaId = isAuthenticated ? (auth as NakamaTokenPayload).uid : ''
       const rawTextureId = options?.textureId
       player.textureId = rawTextureId != null ? sanitizeTextureId(rawTextureId) : TEXTURE_IDS.mutant
       player.animId = packDirectionalAnimId('idle', 'down')

@@ -1,9 +1,13 @@
+import { Routes, Route } from 'react-router-dom'
 import { getNetwork } from './network/NetworkManager'
 import { useGameStore } from './stores/gameStore'
 import { useUIStore } from './stores/uiStore'
 import { useAuthStore } from './stores/authStore'
 import { AuthScreen } from './ui/AuthScreen'
 import { ProfileBadge } from './ui/ProfileBadge'
+import { NotificationBell } from './ui/NotificationBell'
+import { UserProfilePage } from './ui/UserProfilePage'
+import { PlayerContextMenu } from './ui/PlayerContextMenu'
 import { useBoothStore } from './stores/boothStore'
 import { useMusicStore } from './stores/musicStore'
 import { GameScene } from './scene/GameScene'
@@ -95,7 +99,7 @@ function MinimizedBoothBar() {
   )
 }
 
-export function App() {
+function MainApp() {
   const connectionStatus = useGameStore((s) => s.connectionStatus)
   const mySessionId = useGameStore((s) => s.mySessionId)
   const playlistOpen = useUIStore((s) => s.djQueueOpen)
@@ -130,7 +134,8 @@ export function App() {
       <div className="relative w-full h-full">
         <LobbyScreen />
         {isAuthenticated && (
-          <div className="absolute top-3 right-3" style={{ zIndex: 100 }}>
+          <div className="absolute top-3 right-3 flex items-center gap-2" style={{ zIndex: 100 }}>
+            <NotificationBell />
             <ProfileBadge />
           </div>
         )}
@@ -169,9 +174,10 @@ export function App() {
         <NowPlaying />
       </div>
 
-      {/* Profile badge — top-right corner */}
+      {/* Profile badge + notification bell — top-right corner */}
       {isAuthenticated && (
-        <div className="absolute top-3 right-3" style={{ zIndex: 30 }}>
+        <div className="absolute top-3 right-3 flex items-center gap-2" style={{ zIndex: 30 }}>
+          <NotificationBell />
           <ProfileBadge />
         </div>
       )}
@@ -202,8 +208,6 @@ export function App() {
       {/* Leave room prompt modal */}
       <LeaveRoomPrompt />
 
-
-
       {/* Toast notifications */}
       <ToastContainer />
 
@@ -227,6 +231,18 @@ export function App() {
 
       {/* Reconnection / disconnection overlay */}
       <DisconnectedOverlay />
+
+      {/* In-game player context menu */}
+      <PlayerContextMenu />
     </div>
+  )
+}
+
+export function App() {
+  return (
+    <Routes>
+      <Route path="/user/:username" element={<UserProfilePage />} />
+      <Route path="*" element={<MainApp />} />
+    </Routes>
   )
 }

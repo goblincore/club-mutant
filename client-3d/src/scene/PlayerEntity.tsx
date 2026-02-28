@@ -16,6 +16,7 @@ import { useMusicStore } from '../stores/musicStore'
 import { consumeJumpRequest } from '../input/usePlayerInput'
 import { addRipple, getDisplacementAt } from './TrampolineRipples'
 import { getNetwork } from '../network/NetworkManager'
+import { usePlayerContextStore } from '../ui/PlayerContextMenu'
 import {
   JUKEBOX_STAGE_X_MIN,
   JUKEBOX_STAGE_X_MAX,
@@ -839,8 +840,19 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
     }
   })
 
+  const handleClick = useCallback((e: { stopPropagation: () => void }) => {
+    e.stopPropagation()
+    usePlayerContextStore.getState().setClickedPlayer({
+      name: player.name,
+      nakamaId: player.nakamaId,
+    })
+  }, [player.name, player.nakamaId])
+
   return (
-    <group ref={groupRef}>
+    <group
+      ref={groupRef}
+      onClick={(!isLocal && !player.isNpc) ? handleClick : undefined}
+    >
       {/* Billboard rotation group — lazily faces camera */}
       <group ref={dollGroupRef}>
         {/* Character model — PaperDoll self-grounds (feet at Y=0) */}

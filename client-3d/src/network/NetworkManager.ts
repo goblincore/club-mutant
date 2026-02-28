@@ -455,6 +455,7 @@ export class NetworkManager {
         scale: player.scale,
         isNpc: player.isNpc ?? false,
         npcCharacterPath: player.npcCharacterPath ?? '',
+        nakamaId: player.nakamaId ?? '',
       })
 
       if (isLocal) {

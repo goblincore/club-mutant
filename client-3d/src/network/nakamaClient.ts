@@ -137,3 +137,56 @@ export function getCurrentSession(): Session | null {
 export function clearNakamaSession(): void {
   _session = null
 }
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function requireSession() {
+  if (!_session) throw new Error('Not authenticated')
+  return _session
+}
+
+// ── Friends API ──────────────────────────────────────────────────────────────
+
+/**
+ * Send a friend request by Nakama user ID and/or username.
+ * Also used to accept an incoming request (mutual confirmation).
+ */
+export async function sendFriendRequest(userIds: string[], usernames: string[]): Promise<void> {
+  await getClient().addFriends(requireSession(), userIds, usernames)
+}
+
+export async function removeFriend(userId: string): Promise<void> {
+  await getClient().deleteFriends(requireSession(), [userId])
+}
+
+/**
+ * List friends by state:
+ *   0 = mutual friends, 1 = sent invites (awaiting), 2 = received invites, 3 = blocked
+ * Omit state to get all.
+ */
+export async function listFriends(state?: number): Promise<import('@heroiclabs/nakama-js').Friend[]> {
+  const result = await getClient().listFriends(requireSession(), state, 100)
+  return result.friends ?? []
+}
+
+// ── Users API ────────────────────────────────────────────────────────────────
+
+export async function getNakamaUsers(
+  usernames: string[],
+): Promise<import('@heroiclabs/nakama-js').User[]> {
+  const result = await getClient().getUsers(requireSession(), undefined, usernames)
+  return result.users ?? []
+}
+
+// ── Notifications API ────────────────────────────────────────────────────────
+
+export async function listNotifications(
+  limit = 20,
+): Promise<import('@heroiclabs/nakama-js').Notification[]> {
+  const result = await getClient().listNotifications(requireSession(), limit)
+  return result.notifications ?? []
+}
+
+export async function deleteNotifications(ids: string[]): Promise<void> {
+  await getClient().deleteNotifications(requireSession(), ids)
+}

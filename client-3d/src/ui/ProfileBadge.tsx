@@ -1,18 +1,171 @@
-import { useState } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { clearNakamaSession, listFriends, sendFriendRequest, removeFriend } from '../network/nakamaClient'
 import { useAuthStore } from '../stores/authStore'
-import { clearNakamaSession } from '../network/nakamaClient'
+import type { Friend } from '@heroiclabs/nakama-js'
+
+function FriendsPanel() {
+  const [friends, setFriends] = useState<Friend[]>([])
+  const [pending, setPending] = useState<Friend[]>([])
+  const [loading, setLoading] = useState(true)
+  const [addUsername, setAddUsername] = useState('')
+  const [addStatus, setAddStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [addError, setAddError] = useState('')
+
+  const refresh = useCallback(async () => {
+    setLoading(true)
+    try {
+      const all = await listFriends()
+      setFriends(all.filter((f) => f.state === 0))
+      setPending(all.filter((f) => f.state === 2))
+    } catch {
+      /* silent */
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  const handleAdd = async () => {
+    const u = addUsername.trim()
+    if (!u) return
+    setAddStatus('sending')
+    setAddError('')
+    try {
+      await sendFriendRequest([], [u])
+      setAddStatus('sent')
+      setAddUsername('')
+      setTimeout(() => setAddStatus('idle'), 2000)
+    } catch (err: any) {
+      setAddStatus('error')
+      setAddError(err?.message?.includes('not found') ? 'user not found' : 'failed to send')
+    }
+  }
+
+  const handleAccept = async (f: Friend) => {
+    try {
+      await sendFriendRequest([f.user!.id!], [])
+      await refresh()
+    } catch { /* silent */ }
+  }
+
+  const handleRemove = async (f: Friend) => {
+    try {
+      await removeFriend(f.user!.id!)
+      await refresh()
+    } catch { /* silent */ }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Add friend input */}
+      <div className="flex gap-1.5">
+        <input
+          type="text"
+          value={addUsername}
+          onChange={(e) => { setAddUsername(e.target.value); setAddStatus('idle') }}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleAdd() }}
+          placeholder="add by username…"
+          maxLength={32}
+          className="flex-1 min-w-0 bg-transparent text-xs font-mono py-1 px-2 rounded border
+                     placeholder-white/25 focus:outline-none transition-colors"
+          style={{ borderColor: 'rgba(57,255,20,0.3)', color: '#39ff14' }}
+        />
+        <button
+          onClick={handleAdd}
+          disabled={addStatus === 'sending' || !addUsername.trim()}
+          className="text-xs font-mono px-2 py-1 rounded transition-colors"
+          style={{ color: '#39ff14', borderColor: 'rgba(57,255,20,0.4)', backgroundColor: 'rgba(57,255,20,0.08)', border: '1px solid rgba(57,255,20,0.4)' }}
+        >
+          {addStatus === 'sending' ? '…' : addStatus === 'sent' ? '✓' : '+'}
+        </button>
+      </div>
+      {addStatus === 'error' && (
+        <p className="text-red-400/70 text-[10px] -mt-2">{addError}</p>
+      )}
+
+      {loading ? (
+        <p className="text-white/25 text-xs text-center py-2">loading…</p>
+      ) : (
+        <>
+          {/* Incoming requests */}
+          {pending.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-white/30 text-[10px] uppercase tracking-wider">requests</p>
+              {pending.map((f) => (
+                <div key={f.user?.id} className="flex items-center gap-2">
+                  <div
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                    style={{ backgroundColor: 'rgba(57,255,20,0.12)', border: '1px solid rgba(57,255,20,0.4)', color: '#39ff14' }}
+                  >
+                    {f.user?.username?.[0]?.toUpperCase() ?? '?'}
+                  </div>
+                  <span className="flex-1 text-xs font-mono text-white/70 truncate">{f.user?.username}</span>
+                  <button
+                    onClick={() => handleAccept(f)}
+                    className="text-[10px] px-1.5 py-0.5 rounded font-mono"
+                    style={{ color: '#39ff14', border: '1px solid rgba(57,255,20,0.4)', backgroundColor: 'rgba(57,255,20,0.1)' }}
+                  >accept</button>
+                  <button
+                    onClick={() => handleRemove(f)}
+                    className="text-[10px] px-1.5 py-0.5 rounded font-mono text-red-400/60 hover:text-red-400 transition-colors"
+                    style={{ border: '1px solid rgba(239,68,68,0.2)' }}
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Mutual friends */}
+          {friends.length > 0 ? (
+            <div className="flex flex-col gap-1.5">
+              {pending.length > 0 && (
+                <p className="text-white/30 text-[10px] uppercase tracking-wider">friends</p>
+              )}
+              {friends.slice(0, 10).map((f) => (
+                <div key={f.user?.id} className="flex items-center gap-2">
+                  <div
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                    style={{ backgroundColor: 'rgba(57,255,20,0.12)', border: '1px solid rgba(57,255,20,0.4)', color: '#39ff14' }}
+                  >
+                    {f.user?.username?.[0]?.toUpperCase() ?? '?'}
+                  </div>
+                  <span className="flex-1 text-xs font-mono text-white/70 truncate">{f.user?.username}</span>
+                  <button
+                    onClick={() => handleRemove(f)}
+                    className="text-[10px] text-white/20 hover:text-red-400/60 transition-colors font-mono"
+                    title="remove friend"
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+          ) : pending.length === 0 ? (
+            <p className="text-white/25 text-xs text-center py-1">no friends yet</p>
+          ) : null}
+        </>
+      )}
+    </div>
+  )
+}
 
 export function ProfileBadge() {
   const [open, setOpen] = useState(false)
+  const [friendsOpen, setFriendsOpen] = useState(false)
   const username = useAuthStore((s) => s.username)
-  const userId = useAuthStore((s) => s.userId)
   const logout = useAuthStore((s) => s.logout)
+  const navigate = useNavigate()
 
   const initial = username ? username[0].toUpperCase() : '?'
 
   const handleLogout = () => {
     clearNakamaSession()
     logout()
+    setOpen(false)
+  }
+
+  const handleViewProfile = () => {
+    if (username) navigate(`/user/${username}`)
     setOpen(false)
   }
 
@@ -58,6 +211,8 @@ export function ProfileBadge() {
               backdropFilter: 'blur(16px)',
               borderColor: 'rgba(57,255,20,0.4)',
               boxShadow: '0 0 40px rgba(57,255,20,0.15)',
+              maxHeight: 'calc(100vh - 80px)',
+              overflowY: 'auto',
             }}
           >
             {/* Avatar + name */}
@@ -75,9 +230,6 @@ export function ProfileBadge() {
               </div>
               <div className="flex flex-col overflow-hidden">
                 <span className="text-white font-bold text-sm truncate">{username}</span>
-                <span className="text-white/40 text-xs truncate">
-                  {userId ? `id: ${userId.slice(0, 12)}…` : ''}
-                </span>
               </div>
             </div>
 
@@ -94,22 +246,38 @@ export function ProfileBadge() {
               ))}
             </div>
 
-            {/* Placeholder actions */}
+            {/* View profile */}
+            <button
+              onClick={handleViewProfile}
+              className="w-full py-2 rounded-lg text-xs font-mono border transition-colors"
+              style={{ borderColor: 'rgba(57,255,20,0.3)', color: 'rgba(57,255,20,0.7)', backgroundColor: 'rgba(57,255,20,0.05)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(57,255,20,0.12)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(57,255,20,0.05)' }}
+            >
+              view profile
+            </button>
+
+            {/* Friends section */}
             <div className="flex flex-col gap-2">
               <button
-                disabled
-                className="w-full py-2 rounded-lg text-xs font-mono text-white/30 border border-white/10
-                           cursor-not-allowed"
+                onClick={() => setFriendsOpen((o) => !o)}
+                className="w-full py-2 rounded-lg text-xs font-mono border flex items-center justify-between px-3 transition-colors"
+                style={{ borderColor: 'rgba(57,255,20,0.3)', color: 'rgba(57,255,20,0.7)', backgroundColor: 'rgba(57,255,20,0.05)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(57,255,20,0.12)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(57,255,20,0.05)' }}
               >
-                edit profile (coming soon)
+                <span>friends</span>
+                <span className="text-white/30">{friendsOpen ? '▲' : '▼'}</span>
               </button>
-              <button
-                disabled
-                className="w-full py-2 rounded-lg text-xs font-mono text-white/30 border border-white/10
-                           cursor-not-allowed"
-              >
-                friends (coming soon)
-              </button>
+
+              {friendsOpen && (
+                <div
+                  className="rounded-lg p-3"
+                  style={{ backgroundColor: 'rgba(57,255,20,0.03)', border: '1px solid rgba(57,255,20,0.1)' }}
+                >
+                  <FriendsPanel />
+                </div>
+              )}
             </div>
 
             {/* Logout */}
