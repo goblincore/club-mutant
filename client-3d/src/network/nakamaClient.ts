@@ -140,7 +140,15 @@ export function clearNakamaSession(): void {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function requireSession() {
+/**
+ * Returns a valid session, restoring from stored tokens if needed.
+ * Unlike requireSession() (sync, throws if null), this lazily restores the session
+ * so social API calls work in the lobby before any room join has occurred.
+ */
+async function ensureSession(): Promise<Session> {
+  if (!_session) {
+    await restoreNakamaSession()
+  }
   if (!_session) throw new Error('Not authenticated')
   return _session
 }
@@ -152,11 +160,11 @@ function requireSession() {
  * Also used to accept an incoming request (mutual confirmation).
  */
 export async function sendFriendRequest(userIds: string[], usernames: string[]): Promise<void> {
-  await getClient().addFriends(requireSession(), userIds, usernames)
+  await getClient().addFriends(await ensureSession(), userIds, usernames)
 }
 
 export async function removeFriend(userId: string): Promise<void> {
-  await getClient().deleteFriends(requireSession(), [userId])
+  await getClient().deleteFriends(await ensureSession(), [userId])
 }
 
 /**
@@ -165,7 +173,7 @@ export async function removeFriend(userId: string): Promise<void> {
  * Omit state to get all.
  */
 export async function listFriends(state?: number): Promise<import('@heroiclabs/nakama-js').Friend[]> {
-  const result = await getClient().listFriends(requireSession(), state, 100)
+  const result = await getClient().listFriends(await ensureSession(), state, 100)
   return result.friends ?? []
 }
 
@@ -174,7 +182,7 @@ export async function listFriends(state?: number): Promise<import('@heroiclabs/n
 export async function getNakamaUsers(
   usernames: string[],
 ): Promise<import('@heroiclabs/nakama-js').User[]> {
-  const result = await getClient().getUsers(requireSession(), undefined, usernames)
+  const result = await getClient().getUsers(await ensureSession(), undefined, usernames)
   return result.users ?? []
 }
 
@@ -183,10 +191,10 @@ export async function getNakamaUsers(
 export async function listNotifications(
   limit = 20,
 ): Promise<import('@heroiclabs/nakama-js').Notification[]> {
-  const result = await getClient().listNotifications(requireSession(), limit)
+  const result = await getClient().listNotifications(await ensureSession(), limit)
   return result.notifications ?? []
 }
 
 export async function deleteNotifications(ids: string[]): Promise<void> {
-  await getClient().deleteNotifications(requireSession(), ids)
+  await getClient().deleteNotifications(await ensureSession(), ids)
 }
