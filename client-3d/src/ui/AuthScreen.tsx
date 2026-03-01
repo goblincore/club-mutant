@@ -18,6 +18,7 @@ export function AuthScreen() {
   const [username, setUsername] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showForm, setShowForm] = useState(false)
 
   // Carousel state
   const [characters, setCharacters] = useState<CharacterEntry[]>(() => getCharactersSync())
@@ -32,6 +33,10 @@ export function AuthScreen() {
 
   const handleCarouselReady = useCallback(() => {
     setCarouselVisible(true)
+  }, [])
+
+  const handleLogoClick = useCallback(() => {
+    setShowForm(true)
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -118,7 +123,40 @@ export function AuthScreen() {
         />
       </div>
 
+      {/* Floating logo splash — click to reveal login form */}
+      {!showForm && (
+        <div
+          className="absolute inset-0 flex items-center justify-center z-10 cursor-pointer"
+          onClick={handleLogoClick}
+        >
+          <div className="logo-splash flex items-center" style={{ gap: '0px' }}>
+            <img
+              src="/logo/CLUB-piece.png"
+              alt="CLUB"
+              className="logo-piece logo-piece-1"
+              style={{ height: '120px', filter: 'drop-shadow(0 0 16px rgba(0, 0, 0, 0.7))' }}
+            />
+            <img
+              src="/logo/FLOWER-piece.png"
+              alt=""
+              className="logo-piece logo-piece-2"
+              style={{ height: '160px', filter: 'drop-shadow(0 0 16px rgba(0, 0, 0, 0.7))' }}
+            />
+            <img
+              src="/logo/MUTANT-piece.png"
+              alt="MUTANT"
+              className="logo-piece logo-piece-3"
+              style={{ height: '120px', filter: 'drop-shadow(0 0 16px rgba(0, 0, 0, 0.7))' }}
+            />
+          </div>
+          <p className="absolute bottom-[28%] text-white/50 text-sm font-mono animate-pulse">
+            click to enter
+          </p>
+        </div>
+      )}
+
       {/* Auth form card — absolute overlay, centered in full screen */}
+      {showForm && (
       <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
         <div
           className="pointer-events-auto p-8 rounded-xl border-2 w-full max-w-sm mx-4 lobby-card-enter"
@@ -266,8 +304,29 @@ export function AuthScreen() {
           </button>
         </div>
       </div>
+      )}
 
       <style>{`
+        @keyframes logo-float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-14px); }
+        }
+        .logo-splash {
+          animation: logo-splash-in 0.8s ease-out both;
+        }
+        @keyframes logo-splash-in {
+          from { opacity: 0; transform: scale(0.85); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        .logo-piece {
+          animation: logo-float 3s ease-in-out infinite;
+        }
+        .logo-piece-1 { animation-delay: 0s; }
+        .logo-piece-2 { animation-delay: -1s; }
+        .logo-piece-3 { animation-delay: -2s; }
+        .logo-piece:hover {
+          filter: drop-shadow(0 0 24px rgba(57, 255, 20, 0.6)) !important;
+        }
         @keyframes lobby-card-enter {
           from { opacity: 0; transform: translateY(20px); }
           to   { opacity: 1; transform: translateY(0); }

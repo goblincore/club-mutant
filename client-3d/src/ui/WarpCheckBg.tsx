@@ -35,9 +35,9 @@ void main() {
   float freq = 12.0;
   float checker = mod(floor(uv.x * freq) + floor(uv.y * freq), 2.0);
 
-  vec3 green = vec3(0.25, 0.85, 0.35);
-  vec3 white = vec3(1.0);
-  vec3 col = mix(green, white, checker);
+  vec3 cyan    = vec3(0.33, 1.0, 1.0);
+  vec3 magenta = vec3(0.85, 0.33, 0.85);
+  vec3 col = mix(magenta, cyan, checker);
   gl_FragColor = vec4(col, 1.0);
 }
 `
@@ -136,7 +136,7 @@ export function WarpCheckBg() {
     <canvas
       ref={canvasRef}
       className="absolute inset-0 w-full h-full"
-      style={{ zIndex: 0, imageRendering: 'pixelated', filter: 'blur(3px)', backgroundColor: 'white' }}
+      style={{ zIndex: 0, imageRendering: 'pixelated', filter: 'blur(3px)', backgroundColor: '#55ffff' }}
     />
   )
 }

@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback } from 'react'
-import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import * as THREE from 'three'
 
@@ -26,9 +26,6 @@ const AUTO_SPEED = 0.10 // radians/sec (~5.7 deg/s, full rotation ~63s)
 const SNAP_LERP = 8 // exponential approach factor
 const SNAP_THRESHOLD = 0.003 // rad — close enough to snap
 const RESUME_DELAY = 5000 // ms before auto-rotate resumes after user input
-const LOGO_Y = 0.85 // logo center height in world units
-const LOGO_SCALE = 2.0 // logo sprite scale
-
 // --- Speech bubble constants ---
 const CAROUSEL_PHRASES = [
   'Pick me!', "I'm cute", "I'm cuter", 'Choose me!',
@@ -50,19 +47,6 @@ const GLOW_PULSE_SPEED = 0.003 // sine wave speed for glow pulse
 
 function shortestAngleDiff(from: number, to: number): number {
   return ((to - from) % TWO_PI + TWO_PI + Math.PI) % TWO_PI - Math.PI
-}
-
-// ─── Logo sprite at ring center ─────────────────────────────────────
-
-function LogoSprite() {
-  const texture = useLoader(THREE.TextureLoader, '/logo/ver1.png')
-  const aspect = texture.image ? texture.image.width / texture.image.height : 1
-
-  return (
-    <sprite position={[0, LOGO_Y, 0]} scale={[LOGO_SCALE * aspect, LOGO_SCALE, 1]} renderOrder={-1}>
-      <spriteMaterial map={texture} transparent depthWrite depthTest alphaTest={0.5} />
-    </sprite>
-  )
 }
 
 // ─── Glow behind selected character (radial gradient texture) ────────
@@ -467,7 +451,6 @@ function CarouselScene({
         </group>
       ))}
 
-      <LogoSprite />
       <ReadinessProbe onReady={onReady} hasCharacters={characters.length > 0} />
     </>
   )
