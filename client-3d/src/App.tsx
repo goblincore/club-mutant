@@ -6,6 +6,7 @@ import { useAuthStore } from './stores/authStore'
 import { AuthScreen } from './ui/AuthScreen'
 import { ProfileBadge } from './ui/ProfileBadge'
 import { NotificationBell } from './ui/NotificationBell'
+import { FriendsSidebar } from './ui/FriendsSidebar'
 import { UserProfilePage } from './ui/UserProfilePage'
 import { PlayerContextMenu } from './ui/PlayerContextMenu'
 import { useBoothStore } from './stores/boothStore'
@@ -130,6 +131,7 @@ function MainApp() {
   const socialBar = isAuthenticated && (
     <div className="fixed top-3 right-3 flex items-center gap-2" style={{ zIndex: 200 }}>
       <NotificationBell />
+      <FriendsSidebar />
       <ProfileBadge />
     </div>
   )

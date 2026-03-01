@@ -517,6 +517,7 @@ export function TurntableCarousel({
         dpr={0.75}
         gl={{ alpha: true, antialias: false }}
         style={{ background: 'transparent' }}
+        resize={{ offsetSize: true }}
         onCreated={({ gl }) => {
           gl.setClearColor(0x000000, 0)
         }}

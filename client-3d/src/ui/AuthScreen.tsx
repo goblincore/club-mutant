@@ -1,7 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { authenticateEmail } from '../network/nakamaClient'
 import { WarpCheckBg } from './WarpCheckBg'
+import { TurntableCarousel } from './components/TurntableCarousel'
+import {
+  getCharacters,
+  getCharactersSync,
+  type CharacterEntry,
+} from '../character/characterRegistry'
 
 type AuthMode = 'login' | 'register'
 
@@ -13,7 +19,20 @@ export function AuthScreen() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // Carousel state
+  const [characters, setCharacters] = useState<CharacterEntry[]>(() => getCharactersSync())
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [carouselVisible, setCarouselVisible] = useState(false)
+
   const continueAsGuest = useAuthStore((s) => s.continueAsGuest)
+
+  useEffect(() => {
+    getCharacters().then(setCharacters)
+  }, [])
+
+  const handleCarouselReady = useCallback(() => {
+    setCarouselVisible(true)
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,10 +48,25 @@ export function AuthScreen() {
         email.trim(),
         password.trim(),
         isCreate,
-        isCreate ? username.trim() : undefined,
+        isCreate ? username.trim() : undefined
       )
     } catch (err: any) {
-      const msg = err?.message ?? String(err)
+      let msg: string
+      if (err instanceof Response) {
+        try {
+          const text = await err.text()
+          try {
+            const json = JSON.parse(text)
+            msg = json.message ?? text
+          } catch {
+            msg = text
+          }
+        } catch {
+          msg = `Server error (${err.status})`
+        }
+      } else {
+        msg = err?.message ?? String(err)
+      }
       if (msg.includes('Invalid credentials') || msg.includes('401')) {
         setError('Invalid email or password')
       } else if (msg.includes('already exists') || msg.includes('409')) {
@@ -48,142 +82,189 @@ export function AuthScreen() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleSubmit(e)
+    if (e.key === 'Enter') handleSubmit(e as any)
   }
 
+  // When loading: zoom out to scale(1) — matches lobby carousel scale on transition
+  // When idle: zoom in to scale(1.6) so characters fill and clip the screen edges
+  const carouselScale = loading ? 1.0 : 1.6
+
   return (
-    <div className="relative flex flex-col items-center justify-center w-full h-full">
+    <div className="relative flex flex-col items-center w-full h-full overflow-hidden">
       <WarpCheckBg />
 
+      {/* Character carousel — fills viewport absolutely, scale() from default transform-origin
+          (50% 50%) = viewport center. Clean zoom in/out transition always anchored to center. */}
       <div
-        className="relative z-10 p-8 rounded-xl border-2 w-full max-w-sm lobby-card-enter"
         style={{
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          backdropFilter: 'blur(12px)',
-          borderColor: 'rgba(57, 255, 20, 0.5)',
-          boxShadow: '0 0 40px rgba(57, 255, 20, 0.2)',
+          position: 'absolute',
+          top: '0%',
+          left: '0%',
+          width: '100%',
+          height: '100%',
+          opacity: carouselVisible ? 1 : 0,
+          transform: `scale(${carouselScale})`,
+          transition: loading
+            ? 'opacity 0.4s ease-out, transform 0.5s ease-out'
+            : 'opacity 0.5s ease-out, transform 0.9s ease-in',
+          pointerEvents: 'none',
         }}
       >
-        <h1
-          className="text-2xl font-mono font-bold text-center mb-6"
-          style={{ color: '#39ff14', textShadow: '0 0 20px rgba(57, 255, 20, 0.5)' }}
+        <TurntableCarousel
+          characters={characters}
+          selectedIndex={selectedIndex}
+          onSelect={setSelectedIndex}
+          onReady={handleCarouselReady}
+        />
+      </div>
+
+      {/* Auth form card — absolute overlay, centered in full screen */}
+      <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+        <div
+          className="pointer-events-auto p-8 rounded-xl border-2 w-full max-w-sm mx-4 lobby-card-enter"
+          style={{
+            backgroundColor: 'rgba(57, 255, 20, 0.45)',
+            backdropFilter: 'blur(12px)',
+            borderColor: '#39ff14',
+            boxShadow: '0 0 30px rgba(57, 255, 20, 0.3), inset 0 0 20px rgba(57, 255, 20, 0.15)',
+          }}
         >
-          club mutant
-        </h1>
+          <img
+            src="/logo/cm-horizontal.png"
+            alt="club mutant"
+            className="mx-auto mb-6"
+            style={{ height: '100px', filter: 'drop-shadow(0 0 12px rgba(0, 0, 0, 0.5))' }}
+          />
 
-        {/* Mode tabs */}
-        <div className="flex gap-2 mb-5">
-          <button
-            onClick={() => { setMode('login'); setError(null) }}
-            className={`flex-1 py-2 rounded-lg text-sm font-mono font-bold transition-all ${
-              mode === 'login'
-                ? 'bg-green-700/50 border border-toxic-green text-white'
-                : 'bg-transparent border border-white/20 text-white/50 hover:text-white/80'
-            }`}
-          >
-            log in
-          </button>
-          <button
-            onClick={() => { setMode('register'); setError(null) }}
-            className={`flex-1 py-2 rounded-lg text-sm font-mono font-bold transition-all ${
-              mode === 'register'
-                ? 'bg-green-700/50 border border-toxic-green text-white'
-                : 'bg-transparent border border-white/20 text-white/50 hover:text-white/80'
-            }`}
-          >
-            register
-          </button>
-        </div>
+          {/* Mode tabs */}
+          <div className="flex gap-2 mb-5">
+            <button
+              onClick={() => {
+                setMode('login')
+                setError(null)
+              }}
+              className={`flex-1 py-2 rounded-lg text-sm font-mono font-bold transition-all ${
+                mode === 'login'
+                  ? 'bg-black/25 border-2 border-black/40 text-white'
+                  : 'bg-transparent border border-black/20 text-white/60 hover:text-white/90'
+              }`}
+            >
+              log in
+            </button>
+            <button
+              onClick={() => {
+                setMode('register')
+                setError(null)
+              }}
+              className={`flex-1 py-2 rounded-lg text-sm font-mono font-bold transition-all ${
+                mode === 'register'
+                  ? 'bg-black/25 border-2 border-black/40 text-white'
+                  : 'bg-transparent border border-black/20 text-white/60 hover:text-white/90'
+              }`}
+            >
+              register
+            </button>
+          </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          {mode === 'register' && (
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="username"
-              maxLength={20}
-              className="w-full bg-green-800/30 border border-white/20 rounded-lg px-4 py-3
-                         text-sm font-mono text-white placeholder-white/40
-                         focus:border-toxic-green focus:outline-none focus:shadow-[0_0_15px_rgba(57,255,20,0.3)]
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            {mode === 'register' && (
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="username"
+                maxLength={20}
+                className="w-full bg-black/30 border border-black/25 rounded-lg px-4 py-3
+                         text-sm font-mono text-white placeholder-white/50
+                         focus:border-black/50 focus:outline-none focus:shadow-[0_0_15px_rgba(0,0,0,0.3)]
                          transition-all duration-300"
+              />
+            )}
+
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="email"
+              className="w-full bg-black/30 border border-black/25 rounded-lg px-4 py-3
+                       text-sm font-mono text-white placeholder-white/50
+                       focus:border-black/50 focus:outline-none focus:shadow-[0_0_15px_rgba(0,0,0,0.3)]
+                       transition-all duration-300"
+              autoFocus
             />
-          )}
 
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="email"
-            className="w-full bg-green-800/30 border border-white/20 rounded-lg px-4 py-3
-                       text-sm font-mono text-white placeholder-white/40
-                       focus:border-toxic-green focus:outline-none focus:shadow-[0_0_15px_rgba(57,255,20,0.3)]
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="password"
+              minLength={8}
+              className="w-full bg-black/30 border border-black/25 rounded-lg px-4 py-3
+                       text-sm font-mono text-white placeholder-white/50
+                       focus:border-black/50 focus:outline-none focus:shadow-[0_0_15px_rgba(0,0,0,0.3)]
                        transition-all duration-300"
-            autoFocus
-          />
+            />
 
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="password"
-            minLength={8}
-            className="w-full bg-green-800/30 border border-white/20 rounded-lg px-4 py-3
-                       text-sm font-mono text-white placeholder-white/40
-                       focus:border-toxic-green focus:outline-none focus:shadow-[0_0_15px_rgba(57,255,20,0.3)]
-                       transition-all duration-300"
-          />
-
-          <button
-            type="submit"
-            disabled={loading || !email.trim() || !password.trim() || (mode === 'register' && !username.trim())}
-            className="lobby-btn w-full relative overflow-hidden group
+            <button
+              type="submit"
+              disabled={
+                loading ||
+                !email.trim() ||
+                !password.trim() ||
+                (mode === 'register' && !username.trim())
+              }
+              className="lobby-btn w-full relative overflow-hidden group
                        bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-3
                        text-base font-mono font-bold text-white
                        hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
                        disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-green-700/40
                        transition-all duration-300"
-          >
-            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
-                            translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
-            <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  {mode === 'login' ? 'logging in...' : 'creating account...'}
-                </span>
-              ) : (
-                mode === 'login' ? 'log in' : 'create account'
-              )}
-            </span>
-          </button>
+            >
+              <span
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
+                            translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500"
+              />
+              <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    {mode === 'login' ? 'logging in...' : 'creating account...'}
+                  </span>
+                ) : mode === 'login' ? (
+                  'log in'
+                ) : (
+                  'create account'
+                )}
+              </span>
+            </button>
 
-          {error && (
-            <p className="text-sm font-mono font-bold text-center" style={{ color: '#ff0080' }}>
-              {error}
-            </p>
-          )}
-        </form>
+            {error && (
+              <p className="text-sm font-mono font-bold text-center" style={{ color: '#ff0080' }}>
+                {error}
+              </p>
+            )}
+          </form>
 
-        <div className="flex items-center gap-3 my-5">
-          <div className="flex-1 h-px bg-white/10" />
-          <span className="text-white/30 text-xs font-mono">or</span>
-          <div className="flex-1 h-px bg-white/10" />
-        </div>
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-black/20" />
+            <span className="text-white/60 text-xs font-mono">or</span>
+            <div className="flex-1 h-px bg-black/20" />
+          </div>
 
-        <button
-          onClick={continueAsGuest}
-          disabled={loading}
-          className="w-full py-3 rounded-lg text-sm font-mono text-white/60 border border-white/15
-                     hover:text-white hover:border-white/30 hover:bg-white/5
+          <button
+            onClick={continueAsGuest}
+            disabled={loading}
+            className="w-full py-3 rounded-lg text-sm font-mono text-white/70 border border-black/25
+                     hover:text-white hover:border-black/40 hover:bg-black/15
                      disabled:opacity-30 disabled:cursor-not-allowed
                      transition-all duration-300"
-        >
-          continue as guest
-        </button>
+          >
+            continue as guest
+          </button>
+        </div>
       </div>
 
       <style>{`
@@ -196,6 +277,13 @@ export function AuthScreen() {
         }
         .lobby-btn:not(:disabled):hover  { transform: scale(1.03); }
         .lobby-btn:not(:disabled):active { transform: scale(0.97); }
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+          -webkit-box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.3) inset !important;
+          -webkit-text-fill-color: white !important;
+          transition: background-color 5000s ease-in-out 0s;
+        }
       `}</style>
     </div>
   )
