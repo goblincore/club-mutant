@@ -134,19 +134,19 @@ export function AuthScreen() {
               src="/logo/CLUB-piece.png"
               alt="CLUB"
               className="logo-piece logo-piece-1"
-              style={{ height: '120px', filter: 'drop-shadow(0 0 16px rgba(0, 0, 0, 0.7))' }}
+              style={{ height: '150px', filter: 'drop-shadow(0 0 16px rgba(0, 0, 0, 0.7))' }}
             />
             <img
               src="/logo/FLOWER-piece.png"
               alt=""
               className="logo-piece logo-piece-2"
-              style={{ height: '160px', filter: 'drop-shadow(0 0 16px rgba(0, 0, 0, 0.7))' }}
+              style={{ height: '100px', filter: 'drop-shadow(0 0 16px rgba(0, 0, 0, 0.7))' }}
             />
             <img
               src="/logo/MUTANT-piece.png"
               alt="MUTANT"
               className="logo-piece logo-piece-3"
-              style={{ height: '120px', filter: 'drop-shadow(0 0 16px rgba(0, 0, 0, 0.7))' }}
+              style={{ height: '150px', filter: 'drop-shadow(0 0 16px rgba(0, 0, 0, 0.7))' }}
             />
           </div>
           <p className="absolute bottom-[28%] text-white/50 text-sm font-mono animate-pulse">
@@ -157,153 +157,153 @@ export function AuthScreen() {
 
       {/* Auth form card — absolute overlay, centered in full screen */}
       {showForm && (
-      <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-        <div
-          className="pointer-events-auto p-8 rounded-xl border-2 w-full max-w-sm mx-4 lobby-card-enter"
-          style={{
-            backgroundColor: 'rgba(57, 255, 20, 0.45)',
-            backdropFilter: 'blur(12px)',
-            borderColor: '#39ff14',
-            boxShadow: '0 0 30px rgba(57, 255, 20, 0.3), inset 0 0 20px rgba(57, 255, 20, 0.15)',
-          }}
-        >
-          <img
-            src="/logo/cm-horizontal.png"
-            alt="club mutant"
-            className="mx-auto mb-6"
-            style={{ height: '100px', filter: 'drop-shadow(0 0 12px rgba(0, 0, 0, 0.5))' }}
-          />
+        <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+          <div
+            className="pointer-events-auto p-8 rounded-xl border-2 w-full max-w-sm mx-4 lobby-card-enter"
+            style={{
+              backgroundColor: 'rgba(57, 255, 20, 0.45)',
+              backdropFilter: 'blur(12px)',
+              borderColor: '#39ff14',
+              boxShadow: '0 0 30px rgba(57, 255, 20, 0.3), inset 0 0 20px rgba(57, 255, 20, 0.15)',
+            }}
+          >
+            <img
+              src="/logo/cm-horizontal.png"
+              alt="club mutant"
+              className="mx-auto mb-6"
+              style={{ height: '100px', filter: 'drop-shadow(0 0 12px rgba(0, 0, 0, 0.5))' }}
+            />
 
-          {/* Mode tabs */}
-          <div className="flex gap-2 mb-5">
-            <button
-              onClick={() => {
-                setMode('login')
-                setError(null)
-              }}
-              className={`flex-1 py-2 rounded-lg text-sm font-mono font-bold transition-all ${
-                mode === 'login'
-                  ? 'bg-black/25 border-2 border-black/40 text-white'
-                  : 'bg-transparent border border-black/20 text-white/60 hover:text-white/90'
-              }`}
-            >
-              log in
-            </button>
-            <button
-              onClick={() => {
-                setMode('register')
-                setError(null)
-              }}
-              className={`flex-1 py-2 rounded-lg text-sm font-mono font-bold transition-all ${
-                mode === 'register'
-                  ? 'bg-black/25 border-2 border-black/40 text-white'
-                  : 'bg-transparent border border-black/20 text-white/60 hover:text-white/90'
-              }`}
-            >
-              register
-            </button>
-          </div>
+            {/* Mode tabs */}
+            <div className="flex gap-2 mb-5">
+              <button
+                onClick={() => {
+                  setMode('login')
+                  setError(null)
+                }}
+                className={`flex-1 py-2 rounded-lg text-sm font-mono font-bold transition-all ${
+                  mode === 'login'
+                    ? 'bg-black/25 border-2 border-black/40 text-white'
+                    : 'bg-transparent border border-black/20 text-white/60 hover:text-white/90'
+                }`}
+              >
+                log in
+              </button>
+              <button
+                onClick={() => {
+                  setMode('register')
+                  setError(null)
+                }}
+                className={`flex-1 py-2 rounded-lg text-sm font-mono font-bold transition-all ${
+                  mode === 'register'
+                    ? 'bg-black/25 border-2 border-black/40 text-white'
+                    : 'bg-transparent border border-black/20 text-white/60 hover:text-white/90'
+                }`}
+              >
+                register
+              </button>
+            </div>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            {mode === 'register' && (
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="username"
-                maxLength={20}
-                className="w-full bg-black/30 border border-black/25 rounded-lg px-4 py-3
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+              {mode === 'register' && (
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="username"
+                  maxLength={20}
+                  className="w-full bg-black/30 border border-black/25 rounded-lg px-4 py-3
                          text-sm font-mono text-white placeholder-white/50
                          focus:border-black/50 focus:outline-none focus:shadow-[0_0_15px_rgba(0,0,0,0.3)]
                          transition-all duration-300"
+                />
+              )}
+
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="email"
+                className="w-full bg-black/30 border border-black/25 rounded-lg px-4 py-3
+                       text-sm font-mono text-white placeholder-white/50
+                       focus:border-black/50 focus:outline-none focus:shadow-[0_0_15px_rgba(0,0,0,0.3)]
+                       transition-all duration-300"
+                autoFocus
               />
-            )}
 
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="email"
-              className="w-full bg-black/30 border border-black/25 rounded-lg px-4 py-3
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="password"
+                minLength={8}
+                className="w-full bg-black/30 border border-black/25 rounded-lg px-4 py-3
                        text-sm font-mono text-white placeholder-white/50
                        focus:border-black/50 focus:outline-none focus:shadow-[0_0_15px_rgba(0,0,0,0.3)]
                        transition-all duration-300"
-              autoFocus
-            />
+              />
 
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="password"
-              minLength={8}
-              className="w-full bg-black/30 border border-black/25 rounded-lg px-4 py-3
-                       text-sm font-mono text-white placeholder-white/50
-                       focus:border-black/50 focus:outline-none focus:shadow-[0_0_15px_rgba(0,0,0,0.3)]
-                       transition-all duration-300"
-            />
-
-            <button
-              type="submit"
-              disabled={
-                loading ||
-                !email.trim() ||
-                !password.trim() ||
-                (mode === 'register' && !username.trim())
-              }
-              className="lobby-btn w-full relative overflow-hidden group
+              <button
+                type="submit"
+                disabled={
+                  loading ||
+                  !email.trim() ||
+                  !password.trim() ||
+                  (mode === 'register' && !username.trim())
+                }
+                className="lobby-btn w-full relative overflow-hidden group
                        bg-green-700/40 border-2 border-toxic-green rounded-lg px-4 py-3
                        text-base font-mono font-bold text-white
                        hover:bg-green-600/50 hover:shadow-[0_0_40px_rgba(57,255,20,0.6)]
                        disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-green-700/40
                        transition-all duration-300"
-            >
-              <span
-                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
+              >
+                <span
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent
                             translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500"
-              />
-              <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
-                {loading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    {mode === 'login' ? 'logging in...' : 'creating account...'}
-                  </span>
-                ) : mode === 'login' ? (
-                  'log in'
-                ) : (
-                  'create account'
-                )}
-              </span>
-            </button>
+                />
+                <span className="relative z-10 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]">
+                  {loading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      {mode === 'login' ? 'logging in...' : 'creating account...'}
+                    </span>
+                  ) : mode === 'login' ? (
+                    'log in'
+                  ) : (
+                    'create account'
+                  )}
+                </span>
+              </button>
 
-            {error && (
-              <p className="text-sm font-mono font-bold text-center" style={{ color: '#ff0080' }}>
-                {error}
-              </p>
-            )}
-          </form>
+              {error && (
+                <p className="text-sm font-mono font-bold text-center" style={{ color: '#ff0080' }}>
+                  {error}
+                </p>
+              )}
+            </form>
 
-          <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px bg-black/20" />
-            <span className="text-white/60 text-xs font-mono">or</span>
-            <div className="flex-1 h-px bg-black/20" />
-          </div>
+            <div className="flex items-center gap-3 my-5">
+              <div className="flex-1 h-px bg-black/20" />
+              <span className="text-white/60 text-xs font-mono">or</span>
+              <div className="flex-1 h-px bg-black/20" />
+            </div>
 
-          <button
-            onClick={continueAsGuest}
-            disabled={loading}
-            className="w-full py-3 rounded-lg text-sm font-mono text-white/70 border border-black/25
+            <button
+              onClick={continueAsGuest}
+              disabled={loading}
+              className="w-full py-3 rounded-lg text-sm font-mono text-white/70 border border-black/25
                      hover:text-white hover:border-black/40 hover:bg-black/15
                      disabled:opacity-30 disabled:cursor-not-allowed
                      transition-all duration-300"
-          >
-            continue as guest
-          </button>
+            >
+              continue as guest
+            </button>
+          </div>
         </div>
-      </div>
       )}
 
       <style>{`
