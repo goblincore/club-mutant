@@ -25,6 +25,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - ./nakama/modules:/nakama/data/modules:ro
     environment:
       - NAKAMA_CONSOLE_USERNAME=admin
       - NAKAMA_CONSOLE_PASSWORD=password

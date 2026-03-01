@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
-import { listFriends, sendFriendRequest, removeFriend } from '../network/nakamaClient'
+import { listFriends, sendFriendRequest, removeFriend, followFriends } from '../network/nakamaClient'
+import { usePresenceStore } from '../stores/presenceStore'
 import type { Friend } from '@heroiclabs/nakama-js'
 
 const POLL_INTERVAL = 60_000
@@ -13,12 +14,19 @@ export function FriendsSidebar() {
   const [addStatus, setAddStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [addError, setAddError] = useState('')
 
+  const onlineUserIds = usePresenceStore((s) => s.onlineUserIds)
+
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
       const all = await listFriends()
-      setFriends(all.filter((f) => f.state === 0))
+      const mutual = all.filter((f) => f.state === 0)
+      setFriends(mutual)
       setPending(all.filter((f) => f.state === 2))
+
+      // Follow mutual friends for real-time presence updates
+      const ids = mutual.map((f) => f.user?.id).filter(Boolean) as string[]
+      if (ids.length) await followFriends(ids)
     } catch { /* silent */ } finally {
       setLoading(false)
     }
@@ -195,33 +203,43 @@ export function FriendsSidebar() {
                     {pending.length > 0 && (
                       <p className="text-white/30 text-[10px] uppercase tracking-wider">friends</p>
                     )}
-                    {friends.map((f) => (
-                      <div key={f.user?.id} className="flex items-center gap-2">
-                        <div className="relative shrink-0">
-                          <div
-                            className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
-                            style={{ backgroundColor: 'rgba(57,255,20,0.12)', border: '1px solid rgba(57,255,20,0.4)', color: '#39ff14' }}
-                          >
-                            {f.user?.username?.[0]?.toUpperCase() ?? '?'}
+                    {[...friends]
+                      .sort((a, b) => {
+                        const aOn = a.user?.id ? onlineUserIds.has(a.user.id) : false
+                        const bOn = b.user?.id ? onlineUserIds.has(b.user.id) : false
+                        if (aOn !== bOn) return aOn ? -1 : 1
+                        return (a.user?.username ?? '').localeCompare(b.user?.username ?? '')
+                      })
+                      .map((f) => {
+                        const isOnline = f.user?.id ? onlineUserIds.has(f.user.id) : false
+                        return (
+                          <div key={f.user?.id} className="flex items-center gap-2">
+                            <div className="relative shrink-0">
+                              <div
+                                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                                style={{ backgroundColor: 'rgba(57,255,20,0.12)', border: '1px solid rgba(57,255,20,0.4)', color: '#39ff14' }}
+                              >
+                                {f.user?.username?.[0]?.toUpperCase() ?? '?'}
+                              </div>
+                              <span
+                                className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-black"
+                                style={{ backgroundColor: isOnline ? '#39ff14' : '#4b5563' }}
+                              />
+                            </div>
+                            <span
+                              className="flex-1 text-xs font-mono truncate"
+                              style={{ color: isOnline ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)' }}
+                            >
+                              {f.user?.username}
+                            </span>
+                            <button
+                              onClick={() => handleRemove(f)}
+                              className="text-[10px] text-white/20 hover:text-red-400/60 transition-colors font-mono"
+                              title="remove friend"
+                            >✕</button>
                           </div>
-                          <span
-                            className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-black"
-                            style={{ backgroundColor: f.user?.online ? '#39ff14' : '#4b5563' }}
-                          />
-                        </div>
-                        <span
-                          className="flex-1 text-xs font-mono truncate"
-                          style={{ color: f.user?.online ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)' }}
-                        >
-                          {f.user?.username}
-                        </span>
-                        <button
-                          onClick={() => handleRemove(f)}
-                          className="text-[10px] text-white/20 hover:text-red-400/60 transition-colors font-mono"
-                          title="remove friend"
-                        >✕</button>
-                      </div>
-                    ))}
+                        )
+                      })}
                   </div>
                 ) : pending.length === 0 ? (
                   <p className="text-white/25 text-xs text-center py-1">no friends yet</p>

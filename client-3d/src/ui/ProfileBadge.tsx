@@ -1,15 +1,31 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { clearNakamaSession } from '../network/nakamaClient'
+import { clearNakamaSession, getMyAccount } from '../network/nakamaClient'
 import { useAuthStore } from '../stores/authStore'
 
 export function ProfileBadge() {
   const [open, setOpen] = useState(false)
+  const [bio, setBio] = useState<string | null>(null)
   const username = useAuthStore((s) => s.username)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const logout = useAuthStore((s) => s.logout)
   const navigate = useNavigate()
 
   const initial = username ? username[0].toUpperCase() : '?'
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    getMyAccount()
+      .then((account) => {
+        const meta = account.user?.metadata
+          ? typeof account.user.metadata === 'string'
+            ? JSON.parse(account.user.metadata)
+            : account.user.metadata
+          : {}
+        setBio(meta.bio || null)
+      })
+      .catch(() => {})
+  }, [isAuthenticated])
 
   const handleLogout = () => {
     clearNakamaSession()
@@ -80,12 +96,12 @@ export function ProfileBadge() {
               <span className="text-white font-bold text-sm truncate">{username}</span>
             </div>
 
-            {/* About placeholder */}
+            {/* Bio */}
             <div
-              className="rounded-lg px-3 py-2 text-xs font-mono text-white/25 italic"
+              className={`rounded-lg px-3 py-2 text-xs font-mono ${bio ? 'text-white/60' : 'text-white/25 italic'}`}
               style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
             >
-              no bio yet
+              {bio || 'no bio yet'}
             </div>
 
             {/* Actions */}
@@ -101,10 +117,11 @@ export function ProfileBadge() {
               </button>
 
               <button
-                disabled
-                className="w-full py-2 rounded-lg text-xs font-mono border opacity-30 cursor-not-allowed"
-                style={{ borderColor: 'rgba(57,255,20,0.2)', color: 'rgba(57,255,20,0.5)', backgroundColor: 'rgba(57,255,20,0.03)' }}
-                title="coming soon"
+                onClick={() => { if (username) navigate(`/user/${username}?edit`); setOpen(false) }}
+                className="w-full py-2 rounded-lg text-xs font-mono border transition-colors"
+                style={{ borderColor: 'rgba(57,255,20,0.3)', color: 'rgba(57,255,20,0.7)', backgroundColor: 'rgba(57,255,20,0.05)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(57,255,20,0.12)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(57,255,20,0.05)' }}
               >
                 edit profile
               </button>

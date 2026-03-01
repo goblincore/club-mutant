@@ -1,5 +1,7 @@
 import { Client, Session } from '@heroiclabs/nakama-js'
+import type { Socket, Presence } from '@heroiclabs/nakama-js'
 import { useAuthStore } from '../stores/authStore'
+import { usePresenceStore } from '../stores/presenceStore'
 
 const NAKAMA_SERVER_KEY = import.meta.env.VITE_NAKAMA_SERVER_KEY || 'clubmutant_dev'
 const NAKAMA_HOST = import.meta.env.VITE_NAKAMA_HOST || 'localhost'
@@ -8,6 +10,11 @@ const NAKAMA_USE_SSL = import.meta.env.VITE_NAKAMA_USE_SSL === 'true'
 
 let _client: Client | null = null
 let _session: Session | null = null
+let _socket: Socket | null = null
+let _reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let _reconnectAttempts = 0
+const RECONNECT_DELAY_MS = 3000
+const MAX_RECONNECT_ATTEMPTS = 10
 
 function getClient(): Client {
   if (!_client) {
@@ -65,6 +72,12 @@ export async function restoreNakamaSession(): Promise<Session | null> {
     }
   }
 
+  if (_session) {
+    connectSocket().catch((err) =>
+      console.warn('[nakama] Socket connect failed on restore:', err),
+    )
+  }
+
   return _session
 }
 
@@ -85,6 +98,10 @@ export async function authenticateEmail(
     _session.refresh_token,
     _session.username ?? username ?? '',
     _session.user_id ?? '',
+  )
+
+  connectSocket().catch((err) =>
+    console.warn('[nakama] Socket connect failed after auth:', err),
   )
 
   return _session
@@ -135,7 +152,94 @@ export function getCurrentSession(): Session | null {
 }
 
 export function clearNakamaSession(): void {
+  disconnectSocket()
   _session = null
+}
+
+// ── Socket / Presence ───────────────────────────────────────────────────────
+
+function scheduleReconnect(): void {
+  if (_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    console.warn('[nakama] Max reconnect attempts reached, giving up')
+    return
+  }
+  const delay = Math.min(RECONNECT_DELAY_MS * Math.pow(2, _reconnectAttempts), 30_000)
+  _reconnectTimer = setTimeout(async () => {
+    _reconnectAttempts++
+    _socket = null
+    try {
+      await connectSocket()
+    } catch {
+      scheduleReconnect()
+    }
+  }, delay)
+}
+
+/**
+ * Open a Nakama WebSocket for presence tracking.
+ * createStatus=true makes this user appear online to friends.
+ */
+export async function connectSocket(): Promise<void> {
+  if (_socket) return
+  const session = await ensureSession()
+  const socket = getClient().createSocket(NAKAMA_USE_SSL)
+
+  socket.ondisconnect = () => {
+    console.warn('[nakama] Socket disconnected')
+    _socket = null
+    usePresenceStore.getState().clear()
+    scheduleReconnect()
+  }
+
+  socket.onstatuspresence = (event) => {
+    const store = usePresenceStore.getState()
+    if (event.joins?.length) {
+      store.addOnline(event.joins.map((p: Presence) => p.user_id))
+    }
+    if (event.leaves?.length) {
+      store.removeOnline(event.leaves.map((p: Presence) => p.user_id))
+    }
+  }
+
+  await socket.connect(session, true)
+  _socket = socket
+  _reconnectAttempts = 0
+  if (_reconnectTimer) {
+    clearTimeout(_reconnectTimer)
+    _reconnectTimer = null
+  }
+  console.log('[nakama] Socket connected, presence active')
+}
+
+export function disconnectSocket(): void {
+  if (_reconnectTimer) {
+    clearTimeout(_reconnectTimer)
+    _reconnectTimer = null
+  }
+  if (_socket) {
+    _socket.ondisconnect = () => {} // prevent reconnect on intentional disconnect
+    _socket.disconnect(false)
+    _socket = null
+  }
+  usePresenceStore.getState().clear()
+}
+
+/**
+ * Follow friends for real-time status updates.
+ * Returns their current online presences to seed initial state.
+ */
+export async function followFriends(userIds: string[]): Promise<void> {
+  if (!_socket || !userIds.length) return
+  try {
+    const status = await _socket.followUsers(userIds)
+    if (status.presences?.length) {
+      usePresenceStore.getState().addOnline(
+        status.presences.map((p: Presence) => p.user_id),
+      )
+    }
+  } catch (err) {
+    console.warn('[nakama] followFriends failed:', err)
+  }
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -197,4 +301,41 @@ export async function listNotifications(
 
 export async function deleteNotifications(ids: string[]): Promise<void> {
   await getClient().deleteNotifications(await ensureSession(), ids)
+}
+
+// ── Profile / Account API ───────────────────────────────────────────────────
+
+export interface ProfileMetadata {
+  bio?: string
+  favorite_song?: string
+  links?: Array<{ label: string; url: string }>
+  background_url?: string
+}
+
+/**
+ * Update profile metadata via server-side RPC. Merges with existing metadata.
+ */
+export async function updateProfileMetadata(metadata: ProfileMetadata): Promise<ProfileMetadata> {
+  const session = await ensureSession()
+  const result = await getClient().rpc(session, 'update_profile', metadata)
+  return (result.payload as { success: boolean; metadata: ProfileMetadata }).metadata
+}
+
+/**
+ * Update client-writable account fields (avatar_url, display_name).
+ */
+export async function updateAccountFields(fields: {
+  avatar_url?: string
+  display_name?: string
+}): Promise<void> {
+  const session = await ensureSession()
+  await getClient().updateAccount(session, fields)
+}
+
+/**
+ * Get full account info for the current user.
+ */
+export async function getMyAccount() {
+  const session = await ensureSession()
+  return getClient().getAccount(session)
 }
