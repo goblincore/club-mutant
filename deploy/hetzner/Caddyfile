@@ -34,8 +34,6 @@ upload.mutante.club {
 }
 
 nakama.mutante.club {
-  encode gzip
-
   @cors_preflight method OPTIONS
   handle @cors_preflight {
     header Access-Control-Allow-Origin "https://mutante.club"
@@ -45,9 +43,11 @@ nakama.mutante.club {
     respond "" 204
   }
 
-  header Access-Control-Allow-Origin "https://mutante.club"
-
-  reverse_proxy nakama:7350
+  handle {
+    header Access-Control-Allow-Origin "https://mutante.club"
+    header Access-Control-Allow-Headers "Authorization, Content-Type, Accept"
+    reverse_proxy nakama:7350
+  }
 }
 
 # DISABLED — proxy.mutante.club has no DNS record, causing Caddy to loop
