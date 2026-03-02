@@ -6,7 +6,8 @@ import { MyPlaylistsPanel } from './MyPlaylistsPanel'
 import { SettingsPanel } from './SettingsPanel'
 import { ShareRoomPrompt } from './ShareRoomPrompt'
 
-const PANEL_WIDTH = 340
+export const PANEL_WIDTH = 340
+const ICONS_WIDTH = 64
 
 export function RightPanel() {
   const open = useUIStore((s) => s.rightPanelOpen)
@@ -84,10 +85,15 @@ export function RightPanel() {
     </div>
   )
 
-  const Panel = open && (
+  const Panel = (
     <div
-      className="fixed right-[64px] top-0 bottom-0 bg-black/[0.8] backdrop-blur-md border-l border-white/[0.15] flex flex-col pointer-events-auto"
-      style={{ width: PANEL_WIDTH, zIndex: 30 }}
+      className="fixed top-0 bottom-0 bg-black/[0.8] backdrop-blur-md border-l border-white/[0.15] flex flex-col transition-[right] duration-300 ease-in-out"
+      style={{
+        width: PANEL_WIDTH,
+        zIndex: 30,
+        right: open ? ICONS_WIDTH : -PANEL_WIDTH,
+        pointerEvents: open ? 'auto' : 'none',
+      }}
     >
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.15]">
         <div className="flex gap-4">

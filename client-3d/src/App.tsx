@@ -29,6 +29,8 @@ import { WakePrompt } from './ui/WakePrompt'
 import { DreamIframe } from './ui/DreamIframe'
 
 const PLAYLIST_WIDTH = 360
+const RIGHT_PANEL_WIDTH = 340
+const RIGHT_ICONS_WIDTH = 64
 
 function MinimizedBoothBar() {
   const isInQueue = useBoothStore((s) => s.isInQueue)
@@ -116,8 +118,13 @@ function MainApp() {
   const streamCurrentLink = useMusicStore((s) => s.stream.currentLink)
   const currentDjSessionId = useBoothStore((s) => s.currentDjSessionId)
 
+  const rightPanelOpen = useUIStore((s) => s.rightPanelOpen)
+
   const showIframe =
     videoBackgroundEnabled && videoBgMode === 'iframe' && streamIsPlaying && !!streamCurrentLink
+
+  // Right sidebar pushes the canvas when open
+  const rightInset = rightPanelOpen ? RIGHT_PANEL_WIDTH + RIGHT_ICONS_WIDTH : 0
 
   // Auth screen — shown before lobby if user hasn't chosen guest or logged in
   const authReady = useAuthStore((s) => s.authReady)
@@ -162,13 +169,13 @@ function MainApp() {
     <div className="relative w-full h-full overflow-hidden">
       {/* Layer 0: Iframe video background (behind canvas) */}
       {showIframe && (
-        <div className="absolute inset-0" style={{ zIndex: 0 }}>
+        <div className="absolute top-0 left-0 bottom-0 transition-[right] duration-300 ease-in-out" style={{ zIndex: 0, right: rightInset }}>
           <IframeVideoBackground />
         </div>
       )}
 
       {/* Layer 1: 3D canvas (transparent when iframe active) */}
-      <div className="absolute inset-0" style={{ zIndex: 1 }}>
+      <div className="absolute top-0 left-0 bottom-0 transition-[right] duration-300 ease-in-out" style={{ zIndex: 1, right: rightInset }}>
         <GameScene />
       </div>
 

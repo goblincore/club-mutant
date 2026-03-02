@@ -72,7 +72,9 @@ export function AuthScreen() {
       } else {
         msg = err?.message ?? String(err)
       }
-      if (msg.includes('Invalid credentials') || msg.includes('401')) {
+      if (msg.includes('Too many')) {
+        setError(msg)
+      } else if (msg.includes('Invalid credentials') || msg.includes('401')) {
         setError('Invalid email or password')
       } else if (msg.includes('already exists') || msg.includes('409')) {
         setError('Account already exists — try logging in')

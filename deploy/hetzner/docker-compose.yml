@@ -105,6 +105,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - ../../nakama/modules:/nakama/data/modules:ro
     entrypoint:
       - /bin/sh
       - -c
@@ -117,7 +119,8 @@ services:
           --session.token_expiry_sec=7200 \
           --session.refresh_token_expiry_sec=2592000 \
           --console.username=${NAKAMA_CONSOLE_USERNAME} \
-          --console.password=${NAKAMA_CONSOLE_PASSWORD}
+          --console.password=${NAKAMA_CONSOLE_PASSWORD} \
+          --runtime.http_key=${NAKAMA_SERVER_KEY}
     expose:
       - '7350'
       - '7351'

@@ -42,7 +42,8 @@ services:
           --session.token_expiry_sec=7200 \
           --session.refresh_token_expiry_sec=2592000 \
           --console.username=admin \
-          --console.password=password
+          --console.password=password \
+          --runtime.http_key=clubmutant_dev
     ports:
       - '7350:7350'   # Client API (gRPC + HTTP)
       - '7351:7351'   # Admin console

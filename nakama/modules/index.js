@@ -108,8 +108,73 @@ var getProfileRpc = function (ctx, logger, nk, payload) {
   });
 };
 
+// ─── Rate Limiting ──────────────────────────────────────────────────
+
+var RATE_LIMIT_COLLECTION = 'rate_limits';
+var SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
+var REG_LIMIT_WINDOW_SEC = 3600;   // 1 hour window
+var REG_LIMIT_MAX = 5;             // 5 registrations per IP per hour
+var LOGIN_LIMIT_WINDOW_SEC = 300;  // 5 minute window
+var LOGIN_LIMIT_MAX = 10;          // 10 login attempts per IP per 5 min
+
+function checkRateLimit(nk, logger, ip, limitType, windowSec, maxAttempts) {
+  var key = limitType + '_' + ip.replace(/[^a-zA-Z0-9]/g, '_');
+  var now = Math.floor(Date.now() / 1000);
+
+  var objects = nk.storageRead([{
+    collection: RATE_LIMIT_COLLECTION,
+    key: key,
+    userId: SYSTEM_USER_ID
+  }]);
+
+  var record = null;
+  if (objects && objects.length > 0 && objects[0].value) {
+    record = objects[0].value;
+  }
+
+  if (record && (now - record.windowStart) < windowSec) {
+    if (record.count >= maxAttempts) {
+      logger.warn('Rate limit exceeded: %s ip=%s count=%d', limitType, ip, record.count);
+      return false;
+    }
+    record.count = record.count + 1;
+  } else {
+    record = { windowStart: now, count: 1 };
+  }
+
+  nk.storageWrite([{
+    collection: RATE_LIMIT_COLLECTION,
+    key: key,
+    userId: SYSTEM_USER_ID,
+    value: record,
+    permissionRead: 0,
+    permissionWrite: 0
+  }]);
+
+  return true;
+}
+
+var beforeAuthenticateEmail = function (ctx, logger, nk, data) {
+  var ip = ctx.clientIp || 'unknown';
+
+  if (data.create) {
+    if (!checkRateLimit(nk, logger, ip, 'register', REG_LIMIT_WINDOW_SEC, REG_LIMIT_MAX)) {
+      throw 'Too many registration attempts. Please try again later.';
+    }
+  } else {
+    if (!checkRateLimit(nk, logger, ip, 'login', LOGIN_LIMIT_WINDOW_SEC, LOGIN_LIMIT_MAX)) {
+      throw 'Too many login attempts. Please try again later.';
+    }
+  }
+
+  return data;
+};
+
+// ─── InitModule ─────────────────────────────────────────────────────
+
 var InitModule = function (ctx, logger, nk, initializer) {
   initializer.registerRpc('update_profile', updateProfileRpc);
   initializer.registerRpc('get_profile', getProfileRpc);
-  logger.info('Profile module loaded: update_profile, get_profile RPCs registered');
+  initializer.registerBeforeAuthenticateEmail(beforeAuthenticateEmail);
+  logger.info('Modules loaded: RPCs (update_profile, get_profile), hooks (beforeAuthenticateEmail)');
 };
