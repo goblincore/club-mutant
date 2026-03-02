@@ -316,14 +316,16 @@ Note: Custom rooms with `musicMode: 'jukebox'` use the same scene as regular cus
 
 ## Verification
 
-1. `pnpm build:models` — confirm new GLBs generated
-2. Start server + 3D client
-3. **Jukebox room**: Create via custom room flow with "Jukebox" mode → verify scene loads → click jukebox → add track from personal playlist → auto-plays → add more → sequential playback → track removed after playing → second player joins, adds tracks, sees shared playlist
-4. **Custom room with jukebox mode**: Create custom room, select jukebox mode → verify Club scene renders but music uses jukebox system (not DJ queue)
-5. **MyRoom boombox**: Join MyRoom → click boombox → add tracks → verify playback
-6. **DJ queue rooms unaffected**: Join public/custom (DJ Queue mode) → verify DJ queue works exactly as before
-7. **Any-client track complete**: Two players in jukebox room → player A adds track → player B's `onEnded` fires → track advances correctly
-8. **Late-join sync**: Join jukebox room mid-song → correct seek offset + full playlist visible
-9. **Disconnect persistence**: Player adds tracks, disconnects → tracks stay in jukebox
-10. **Watchdog**: Kill client mid-track → server auto-advances after duration + 10s
-11. **Room browser**: Custom room browser shows music mode badge on each room
+1. Start server + 3D client
+2. **Jukebox exclusive access**: Click jukebox → become occupant → second player clicks jukebox → gets "jukebox_busy" toast
+3. **Occupant controls**: Occupant sees search bar, playback controls, remove buttons; non-occupant sees read-only track list and status
+4. **Playback**: Occupant adds track → auto-plays → add more → sequential playback → track removed after playing
+5. **Mini player at top**: Playback controls + track title visible at top of panel (not bottom)
+6. **Speech bubble**: White pill bubble above jukebox shows occupant name, visible to all players
+7. **Playlist sidebar guard**: Non-occupant's "My Playlists" tab hides "add to jukebox" buttons
+8. **NowPlaying hidden**: No visible mini player bar in jukebox mode (audio still plays via hidden ReactPlayer)
+9. **DJ queue rooms unaffected**: Join public/custom (DJ Queue mode) → verify DJ queue works exactly as before
+10. **Any-client track complete**: Two players in jukebox room → player A adds track → player B's `onEnded` fires → track advances correctly
+11. **Late-join sync**: Join jukebox room mid-song → correct seek offset + full playlist visible
+12. **Disconnect cleanup**: Occupant disconnects/leaves → occupant fields cleared, other players can use jukebox
+13. **Watchdog**: Kill client mid-track → server auto-advances after duration + 10s

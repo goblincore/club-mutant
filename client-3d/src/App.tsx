@@ -1,6 +1,14 @@
+import { Routes, Route } from 'react-router-dom'
 import { getNetwork } from './network/NetworkManager'
 import { useGameStore } from './stores/gameStore'
 import { useUIStore } from './stores/uiStore'
+import { useAuthStore } from './stores/authStore'
+import { AuthScreen } from './ui/AuthScreen'
+import { ProfileBadge } from './ui/ProfileBadge'
+import { NotificationBell } from './ui/NotificationBell'
+import { FriendsSidebar } from './ui/FriendsSidebar'
+import { UserProfilePage } from './ui/UserProfilePage'
+import { PlayerContextMenu } from './ui/PlayerContextMenu'
 import { useBoothStore } from './stores/boothStore'
 import { useMusicStore } from './stores/musicStore'
 import { GameScene } from './scene/GameScene'
@@ -21,6 +29,8 @@ import { WakePrompt } from './ui/WakePrompt'
 import { DreamIframe } from './ui/DreamIframe'
 
 const PLAYLIST_WIDTH = 360
+const RIGHT_PANEL_WIDTH = 340
+const RIGHT_ICONS_WIDTH = 64
 
 function MinimizedBoothBar() {
   const isInQueue = useBoothStore((s) => s.isInQueue)
@@ -92,7 +102,7 @@ function MinimizedBoothBar() {
   )
 }
 
-export function App() {
+function MainApp() {
   const connectionStatus = useGameStore((s) => s.connectionStatus)
   const mySessionId = useGameStore((s) => s.mySessionId)
   const playlistOpen = useUIStore((s) => s.djQueueOpen)
@@ -108,14 +118,41 @@ export function App() {
   const streamCurrentLink = useMusicStore((s) => s.stream.currentLink)
   const currentDjSessionId = useBoothStore((s) => s.currentDjSessionId)
 
+  const rightPanelOpen = useUIStore((s) => s.rightPanelOpen)
+
   const showIframe =
     videoBackgroundEnabled && videoBgMode === 'iframe' && streamIsPlaying && !!streamCurrentLink
+
+  // Right sidebar pushes the canvas when open
+  const rightInset = rightPanelOpen ? RIGHT_PANEL_WIDTH + RIGHT_ICONS_WIDTH : 0
+
+  // Auth screen — shown before lobby if user hasn't chosen guest or logged in
+  const authReady = useAuthStore((s) => s.authReady)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+
+  if (!authReady) {
+    return <AuthScreen />
+  }
+
+  // Badge/bell: fixed overlay, always on top regardless of lobby or game view
+  const socialBar = isAuthenticated && (
+    <div className="fixed top-3 right-3 flex items-center gap-2" style={{ zIndex: 200 }}>
+      <NotificationBell />
+      <FriendsSidebar />
+      <ProfileBadge />
+    </div>
+  )
 
   // Never connected yet — show lobby
   const neverConnected = connectionStatus === 'disconnected' && !mySessionId
 
   if (neverConnected) {
-    return <LobbyScreen />
+    return (
+      <>
+        <LobbyScreen />
+        {socialBar}
+      </>
+    )
   }
 
   // Show full panel only when open AND not minimized
@@ -132,13 +169,13 @@ export function App() {
     <div className="relative w-full h-full overflow-hidden">
       {/* Layer 0: Iframe video background (behind canvas) */}
       {showIframe && (
-        <div className="absolute inset-0" style={{ zIndex: 0 }}>
+        <div className="absolute top-0 left-0 bottom-0 transition-[right] duration-300 ease-in-out" style={{ zIndex: 0, right: rightInset }}>
           <IframeVideoBackground />
         </div>
       )}
 
       {/* Layer 1: 3D canvas (transparent when iframe active) */}
-      <div className="absolute inset-0" style={{ zIndex: 1 }}>
+      <div className="absolute top-0 left-0 bottom-0 transition-[right] duration-300 ease-in-out" style={{ zIndex: 1, right: rightInset }}>
         <GameScene />
       </div>
 
@@ -148,6 +185,9 @@ export function App() {
       <div className="absolute top-3 left-3" style={{ zIndex: 30 }}>
         <NowPlaying />
       </div>
+
+      {/* Profile badge + notification bell — rendered as fixed overlay in socialBar above */}
+      {socialBar}
 
       {/* Minimized booth bar — shown when DJ queue panel is open but minimized (booth only, not jukebox) */}
       {playlistOpen && playlistMinimized && isAtBooth && !isJukeboxMode && (
@@ -175,8 +215,6 @@ export function App() {
       {/* Leave room prompt modal */}
       <LeaveRoomPrompt />
 
-
-
       {/* Toast notifications */}
       <ToastContainer />
 
@@ -200,6 +238,18 @@ export function App() {
 
       {/* Reconnection / disconnection overlay */}
       <DisconnectedOverlay />
+
+      {/* In-game player context menu */}
+      <PlayerContextMenu />
     </div>
+  )
+}
+
+export function App() {
+  return (
+    <Routes>
+      <Route path="/user/:username" element={<UserProfilePage />} />
+      <Route path="*" element={<MainApp />} />
+    </Routes>
   )
 }

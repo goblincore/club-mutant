@@ -44,6 +44,7 @@ export function playNextJukeboxTrack(room: ClubMutant) {
   musicStream.streamId += 1
   musicStream.currentLink = track.link
   musicStream.currentTitle = track.title
+  musicStream.isAmbient = false
 
   const djInfo = new DJUserInfo()
   djInfo.name = track.addedByName
@@ -68,6 +69,7 @@ export function stopJukeboxStream(room: ClubMutant) {
   musicStream.status = 'waiting'
   musicStream.currentLink = null
   musicStream.currentTitle = null
+  musicStream.isAmbient = false
 
   console.log('[Jukebox] Stream stopped')
   room.broadcast(Message.STOP_MUSIC_STREAM, {})

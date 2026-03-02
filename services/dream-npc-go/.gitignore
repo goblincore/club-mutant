@@ -1,2 +1,4 @@
 .env
 dream-npc
+*.db
+data/

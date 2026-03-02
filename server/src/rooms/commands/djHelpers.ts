@@ -29,6 +29,7 @@ export function playTrackForCurrentDJ(room: ClubMutant) {
   musicStream.streamId += 1
   musicStream.currentLink = track.link
   musicStream.currentTitle = track.title
+  musicStream.isAmbient = false
 
   const djInfo = new DJUserInfo()
   djInfo.name = player.name
@@ -44,6 +45,9 @@ export function playTrackForCurrentDJ(room: ClubMutant) {
     djSessionId: djId,
     trackId: track.id,
   })
+
+  // Notify Lily NPC about the new track (she may comment spontaneously)
+  room.notifyNpcMusicStarted(track.title)
 
   // Prefetch the next DJ's first unplayed track so rotation is instant
   prefetchNextDJTrack(room, djId)

@@ -23,6 +23,7 @@ export default defineConfig({
     'uuid',
     'uwebsockets-express',
     'axios',
+    'jsonwebtoken',
   ],
   // Copy JS files that aren't TypeScript
   onSuccess: 'cp src/Youtube.js src/Queue.js lib/',

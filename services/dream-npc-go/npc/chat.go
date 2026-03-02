@@ -10,19 +10,45 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/club-mutant/dream-npc-go/npc/cogmem"
 )
 
 var (
-	cache       *LRUCache
-	rateLimiter *RateLimiter
-	client      *http.Client
+	cache           *LRUCache
+	rateLimiter     *RateLimiter
+	client          *http.Client
+	cogMemInstance   *cogmem.CogMem
 )
 
 func init() {
 	cache = NewCache(500, 3600_000)
 	rateLimiter = NewRateLimiter()
 	client = &http.Client{Timeout: 8 * time.Second}
-	InitMem0()
+
+	// Initialize cognitive memory (replaces mem0 cloud API)
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	dbPath := os.Getenv("COGMEM_DB_PATH")
+	if dbPath == "" {
+		dbPath = "./data/cogmem.db"
+	}
+	if apiKey != "" {
+		var err error
+		cogMemInstance, err = cogmem.Init(cogmem.Config{
+			DBPath:       dbPath,
+			GeminiAPIKey: apiKey,
+		})
+		if err != nil {
+			log.Printf("[cogmem] Init failed: %v — cognitive memory disabled", err)
+		}
+	} else {
+		log.Println("[cogmem] GEMINI_API_KEY not set — cognitive memory disabled")
+	}
+
+	// Keep mem0 as fallback (if MEM0_API_KEY is set and cogmem is not available)
+	if cogMemInstance == nil {
+		InitMem0()
+	}
 }
 
 func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
@@ -57,16 +83,35 @@ func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
 	// Record request
 	rateLimiter.Record(sessionKey)
 
-	// Start mem0 search in parallel with prompt building
-	mem0UserID := ""
-	var memCh chan []Mem0Memory
-	if req.PlayerID != "" && mem0Client != nil {
-		mem0UserID = "lily:" + req.PlayerID
-		memCh = make(chan []Mem0Memory, 1)
-		go func() {
-			results := Mem0Search(req.Message, mem0UserID, 5)
-			memCh <- results
-		}()
+	// Start memory search in parallel with prompt building
+	memUserID := ""
+	var cogMemCh chan []cogmem.SearchResult
+	var mem0Ch chan []Mem0Memory
+
+	if req.PlayerID != "" {
+		memUserID = personality.ID + ":" + req.PlayerID
+
+		if cogMemInstance != nil {
+			// Use cognitive memory (primary)
+			cogMemCh = make(chan []cogmem.SearchResult, 1)
+			go func() {
+				weights := cogmem.DefaultSectorWeights()
+				if personality.SectorWeights != nil {
+					for k, v := range personality.SectorWeights {
+						weights[cogmem.Sector(k)] = v
+					}
+				}
+				results := cogMemInstance.Search(req.Message, memUserID, 5, weights)
+				cogMemCh <- results
+			}()
+		} else if mem0Client != nil {
+			// Fallback to mem0 cloud API
+			mem0Ch = make(chan []Mem0Memory, 1)
+			go func() {
+				results := Mem0Search(req.Message, "lily:"+req.PlayerID, 5)
+				mem0Ch <- results
+			}()
+		}
 	}
 
 	// Build dynamic prompt
@@ -79,9 +124,20 @@ func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
 		contextParts = append(contextParts, "The person talking to you right now is named \""+req.SenderName+"\".")
 	}
 
-	// Collect mem0 results (blocks until search completes or was never started)
-	if memCh != nil {
-		memories := <-memCh
+	// Collect memory results (blocks until search completes or was never started)
+	if cogMemCh != nil {
+		memories := <-cogMemCh
+		if len(memories) > 0 {
+			var lines []string
+			for _, m := range memories {
+				lines = append(lines, "- "+m.Summary)
+			}
+			contextParts = append(contextParts,
+				"THINGS YOU REMEMBER ABOUT THIS PERSON FROM PAST VISITS:\n"+
+					strings.Join(lines, "\n"))
+		}
+	} else if mem0Ch != nil {
+		memories := <-mem0Ch
 		if len(memories) > 0 {
 			var lines []string
 			for _, m := range memories {
@@ -105,13 +161,18 @@ func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
 		if parsedText != "" {
 			cache.Set(cacheKey, parsedText, parsedBehavior)
 
-			// Store conversation in mem0 (fire-and-forget)
-			if mem0UserID != "" {
-				taggedMsg := req.Message
-				if req.SenderName != "" {
-					taggedMsg = "[" + req.SenderName + "]: " + req.Message
+			// Store conversation in memory (fire-and-forget)
+			if memUserID != "" {
+				if cogMemInstance != nil {
+					// cogmem tracks userID separately — no need for name prefix
+					go cogMemInstance.Add(req.Message, parsedText, memUserID)
+				} else if mem0Client != nil {
+					taggedMsg := req.Message
+					if req.SenderName != "" {
+						taggedMsg = "[" + req.SenderName + "]: " + req.Message
+					}
+					go Mem0Add(taggedMsg, parsedText, "lily:"+req.PlayerID)
 				}
-				go Mem0Add(taggedMsg, parsedText, mem0UserID)
 			}
 
 			return 200, NpcChatResponse{Text: parsedText, Behavior: parsedBehavior}
@@ -137,7 +198,7 @@ func callGemini(systemPrompt string, history []Message, message string) string {
 		SystemInstruction: GeminiInstruction{Parts: []GeminiPart{{Text: systemPrompt}}},
 		Contents:          []GeminiContent{},
 		GenerationConfig: GeminiConfig{
-			MaxOutputTokens: 120,
+			MaxOutputTokens: 160,
 			Temperature:     0.9,
 			TopP:            0.95,
 		},

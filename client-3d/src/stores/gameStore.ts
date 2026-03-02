@@ -8,6 +8,7 @@ export interface PlayerState {
   scale: number
   isNpc: boolean
   npcCharacterPath: string
+  nakamaId: string
 }
 
 // ── Mutable position map (outside React state for hot-path perf) ──

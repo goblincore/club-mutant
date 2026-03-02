@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'crypto'
 import { Room, Client, ServerError, CloseCode } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
+import { verifyNakamaToken, type NakamaTokenPayload } from '../lib/verifyNakamaToken'
 
 import { Player, OfficeState, MusicBooth, ChatMessage } from './schema/OfficeState'
 import { IRoomData, type MusicMode } from '@club-mutant/types/Rooms'
@@ -331,6 +332,73 @@ export class ClubMutant extends Room {
     }, 2000 + Math.random() * 3000) // 2-5s after track starts
   }
 
+  /**
+   * Generate a memory-aware greeting for a returning authenticated player.
+   * Calls the NPC chat service which searches cogmem for past interactions.
+   * Returns null on failure — caller should fall back to hardcoded greeting.
+   */
+  private async greetPlayerWithMemory(player: Player): Promise<string | null> {
+    try {
+      const res = await fetch(`${NPC_SERVICE_URL}/bartender/npc-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personalityId: NPC_PERSONALITY_ID,
+          message: `[SYSTEM]: ${player.name} just walked into the bar. They are a returning visitor. Greet them naturally using what you remember about them. If they asked you to greet them a specific way, do that.`,
+          history: [],
+          roomId: this.roomId,
+          senderName: player.name,
+          playerId: player.playerId,
+        }),
+        signal: AbortSignal.timeout(6000),
+      })
+
+      if (!res.ok) return null
+      const data = (await res.json()) as { text?: string }
+      return data.text || null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Generate a dynamic music suggestion when the bar has been quiet.
+   * Uses the NPC chat service so Lily can suggest a specific song.
+   * Returns null on failure — caller should fall back to hardcoded nudge phrases.
+   */
+  private async suggestMusicDynamically(): Promise<string | null> {
+    try {
+      const ms = this.state.musicStream
+      const lastTrack = ms.currentTitle && ms.status !== 'playing' ? ms.currentTitle : null
+
+      let systemMsg =
+        '[SYSTEM]: The bar has been quiet for a while. Suggest a specific song someone should play — give the song title and artist.'
+      if (lastTrack) {
+        systemMsg += ` The last song that was playing was "${lastTrack}".`
+      }
+
+      const res = await fetch(`${NPC_SERVICE_URL}/bartender/npc-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personalityId: NPC_PERSONALITY_ID,
+          message: systemMsg,
+          history: [],
+          roomId: this.roomId,
+          senderName: '',
+          playerId: '',
+        }),
+        signal: AbortSignal.timeout(5000),
+      })
+
+      if (!res.ok) return null
+      const data = (await res.json()) as { text?: string }
+      return data.text || null
+    } catch {
+      return null
+    }
+  }
+
   private randomIdleTime(): number {
     return 3000 + Math.random() * 5000 // 3-8 seconds
   }
@@ -449,8 +517,12 @@ export class ClubMutant extends Room {
         now >= this.npcOverwhelmedUntil
       ) {
         this.npcLastMusicSilenceCheck = now
-        const phrase = this.npcSuggestMusicPhrases[Math.floor(Math.random() * this.npcSuggestMusicPhrases.length)]
-        this.broadcastNpcMessage(phrase)
+        this.suggestMusicDynamically().then((suggestion) => {
+          const msg =
+            suggestion ??
+            this.npcSuggestMusicPhrases[Math.floor(Math.random() * this.npcSuggestMusicPhrases.length)]
+          this.broadcastNpcMessage(msg)
+        })
       }
     }
   }
@@ -520,7 +592,7 @@ export class ClubMutant extends Room {
     let musicContext: string
     const ms = this.state.musicStream
     if (ms.status === 'playing' && ms.currentTitle && !ms.isAmbient) {
-      musicContext = `Currently playing: "${ms.currentTitle}". You can hear this in the background. Comment on it only if relevant.`
+      musicContext = `The song playing in the bar RIGHT NOW is: "${ms.currentTitle}". When someone asks about "this song" or "what's playing" or comments on the music, they mean THIS specific track.`
     } else {
       musicContext = 'No music is playing right now. The bar is quiet.'
     }
@@ -1112,8 +1184,10 @@ export class ClubMutant extends Room {
     })
   }
 
-  onAuth(client: Client, options: { password: string | null }) {
-    console.log(`[onAuth] client=${client.sessionId} room=${this.roomId}`)
+  onAuth(client: Client, options: { password: string | null; nakamaToken?: string }) {
+    console.log(`[onAuth] client=${client.sessionId} room=${this.roomId} hasToken=${!!options.nakamaToken}`)
+
+    // 1. Room password check (unchanged — applies to both guests and authenticated users)
     if (this.password) {
       if (!options.password) {
         throw new ServerError(403, 'Password is required!')
@@ -1125,19 +1199,37 @@ export class ClubMutant extends Room {
         throw new ServerError(403, 'Password is incorrect!')
       }
     }
+
+    // 2. Nakama token verification (optional — guests skip this)
+    if (options.nakamaToken) {
+      const payload = verifyNakamaToken(options.nakamaToken)
+      if (!payload) {
+        throw new ServerError(401, 'Invalid or expired auth token')
+      }
+      // Return payload — Colyseus passes onAuth return value as `auth` to onJoin
+      return payload
+    }
+
+    // 3. Guest access — no token, allow through
     return true
   }
 
   // when a new player joins, send room data
-  onJoin(client: Client, options: any) {
-    console.log(`[onJoin] client=${client.sessionId} room=${this.roomId} name=${options?.name ?? '?'} players=${this.state.players.size}`)
+  onJoin(client: Client, options: any, auth?: NakamaTokenPayload | true) {
+    const isAuthenticated = auth && typeof auth === 'object' && 'uid' in auth
+    console.log(`[onJoin] client=${client.sessionId} room=${this.roomId} name=${options?.name ?? '?'} players=${this.state.players.size} auth=${isAuthenticated ? (auth as NakamaTokenPayload).uid.slice(0, 8) : 'guest'}`)
 
     const existingPlayer = this.state.players.get(client.sessionId)
     const player = existingPlayer ?? new Player()
 
     if (!existingPlayer) {
-      const playerId = options?.playerId || client.sessionId.slice(0, 8)
+      // Authenticated users: use Nakama user ID as persistent playerId
+      // Guests: use client-provided playerId or fall back to session ID prefix
+      const playerId = isAuthenticated
+        ? (auth as NakamaTokenPayload).uid
+        : (options?.playerId || client.sessionId.slice(0, 8))
       player.playerId = playerId
+      player.nakamaId = isAuthenticated ? (auth as NakamaTokenPayload).uid : ''
       const rawTextureId = options?.textureId
       player.textureId = rawTextureId != null ? sanitizeTextureId(rawTextureId) : TEXTURE_IDS.mutant
       player.animId = packDirectionalAnimId('idle', 'down')
@@ -1147,13 +1239,15 @@ export class ClubMutant extends Room {
       player.y = typeof options?.spawnY === 'number' ? options.spawnY : 0
 
       if (this.isPublic) {
+        // Authenticated users: prefer options.name, then Nakama username, then fallback
         const playerName = options?.name?.trim()
-        player.name = playerName || `mutant-${playerId}`
+          || (isAuthenticated ? (auth as NakamaTokenPayload).usn : '')
+        player.name = playerName || `mutant-${playerId.slice(0, 8)}`
       }
 
       if (LOG_ENABLED)
         console.log(
-          `[onJoin] name=${player.name} textureId=${player.textureId} (raw=${rawTextureId}) public=${this.isPublic}`
+          `[onJoin] name=${player.name} textureId=${player.textureId} (raw=${rawTextureId}) public=${this.isPublic} authenticated=${isAuthenticated}`
         )
     }
 
@@ -1192,12 +1286,25 @@ export class ClubMutant extends Room {
         this.npcLastGreetingAt = now
         const delay = 1500 + Math.random() * 1500 // 1.5–3s randomized delay
         const greetingSessionId = client.sessionId
-        setTimeout(() => {
-          // Verify player is still connected before sending
-          if (this.state.players.has(greetingSessionId)) {
-            const greeting = this.npcGreetings[Math.floor(Math.random() * this.npcGreetings.length)]
-            this.broadcastNpcMessage(greeting)
+        const playerIsAuthenticated = isAuthenticated // capture for closure
+
+        setTimeout(async () => {
+          if (!this.state.players.has(greetingSessionId)) return
+
+          const player = this.state.players.get(greetingSessionId)!
+          let greeting: string | null = null
+
+          // Authenticated returning players: try memory-aware greeting via NPC service
+          if (playerIsAuthenticated && player.playerId) {
+            greeting = await this.greetPlayerWithMemory(player)
           }
+
+          // Fallback: hardcoded intro (for guests, new players, or service failure)
+          if (!greeting) {
+            greeting = this.npcGreetings[Math.floor(Math.random() * this.npcGreetings.length)]
+          }
+
+          this.broadcastNpcMessage(greeting)
         }, delay)
       }
     }
