@@ -169,12 +169,26 @@ export function AuthScreen() {
               boxShadow: '0 0 30px rgba(57, 255, 20, 0.3), inset 0 0 20px rgba(57, 255, 20, 0.15)',
             }}
           >
-            <img
-              src="/logo/cm-horizontal.png"
-              alt="club mutant"
-              className="mx-auto mb-6"
-              style={{ height: '100px', filter: 'drop-shadow(0 0 12px rgba(0, 0, 0, 0.5))' }}
-            />
+            <div className="flex items-center justify-center mb-6" style={{ gap: '0px' }}>
+              <img
+                src="/logo/CLUB-piece.png"
+                alt="CLUB"
+                className="logo-piece logo-piece-1"
+                style={{ height: '70px', filter: 'drop-shadow(0 0 12px rgba(0, 0, 0, 0.5))' }}
+              />
+              <img
+                src="/logo/FLOWER-piece.png"
+                alt=""
+                className="logo-piece logo-piece-2"
+                style={{ height: '46px', filter: 'drop-shadow(0 0 12px rgba(0, 0, 0, 0.5))' }}
+              />
+              <img
+                src="/logo/MUTANT-piece.png"
+                alt="MUTANT"
+                className="logo-piece logo-piece-3"
+                style={{ height: '70px', filter: 'drop-shadow(0 0 12px rgba(0, 0, 0, 0.5))' }}
+              />
+            </div>
 
             {/* Mode tabs */}
             <div className="flex gap-2 mb-5">
