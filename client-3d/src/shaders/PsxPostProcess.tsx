@@ -68,6 +68,26 @@ const VHS_FRAGMENT = /* glsl */ `
     return fract(sin(dot(xy * seed, vec2(12.9898, 78.233))) * 43758.5453);
   }
 
+  // ---- CRT frame helpers (ported from cool-retro-term terminal_frame.frag) ----
+  uniform float u_crtFrameEnabled;
+  uniform vec3  u_frameColor;
+  uniform float u_frameShininess;
+  uniform float u_screenRadius;
+  uniform float u_ambientLight;
+
+  float min2(vec2 v) { return min(v.x, v.y); }
+  float prod2(vec2 v) { return v.x * v.y; }
+
+  // Rounded rectangle SDF in pixel space (resolution-independent corners)
+  float roundedRectSdf(vec2 uv, vec2 topLeft, vec2 bottomRight, float radiusPixels) {
+    vec2 sizePixels = (bottomRight - topLeft) * u_resolution;
+    vec2 centerPixels = (topLeft + bottomRight) * 0.5 * u_resolution;
+    vec2 localPixels = uv * u_resolution - centerPixels;
+    vec2 halfSize = sizePixels * 0.5 - vec2(radiusPixels);
+    vec2 d = abs(localPixels) - halfSize;
+    return length(max(d, vec2(0.0))) + min(max(d.x, d.y), 0.0) - radiusPixels;
+  }
+
   // ---- bloom: multi-scale glow from half-res downsample ----
   uniform sampler2D tBloom;
   uniform vec2 u_bloomResolution;
@@ -149,14 +169,54 @@ const VHS_FRAGMENT = /* glsl */ `
     // Apply fisheye distortion to UVs
     vec2 distUv = barrelDistort(vUv);
 
-    // OOB pixels: vortex grid when enabled, black when disabled
-    if (distUv.x < 0.0 || distUv.x > 1.0 || distUv.y < 0.0 || distUv.y > 1.0) {
-      gl_FragColor = u_vortexEnabled > 0.5
-        ? texture2D(tVortex, vUv)
-        : vec4(0.0, 0.0, 0.0, 1.0);
+    // ---- CRT frame SDF ----
+    float screenRadiusPixels = u_screenRadius;
+    float edgeSoftPixels = 2.5;
+    float distPixels = roundedRectSdf(distUv, vec2(0.0), vec2(1.0), screenRadiusPixels);
+    float inScreen = smoothstep(0.0, edgeSoftPixels, -distPixels);
+
+    // ---- Frame / OOB handling ----
+    if (inScreen < 0.001) {
+      if (u_crtFrameEnabled < 0.5) {
+        // CRT frame disabled — fallback to old behavior
+        gl_FragColor = u_vortexEnabled > 0.5
+          ? texture2D(tVortex, vUv)
+          : vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+      }
+
+      // Render CRT bezel with directional bevel lighting
+      float seamWidth = max(screenRadiusPixels, 0.5) / min2(u_resolution);
+
+      // N/S/E/W seam masks for directional shadow
+      float e = min(smoothstep(-seamWidth, seamWidth, distUv.x - distUv.y),
+                    smoothstep(-seamWidth, seamWidth, distUv.x - (1.0 - distUv.y)));
+      float s = min(smoothstep(-seamWidth, seamWidth, distUv.y - distUv.x),
+                    smoothstep(-seamWidth, seamWidth, distUv.x - (1.0 - distUv.y)));
+      float w = min(smoothstep(-seamWidth, seamWidth, distUv.y - distUv.x),
+                    smoothstep(-seamWidth, seamWidth, (1.0 - distUv.x) - distUv.y));
+      float n = min(smoothstep(-seamWidth, seamWidth, distUv.x - distUv.y),
+                    smoothstep(-seamWidth, seamWidth, (1.0 - distUv.x) - distUv.y));
+
+      float frameShadow = (e * 0.66 + w * 0.66 + n * 0.33 + s);
+      frameShadow = mix(0.35, frameShadow, smoothstep(0.0, edgeSoftPixels * 5.0, distPixels));
+
+      // Bezel color with directional lighting + dither noise
+      vec3 frameTint = u_frameColor * frameShadow;
+      float noise = fract(sin(dot(vUv * u_resolution, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+      frameTint = clamp(frameTint + vec3(noise * 0.04), 0.0, 1.0);
+
+      // Bloom reflection on bezel — screen glow bleeds onto the frame near the edge
+      float reflectFade = exp(-distPixels * 0.15);  // exponential falloff from screen edge
+      vec3 bloomSample = texture2D(tBloom, distUv).rgb;
+      frameTint += bloomSample * reflectFade * u_frameShininess * 1.5;
+      frameTint = clamp(frameTint, 0.0, 1.0);
+
+      gl_FragColor = vec4(frameTint, 1.0);
       return;
     }
 
+    // ---- Normal VHS pipeline (inside screen) ----
     vec4 raw = texture2D(tDiffuse, distUv);
     vec2 pixelCoord = distUv * u_resolution;
 
@@ -185,6 +245,20 @@ const VHS_FRAGMENT = /* glsl */ `
     color += grain;
 
     color = clamp(color, 0.0, 1.0);
+
+    // ---- CRT glass reflection + edge blend ----
+    if (u_crtFrameEnabled > 0.5) {
+      // Subtle glass sheen: bright center, dark edges (curved glass reflection)
+      float glass = clamp(
+        u_ambientLight * pow(prod2(distUv * (1.0 - distUv.yx)) * 25.0, 0.5),
+        0.0, 1.0
+      );
+      color += vec3(glass) * u_frameShininess * 0.15;
+
+      // Soft edge darkening at screen boundary (bezel shadow overhang)
+      float edgeDarken = smoothstep(0.0, edgeSoftPixels * 3.0, -distPixels);
+      color *= mix(0.85, 1.0, edgeDarken);
+    }
 
     gl_FragColor = vec4(color, raw.a);
   }
@@ -410,6 +484,11 @@ export function PsxPostProcess() {
         u_time: { value: 0 },
         u_fisheye: { value: 1.0 },
         u_highlightIntensity: { value: 0 },
+        u_crtFrameEnabled: { value: 1.0 },
+        u_frameColor: { value: new THREE.Vector3(0.82, 0.76, 0.65) },
+        u_frameShininess: { value: 0.8 },
+        u_screenRadius: { value: 12.0 },
+        u_ambientLight: { value: 0.8 },
       },
       transparent: true,
       depthTest: false,
@@ -498,6 +577,10 @@ export function PsxPostProcess() {
       material.uniforms.u_fisheye.value = 1.8 - t * 1.2
     }
 
+    // CRT frame toggle
+    const crtFrameOn = useUIStore.getState().crtFrame
+    material.uniforms.u_crtFrameEnabled.value = crtFrameOn ? 1.0 : 0.0
+
     const hasBg = scene.background !== null
     const oldAutoClear = gl.autoClear
 
@@ -564,8 +647,8 @@ export function PsxPostProcess() {
     gl.clear()
     render(blitScene, blitCamera)
 
-    // 2.5. Render vortex grid to tiny 128×128 RT (only when enabled)
-    const vortexOn = useUIStore.getState().vortexOob
+    // 2.5. Render vortex grid to tiny 128×128 RT (skip when CRT frame covers OOB)
+    const vortexOn = useUIStore.getState().vortexOob && !crtFrameOn
     material.uniforms.u_vortexEnabled.value = vortexOn ? 1.0 : 0.0
 
     if (vortexOn) {

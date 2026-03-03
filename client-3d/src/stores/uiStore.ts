@@ -21,6 +21,7 @@ interface UIState {
   fisheyeOverride: number | null
   vertexFisheye: number
   vortexOob: boolean
+  crtFrame: boolean
   computerIframeOpen: boolean
   magazineReaderOpen: boolean
   sleepPromptOpen: boolean
@@ -41,6 +42,7 @@ interface UIState {
   setFisheyeOverride: (v: number | null) => void
   setVertexFisheye: (v: number) => void
   toggleVortexOob: () => void
+  toggleCrtFrame: () => void
   setComputerIframeOpen: (open: boolean) => void
   setMagazineReaderOpen: (open: boolean) => void
   setSleepPromptOpen: (open: boolean) => void
@@ -65,6 +67,7 @@ export const useUIStore = create<UIState>((set) => ({
   fisheyeOverride: null,
   vertexFisheye: 0,
   vortexOob: false,
+  crtFrame: true,
   computerIframeOpen: false,
   magazineReaderOpen: false,
   sleepPromptOpen: false,
@@ -87,6 +90,7 @@ export const useUIStore = create<UIState>((set) => ({
   setFisheyeOverride: (v) => set({ fisheyeOverride: v }),
   setVertexFisheye: (v) => set({ vertexFisheye: v }),
   toggleVortexOob: () => set((s) => ({ vortexOob: !s.vortexOob })),
+  toggleCrtFrame: () => set((s) => ({ crtFrame: !s.crtFrame })),
   setComputerIframeOpen: (open) => set({ computerIframeOpen: open }),
   setMagazineReaderOpen: (open) => set({ magazineReaderOpen: open }),
   setSleepPromptOpen: (open) => set({ sleepPromptOpen: open }),

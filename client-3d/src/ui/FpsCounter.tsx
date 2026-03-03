@@ -129,6 +129,17 @@ export function FpsCounter() {
         <span className="text-white/40">vortex OOB</span>
       </label>
 
+      <label className="flex items-center gap-1.5 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={useUIStore((s) => s.crtFrame)}
+          onChange={() => useUIStore.getState().toggleCrtFrame()}
+          className="accent-green-500"
+        />
+
+        <span className="text-white/40">CRT frame</span>
+      </label>
+
       {(roomType === 'custom' || roomType === 'jukebox') && (
         <button
           onClick={handleCopyLink}
