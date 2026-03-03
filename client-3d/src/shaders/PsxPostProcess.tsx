@@ -206,10 +206,21 @@ const VHS_FRAGMENT = /* glsl */ `
       float noise = fract(sin(dot(vUv * u_resolution, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
       frameTint = clamp(frameTint + vec3(noise * 0.04), 0.0, 1.0);
 
-      // Bloom reflection on bezel — screen glow bleeds onto the frame near the edge
-      float reflectFade = exp(-distPixels * 0.15);  // exponential falloff from screen edge
-      vec3 bloomSample = texture2D(tBloom, distUv).rgb;
-      frameTint += bloomSample * reflectFade * u_frameShininess * 1.5;
+      // Bloom reflection on bezel — soft diffuse color splotches
+      float reflectFade = exp(-distPixels * 0.09);
+      vec2 bTexel = 1.0 / u_bloomResolution;
+      float spread = 20.0;
+      vec3 bloomSample = texture2D(tBloom, distUv).rgb * 2.0;
+      bloomSample += texture2D(tBloom, distUv + vec2( spread, 0.0) * bTexel).rgb;
+      bloomSample += texture2D(tBloom, distUv + vec2(-spread, 0.0) * bTexel).rgb;
+      bloomSample += texture2D(tBloom, distUv + vec2(0.0,  spread) * bTexel).rgb;
+      bloomSample += texture2D(tBloom, distUv + vec2(0.0, -spread) * bTexel).rgb;
+      bloomSample += texture2D(tBloom, distUv + vec2( spread,  spread) * 0.707 * bTexel).rgb;
+      bloomSample += texture2D(tBloom, distUv + vec2(-spread,  spread) * 0.707 * bTexel).rgb;
+      bloomSample += texture2D(tBloom, distUv + vec2( spread, -spread) * 0.707 * bTexel).rgb;
+      bloomSample += texture2D(tBloom, distUv + vec2(-spread, -spread) * 0.707 * bTexel).rgb;
+      bloomSample /= 10.0;
+      frameTint += bloomSample * reflectFade * u_frameShininess * 0.9;
       frameTint = clamp(frameTint, 0.0, 1.0);
 
       gl_FragColor = vec4(frameTint, 1.0);
