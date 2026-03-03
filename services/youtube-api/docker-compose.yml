@@ -10,6 +10,7 @@ services:
     environment:
       - PORT=8081
       - YOUTUBE_API_CACHE_TTL=3600
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-admin_dev_token}
       # Uncomment when Redis is enabled (Phase 4)
       # - REDIS_URL=redis://redis:6379
     healthcheck:

@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -21,6 +23,9 @@ import (
 	"github.com/raitonoberu/ytsearch"
 	"golang.org/x/sync/singleflight"
 )
+
+//go:embed admin/index.html
+var adminHTML []byte
 
 type VideoResult struct {
 	ID           string `json:"id"`
@@ -290,7 +295,8 @@ type VideoCacheEntry struct {
 	size      int64
 }
 
-const DefaultVideoCacheMaxSize = 100 * 1024 * 1024 // 100MB
+const DefaultVideoCacheMaxSize = 100 * 1024 * 1024  // 100MB
+const MaxCacheableVideoSize = 15 * 1024 * 1024      // 15MB per entry
 
 func NewVideoCache(maxSize int64) *VideoCache {
 	vc := &VideoCache{
@@ -399,6 +405,74 @@ func (vc *VideoCache) Stats() (entries int, size int64, maxSize int64) {
 	vc.mu.RLock()
 	defer vc.mu.RUnlock()
 	return len(vc.entries), vc.curSize, vc.maxSize
+}
+
+// ListVideoIDs returns cached video-only entry IDs (keys ending in ":video")
+func (vc *VideoCache) ListVideoIDs() []string {
+	vc.mu.RLock()
+	defer vc.mu.RUnlock()
+
+	now := time.Now()
+	var ids []string
+	for key, entry := range vc.entries {
+		if now.After(entry.expiresAt) {
+			continue
+		}
+		if strings.HasSuffix(key, ":video") {
+			ids = append(ids, strings.TrimSuffix(key, ":video"))
+		}
+	}
+	return ids
+}
+
+// VideoCacheInfo is the admin-facing metadata for a cache entry.
+type VideoCacheInfo struct {
+	Key       string    `json:"key"`
+	Size      int64     `json:"size"`
+	ExpiresAt time.Time `json:"expiresAt"`
+	Expired   bool      `json:"expired"`
+}
+
+// ListAll returns metadata for all cached entries (for admin UI).
+func (vc *VideoCache) ListAll() []VideoCacheInfo {
+	vc.mu.RLock()
+	defer vc.mu.RUnlock()
+
+	now := time.Now()
+	result := make([]VideoCacheInfo, 0, len(vc.entries))
+	for key, entry := range vc.entries {
+		result = append(result, VideoCacheInfo{
+			Key:       key,
+			Size:      entry.size,
+			ExpiresAt: entry.expiresAt,
+			Expired:   now.After(entry.expiresAt),
+		})
+	}
+	return result
+}
+
+// Remove deletes a specific cache entry by key.
+func (vc *VideoCache) Remove(key string) bool {
+	vc.mu.Lock()
+	defer vc.mu.Unlock()
+
+	if _, exists := vc.entries[key]; !exists {
+		return false
+	}
+	vc.removeEntryLocked(key)
+	return true
+}
+
+// Clear removes all entries from the cache.
+func (vc *VideoCache) Clear() int {
+	vc.mu.Lock()
+	defer vc.mu.Unlock()
+
+	count := len(vc.entries)
+	vc.entries = make(map[string]*VideoCacheEntry)
+	vc.lruOrder = make([]string, 0)
+	vc.curSize = 0
+	return count
 }
 
 var videoIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{11}$`)
@@ -1016,8 +1090,8 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 			}
 			bytesWritten += int64(n)
 
-			// Accumulate data for caching (limit to 10MB to avoid memory issues)
-			if shouldCache && len(videoData)+n <= 10*1024*1024 {
+			// Accumulate data for caching (limit to MaxCacheableVideoSize to avoid memory issues)
+			if shouldCache && len(videoData)+n <= MaxCacheableVideoSize {
 				videoData = append(videoData, buf[:n]...)
 			}
 		}
@@ -1034,7 +1108,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	// Cache the video if we got a full response
 	// Use URL expiry for TTL (typically ~6 hours) instead of fixed 5 minutes
-	if shouldCache && len(videoData) > 0 && len(videoData) <= 10*1024*1024 {
+	if shouldCache && len(videoData) > 0 && len(videoData) <= MaxCacheableVideoSize {
 		cacheTTL := 6 * time.Hour // Default fallback
 		if resolved.ExpiresAtMs != nil {
 			urlExpiry := time.UnixMilli(*resolved.ExpiresAtMs)
@@ -1116,8 +1190,8 @@ func (s *Server) handlePrefetch(w http.ResponseWriter, r *http.Request) {
 		contentLength := resp.ContentLength
 		log.Printf("[prefetch] Downloading %s (Content-Length: %d, Transfer-Encoding: %s)", videoID, contentLength, resp.TransferEncoding)
 
-		// Read up to 10MB
-		data, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
+		// Read up to MaxCacheableVideoSize
+		data, err := io.ReadAll(io.LimitReader(resp.Body, MaxCacheableVideoSize))
 		if err != nil {
 			log.Printf("[prefetch] Read failed for %s: %v", videoID, err)
 			return
@@ -1254,6 +1328,167 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// handleCacheList returns currently cached video-only entry IDs.
+// Query params: ?limit=N&random=true
+func (s *Server) handleCacheList(w http.ResponseWriter, r *http.Request) {
+	ids := s.videoCache.ListVideoIDs()
+	total := len(ids)
+
+	if r.URL.Query().Get("random") == "true" && len(ids) > 1 {
+		for i := len(ids) - 1; i > 0; i-- {
+			j := rand.Intn(i + 1)
+			ids[i], ids[j] = ids[j], ids[i]
+		}
+	}
+
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 && parsed < len(ids) {
+			ids = ids[:parsed]
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"videoIds": ids,
+		"total":    total,
+	})
+}
+
+// ── Admin endpoints ──────────────────────────────────────────────────────
+
+func adminAuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := os.Getenv("ADMIN_TOKEN")
+		if token == "" {
+			http.Error(w, "Admin not configured", http.StatusServiceUnavailable)
+			return
+		}
+
+		auth := r.Header.Get("Authorization")
+		if auth != "Bearer "+token {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		next(w, r)
+	}
+}
+
+func (s *Server) handleAdminCacheList(w http.ResponseWriter, r *http.Request) {
+	entries := s.videoCache.ListAll()
+	count, size, maxSize := s.videoCache.Stats()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"entries": entries,
+		"count":   count,
+		"size":    size,
+		"maxSize": maxSize,
+	})
+}
+
+func (s *Server) handleAdminCacheDelete(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+	if key == "" {
+		http.Error(w, "Missing key", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if s.videoCache.Remove(key) {
+		json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+	} else {
+		http.Error(w, "Not found", http.StatusNotFound)
+	}
+}
+
+func (s *Server) handleAdminCacheAdd(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		VideoID string `json:"videoId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.VideoID == "" {
+		http.Error(w, "Missing videoId", http.StatusBadRequest)
+		return
+	}
+	if !isValidVideoID(body.VideoID) {
+		http.Error(w, "Invalid video ID", http.StatusBadRequest)
+		return
+	}
+
+	// Reuse the prefetch logic — resolve + download + cache in background
+	cacheKey := body.VideoID + ":video"
+	go func() {
+		log.Printf("[admin-prefetch] Starting prefetch for %s", body.VideoID)
+
+		result, err, _ := resolveGroup.Do(cacheKey, func() (interface{}, error) {
+			return s.resolveVideo(body.VideoID, true, false)
+		})
+		if err != nil {
+			log.Printf("[admin-prefetch] Resolve failed for %s: %v", body.VideoID, err)
+			return
+		}
+
+		resolved := result.(*ResolveResponse)
+		s.resolveCache.Set(cacheKey, *resolved, 5*time.Minute)
+
+		req, err := http.NewRequest("GET", resolved.URL, nil)
+		if err != nil {
+			log.Printf("[admin-prefetch] Request creation failed for %s: %v", body.VideoID, err)
+			return
+		}
+
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		req.Header.Set("Accept", "*/*")
+		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+		req.Header.Set("Origin", "https://www.youtube.com")
+		req.Header.Set("Referer", "https://www.youtube.com/")
+
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			log.Printf("[admin-prefetch] Fetch failed for %s: %v", body.VideoID, err)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("[admin-prefetch] Bad status for %s: %d", body.VideoID, resp.StatusCode)
+			return
+		}
+
+		data, err := io.ReadAll(io.LimitReader(resp.Body, MaxCacheableVideoSize))
+		if err != nil {
+			log.Printf("[admin-prefetch] Read failed for %s: %v", body.VideoID, err)
+			return
+		}
+
+		cacheTTL := 6 * time.Hour
+		if resolved.ExpiresAtMs != nil {
+			urlExpiry := time.UnixMilli(*resolved.ExpiresAtMs)
+			ttl := time.Until(urlExpiry) - 5*time.Minute
+			if ttl > 0 {
+				cacheTTL = ttl
+			}
+		}
+		s.videoCache.Set(cacheKey, data, cacheTTL)
+		log.Printf("[admin-prefetch] Cached %s (%d bytes, TTL: %s)", body.VideoID, len(data), cacheTTL.Round(time.Minute))
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(map[string]string{"status": "prefetching"})
+}
+
+func (s *Server) handleAdminCacheClear(w http.ResponseWriter, r *http.Request) {
+	count := s.videoCache.Clear()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"status": "cleared", "count": count})
+}
+
+func handleAdminUI(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(adminHTML)
 }
 
 // handlePOToken is a caching proxy for PO tokens
@@ -1546,8 +1781,18 @@ func main() {
 	mux.HandleFunc("GET /proxy/{videoId}", server.handleProxy)
 	mux.HandleFunc("POST /prefetch/{videoId}", server.handlePrefetch)
 	mux.HandleFunc("GET /health", server.handleHealth)
+	mux.HandleFunc("GET /cache/list", server.handleCacheList)
 	mux.HandleFunc("GET /pot", server.handlePOToken)
 	mux.HandleFunc("GET /browse", server.handleBrowse)
+
+	// Admin UI (no auth — page handles auth client-side via API calls)
+	mux.HandleFunc("GET /admin", handleAdminUI)
+
+	// Admin API routes (token-auth protected)
+	mux.HandleFunc("GET /admin/cache", adminAuthMiddleware(server.handleAdminCacheList))
+	mux.HandleFunc("DELETE /admin/cache/{key}", adminAuthMiddleware(server.handleAdminCacheDelete))
+	mux.HandleFunc("POST /admin/cache/add", adminAuthMiddleware(server.handleAdminCacheAdd))
+	mux.HandleFunc("POST /admin/cache/clear", adminAuthMiddleware(server.handleAdminCacheClear))
 
 	handler := corsMiddleware(loggingMiddleware(mux))
 
@@ -1612,8 +1857,8 @@ func corsMiddleware(next http.Handler) http.Handler {
 		if allowedOrigins[origin] {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 		}
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		if r.Method == http.MethodOptions {

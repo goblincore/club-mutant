@@ -22,7 +22,7 @@ export function WakePrompt() {
   }
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 30 }}>
+    <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 70 }}>
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40" onClick={handleCancel} />
 

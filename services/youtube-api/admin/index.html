@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Club Mutant - Cache Admin</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #e0e0e0; padding: 20px; }
+    h1 { font-size: 14px; text-transform: uppercase; letter-spacing: 2px; color: #888; margin-bottom: 20px; }
+
+    /* Login */
+    #login { max-width: 300px; margin: 100px auto; text-align: center; }
+    #login h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: #666; margin-bottom: 16px; }
+    #login input { width: 100%; padding: 10px; background: #111; border: 1px solid #333; color: #e0e0e0; font-family: inherit; font-size: 13px; border-radius: 4px; outline: none; margin-bottom: 12px; }
+    #login input:focus { border-color: #555; }
+    #login button { padding: 8px 20px; background: #1a1a2e; border: 1px solid #333; color: #aaa; font-family: inherit; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; border-radius: 4px; }
+    #login button:hover { background: #222; color: #e0e0e0; border-color: #555; }
+    #login .error { color: #f87171; font-size: 11px; margin-top: 8px; }
+
+    /* Panel */
+    #panel { display: none; }
+
+    /* Stats bar */
+    .stats { display: flex; gap: 20px; margin-bottom: 16px; padding: 10px 14px; background: #111; border: 1px solid #222; border-radius: 4px; }
+    .stat { font-size: 11px; color: #888; }
+    .stat strong { color: #e0e0e0; }
+
+    /* Add video */
+    .add-row { display: flex; gap: 8px; margin-bottom: 16px; }
+    .add-row input { flex: 1; padding: 8px 10px; background: #111; border: 1px solid #333; color: #e0e0e0; font-family: inherit; font-size: 12px; border-radius: 4px; outline: none; }
+    .add-row input:focus { border-color: #555; }
+    .add-row button, .clear-btn { padding: 8px 14px; background: #1a1a2e; border: 1px solid #333; color: #aaa; font-family: inherit; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; border-radius: 4px; }
+    .add-row button:hover, .clear-btn:hover { background: #222; color: #e0e0e0; border-color: #555; }
+    .clear-btn { background: #2e1a1a; border-color: #433; color: #c88; margin-left: auto; }
+    .clear-btn:hover { background: #3a2222; color: #f87171; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { text-align: left; padding: 8px 10px; border-bottom: 1px solid #333; color: #666; text-transform: uppercase; letter-spacing: 1px; font-size: 10px; font-weight: normal; }
+    td { padding: 6px 10px; border-bottom: 1px solid #1a1a1a; }
+    tr:hover td { background: #111; }
+    tr.expired td { opacity: 0.4; }
+    .video-id { color: #818cf8; cursor: pointer; }
+    .video-id:hover { text-decoration: underline; }
+    .size { color: #888; }
+    .expires { color: #888; }
+    .type-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; text-transform: uppercase; }
+    .type-video { background: #1a2e1a; color: #6ee76e; }
+    .type-audio { background: #2e2e1a; color: #e7e76e; }
+    .del-btn { background: none; border: 1px solid #433; color: #c88; padding: 3px 8px; font-family: inherit; font-size: 10px; cursor: pointer; border-radius: 3px; }
+    .del-btn:hover { background: #2e1a1a; color: #f87171; }
+
+    /* Preview */
+    #preview { margin-top: 16px; display: none; }
+    #preview video { max-width: 480px; width: 100%; border-radius: 4px; border: 1px solid #333; }
+    #preview .close { font-size: 10px; color: #888; cursor: pointer; margin-top: 4px; }
+    #preview .close:hover { color: #e0e0e0; }
+
+    .toolbar { display: flex; align-items: center; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+
+<div id="login">
+  <h2>cache admin</h2>
+  <input type="password" id="password" placeholder="admin token" autofocus>
+  <button onclick="doLogin()">enter</button>
+  <div class="error" id="login-error"></div>
+</div>
+
+<div id="panel">
+  <h1>club mutant / cache admin</h1>
+
+  <div class="stats" id="stats">
+    <div class="stat">entries: <strong id="stat-count">-</strong></div>
+    <div class="stat">size: <strong id="stat-size">-</strong></div>
+    <div class="stat">capacity: <strong id="stat-max">-</strong></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="add-row" style="flex:1">
+      <input type="text" id="add-input" placeholder="YouTube video ID (e.g. dQw4w9WgXcQ)">
+      <button onclick="addVideo()">add</button>
+    </div>
+    <button class="clear-btn" onclick="clearCache()">clear all</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>video id</th>
+        <th>type</th>
+        <th>size</th>
+        <th>expires</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="table-body"></tbody>
+  </table>
+
+  <div id="preview">
+    <video controls muted id="preview-video"></video>
+    <div class="close" onclick="closePreview()">[close preview]</div>
+  </div>
+</div>
+
+<script>
+  var token = sessionStorage.getItem('admin_token') || '';
+  var BASE = window.location.origin;
+
+  function doLogin() {
+    token = document.getElementById('password').value;
+    if (!token) return;
+    sessionStorage.setItem('admin_token', token);
+    loadCache().then(function(ok) {
+      if (ok) {
+        document.getElementById('login').style.display = 'none';
+        document.getElementById('panel').style.display = 'block';
+      } else {
+        document.getElementById('login-error').textContent = 'invalid token';
+        sessionStorage.removeItem('admin_token');
+        token = '';
+      }
+    });
+  }
+
+  // Allow Enter key on password field
+  document.getElementById('password').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') doLogin();
+  });
+
+  function fetchAuth(url, opts) {
+    opts = opts || {};
+    opts.headers = opts.headers || {};
+    opts.headers['Authorization'] = 'Bearer ' + token;
+    return fetch(url, opts);
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function formatExpiry(expiresAt, expired) {
+    if (expired) return 'expired';
+    var ms = new Date(expiresAt).getTime() - Date.now();
+    if (ms <= 0) return 'expired';
+    var mins = Math.floor(ms / 60000);
+    var hours = Math.floor(mins / 60);
+    mins = mins % 60;
+    if (hours > 0) return hours + 'h ' + mins + 'm';
+    return mins + 'm';
+  }
+
+  function parseKey(key) {
+    var parts = key.split(':');
+    return { videoId: parts[0], type: parts[1] || 'unknown' };
+  }
+
+  function loadCache() {
+    return fetchAuth(BASE + '/admin/cache')
+      .then(function(res) {
+        if (res.status === 401) return false;
+        return res.json().then(function(data) {
+          renderStats(data);
+          renderTable(data.entries || []);
+          return true;
+        });
+      })
+      .catch(function() { return false; });
+  }
+
+  function renderStats(data) {
+    document.getElementById('stat-count').textContent = data.count;
+    document.getElementById('stat-size').textContent = formatBytes(data.size);
+    document.getElementById('stat-max').textContent = formatBytes(data.maxSize);
+  }
+
+  function renderTable(entries) {
+    // Sort: non-expired first, then by size descending
+    entries.sort(function(a, b) {
+      if (a.expired !== b.expired) return a.expired ? 1 : -1;
+      return b.size - a.size;
+    });
+
+    var tbody = document.getElementById('table-body');
+    tbody.innerHTML = '';
+
+    entries.forEach(function(entry) {
+      var info = parseKey(entry.key);
+      var tr = document.createElement('tr');
+      if (entry.expired) tr.className = 'expired';
+
+      tr.innerHTML =
+        '<td><span class="video-id" onclick="previewVideo(\'' + info.videoId + '\')">' + info.videoId + '</span></td>' +
+        '<td><span class="type-badge type-' + info.type + '">' + info.type + '</span></td>' +
+        '<td class="size">' + formatBytes(entry.size) + '</td>' +
+        '<td class="expires">' + formatExpiry(entry.expiresAt, entry.expired) + '</td>' +
+        '<td><button class="del-btn" onclick="deleteEntry(\'' + entry.key + '\')">del</button></td>';
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  function deleteEntry(key) {
+    if (!confirm('Delete ' + key + '?')) return;
+    fetchAuth(BASE + '/admin/cache/' + encodeURIComponent(key), { method: 'DELETE' })
+      .then(function() { loadCache(); });
+  }
+
+  function addVideo() {
+    var input = document.getElementById('add-input');
+    var videoId = input.value.trim();
+    if (!videoId) return;
+
+    // Extract ID from URL if needed
+    var match = videoId.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
+    if (match) videoId = match[1];
+
+    fetchAuth(BASE + '/admin/cache/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ videoId: videoId })
+    }).then(function(res) {
+      if (res.ok) {
+        input.value = '';
+        // Refresh after a delay to let prefetch start
+        setTimeout(loadCache, 3000);
+      }
+    });
+  }
+
+  // Allow Enter key on add input
+  document.getElementById('add-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') addVideo();
+  });
+
+  function clearCache() {
+    if (!confirm('Clear entire cache? This cannot be undone.')) return;
+    fetchAuth(BASE + '/admin/cache/clear', { method: 'POST' })
+      .then(function() { loadCache(); });
+  }
+
+  function previewVideo(videoId) {
+    var preview = document.getElementById('preview');
+    var video = document.getElementById('preview-video');
+    video.src = BASE + '/proxy/' + videoId + '?videoOnly=true';
+    preview.style.display = 'block';
+    video.play();
+  }
+
+  function closePreview() {
+    var video = document.getElementById('preview-video');
+    video.pause();
+    video.src = '';
+    document.getElementById('preview').style.display = 'none';
+  }
+
+  // Init
+  if (token) {
+    loadCache().then(function(ok) {
+      if (ok) {
+        document.getElementById('login').style.display = 'none';
+        document.getElementById('panel').style.display = 'block';
+        // Auto-refresh
+        setInterval(loadCache, 10000);
+      } else {
+        sessionStorage.removeItem('admin_token');
+        token = '';
+      }
+    });
+  }
+</script>
+</body>
+</html>

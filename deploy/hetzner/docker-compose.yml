@@ -43,6 +43,7 @@ services:
       - VIDEO_CACHE_SIZE_MB=1000
       - PROXY_URL=${PROXY_URL}
       - POT_PROVIDER_URL=http://pot-provider:4416
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
     volumes:
       - ./cookies.txt:/etc/youtube-api/cookies.txt:ro
     expose:
