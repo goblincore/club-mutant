@@ -139,10 +139,11 @@ function DreamLayer() {
   const cutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rateTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const stateRef = useRef<VideoState | null>(null)
+  const hasVideosRef = useRef<boolean | null>(null)
+  const initDoneRef = useRef(false)
 
-  useEffect(() => {
-    stateRef.current = state
-  }, [state])
+  useEffect(() => { stateRef.current = state }, [state])
+  useEffect(() => { hasVideosRef.current = hasVideos }, [hasVideos])
 
   const fetchCacheList = useCallback(async (signal: AbortSignal) => {
     try {
@@ -155,7 +156,7 @@ function DreamLayer() {
     }
   }, [])
 
-  // Initialize: fetch cache list and load first video
+  // Initialize: fetch cache list and load first video (runs once)
   useEffect(() => {
     const abort = new AbortController()
     abortRef.current = abort
@@ -198,6 +199,7 @@ function DreamLayer() {
         texture.colorSpace = THREE.SRGBColorSpace
 
         nextVideoIndexRef.current = 1
+        initDoneRef.current = true
         setState({
           videoEl,
           texture,
@@ -224,7 +226,7 @@ function DreamLayer() {
       if (ids.length > 0) {
         videoIdsRef.current = ids
         nextVideoIndexRef.current = 0
-        if (!hasVideos) setHasVideos(true)
+        if (!hasVideosRef.current) setHasVideos(true)
       }
     }, CACHE_REFRESH_INTERVAL)
 
@@ -234,20 +236,20 @@ function DreamLayer() {
       if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
       if (cutTimerRef.current) clearTimeout(cutTimerRef.current)
       if (rateTimerRef.current) clearInterval(rateTimerRef.current)
-      setState((prev) => {
-        if (prev) {
-          disposeVideo(prev.videoEl)
-          prev.texture.dispose()
-          if (prev.prevVideoEl) disposeVideo(prev.prevVideoEl)
-          if (prev.prevTexture) prev.prevTexture.dispose()
-        }
-        return null
-      })
+      const s = stateRef.current
+      if (s) {
+        disposeVideo(s.videoEl)
+        s.texture.dispose()
+        if (s.prevVideoEl) disposeVideo(s.prevVideoEl)
+        if (s.prevTexture) s.prevTexture.dispose()
+      }
     }
-  }, [fetchCacheList, hasVideos])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ── Random time jumps ───────────────────────────────────────────────
   useEffect(() => {
+    if (!initDoneRef.current && !state) return
     if (!state) return
 
     const scheduleNextCut = () => {
@@ -265,6 +267,8 @@ function DreamLayer() {
 
     scheduleNextCut()
     return () => { if (cutTimerRef.current) clearTimeout(cutTimerRef.current) }
+    // Only re-run when state existence changes, not on every state update
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!state])
 
   // ── Variable playback rate ──────────────────────────────────────────
@@ -276,14 +280,15 @@ function DreamLayer() {
     }, PLAYBACK_RATE_CHANGE_INTERVAL)
 
     return () => { if (rateTimerRef.current) clearInterval(rateTimerRef.current) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!state])
 
   // ── Video cycling with melting transitions ──────────────────────────
   useEffect(() => {
-    if (!hasVideos || !state) return
+    if (!state) return
 
     const abort = abortRef.current
-    if (!abort) return
+    if (!abort || abort.signal.aborted) return
 
     const cycle = async () => {
       if (abort.signal.aborted) return
@@ -327,7 +332,6 @@ function DreamLayer() {
           videoEl,
           texture,
           videoId: nextVideoId,
-          // Keep old for melting transition
           prevTexture: prev ? prev.texture : null,
           prevVideoEl: prev ? prev.videoEl : null,
           transition: 0.0,
@@ -347,22 +351,25 @@ function DreamLayer() {
     cycleTimerRef.current = setTimeout(cycle, randomCycleDelay())
 
     return () => { if (cycleTimerRef.current) clearTimeout(cycleTimerRef.current) }
-  }, [hasVideos, state])
+    // Only re-run when state existence changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!state])
 
   // ── Per-frame: transition + playback rate ───────────────────────────
   useFrame((_, delta) => {
-    if (!state) return
+    const s = stateRef.current
+    if (!s) return
     const d = Math.min(delta, 0.1)
     const transitionSpeed = 1.0 / (MELT_TRANSITION_DURATION / 1000)
     let needsUpdate = false
     const updates: Partial<VideoState> = {}
 
     // Melting transition
-    if (state.transitioning) {
-      const newTransition = Math.min(state.transition + transitionSpeed * d, 1.0)
+    if (s.transitioning) {
+      const newTransition = Math.min(s.transition + transitionSpeed * d, 1.0)
       if (newTransition >= 1.0) {
-        if (state.prevVideoEl) disposeVideo(state.prevVideoEl)
-        if (state.prevTexture) state.prevTexture.dispose()
+        if (s.prevVideoEl) disposeVideo(s.prevVideoEl)
+        if (s.prevTexture) s.prevTexture.dispose()
         updates.transition = 1.0
         updates.transitioning = false
         updates.prevTexture = null
@@ -374,10 +381,10 @@ function DreamLayer() {
     }
 
     // Smooth playback rate
-    const rateDiff = state.targetRate - state.currentRate
+    const rateDiff = s.targetRate - s.currentRate
     if (Math.abs(rateDiff) > 0.001) {
-      const newRate = state.currentRate + rateDiff * PLAYBACK_RATE_LERP
-      state.videoEl.playbackRate = newRate
+      const newRate = s.currentRate + rateDiff * PLAYBACK_RATE_LERP
+      s.videoEl.playbackRate = newRate
       updates.currentRate = newRate
       needsUpdate = true
     }
