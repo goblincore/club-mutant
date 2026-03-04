@@ -69,7 +69,7 @@ function prefetchNextDJTrack(room: ClubMutant, currentDjId: string) {
       if (!nextPlayer.roomQueuePlaylist[j].played) {
         const nextTrack = nextPlayer.roomQueuePlaylist[j]
         console.log('[DJQueue] Prefetching next DJ track:', nextTrack.title, 'by:', entry.name)
-        prefetchVideo(nextTrack.link)
+        prefetchVideo(nextTrack.link, 'high')
         return
       }
     }

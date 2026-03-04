@@ -14,10 +14,12 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/raitonoberu/ytsearch"
@@ -191,10 +193,12 @@ func (c *ResolveCache) cleanupLoop() {
 }
 
 type Server struct {
-	searchCache  *Cache
-	resolveCache *ResolveCache
-	videoCache   *VideoCache
-	potCache     *POTokenCache
+	searchCache   *Cache
+	resolveCache  *ResolveCache
+	videoCache    *VideoCache
+	potCache      *POTokenCache
+	diskCache     *DiskCache
+	prefetchQueue *PrefetchQueue
 }
 
 // POTokenCache caches PO tokens to avoid regenerating on every yt-dlp call
@@ -290,24 +294,19 @@ type VideoCache struct {
 }
 
 type VideoCacheEntry struct {
-	data      []byte
-	expiresAt time.Time
-	size      int64
+	data []byte
+	size int64
 }
 
 const DefaultVideoCacheMaxSize = 100 * 1024 * 1024  // 100MB
 const MaxCacheableVideoSize = 15 * 1024 * 1024      // 15MB per entry
 
 func NewVideoCache(maxSize int64) *VideoCache {
-	vc := &VideoCache{
+	return &VideoCache{
 		entries:  make(map[string]*VideoCacheEntry),
 		maxSize:  maxSize,
 		lruOrder: make([]string, 0),
 	}
-
-	go vc.cleanupLoop()
-
-	return vc
 }
 
 func (vc *VideoCache) Get(key string) ([]byte, bool) {
@@ -319,18 +318,13 @@ func (vc *VideoCache) Get(key string) ([]byte, bool) {
 		return nil, false
 	}
 
-	if time.Now().After(entry.expiresAt) {
-		vc.removeEntryLocked(key)
-		return nil, false
-	}
-
 	// Move to end of LRU (most recently used)
 	vc.touchLocked(key)
 
 	return entry.data, true
 }
 
-func (vc *VideoCache) Set(key string, data []byte, ttl time.Duration) {
+func (vc *VideoCache) Set(key string, data []byte) {
 	vc.mu.Lock()
 	defer vc.mu.Unlock()
 
@@ -354,9 +348,8 @@ func (vc *VideoCache) Set(key string, data []byte, ttl time.Duration) {
 	}
 
 	vc.entries[key] = &VideoCacheEntry{
-		data:      data,
-		expiresAt: time.Now().Add(ttl),
-		size:      size,
+		data: data,
+		size: size,
 	}
 	vc.curSize += size
 	vc.lruOrder = append(vc.lruOrder, key)
@@ -387,20 +380,6 @@ func (vc *VideoCache) touchLocked(key string) {
 	vc.lruOrder = append(vc.lruOrder, key)
 }
 
-func (vc *VideoCache) cleanupLoop() {
-	ticker := time.NewTicker(1 * time.Minute)
-	for range ticker.C {
-		vc.mu.Lock()
-		now := time.Now()
-		for key, entry := range vc.entries {
-			if now.After(entry.expiresAt) {
-				vc.removeEntryLocked(key)
-			}
-		}
-		vc.mu.Unlock()
-	}
-}
-
 func (vc *VideoCache) Stats() (entries int, size int64, maxSize int64) {
 	vc.mu.RLock()
 	defer vc.mu.RUnlock()
@@ -412,12 +391,8 @@ func (vc *VideoCache) ListVideoIDs() []string {
 	vc.mu.RLock()
 	defer vc.mu.RUnlock()
 
-	now := time.Now()
 	var ids []string
-	for key, entry := range vc.entries {
-		if now.After(entry.expiresAt) {
-			continue
-		}
+	for key := range vc.entries {
 		if strings.HasSuffix(key, ":video") {
 			ids = append(ids, strings.TrimSuffix(key, ":video"))
 		}
@@ -427,10 +402,8 @@ func (vc *VideoCache) ListVideoIDs() []string {
 
 // VideoCacheInfo is the admin-facing metadata for a cache entry.
 type VideoCacheInfo struct {
-	Key       string    `json:"key"`
-	Size      int64     `json:"size"`
-	ExpiresAt time.Time `json:"expiresAt"`
-	Expired   bool      `json:"expired"`
+	Key  string `json:"key"`
+	Size int64  `json:"size"`
 }
 
 // ListAll returns metadata for all cached entries (for admin UI).
@@ -438,14 +411,11 @@ func (vc *VideoCache) ListAll() []VideoCacheInfo {
 	vc.mu.RLock()
 	defer vc.mu.RUnlock()
 
-	now := time.Now()
 	result := make([]VideoCacheInfo, 0, len(vc.entries))
 	for key, entry := range vc.entries {
 		result = append(result, VideoCacheInfo{
-			Key:       key,
-			Size:      entry.size,
-			ExpiresAt: entry.expiresAt,
-			Expired:   now.After(entry.expiresAt),
+			Key:  key,
+			Size: entry.size,
 		})
 	}
 	return result
@@ -683,11 +653,16 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool, audioOnly bool
 	return resp, err
 }
 
-// resolveWithYtDlpInternal is the actual yt-dlp call with optional PO token support
-func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, audioOnly bool, usePOToken bool) (*ResolveResponse, error) {
+// resolveWithYtDlpInternal is the actual yt-dlp call with optional PO token support.
+// The sem parameter controls which semaphore to acquire (user-facing vs prefetch).
+func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, audioOnly bool, usePOToken bool, sem ...chan struct{}) (*ResolveResponse, error) {
 	// Acquire semaphore to limit concurrent yt-dlp processes
-	ytdlpSemaphore <- struct{}{}
-	defer func() { <-ytdlpSemaphore }()
+	semToUse := ytdlpSemaphore
+	if len(sem) > 0 && sem[0] != nil {
+		semToUse = sem[0]
+	}
+	semToUse <- struct{}{}
+	defer func() { <-semToUse }()
 
 	ytURL := "https://www.youtube.com/watch?v=" + videoID
 
@@ -902,7 +877,19 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	// Check byte cache first (only for non-range requests or initial request)
 	if rangeHeader == "" || rangeHeader == "bytes=0-" {
-		if cachedData, found := s.videoCache.Get(cacheKey); found {
+		cachedData, found := s.videoCache.Get(cacheKey)
+
+		// Memory miss → check disk cache and promote to memory
+		if !found && s.diskCache != nil {
+			if diskData, diskHit := s.diskCache.Get(cacheKey); diskHit {
+				cachedData = diskData
+				found = true
+				s.videoCache.Set(cacheKey, diskData) // promote to memory
+				log.Printf("[proxy] Disk cache hit for %s (%d bytes), promoted to memory", videoID, len(diskData))
+			}
+		}
+
+		if found {
 			contentType := "video/mp4"
 			if audioOnly {
 				contentType = "audio/mp4"
@@ -1106,22 +1093,16 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[proxy] Streamed %d bytes for %s in %dms", bytesWritten, videoID, time.Since(proxyStart).Milliseconds())
 
-	// Cache the video if we got a full response
-	// Use URL expiry for TTL (typically ~6 hours) instead of fixed 5 minutes
+	// Cache the video if we got a full response (LRU eviction, no TTL)
 	if shouldCache && len(videoData) > 0 && len(videoData) <= MaxCacheableVideoSize {
-		cacheTTL := 6 * time.Hour // Default fallback
-		if resolved.ExpiresAtMs != nil {
-			urlExpiry := time.UnixMilli(*resolved.ExpiresAtMs)
-			ttl := time.Until(urlExpiry) - 5*time.Minute // 5min buffer
-			if ttl > 0 {
-				cacheTTL = ttl
-			}
+		s.videoCache.Set(cacheKey, videoData)
+		if s.diskCache != nil {
+			s.diskCache.Set(cacheKey, videoData)
 		}
-		s.videoCache.Set(cacheKey, videoData, cacheTTL)
 	}
 }
 
-// handlePrefetch pre-fetches and caches a video for faster subsequent access
+// handlePrefetch enqueues a video for background prefetch and caching.
 func (s *Server) handlePrefetch(w http.ResponseWriter, r *http.Request) {
 	videoID := r.PathValue("videoId")
 	if videoID == "" {
@@ -1134,84 +1115,22 @@ func (s *Server) handlePrefetch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cacheKey := videoID + ":video"
-
-	// Check if already cached
-	if _, found := s.videoCache.Get(cacheKey); found {
-		log.Printf("[prefetch] Already cached: %s", videoID)
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "already_cached"})
-		return
+	// Check priority hint from caller
+	priority := PriorityNormal
+	if r.URL.Query().Get("priority") == "high" {
+		priority = PriorityHigh
 	}
 
-	// Start prefetch in background
-	go func() {
-		log.Printf("[prefetch] Starting prefetch for %s", videoID)
+	enqueued := s.prefetchQueue.Enqueue(videoID, priority)
 
-		// Resolve the video URL
-		result, err, _ := resolveGroup.Do(cacheKey, func() (interface{}, error) {
-			return s.resolveVideo(videoID, true, false)
-		})
-
-		if err != nil {
-			log.Printf("[prefetch] Resolve failed for %s: %v", videoID, err)
-			return
-		}
-
-		resolved := result.(*ResolveResponse)
-		s.resolveCache.Set(cacheKey, *resolved, 5*time.Minute)
-
-		// Fetch the video bytes - use httpClient which has proxy configured
-		req, err := http.NewRequest("GET", resolved.URL, nil)
-		if err != nil {
-			log.Printf("[prefetch] Request creation failed for %s: %v", videoID, err)
-			return
-		}
-
-		// Set headers to mimic browser (same as proxy handler)
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-		req.Header.Set("Accept", "*/*")
-		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-		req.Header.Set("Origin", "https://www.youtube.com")
-		req.Header.Set("Referer", "https://www.youtube.com/")
-
-		resp, err := httpClient.Do(req)
-		if err != nil {
-			log.Printf("[prefetch] Fetch failed for %s: %v", videoID, err)
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			log.Printf("[prefetch] Bad status for %s: %d", videoID, resp.StatusCode)
-			return
-		}
-
-		contentLength := resp.ContentLength
-		log.Printf("[prefetch] Downloading %s (Content-Length: %d, Transfer-Encoding: %s)", videoID, contentLength, resp.TransferEncoding)
-
-		// Read up to MaxCacheableVideoSize
-		data, err := io.ReadAll(io.LimitReader(resp.Body, MaxCacheableVideoSize))
-		if err != nil {
-			log.Printf("[prefetch] Read failed for %s: %v", videoID, err)
-			return
-		}
-
-		// Use URL expiry for TTL (typically ~6 hours)
-		cacheTTL := 6 * time.Hour
-		if resolved.ExpiresAtMs != nil {
-			urlExpiry := time.UnixMilli(*resolved.ExpiresAtMs)
-			ttl := time.Until(urlExpiry) - 5*time.Minute
-			if ttl > 0 {
-				cacheTTL = ttl
-			}
-		}
-		s.videoCache.Set(cacheKey, data, cacheTTL)
-		log.Printf("[prefetch] Cached %s (%d bytes, TTL: %s)", videoID, len(data), cacheTTL.Round(time.Minute))
-	}()
-
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{"status": "prefetching"})
+	w.Header().Set("Content-Type", "application/json")
+	if enqueued {
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]string{"status": "queued"})
+	} else {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "already_cached_or_queued"})
+	}
 }
 
 // normalizeQuery normalizes search queries for better cache hits
@@ -1397,7 +1316,12 @@ func (s *Server) handleAdminCacheDelete(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if s.videoCache.Remove(key) {
+	memRemoved := s.videoCache.Remove(key)
+	diskRemoved := false
+	if s.diskCache != nil {
+		diskRemoved = s.diskCache.Remove(key)
+	}
+	if memRemoved || diskRemoved {
 		json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 	} else {
 		http.Error(w, "Not found", http.StatusNotFound)
@@ -1406,7 +1330,8 @@ func (s *Server) handleAdminCacheDelete(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleAdminCacheAdd(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		VideoID string `json:"videoId"`
+		VideoID  string `json:"videoId"`
+		Priority string `json:"priority,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.VideoID == "" {
 		http.Error(w, "Missing videoId", http.StatusBadRequest)
@@ -1417,73 +1342,68 @@ func (s *Server) handleAdminCacheAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reuse the prefetch logic — resolve + download + cache in background
-	cacheKey := body.VideoID + ":video"
-	go func() {
-		log.Printf("[admin-prefetch] Starting prefetch for %s", body.VideoID)
+	priority := PriorityNormal
+	if body.Priority == "high" {
+		priority = PriorityHigh
+	}
 
-		result, err, _ := resolveGroup.Do(cacheKey, func() (interface{}, error) {
-			return s.resolveVideo(body.VideoID, true, false)
-		})
-		if err != nil {
-			log.Printf("[admin-prefetch] Resolve failed for %s: %v", body.VideoID, err)
-			return
-		}
-
-		resolved := result.(*ResolveResponse)
-		s.resolveCache.Set(cacheKey, *resolved, 5*time.Minute)
-
-		req, err := http.NewRequest("GET", resolved.URL, nil)
-		if err != nil {
-			log.Printf("[admin-prefetch] Request creation failed for %s: %v", body.VideoID, err)
-			return
-		}
-
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-		req.Header.Set("Accept", "*/*")
-		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-		req.Header.Set("Origin", "https://www.youtube.com")
-		req.Header.Set("Referer", "https://www.youtube.com/")
-
-		resp, err := httpClient.Do(req)
-		if err != nil {
-			log.Printf("[admin-prefetch] Fetch failed for %s: %v", body.VideoID, err)
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			log.Printf("[admin-prefetch] Bad status for %s: %d", body.VideoID, resp.StatusCode)
-			return
-		}
-
-		data, err := io.ReadAll(io.LimitReader(resp.Body, MaxCacheableVideoSize))
-		if err != nil {
-			log.Printf("[admin-prefetch] Read failed for %s: %v", body.VideoID, err)
-			return
-		}
-
-		cacheTTL := 6 * time.Hour
-		if resolved.ExpiresAtMs != nil {
-			urlExpiry := time.UnixMilli(*resolved.ExpiresAtMs)
-			ttl := time.Until(urlExpiry) - 5*time.Minute
-			if ttl > 0 {
-				cacheTTL = ttl
-			}
-		}
-		s.videoCache.Set(cacheKey, data, cacheTTL)
-		log.Printf("[admin-prefetch] Cached %s (%d bytes, TTL: %s)", body.VideoID, len(data), cacheTTL.Round(time.Minute))
-	}()
+	enqueued := s.prefetchQueue.Enqueue(body.VideoID, priority)
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{"status": "prefetching"})
+	if enqueued {
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]string{"status": "queued"})
+	} else {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "already_cached_or_queued"})
+	}
 }
 
 func (s *Server) handleAdminCacheClear(w http.ResponseWriter, r *http.Request) {
-	count := s.videoCache.Clear()
+	memCount := s.videoCache.Clear()
+	diskCount := 0
+	if s.diskCache != nil {
+		diskCount = s.diskCache.Clear()
+	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"status": "cleared", "count": count})
+	json.NewEncoder(w).Encode(map[string]any{"status": "cleared", "memoryCount": memCount, "diskCount": diskCount})
+}
+
+func (s *Server) handleAdminQueueStatus(w http.ResponseWriter, r *http.Request) {
+	stats := s.prefetchQueue.Stats()
+	jobs := s.prefetchQueue.Jobs()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"stats": stats,
+		"jobs":  jobs,
+	})
+}
+
+func (s *Server) handleAdminCacheStats(w http.ResponseWriter, r *http.Request) {
+	memEntries, memSize, memMax := s.videoCache.Stats()
+	queueStats := s.prefetchQueue.Stats()
+
+	result := map[string]any{
+		"memory": map[string]any{
+			"entries": memEntries,
+			"size":    memSize,
+			"maxSize": memMax,
+		},
+		"queue": queueStats,
+	}
+
+	if s.diskCache != nil {
+		diskEntries, diskSize, diskMax := s.diskCache.Stats()
+		result["disk"] = map[string]any{
+			"entries": diskEntries,
+			"size":    diskSize,
+			"maxSize": diskMax,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
 }
 
 func handleAdminUI(w http.ResponseWriter, r *http.Request) {
@@ -1768,12 +1688,34 @@ func main() {
 		}
 	}
 
+	// Initialize disk cache
+	diskCacheDir := os.Getenv("DISK_CACHE_DIR")
+	if diskCacheDir == "" {
+		diskCacheDir = DefaultDiskCacheDir
+	}
+	var diskCacheSize int64 = DefaultDiskCacheMaxSize
+	if sizeStr := os.Getenv("DISK_CACHE_SIZE_GB"); sizeStr != "" {
+		if parsed, err := strconv.Atoi(sizeStr); err == nil && parsed > 0 {
+			diskCacheSize = int64(parsed) * 1024 * 1024 * 1024
+		}
+	}
+
+	diskCache, err := NewDiskCache(diskCacheDir, diskCacheSize)
+	if err != nil {
+		log.Printf("[disk-cache] Failed to initialize, running without disk cache: %v", err)
+	}
+
 	server := &Server{
 		searchCache:  NewCache(time.Duration(cacheTTLSeconds) * time.Second),
 		resolveCache: NewResolveCache(),
 		videoCache:   NewVideoCache(videoCacheSize),
 		potCache:     NewPOTokenCache(),
+		diskCache:    diskCache,
 	}
+
+	// Initialize and start prefetch queue
+	server.prefetchQueue = NewPrefetchQueue(server, DefaultWorkers)
+	server.prefetchQueue.Start()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /search", server.handleSearch)
@@ -1790,14 +1732,16 @@ func main() {
 
 	// Admin API routes (token-auth protected)
 	mux.HandleFunc("GET /admin/cache", adminAuthMiddleware(server.handleAdminCacheList))
+	mux.HandleFunc("GET /admin/cache/stats", adminAuthMiddleware(server.handleAdminCacheStats))
 	mux.HandleFunc("DELETE /admin/cache/{key}", adminAuthMiddleware(server.handleAdminCacheDelete))
 	mux.HandleFunc("POST /admin/cache/add", adminAuthMiddleware(server.handleAdminCacheAdd))
 	mux.HandleFunc("POST /admin/cache/clear", adminAuthMiddleware(server.handleAdminCacheClear))
+	mux.HandleFunc("GET /admin/queue", adminAuthMiddleware(server.handleAdminQueueStatus))
 
 	handler := corsMiddleware(loggingMiddleware(mux))
 
 	log.Printf("YouTube API service starting on port %s", port)
-	log.Printf("Cache TTL: %d seconds", cacheTTLSeconds)
+	log.Printf("Search cache TTL: %d seconds", cacheTTLSeconds)
 	log.Printf("[resolver] Using yt-dlp")
 
 	// Pre-warm PO token cache in background
@@ -1806,9 +1750,29 @@ func main() {
 	// Warm up yt-dlp Python cache to reduce cold-start latency
 	warmupYtDlp()
 
-	if err := http.ListenAndServe(":"+port, handler); err != nil {
+	httpServer := &http.Server{
+		Addr:    ":" + port,
+		Handler: handler,
+	}
+
+	// Graceful shutdown
+	go func() {
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+		sig := <-sigCh
+		log.Printf("Received %v, shutting down...", sig)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		httpServer.Shutdown(ctx)
+
+		server.prefetchQueue.Stop()
+	}()
+
+	if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
 		log.Fatalf("Server failed: %v", err)
 	}
+	log.Println("Server stopped")
 }
 
 func formatDuration(seconds int) string {

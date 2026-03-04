@@ -20,20 +20,22 @@ function extractVideoId(link: string): string | null {
   return null
 }
 
-// Trigger prefetch for a video (fire-and-forget)
-export function prefetchVideo(link: string): void {
+// Trigger prefetch for a video (fire-and-forget).
+// Use priority 'high' for next-up tracks that need to be ready ASAP.
+export function prefetchVideo(link: string, priority: 'normal' | 'high' = 'normal'): void {
   const videoId = extractVideoId(link)
   if (!videoId) {
     console.warn(`[youtubeService] Could not extract video ID from: ${link}`)
     return
   }
 
-  const url = `${YOUTUBE_SERVICE_URL}/prefetch/${videoId}`
+  const params = priority === 'high' ? '?priority=high' : ''
+  const url = `${YOUTUBE_SERVICE_URL}/prefetch/${videoId}${params}`
 
   fetch(url, { method: 'POST' })
     .then((res) => {
       if (res.ok) {
-        console.log(`[youtubeService] Prefetch triggered for ${videoId}`)
+        console.log(`[youtubeService] Prefetch triggered for ${videoId} (priority=${priority})`)
       } else {
         console.warn(`[youtubeService] Prefetch failed for ${videoId}: ${res.status}`)
       }
