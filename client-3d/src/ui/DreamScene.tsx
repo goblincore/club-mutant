@@ -4,25 +4,19 @@ import * as THREE from 'three'
 
 import { DreamMaterial } from '../shaders/DreamMaterial'
 import { DreamGenerativeMaterial } from '../shaders/DreamGenerativeMaterial'
+import { useDreamDebugStore } from '../stores/dreamDebugStore'
+import { DreamDebugPanel } from './DreamDebugPanel'
 
 // ── Constants ────────────────────────────────────────────────────────────
 
-const CYCLE_MIN = 15_000              // ms — min time between video swaps
-const CYCLE_MAX = 40_000              // ms — max time between video swaps
-const MELT_TRANSITION_DURATION = 5_000 // ms — melting dissolve transition
 const CACHE_REFRESH_INTERVAL = 60_000  // ms — re-fetch /cache/list
 const VIDEO_LOAD_TIMEOUT = 15_000
-
-// Playback rate (dreamy slow motion)
-const PLAYBACK_RATE_MIN = 0.5
-const PLAYBACK_RATE_MAX = 0.8
 const PLAYBACK_RATE_CHANGE_INTERVAL = 10_000
 const PLAYBACK_RATE_LERP = 0.02
 
 // Random time jumps
 const RANDOM_CUT_MIN_INTERVAL = 8_000
 const RANDOM_CUT_MAX_INTERVAL = 25_000
-const RANDOM_CUT_CHANCE = 0.25
 
 const YOUTUBE_API_BASE =
   import.meta.env.VITE_YOUTUBE_SERVICE_URL ||
@@ -49,11 +43,15 @@ interface VideoState {
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function randomRate(): number {
-  return PLAYBACK_RATE_MIN + Math.random() * (PLAYBACK_RATE_MAX - PLAYBACK_RATE_MIN)
+  const { playbackRateMin, playbackRateMax } = useDreamDebugStore.getState()
+  return playbackRateMin + Math.random() * (playbackRateMax - playbackRateMin)
 }
 
 function randomCycleDelay(): number {
-  return CYCLE_MIN + Math.random() * (CYCLE_MAX - CYCLE_MIN)
+  // Fixed range — not debug-controlled (transition duration is separate)
+  const min = 15_000
+  const max = 40_000
+  return min + Math.random() * (max - min)
 }
 
 // ── Video loading helper ─────────────────────────────────────────────────
@@ -255,9 +253,10 @@ function DreamLayer() {
     const scheduleNextCut = () => {
       const delay = RANDOM_CUT_MIN_INTERVAL + Math.random() * (RANDOM_CUT_MAX_INTERVAL - RANDOM_CUT_MIN_INTERVAL)
       cutTimerRef.current = setTimeout(() => {
+        const dbg = useDreamDebugStore.getState()
         const s = stateRef.current
-        if (s && s.videoEl.duration && isFinite(s.videoEl.duration)) {
-          if (Math.random() < RANDOM_CUT_CHANCE) {
+        if (dbg.randomCuts && s && s.videoEl.duration && isFinite(s.videoEl.duration)) {
+          if (Math.random() < dbg.randomCutChance) {
             s.videoEl.currentTime = Math.random() * s.videoEl.duration
           }
         }
@@ -267,7 +266,6 @@ function DreamLayer() {
 
     scheduleNextCut()
     return () => { if (cutTimerRef.current) clearTimeout(cutTimerRef.current) }
-    // Only re-run when state existence changes, not on every state update
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!state])
 
@@ -283,7 +281,7 @@ function DreamLayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!state])
 
-  // ── Video cycling with melting transitions ──────────────────────────
+  // ── Video cycling with transitions ─────────────────────────────────
   useEffect(() => {
     if (!state) return
 
@@ -351,7 +349,6 @@ function DreamLayer() {
     cycleTimerRef.current = setTimeout(cycle, randomCycleDelay())
 
     return () => { if (cycleTimerRef.current) clearTimeout(cycleTimerRef.current) }
-    // Only re-run when state existence changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!state])
 
@@ -360,7 +357,8 @@ function DreamLayer() {
     const s = stateRef.current
     if (!s) return
     const d = Math.min(delta, 0.1)
-    const transitionSpeed = 1.0 / (MELT_TRANSITION_DURATION / 1000)
+    const dbg = useDreamDebugStore.getState()
+    const transitionSpeed = 1.0 / (dbg.transitionDuration / 1000)
     let needsUpdate = false
     const updates: Partial<VideoState> = {}
 
@@ -421,6 +419,22 @@ function DreamLayer() {
 // ── Outer component ──────────────────────────────────────────────────────
 
 export function DreamScene() {
+  const showPanel = useDreamDebugStore((s) => s.showPanel)
+  const togglePanel = useDreamDebugStore((s) => s.togglePanel)
+
+  // Keyboard toggle: 'D' key
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 'd' || e.key === 'D') {
+        togglePanel()
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [togglePanel])
+
   return (
     <div className="fixed inset-0 bg-black" style={{ zIndex: 50 }}>
       <Canvas
@@ -431,6 +445,7 @@ export function DreamScene() {
       >
         <DreamLayer />
       </Canvas>
+      {showPanel && <DreamDebugPanel />}
     </div>
   )
 }
