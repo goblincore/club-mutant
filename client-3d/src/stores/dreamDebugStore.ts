@@ -1,44 +1,43 @@
 import { create } from 'zustand'
 
+export type BlendMode = 'none' | 'difference' | 'multiply' | 'screen' | 'overlay' | 'add'
+
 export interface DreamDebugState {
   showPanel: boolean
 
-  // Effect toggles
+  // UV effects
   chromaAberration: boolean
+  chromaStrength: number     // 0–2
   zoomPulse: boolean
   rotation: boolean
   stretch: boolean
-  uvWarp: boolean
-  smear: boolean
-  waxLighting: boolean
+  liquidWarp: boolean
+  liquidAmount: number       // 0–0.2
+  fisheye: boolean
+  fisheyeAmount: number      // 0–3
+
+  // Color / Post
   hueRotation: boolean
+  hueSpeed: number           // 0–0.2
   filmGrain: boolean
   vignette: boolean
-
-  // Effect strengths
-  chromaStrength: number     // 0–2
-  smearStrength: number      // 0–2
-  waxSmooth: number          // 0–5
-  waxSpecular: number        // 0–2
-  waxRim: number             // 0–1
-  saturation: number         // 0.5–2
-  hueSpeed: number           // 0–0.2
   vignetteSize: number       // 0.1–1.0
-
-  // Datamosh
-  datamoshEnabled: boolean
-  datamoshIntensity: number  // 0–1
-  datamoshBlockSize: number  // 4–64 pixels
+  saturation: number         // 0.5–2
 
   // Transition
-  transitionType: 'melt' | 'datamosh'
   transitionDuration: number // ms
+
+  // Blend mode overlay
+  blendMode: BlendMode
+  blendOpacity: number       // 0–1
 
   // Playback behavior
   playbackRateMin: number
   playbackRateMax: number
   randomCuts: boolean
   randomCutChance: number    // 0–1
+  cutIntervalMin: number     // ms
+  cutIntervalMax: number     // ms
 
   // Actions
   togglePanel: () => void
@@ -50,36 +49,33 @@ const DEFAULTS = {
   showPanel: false,
 
   chromaAberration: true,
+  chromaStrength: 1.0,
   zoomPulse: true,
   rotation: true,
   stretch: true,
-  uvWarp: true,
-  smear: true,
-  waxLighting: true,
+  liquidWarp: true,
+  liquidAmount: 0.06,
+  fisheye: true,
+  fisheyeAmount: 0.8,
+
   hueRotation: true,
+  hueSpeed: 0.03,
   filmGrain: true,
   vignette: true,
-
-  chromaStrength: 1.0,
-  smearStrength: 0.4,
-  waxSmooth: 1.5,
-  waxSpecular: 0.5,
-  waxRim: 0.35,
-  saturation: 1.3,
-  hueSpeed: 0.03,
   vignetteSize: 0.3,
+  saturation: 1.3,
 
-  datamoshEnabled: false,
-  datamoshIntensity: 0.5,
-  datamoshBlockSize: 16,
-
-  transitionType: 'melt' as const,
   transitionDuration: 5000,
+
+  blendMode: 'difference' as BlendMode,
+  blendOpacity: 0.3,
 
   playbackRateMin: 0.5,
   playbackRateMax: 0.8,
   randomCuts: true,
-  randomCutChance: 0.25,
+  randomCutChance: 0.6,
+  cutIntervalMin: 8_000,
+  cutIntervalMax: 20_000,
 }
 
 export const useDreamDebugStore = create<DreamDebugState>((set) => ({

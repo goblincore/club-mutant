@@ -41,33 +41,27 @@ uniform float uZoomPulse;
 uniform float uRotation;
 uniform vec2 uStretch;
 uniform float uTransition;
-uniform float uWaxSmooth;
-uniform float uWaxSpecular;
-uniform float uWaxRim;
-uniform float uSmearStrength;
 uniform vec2 uResolution;
 uniform float uSaturation;
 uniform float uHueSpeed;
 uniform float uVignetteSize;
+uniform float uLiquidAmount;
+uniform float uFisheye;
 
 // Toggle flags (0.0 or 1.0)
 uniform float uEnableChroma;
 uniform float uEnableZoomPulse;
 uniform float uEnableRotation;
 uniform float uEnableStretch;
-uniform float uEnableUvWarp;
-uniform float uEnableSmear;
-uniform float uEnableWax;
+uniform float uEnableLiquid;
+uniform float uEnableFisheye;
 uniform float uEnableHue;
 uniform float uEnableGrain;
 uniform float uEnableVignette;
 
-// Datamosh
-uniform float uDatamosh;
-uniform float uDatamoshBlock;
-
-// Transition type: 0 = melt, 1 = datamosh
-uniform float uTransitionType;
+// Blend mode: 0=none, 1=difference, 2=multiply, 3=screen, 4=overlay, 5=add
+uniform float uBlendMode;
+uniform float uBlendOpacity;
 
 // ── Noise functions ─────────────────────────────────────────────────
 float hash(vec2 p) {
@@ -123,123 +117,83 @@ vec2 rotateUV(vec2 uv, float angle) {
   return vec2(centered.x * c - centered.y * s, centered.x * s + centered.y * c) + 0.5;
 }
 
-// ── Waxy lighting (adapted from WaxyPostFxPipeline) ─────────────────
-vec3 smoothSample(sampler2D tex, vec2 uv, float radius) {
-  vec2 texel = 1.0 / uResolution;
-  vec3 col = vec3(0.0);
-  float total = 0.0;
-  for (float x = -2.0; x <= 2.0; x += 1.0) {
-    for (float y = -2.0; y <= 2.0; y += 1.0) {
-      float weight = 1.0 - length(vec2(x, y)) / 3.0;
-      weight = max(0.0, weight);
-      col += texture2D(tex, uv + vec2(x, y) * texel * radius).rgb * weight;
-      total += weight;
-    }
-  }
-  return col / total;
+// ── Barrel distortion (fisheye) ─────────────────────────────────────
+vec2 fisheyeUV(vec2 uv, float strength) {
+  vec2 centered = uv - 0.5;
+  float r = length(centered);
+  float bind = 0.5; // radius of the image
+  // Barrel distortion formula
+  float rd = r * (1.0 + strength * r * r);
+  vec2 result = centered * (rd / max(r, 0.0001)) + 0.5;
+  return result;
 }
 
-float getLuma(vec3 col) {
-  return dot(col, vec3(0.299, 0.587, 0.114));
+// ── Blend modes ─────────────────────────────────────────────────────
+vec3 blendDifference(vec3 a, vec3 b) { return abs(a - b); }
+vec3 blendMultiply(vec3 a, vec3 b) { return a * b; }
+vec3 blendScreen(vec3 a, vec3 b) { return 1.0 - (1.0 - a) * (1.0 - b); }
+vec3 blendOverlay(vec3 a, vec3 b) {
+  return vec3(
+    a.r < 0.5 ? 2.0 * a.r * b.r : 1.0 - 2.0 * (1.0 - a.r) * (1.0 - b.r),
+    a.g < 0.5 ? 2.0 * a.g * b.g : 1.0 - 2.0 * (1.0 - a.g) * (1.0 - b.g),
+    a.b < 0.5 ? 2.0 * a.b * b.b : 1.0 - 2.0 * (1.0 - a.b) * (1.0 - b.b)
+  );
 }
+vec3 blendAdd(vec3 a, vec3 b) { return min(a + b, vec3(1.0)); }
 
-vec3 getWaxNormal(sampler2D tex, vec2 uv, float scale) {
-  vec2 texel = scale / uResolution;
-  float l = getLuma(smoothSample(tex, uv - vec2(texel.x, 0.0), 1.5));
-  float r = getLuma(smoothSample(tex, uv + vec2(texel.x, 0.0), 1.5));
-  float d = getLuma(smoothSample(tex, uv - vec2(0.0, texel.y), 1.5));
-  float u = getLuma(smoothSample(tex, uv + vec2(0.0, texel.y), 1.5));
-  return normalize(vec3(l - r, d - u, 0.15));
-}
-
-// Gradient-based smear displacement (from melting wax reference)
-vec2 getGrad(sampler2D tex, vec2 uv, float eps) {
-  vec2 d = vec2(eps, 0.0);
-  float l = getLuma(texture2D(tex, uv - d.xy).rgb);
-  float r = getLuma(texture2D(tex, uv + d.xy).rgb);
-  float dn = getLuma(texture2D(tex, uv - d.yx).rgb);
-  float up = getLuma(texture2D(tex, uv + d.yx).rgb);
-  return vec2(r - l, up - dn) / eps;
-}
-
-// ── Datamosh effect ─────────────────────────────────────────────────
-vec4 datamoshSample(sampler2D tex, vec2 uv, float intensity, float blockPx) {
-  vec2 blockSize = vec2(blockPx) / uResolution;
-  vec2 blockUV = floor(uv / blockSize) * blockSize + blockSize * 0.5;
-
-  // Motion vector approximation from luminance gradient at block center
-  vec2 blockGrad = getGrad(tex, blockUV, blockSize.x);
-
-  // Directional smear along "motion vectors"
-  vec2 smearOffset = blockGrad.yx * vec2(1.0, -1.0) * intensity * blockSize * 25.0;
-
-  // Some blocks glitch harder — use time-varying hash for temporal variation
-  float blockNoise = hash(blockUV * 97.0 + floor(uTime * 2.0) * 0.1);
-
-  vec2 sampleUV = uv;
-  if (blockNoise > 0.6) {
-    // Hard glitch: displace entire block
-    sampleUV = blockUV + smearOffset * 2.0;
-  } else if (blockNoise > 0.3) {
-    // Moderate smear
-    sampleUV = uv + smearOffset;
-  }
-  // else: clean block (no displacement)
-
-  return texture2D(tex, sampleUV);
+vec3 applyBlend(vec3 base, vec3 blend, float mode) {
+  if (mode < 0.5) return base;             // none
+  if (mode < 1.5) return blendDifference(base, blend);
+  if (mode < 2.5) return blendMultiply(base, blend);
+  if (mode < 3.5) return blendScreen(base, blend);
+  if (mode < 4.5) return blendOverlay(base, blend);
+  return blendAdd(base, blend);             // add
 }
 
 // ── Main ────────────────────────────────────────────────────────────
 void main() {
   vec2 uv = vUv;
-  vec2 texel = 1.0 / uResolution;
 
-  // 1. Anamorphic stretch — slow breathing
+  // 1. Fisheye barrel distortion
+  if (uEnableFisheye > 0.5) {
+    uv = fisheyeUV(uv, uFisheye);
+  }
+
+  // 2. Anamorphic stretch — slow breathing
   if (uEnableStretch > 0.5) {
     uv = (uv - 0.5) * uStretch + 0.5;
   }
 
-  // 2. Slow rotation
+  // 3. Slow rotation
   if (uEnableRotation > 0.5) {
     uv = rotateUV(uv, uRotation);
   }
 
-  // 3. Zoom pulse (bass-reactive breathing)
+  // 4. Zoom pulse (bass-reactive breathing)
   if (uEnableZoomPulse > 0.5) {
     vec2 centered = uv - 0.5;
     centered *= 1.0 - uZoomPulse * 0.08;
     uv = centered + 0.5;
   }
 
-  // 4. UV warp (bass-reactive sinusoidal)
-  if (uEnableUvWarp > 0.5) {
-    float warpAmp = 0.02 + uBass * 0.04;
-    uv.x += sin(uv.y * 2.0 + uTime * 0.2) * warpAmp;
-    uv.y += cos(uv.x * 2.0 + uTime * 0.14) * warpAmp;
+  // 5. Liquid domain warp — organic flowing distortion
+  if (uEnableLiquid > 0.5 && uLiquidAmount > 0.001) {
+    // Domain warping: warp the noise coordinates with noise itself
+    float n1 = fbm(uv * 3.0 + uTime * 0.08);
+    float n2 = fbm(uv * 3.0 + n1 * 0.8 + vec2(5.2, 1.3) + uTime * 0.06);
+    float n3 = fbm(uv * 3.0 + n2 * 0.8 + vec2(1.7, 9.2) + uTime * 0.04);
+
+    // Audio-reactive liquid intensity
+    float liquidStr = uLiquidAmount * (1.0 + uBass * 1.5);
+
+    uv += vec2(n2 - 0.5, n3 - 0.5) * liquidStr;
+
+    // Extra sinusoidal waves for more visible waviness
+    uv.x += sin(uv.y * 6.0 + uTime * 0.3 + n1 * 3.0) * liquidStr * 0.5;
+    uv.y += cos(uv.x * 5.0 + uTime * 0.25 + n2 * 3.0) * liquidStr * 0.5;
   }
 
-  // 5. Gradient smear displacement (melting wax effect)
-  if (uEnableSmear > 0.5 && uSmearStrength > 0.001) {
-    vec2 grad = getGrad(uVideoTex, uv, texel.x * 2.0);
-    uv += grad.yx * vec2(1.0, -1.0) * uSmearStrength * texel.x * 300.0;
-    uv += grad * uSmearStrength * texel.x * 150.0 * (0.5 + uBass * 0.5);
-  }
-
-  // 6. Datamosh (continuous, independent of transitions)
-  if (uDatamosh > 0.001) {
-    vec2 blockSize = vec2(uDatamoshBlock) / uResolution;
-    vec2 blockUV = floor(uv / blockSize) * blockSize + blockSize * 0.5;
-    vec2 blockGrad = getGrad(uVideoTex, blockUV, blockSize.x);
-    vec2 smearOffset = blockGrad.yx * vec2(1.0, -1.0) * uDatamosh * blockSize * 25.0;
-    float blockNoise = hash(blockUV * 97.0 + floor(uTime * 2.0) * 0.1);
-    if (blockNoise > 0.6) {
-      uv = blockUV + smearOffset * 2.0;
-    } else if (blockNoise > 0.3) {
-      uv += smearOffset;
-    }
-  }
-
-  // 7. Sample with chromatic aberration
+  // 6. Sample with chromatic aberration
   vec4 video;
   vec2 caDir = normalize(uv - 0.5 + 0.001);
   float caAmount = (uEnableChroma > 0.5)
@@ -249,72 +203,42 @@ void main() {
   bool inTransition = uTransition > 0.001 && uTransition < 0.999;
 
   if (inTransition) {
-    if (uTransitionType > 0.5) {
-      // ── Datamosh transition ──
-      vec2 blockSize = vec2(uDatamoshBlock) / uResolution;
-      vec2 blockUV = floor(uv / blockSize) * blockSize + blockSize * 0.5;
+    // ── Melt transition (FBM noise dissolve) ──
+    float noiseVal = fbm(uv * 4.0 + uTime * 0.2);
+    float threshold = uTransition;
+    float edge = 0.08;
 
-      // Block-level decision: show old or new based on transition progress
-      float blockHash = hash(blockUV * 50.0 + floor(uTime * 3.0) * 0.1);
+    float dispStrength = 0.12 * (1.0 - abs(uTransition - 0.5) * 2.0);
+    vec2 meltOffset = vec2(
+      fbm(uv * 3.0 + vec2(uTime * 0.3, 0.0)) - 0.5,
+      fbm(uv * 3.0 + vec2(0.0, uTime * 0.3)) - 0.5
+    ) * dispStrength;
 
-      // Smear direction from outgoing video
-      vec2 smearDir = getGrad(uPrevVideoTex, blockUV, blockSize.x);
-      vec2 smearOffset = smearDir.yx * vec2(1.0, -1.0) * (1.0 - uTransition) * blockSize * 35.0;
+    vec2 prevUv = uv + meltOffset;
+    vec2 currUv = uv - meltOffset;
 
-      // Progressive reveal: more blocks switch to new video as transition advances
-      float threshold = uTransition * 1.2 - 0.1; // slight bias for snappier start
+    float pr = texture2D(uPrevVideoTex, prevUv + caDir * caAmount).r;
+    float pg = texture2D(uPrevVideoTex, prevUv).g;
+    float pb = texture2D(uPrevVideoTex, prevUv - caDir * caAmount).b;
+    vec4 prevColor = vec4(pr, pg, pb, 1.0);
 
-      vec4 prevColor, currColor;
+    float cr = texture2D(uVideoTex, currUv + caDir * caAmount).r;
+    float cg = texture2D(uVideoTex, currUv).g;
+    float cb = texture2D(uVideoTex, currUv - caDir * caAmount).b;
+    vec4 currColor = vec4(cr, cg, cb, 1.0);
 
-      if (blockHash < threshold) {
-        // Show new video (possibly with some residual smear at edges)
-        float edgeFade = smoothstep(threshold - 0.15, threshold, blockHash);
-        vec2 revealOffset = smearOffset * (1.0 - edgeFade) * 0.3;
-        currColor = texture2D(uVideoTex, uv + revealOffset);
-        video = currColor;
-      } else {
-        // Show smeared old video
-        prevColor = texture2D(uPrevVideoTex, uv + smearOffset);
-        video = prevColor;
-      }
+    float blend = smoothstep(threshold - edge, threshold + edge, noiseVal);
+    video = mix(prevColor, currColor, blend);
 
-      // Add chromatic aberration
-      if (caAmount > 0.0) {
-        float rv = video.r;
-        video.r = texture2D(uVideoTex, uv + caDir * caAmount).r * step(threshold, 0.001 + blockHash)
-                + texture2D(uPrevVideoTex, uv + smearOffset + caDir * caAmount).r * step(blockHash, threshold);
-      }
-    } else {
-      // ── Melt transition (FBM noise dissolve) ──
-      float noiseVal = fbm(uv * 4.0 + uTime * 0.2);
-      float threshold = uTransition;
-      float edge = 0.08;
+    // Subtle glow at transition boundary
+    float edgeGlow = smoothstep(edge, 0.0, abs(noiseVal - threshold));
+    video.rgb += edgeGlow * vec3(0.2, 0.08, 0.35) * 0.4;
 
-      float dispStrength = 0.12 * (1.0 - abs(uTransition - 0.5) * 2.0);
-      vec2 meltOffset = vec2(
-        fbm(uv * 3.0 + vec2(uTime * 0.3, 0.0)) - 0.5,
-        fbm(uv * 3.0 + vec2(0.0, uTime * 0.3)) - 0.5
-      ) * dispStrength;
-
-      vec2 prevUv = uv + meltOffset;
-      vec2 currUv = uv - meltOffset;
-
-      float pr = texture2D(uPrevVideoTex, prevUv + caDir * caAmount).r;
-      float pg = texture2D(uPrevVideoTex, prevUv).g;
-      float pb = texture2D(uPrevVideoTex, prevUv - caDir * caAmount).b;
-      vec4 prevColor = vec4(pr, pg, pb, 1.0);
-
-      float cr = texture2D(uVideoTex, currUv + caDir * caAmount).r;
-      float cg = texture2D(uVideoTex, currUv).g;
-      float cb = texture2D(uVideoTex, currUv - caDir * caAmount).b;
-      vec4 currColor = vec4(cr, cg, cb, 1.0);
-
-      float blend = smoothstep(threshold - edge, threshold + edge, noiseVal);
-      video = mix(prevColor, currColor, blend);
-
-      // Subtle glow at transition boundary
-      float edgeGlow = smoothstep(edge, 0.0, abs(noiseVal - threshold));
-      video.rgb += edgeGlow * vec3(0.2, 0.08, 0.35) * 0.4;
+    // Apply blend mode between prev and current during transition
+    if (uBlendMode > 0.5 && uBlendOpacity > 0.001) {
+      vec3 blended = applyBlend(currColor.rgb, prevColor.rgb, uBlendMode);
+      float transBlend = sin(uTransition * 3.14159) * uBlendOpacity; // peaks at midpoint
+      video.rgb = mix(video.rgb, blended, transBlend);
     }
   } else {
     // No transition — normal sampling
@@ -322,61 +246,40 @@ void main() {
     float gv = texture2D(uVideoTex, uv).g;
     float bv = texture2D(uVideoTex, uv - caDir * caAmount).b;
     video = vec4(rv, gv, bv, 1.0);
+
+    // Continuous blend with prev video if still available
+    if (uBlendMode > 0.5 && uBlendOpacity > 0.001) {
+      vec3 prevSample = texture2D(uPrevVideoTex, uv).rgb;
+      // Only blend if prev texture has content (non-black)
+      float prevLuma = dot(prevSample, vec3(0.3, 0.6, 0.1));
+      if (prevLuma > 0.01) {
+        vec3 blended = applyBlend(video.rgb, prevSample, uBlendMode);
+        video.rgb = mix(video.rgb, blended, uBlendOpacity);
+      }
+    }
   }
 
-  // 8. Waxy lighting — plastic/claymation look
-  if (uEnableWax > 0.5) {
-    vec3 smoothed = smoothSample(uVideoTex, uv, uWaxSmooth);
-    video.rgb = mix(video.rgb, smoothed, 0.4);
+  // 7. Saturation
+  float luma = dot(video.rgb, vec3(0.299, 0.587, 0.114));
+  video.rgb = mix(vec3(luma), video.rgb, uSaturation);
 
-    // Saturation
-    float luma = getLuma(video.rgb);
-    video.rgb = mix(vec3(luma), video.rgb, uSaturation);
-
-    // Surface normal from luminance gradient
-    vec3 normal = getWaxNormal(uVideoTex, uv, 3.0);
-
-    vec3 lightDir = normalize(vec3(1.0, 1.0, 2.0));
-    vec3 viewDir = vec3(0.0, 0.0, 1.0);
-
-    // Diffuse (half-lambert)
-    float NdotL = dot(normal, lightDir);
-    float diff = pow(NdotL * 0.5 + 0.5, 0.8);
-
-    // Specular (Blinn-Phong)
-    vec3 halfDir = normalize(lightDir + viewDir);
-    float NdotH = max(0.0, dot(normal, halfDir));
-    float spec = pow(NdotH, 12.0) * uWaxSpecular;
-
-    // Rim lighting
-    float NdotV = max(0.0, dot(normal, viewDir));
-    float rim = pow(1.0 - NdotV, 2.5) * uWaxRim;
-
-    vec3 ambient = video.rgb * 0.3;
-    vec3 diffuse = video.rgb * diff * 0.75;
-    vec3 specular = vec3(1.0, 0.98, 0.95) * spec;
-    vec3 rimColor = video.rgb * 1.3 * rim;
-
-    video.rgb = ambient + diffuse + specular + rimColor;
-  }
-
-  // 9. Hue rotation
+  // 8. Hue rotation
   if (uEnableHue > 0.5) {
     vec3 hsv = rgb2hsv(video.rgb);
     hsv.x = fract(hsv.x + uTime * uHueSpeed + uMid * 0.2);
     video.rgb = hsv2rgb(hsv);
   }
 
-  // 10. Energy brightness pulse
+  // 9. Energy brightness pulse
   video.rgb *= 0.85 + uEnergy * 0.3;
 
-  // 11. Film grain
+  // 10. Film grain
   if (uEnableGrain > 0.5) {
     float grain = (fract(sin(dot(vUv + uTime, vec2(12.9898, 78.233))) * 43758.5453) - 0.5);
     video.rgb += grain * uHigh * 0.08;
   }
 
-  // 12. Vignette
+  // 11. Vignette
   if (uEnableVignette > 0.5) {
     float vignette = 1.0 - smoothstep(uVignetteSize, 0.9, length(vUv - 0.5));
     video.rgb *= vignette;
@@ -416,30 +319,25 @@ export function DreamMaterial({
       uRotation: { value: 0.0 },
       uStretch: { value: new THREE.Vector2(1.0, 1.0) },
       uTransition: { value: 1.0 },
-      uWaxSmooth: { value: 1.5 },
-      uWaxSpecular: { value: 0.5 },
-      uWaxRim: { value: 0.35 },
-      uSmearStrength: { value: 0.4 },
       uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
       uSaturation: { value: 1.3 },
       uHueSpeed: { value: 0.03 },
       uVignetteSize: { value: 0.3 },
+      uLiquidAmount: { value: 0.06 },
+      uFisheye: { value: 0.8 },
       // Toggle flags
       uEnableChroma: { value: 1.0 },
       uEnableZoomPulse: { value: 1.0 },
       uEnableRotation: { value: 1.0 },
       uEnableStretch: { value: 1.0 },
-      uEnableUvWarp: { value: 1.0 },
-      uEnableSmear: { value: 1.0 },
-      uEnableWax: { value: 1.0 },
+      uEnableLiquid: { value: 1.0 },
+      uEnableFisheye: { value: 1.0 },
       uEnableHue: { value: 1.0 },
       uEnableGrain: { value: 1.0 },
       uEnableVignette: { value: 1.0 },
-      // Datamosh
-      uDatamosh: { value: 0.0 },
-      uDatamoshBlock: { value: 16.0 },
-      // Transition type
-      uTransitionType: { value: 0.0 },
+      // Blend mode
+      uBlendMode: { value: 1.0 },
+      uBlendOpacity: { value: 0.3 },
     }),
     []
   )
@@ -465,7 +363,7 @@ export function DreamMaterial({
     u.uTransition.value = transition
     u.uResolution.value.set(size.width, size.height)
 
-    // Read debug store (non-reactive, read in frame loop)
+    // Read debug store
     const dbg = useDreamDebugStore.getState()
 
     // Toggle flags
@@ -473,23 +371,25 @@ export function DreamMaterial({
     u.uEnableZoomPulse.value = dbg.zoomPulse ? 1.0 : 0.0
     u.uEnableRotation.value = dbg.rotation ? 1.0 : 0.0
     u.uEnableStretch.value = dbg.stretch ? 1.0 : 0.0
-    u.uEnableUvWarp.value = dbg.uvWarp ? 1.0 : 0.0
-    u.uEnableSmear.value = dbg.smear ? 1.0 : 0.0
-    u.uEnableWax.value = dbg.waxLighting ? 1.0 : 0.0
+    u.uEnableLiquid.value = dbg.liquidWarp ? 1.0 : 0.0
+    u.uEnableFisheye.value = dbg.fisheye ? 1.0 : 0.0
     u.uEnableHue.value = dbg.hueRotation ? 1.0 : 0.0
     u.uEnableGrain.value = dbg.filmGrain ? 1.0 : 0.0
     u.uEnableVignette.value = dbg.vignette ? 1.0 : 0.0
 
     // Debug-controlled values
-    u.uWaxSmooth.value = dbg.waxSmooth
     u.uSaturation.value = dbg.saturation
     u.uHueSpeed.value = dbg.hueSpeed
     u.uVignetteSize.value = dbg.vignetteSize
-    u.uDatamoshBlock.value = dbg.datamoshBlockSize
-    u.uTransitionType.value = dbg.transitionType === 'datamosh' ? 1.0 : 0.0
+    u.uLiquidAmount.value = dbg.liquidAmount
+    u.uFisheye.value = dbg.fisheyeAmount
 
-    // Datamosh (continuous effect, independent of transition)
-    u.uDatamosh.value = dbg.datamoshEnabled ? dbg.datamoshIntensity : 0.0
+    // Blend mode: none=0, difference=1, multiply=2, screen=3, overlay=4, add=5
+    const modeMap: Record<string, number> = {
+      none: 0, difference: 1, multiply: 2, screen: 3, overlay: 4, add: 5,
+    }
+    u.uBlendMode.value = modeMap[dbg.blendMode] ?? 0
+    u.uBlendOpacity.value = dbg.blendOpacity
 
     // Audio values
     const currentBass = audioAnalyserActive ? audioBass : 0.15 + Math.sin(t * 0.3) * 0.1
@@ -528,25 +428,6 @@ export function DreamMaterial({
     u.uStretch.value.set(
       1.0 + Math.sin(t * 0.05) * 0.04,
       1.0 + Math.cos(t * 0.04) * 0.03
-    )
-
-    // Smear strength — gently varies with bass, scaled by debug value
-    u.uSmearStrength.value = dbg.smearStrength * (
-      audioAnalyserActive
-        ? 0.75 + audioBass * 1.0
-        : 0.75 + Math.sin(t * 0.2) * 0.25
-    )
-
-    // Wax lighting — pulse specular/rim with energy
-    u.uWaxSpecular.value = dbg.waxSpecular * (
-      audioAnalyserActive
-        ? 0.8 + audioEnergy * 0.8
-        : 0.8 + Math.sin(t * 0.15) * 0.2
-    )
-    u.uWaxRim.value = dbg.waxRim * (
-      audioAnalyserActive
-        ? 0.85 + audioEnergy * 0.6
-        : 0.85 + Math.sin(t * 0.12) * 0.15
     )
   })
 

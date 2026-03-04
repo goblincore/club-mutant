@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useDreamDebugStore, type DreamDebugState } from '../stores/dreamDebugStore'
+import { useDreamDebugStore, type DreamDebugState, type BlendMode } from '../stores/dreamDebugStore'
 
 type NumericKey = {
   [K in keyof DreamDebugState]: DreamDebugState[K] extends number ? K : never
@@ -79,8 +79,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+const BLEND_MODES: BlendMode[] = ['none', 'difference', 'multiply', 'screen', 'overlay', 'add']
+
 export function DreamDebugPanel() {
-  const transitionType = useDreamDebugStore((s) => s.transitionType)
+  const blendMode = useDreamDebugStore((s) => s.blendMode)
   const set = useDreamDebugStore((s) => s.set)
   const reset = useDreamDebugStore((s) => s.reset)
 
@@ -101,61 +103,46 @@ export function DreamDebugPanel() {
 
       <Section title="UV Effects">
         <Toggle label="chromatic aberration" field="chromaAberration" />
-        <Slider label="strength" field="chromaStrength" min={0} max={2} />
+        <Slider label="chroma strength" field="chromaStrength" min={0} max={2} />
         <Toggle label="zoom pulse" field="zoomPulse" />
         <Toggle label="rotation" field="rotation" />
         <Toggle label="stretch" field="stretch" />
-        <Toggle label="uv warp" field="uvWarp" />
+        <Toggle label="liquid warp" field="liquidWarp" />
+        <Slider label="liquid amount" field="liquidAmount" min={0} max={0.2} />
+        <Toggle label="fisheye" field="fisheye" />
+        <Slider label="fisheye amount" field="fisheyeAmount" min={0} max={3} />
       </Section>
 
-      <Section title="Waxy / Melty">
-        <Toggle label="smear" field="smear" />
-        <Slider label="smear strength" field="smearStrength" min={0} max={2} />
-        <Toggle label="wax lighting" field="waxLighting" />
-        <Slider label="smooth" field="waxSmooth" min={0} max={5} />
-        <Slider label="specular" field="waxSpecular" min={0} max={2} />
-        <Slider label="rim" field="waxRim" min={0} max={1} />
-        <Slider label="saturation" field="saturation" min={0.5} max={2} />
-      </Section>
-
-      <Section title="Datamosh">
-        <Toggle label="datamosh" field="datamoshEnabled" />
-        <Slider label="intensity" field="datamoshIntensity" min={0} max={1} />
-        <Slider label="block size" field="datamoshBlockSize" min={4} max={64} step={1} />
+      <Section title="Blend Mode">
+        <div className="flex flex-wrap gap-1">
+          {BLEND_MODES.map((mode) => (
+            <button
+              key={mode}
+              onClick={() => set({ blendMode: mode })}
+              className={`text-[9px] px-1.5 py-0.5 rounded border transition-all ${
+                blendMode === mode
+                  ? 'border-purple-500/60 text-purple-300 bg-purple-500/10'
+                  : 'border-white/10 text-white/30'
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+        <Slider label="blend opacity" field="blendOpacity" min={0} max={1} />
       </Section>
 
       <Section title="Color / Post">
         <Toggle label="hue rotation" field="hueRotation" />
         <Slider label="hue speed" field="hueSpeed" min={0} max={0.2} />
+        <Slider label="saturation" field="saturation" min={0.5} max={2} />
         <Toggle label="film grain" field="filmGrain" />
         <Toggle label="vignette" field="vignette" />
         <Slider label="vignette size" field="vignetteSize" min={0.1} max={1} />
       </Section>
 
       <Section title="Transitions">
-        <div className="flex gap-1">
-          <button
-            onClick={() => set({ transitionType: 'melt' })}
-            className={`flex-1 text-[9px] py-0.5 rounded border transition-all ${
-              transitionType === 'melt'
-                ? 'border-purple-500/60 text-purple-300 bg-purple-500/10'
-                : 'border-white/10 text-white/30'
-            }`}
-          >
-            melt
-          </button>
-          <button
-            onClick={() => set({ transitionType: 'datamosh' })}
-            className={`flex-1 text-[9px] py-0.5 rounded border transition-all ${
-              transitionType === 'datamosh'
-                ? 'border-purple-500/60 text-purple-300 bg-purple-500/10'
-                : 'border-white/10 text-white/30'
-            }`}
-          >
-            datamosh
-          </button>
-        </div>
-        <Slider label="duration (s)" field="transitionDuration" min={1000} max={15000} step={500} />
+        <Slider label="duration (ms)" field="transitionDuration" min={1000} max={15000} step={500} />
       </Section>
 
       <Section title="Playback">
@@ -163,6 +150,8 @@ export function DreamDebugPanel() {
         <Slider label="rate max" field="playbackRateMax" min={0.1} max={1} />
         <Toggle label="random cuts" field="randomCuts" />
         <Slider label="cut chance" field="randomCutChance" min={0} max={1} />
+        <Slider label="cut interval min (ms)" field="cutIntervalMin" min={3000} max={30000} step={1000} />
+        <Slider label="cut interval max (ms)" field="cutIntervalMax" min={5000} max={60000} step={1000} />
       </Section>
 
       <div className="text-white/20 text-[9px] text-center pt-1 border-t border-white/5">

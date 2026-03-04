@@ -14,10 +14,6 @@ const VIDEO_LOAD_TIMEOUT = 15_000
 const PLAYBACK_RATE_CHANGE_INTERVAL = 10_000
 const PLAYBACK_RATE_LERP = 0.02
 
-// Random time jumps
-const RANDOM_CUT_MIN_INTERVAL = 8_000
-const RANDOM_CUT_MAX_INTERVAL = 25_000
-
 const YOUTUBE_API_BASE =
   import.meta.env.VITE_YOUTUBE_SERVICE_URL ||
   (window.location.hostname === 'localhost'
@@ -251,12 +247,13 @@ function DreamLayer() {
     if (!state) return
 
     const scheduleNextCut = () => {
-      const delay = RANDOM_CUT_MIN_INTERVAL + Math.random() * (RANDOM_CUT_MAX_INTERVAL - RANDOM_CUT_MIN_INTERVAL)
+      const dbg = useDreamDebugStore.getState()
+      const delay = dbg.cutIntervalMin + Math.random() * (dbg.cutIntervalMax - dbg.cutIntervalMin)
       cutTimerRef.current = setTimeout(() => {
-        const dbg = useDreamDebugStore.getState()
+        const dbgNow = useDreamDebugStore.getState()
         const s = stateRef.current
-        if (dbg.randomCuts && s && s.videoEl.duration && isFinite(s.videoEl.duration)) {
-          if (Math.random() < dbg.randomCutChance) {
+        if (dbgNow.randomCuts && s && s.videoEl.duration && isFinite(s.videoEl.duration)) {
+          if (Math.random() < dbgNow.randomCutChance) {
             s.videoEl.currentTime = Math.random() * s.videoEl.duration
           }
         }
