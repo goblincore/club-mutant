@@ -101,6 +101,15 @@ export function DreamDebugPanel() {
         </button>
       </div>
 
+      <Section title="Render">
+        <Slider label="resolution" field="dreamRenderScale" min={0.15} max={1} />
+      </Section>
+
+      <Section title="VHS">
+        <Toggle label="vhs effect" field="vhsEffect" />
+        <Slider label="strength" field="vhsStrength" min={0} max={1} />
+      </Section>
+
       <Section title="UV Effects">
         <Toggle label="chromatic aberration" field="chromaAberration" />
         <Slider label="chroma strength" field="chromaStrength" min={0} max={2} />

@@ -1,4 +1,4 @@
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 
@@ -413,16 +413,35 @@ function DreamLayer() {
   )
 }
 
+// ── Resolution controller (runs inside Canvas) ─────────────────────────
+
+function DreamResolution() {
+  const gl = useThree((s) => s.gl)
+  const size = useThree((s) => s.size)
+  const scaleRef = useRef(useDreamDebugStore.getState().dreamRenderScale)
+
+  useFrame(() => {
+    const scale = useDreamDebugStore.getState().dreamRenderScale
+    if (scale !== scaleRef.current) {
+      scaleRef.current = scale
+      gl.setPixelRatio(scale)
+      gl.setSize(size.width, size.height)
+    }
+  })
+
+  return null
+}
+
 // ── Outer component ──────────────────────────────────────────────────────
 
 export function DreamScene() {
   const showPanel = useDreamDebugStore((s) => s.showPanel)
   const togglePanel = useDreamDebugStore((s) => s.togglePanel)
+  const renderScale = useDreamDebugStore((s) => s.dreamRenderScale)
 
   // Keyboard toggle: 'D' key
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      // Ignore if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if (e.key === 'd' || e.key === 'D') {
         togglePanel()
@@ -432,14 +451,22 @@ export function DreamScene() {
     return () => window.removeEventListener('keydown', handleKey)
   }, [togglePanel])
 
+  // Set pixelated upscaling on canvas element
+  const handleCreated = useCallback(({ gl }: { gl: THREE.WebGLRenderer }) => {
+    gl.domElement.style.imageRendering = 'pixelated'
+  }, [])
+
   return (
     <div className="fixed inset-0 bg-black" style={{ zIndex: 50 }}>
       <Canvas
         orthographic
         camera={{ zoom: 1, position: [0, 0, 1], near: 0.1, far: 10 }}
         gl={{ antialias: false, alpha: false }}
+        dpr={renderScale}
+        onCreated={handleCreated}
         style={{ width: '100%', height: '100%' }}
       >
+        <DreamResolution />
         <DreamLayer />
       </Canvas>
       {showPanel && <DreamDebugPanel />}

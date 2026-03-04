@@ -63,11 +63,22 @@ uniform float uEnableVignette;
 uniform float uBlendMode;
 uniform float uBlendOpacity;
 
+// VHS
+uniform float uEnableVhs;
+uniform float uVhsStrength;
+
+#define PI 3.14159265359
+#define SCALE(a) (uResolution.y / 450.0) * (a)
+
 // ── Noise functions ─────────────────────────────────────────────────
 float hash(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
   p3 += dot(p3, p3.yzx + 33.33);
   return fract((p3.x + p3.y) * p3.z);
+}
+
+float GoldNoise(vec2 xy, float seed) {
+  return fract(sin(dot(xy * seed, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
 float noise(vec2 p) {
@@ -117,15 +128,11 @@ vec2 rotateUV(vec2 uv, float angle) {
   return vec2(centered.x * c - centered.y * s, centered.x * s + centered.y * c) + 0.5;
 }
 
-// ── Barrel distortion (fisheye) ─────────────────────────────────────
 vec2 fisheyeUV(vec2 uv, float strength) {
   vec2 centered = uv - 0.5;
   float r = length(centered);
-  float bind = 0.5; // radius of the image
-  // Barrel distortion formula
   float rd = r * (1.0 + strength * r * r);
-  vec2 result = centered * (rd / max(r, 0.0001)) + 0.5;
-  return result;
+  return centered * (rd / max(r, 0.0001)) + 0.5;
 }
 
 // ── Blend modes ─────────────────────────────────────────────────────
@@ -142,24 +149,40 @@ vec3 blendOverlay(vec3 a, vec3 b) {
 vec3 blendAdd(vec3 a, vec3 b) { return min(a + b, vec3(1.0)); }
 
 vec3 applyBlend(vec3 base, vec3 blend, float mode) {
-  if (mode < 0.5) return base;             // none
+  if (mode < 0.5) return base;
   if (mode < 1.5) return blendDifference(base, blend);
   if (mode < 2.5) return blendMultiply(base, blend);
   if (mode < 3.5) return blendScreen(base, blend);
   if (mode < 4.5) return blendOverlay(base, blend);
-  return blendAdd(base, blend);             // add
+  return blendAdd(base, blend);
+}
+
+// ── VHS helpers (ported from VhsPostFxPipeline) ─────────────────────
+float BlendSoftLight(float base, float blend) {
+  return (blend < 0.5)
+    ? (2.0 * base * blend + base * base * (1.0 - 2.0 * blend))
+    : (sqrt(base) * (2.0 * blend - 1.0) + 2.0 * base * (1.0 - blend));
+}
+
+vec3 BlendSoftLightV(vec3 base, vec3 blend) {
+  return vec3(
+    BlendSoftLight(base.r, blend.r),
+    BlendSoftLight(base.g, blend.g),
+    BlendSoftLight(base.b, blend.b)
+  );
 }
 
 // ── Main ────────────────────────────────────────────────────────────
 void main() {
   vec2 uv = vUv;
+  vec2 fragCoord = vUv * uResolution;
 
   // 1. Fisheye barrel distortion
   if (uEnableFisheye > 0.5) {
     uv = fisheyeUV(uv, uFisheye);
   }
 
-  // 2. Anamorphic stretch — slow breathing
+  // 2. Anamorphic stretch
   if (uEnableStretch > 0.5) {
     uv = (uv - 0.5) * uStretch + 0.5;
   }
@@ -169,31 +192,55 @@ void main() {
     uv = rotateUV(uv, uRotation);
   }
 
-  // 4. Zoom pulse (bass-reactive breathing)
+  // 4. Zoom pulse
   if (uEnableZoomPulse > 0.5) {
     vec2 centered = uv - 0.5;
     centered *= 1.0 - uZoomPulse * 0.08;
     uv = centered + 0.5;
   }
 
-  // 5. Liquid domain warp — organic flowing distortion
+  // 5. Liquid domain warp
   if (uEnableLiquid > 0.5 && uLiquidAmount > 0.001) {
-    // Domain warping: warp the noise coordinates with noise itself
     float n1 = fbm(uv * 3.0 + uTime * 0.08);
     float n2 = fbm(uv * 3.0 + n1 * 0.8 + vec2(5.2, 1.3) + uTime * 0.06);
     float n3 = fbm(uv * 3.0 + n2 * 0.8 + vec2(1.7, 9.2) + uTime * 0.04);
-
-    // Audio-reactive liquid intensity
     float liquidStr = uLiquidAmount * (1.0 + uBass * 1.5);
-
     uv += vec2(n2 - 0.5, n3 - 0.5) * liquidStr;
-
-    // Extra sinusoidal waves for more visible waviness
     uv.x += sin(uv.y * 6.0 + uTime * 0.3 + n1 * 3.0) * liquidStr * 0.5;
     uv.y += cos(uv.x * 5.0 + uTime * 0.25 + n2 * 3.0) * liquidStr * 0.5;
   }
 
-  // 6. Sample with chromatic aberration
+  // 6. VHS UV distortions (tracking bar + wave wobble)
+  if (uEnableVhs > 0.5) {
+    // Tracking: moving horizontal bar shifts pixels right
+    float trackSpeed = 8.0;
+    float trackT = 1.0 - mod(uTime, trackSpeed) / trackSpeed;
+    float trackY = mod(trackT * uResolution.y, uResolution.y);
+    float trackJitter = GoldNoise(vec2(5000.0, 5000.0), 10.0 + fract(uTime)) * SCALE(20.0);
+    trackY += trackJitter;
+    if (fragCoord.y > trackY) {
+      uv.x += SCALE(8.0) / uResolution.x * uVhsStrength;
+    }
+
+    // Wave: per-scanline horizontal wobble
+    float waveFreq = 18.0;
+    float phaseNum = floor(fragCoord.y / (uResolution.y / waveFreq));
+    float waveNoise = GoldNoise(vec2(1.0 + phaseNum, phaseNum), 10.0);
+    float waveOffset = sin((uv.y + fract(uTime * 0.05)) * PI * 2.0 * waveFreq)
+                       * (SCALE(0.8) * waveNoise / uResolution.x);
+    uv.x += waveOffset * uVhsStrength;
+
+    // Bottom warp: distortion at bottom edge
+    float warpHeight = SCALE(15.0) / uResolution.y;
+    if (uv.y < warpHeight) {
+      float t = uv.y / warpHeight;
+      float warpOffset = t * (SCALE(100.0) / uResolution.x);
+      float warpJitter = (GoldNoise(vec2(500.0, 500.0), fract(uTime)) * SCALE(50.0)) / uResolution.x;
+      uv.x -= (warpOffset + warpJitter) * uVhsStrength;
+    }
+  }
+
+  // 7. Sample with chromatic aberration
   vec4 video;
   vec2 caDir = normalize(uv - 0.5 + 0.001);
   float caAmount = (uEnableChroma > 0.5)
@@ -203,7 +250,7 @@ void main() {
   bool inTransition = uTransition > 0.001 && uTransition < 0.999;
 
   if (inTransition) {
-    // ── Melt transition (FBM noise dissolve) ──
+    // Melt transition (FBM noise dissolve)
     float noiseVal = fbm(uv * 4.0 + uTime * 0.2);
     float threshold = uTransition;
     float edge = 0.08;
@@ -230,27 +277,25 @@ void main() {
     float blend = smoothstep(threshold - edge, threshold + edge, noiseVal);
     video = mix(prevColor, currColor, blend);
 
-    // Subtle glow at transition boundary
     float edgeGlow = smoothstep(edge, 0.0, abs(noiseVal - threshold));
     video.rgb += edgeGlow * vec3(0.2, 0.08, 0.35) * 0.4;
 
-    // Apply blend mode between prev and current during transition
+    // Blend mode during transition
     if (uBlendMode > 0.5 && uBlendOpacity > 0.001) {
       vec3 blended = applyBlend(currColor.rgb, prevColor.rgb, uBlendMode);
-      float transBlend = sin(uTransition * 3.14159) * uBlendOpacity; // peaks at midpoint
+      float transBlend = sin(uTransition * PI) * uBlendOpacity;
       video.rgb = mix(video.rgb, blended, transBlend);
     }
   } else {
-    // No transition — normal sampling
+    // Normal sampling
     float rv = texture2D(uVideoTex, uv + caDir * caAmount).r;
     float gv = texture2D(uVideoTex, uv).g;
     float bv = texture2D(uVideoTex, uv - caDir * caAmount).b;
     video = vec4(rv, gv, bv, 1.0);
 
-    // Continuous blend with prev video if still available
+    // Continuous blend with prev video
     if (uBlendMode > 0.5 && uBlendOpacity > 0.001) {
       vec3 prevSample = texture2D(uPrevVideoTex, uv).rgb;
-      // Only blend if prev texture has content (non-black)
       float prevLuma = dot(prevSample, vec3(0.3, 0.6, 0.1));
       if (prevLuma > 0.01) {
         vec3 blended = applyBlend(video.rgb, prevSample, uBlendMode);
@@ -259,30 +304,92 @@ void main() {
     }
   }
 
-  // 7. Saturation
-  float luma = dot(video.rgb, vec3(0.299, 0.587, 0.114));
-  video.rgb = mix(vec3(luma), video.rgb, uSaturation);
+  // 8. VHS color processing
+  if (uEnableVhs > 0.5) {
+    // Shadow tint (greenish tint in dark areas — classic VHS look)
+    float luma = dot(video.rgb, vec3(0.2126, 0.7152, 0.0722));
+    float darkness = pow(1.0 - luma, 1.5);
+    video.rgb += vec3(0.0, 0.035, 0.01) * darkness * uVhsStrength;
 
-  // 8. Hue rotation
+    // Slight VHS desaturation
+    video.rgb = mix(vec3(luma), video.rgb, mix(1.0, 0.75, uVhsStrength));
+
+    // Clamp levels (crush blacks, clip whites)
+    video.rgb = mix(video.rgb, vec3(0.0), 0.1 * uVhsStrength);
+    video.rgb = mix(video.rgb, vec3(1.0), 0.1 * uVhsStrength);
+    video.rgb = clamp(video.rgb, 0.0, 1.0);
+  }
+
+  // 9. Saturation
+  float satLuma = dot(video.rgb, vec3(0.299, 0.587, 0.114));
+  video.rgb = mix(vec3(satLuma), video.rgb, uSaturation);
+
+  // 10. Hue rotation
   if (uEnableHue > 0.5) {
     vec3 hsv = rgb2hsv(video.rgb);
     hsv.x = fract(hsv.x + uTime * uHueSpeed + uMid * 0.2);
     video.rgb = hsv2rgb(hsv);
   }
 
-  // 9. Energy brightness pulse
+  // 11. Energy brightness pulse
   video.rgb *= 0.85 + uEnergy * 0.3;
 
-  // 10. Film grain
+  // 12. Film grain (VHS-style monochromatic if VHS is on)
   if (uEnableGrain > 0.5) {
-    float grain = (fract(sin(dot(vUv + uTime, vec2(12.9898, 78.233))) * 43758.5453) - 0.5);
-    video.rgb += grain * uHigh * 0.08;
+    if (uEnableVhs > 0.5) {
+      // VHS grain: coarser, monochromatic, SoftLight blended
+      float grainSize = SCALE(4.0);
+      vec2 grainCoord = vec2(floor(fragCoord.x / grainSize), floor(fragCoord.y / grainSize));
+      float seed = floor(fract(uTime) * 30.0) / 30.0 + 1.0;
+      float grain = GoldNoise(grainCoord, seed);
+      video.rgb = mix(video.rgb, BlendSoftLightV(video.rgb, vec3(grain)), 0.05 * uVhsStrength);
+    } else {
+      float grain = (fract(sin(dot(vUv + uTime, vec2(12.9898, 78.233))) * 43758.5453) - 0.5);
+      video.rgb += grain * uHigh * 0.08;
+    }
   }
 
-  // 11. Vignette
+  // 13. VHS scanlines + noise bars
+  if (uEnableVhs > 0.5) {
+    // Scanlines (darken every other line)
+    float lineH = SCALE(2.0);
+    float scanline = step(lineH, mod(fragCoord.y, lineH * 2.0));
+    video.rgb *= 1.0 - scanline * 0.12 * uVhsStrength;
+
+    // White noise scanlines (random flashing horizontal bars)
+    float noiseChance = GoldNoise(vec2(600.0, 500.0), fract(uTime) * 10.0);
+    if (noiseChance > 0.97) {
+      float lineStart = floor(GoldNoise(vec2(800.0, 50.0), fract(uTime)) * uResolution.y);
+      float lineEnd = lineStart + SCALE(6.0);
+      if (fragCoord.y >= lineStart && fragCoord.y < lineEnd) {
+        float freq = GoldNoise(vec2(850.0, 50.0), fract(uTime)) * 3.0 + 1.0;
+        float offset = GoldNoise(vec2(900.0, 51.0), fract(uTime));
+        float x = fragCoord.x / uResolution.x + offset;
+        float white = pow(cos(PI * fract(x * freq) / 2.0), 10.0) * 0.3 * uVhsStrength;
+        float grit = GoldNoise(vec2(floor(fragCoord.x / 3.0), 800.0), fract(uTime));
+        white = max(white - grit * 0.3, 0.0);
+        video.rgb += white;
+      }
+    }
+
+    // Bottom warp: fade to black at bottom edge
+    float warpH = SCALE(15.0) / uResolution.y;
+    if (vUv.y < warpH) {
+      video.rgb *= vUv.y / warpH;
+    }
+  }
+
+  // 14. Vignette
   if (uEnableVignette > 0.5) {
-    float vignette = 1.0 - smoothstep(uVignetteSize, 0.9, length(vUv - 0.5));
-    video.rgb *= vignette;
+    if (uEnableVhs > 0.5) {
+      // VHS-style vignette (softer, TV-like)
+      float vig = pow(vUv.x * (1.0 - vUv.x) * vUv.y * (1.0 - vUv.y), 0.25) * 2.2;
+      vig = mix(1.0, vig, 0.25 * uVhsStrength);
+      video.rgb *= vig;
+    } else {
+      float vignette = 1.0 - smoothstep(uVignetteSize, 0.9, length(vUv - 0.5));
+      video.rgb *= vignette;
+    }
   }
 
   // Slight contrast
@@ -338,6 +445,9 @@ export function DreamMaterial({
       // Blend mode
       uBlendMode: { value: 1.0 },
       uBlendOpacity: { value: 0.3 },
+      // VHS
+      uEnableVhs: { value: 1.0 },
+      uVhsStrength: { value: 0.7 },
     }),
     []
   )
@@ -384,7 +494,11 @@ export function DreamMaterial({
     u.uLiquidAmount.value = dbg.liquidAmount
     u.uFisheye.value = dbg.fisheyeAmount
 
-    // Blend mode: none=0, difference=1, multiply=2, screen=3, overlay=4, add=5
+    // VHS
+    u.uEnableVhs.value = dbg.vhsEffect ? 1.0 : 0.0
+    u.uVhsStrength.value = dbg.vhsStrength
+
+    // Blend mode
     const modeMap: Record<string, number> = {
       none: 0, difference: 1, multiply: 2, screen: 3, overlay: 4, add: 5,
     }
@@ -405,14 +519,14 @@ export function DreamMaterial({
       u.uEnergy.value = 0.15 + Math.sin(t * 0.15) * 0.05
     }
 
-    // Chromatic aberration — bass-reactive, scaled by debug strength
+    // Chromatic aberration
     u.uChromaAberration.value = dbg.chromaStrength * (
       audioAnalyserActive
         ? 0.3 + audioBass * 0.8
         : 0.2 + Math.sin(t * 0.4) * 0.1
     )
 
-    // Zoom pulse — bass transient peak detector
+    // Zoom pulse
     const bassDelta = currentBass - prevBass
     prevBass = currentBass
     if (bassDelta > 0.05) {
@@ -424,11 +538,12 @@ export function DreamMaterial({
     // Slow rotation
     u.uRotation.value = Math.sin(t * 0.03) * 0.08
 
-    // Anamorphic stretch — slow breathing
+    // Anamorphic stretch
     u.uStretch.value.set(
       1.0 + Math.sin(t * 0.05) * 0.04,
       1.0 + Math.cos(t * 0.04) * 0.03
     )
+
   })
 
   return (

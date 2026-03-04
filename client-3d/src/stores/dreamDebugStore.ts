@@ -5,6 +5,9 @@ export type BlendMode = 'none' | 'difference' | 'multiply' | 'screen' | 'overlay
 export interface DreamDebugState {
   showPanel: boolean
 
+  // Render resolution
+  dreamRenderScale: number   // 0.2–1.0 (Canvas DPR)
+
   // UV effects
   chromaAberration: boolean
   chromaStrength: number     // 0–2
@@ -23,6 +26,10 @@ export interface DreamDebugState {
   vignette: boolean
   vignetteSize: number       // 0.1–1.0
   saturation: number         // 0.5–2
+
+  // VHS
+  vhsEffect: boolean
+  vhsStrength: number        // 0–1
 
   // Transition
   transitionDuration: number // ms
@@ -48,6 +55,8 @@ export interface DreamDebugState {
 const DEFAULTS = {
   showPanel: false,
 
+  dreamRenderScale: 0.35,
+
   chromaAberration: true,
   chromaStrength: 1.0,
   zoomPulse: true,
@@ -64,6 +73,9 @@ const DEFAULTS = {
   vignette: true,
   vignetteSize: 0.3,
   saturation: 1.3,
+
+  vhsEffect: true,
+  vhsStrength: 0.7,
 
   transitionDuration: 5000,
 
