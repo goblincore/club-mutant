@@ -7,23 +7,22 @@ import { DreamGenerativeMaterial } from '../shaders/DreamGenerativeMaterial'
 
 // ── Constants ────────────────────────────────────────────────────────────
 
-const MAX_VIDEO_LAYERS = 3
-const CYCLE_MIN = 10_000           // ms — min time between layer swaps
-const CYCLE_MAX = 40_000           // ms — max time between layer swaps
+const CYCLE_MIN = 15_000              // ms — min time between video swaps
+const CYCLE_MAX = 40_000              // ms — max time between video swaps
 const MELT_TRANSITION_DURATION = 5_000 // ms — melting dissolve transition
 const CACHE_REFRESH_INTERVAL = 60_000  // ms — re-fetch /cache/list
 const VIDEO_LOAD_TIMEOUT = 15_000
 
 // Playback rate (dreamy slow motion)
-const PLAYBACK_RATE_MIN = 0.15
-const PLAYBACK_RATE_MAX = 0.75
-const PLAYBACK_RATE_CHANGE_INTERVAL = 8_000
+const PLAYBACK_RATE_MIN = 0.5
+const PLAYBACK_RATE_MAX = 0.8
+const PLAYBACK_RATE_CHANGE_INTERVAL = 10_000
 const PLAYBACK_RATE_LERP = 0.02
 
 // Random time jumps
-const RANDOM_CUT_MIN_INTERVAL = 6_000
-const RANDOM_CUT_MAX_INTERVAL = 20_000
-const RANDOM_CUT_CHANCE = 0.3
+const RANDOM_CUT_MIN_INTERVAL = 8_000
+const RANDOM_CUT_MAX_INTERVAL = 25_000
+const RANDOM_CUT_CHANCE = 0.25
 
 const YOUTUBE_API_BASE =
   import.meta.env.VITE_YOUTUBE_SERVICE_URL ||
@@ -31,22 +30,13 @@ const YOUTUBE_API_BASE =
     ? 'http://localhost:8081'
     : `${window.location.origin}/youtube`)
 
-const LAYER_CONFIGS = [
-  { hueOffset: 0.0, warpSpeed: 0.3, additive: false },
-  { hueOffset: 0.33, warpSpeed: 0.2, additive: true },
-  { hueOffset: 0.66, warpSpeed: 0.15, additive: true },
-]
-
 // ── Types ────────────────────────────────────────────────────────────────
 
-interface VideoLayer {
+interface VideoState {
   videoEl: HTMLVideoElement
   texture: THREE.VideoTexture
   videoId: string
-  fade: number
-  targetFade: number
-  layerIndex: number
-  // Melting transition state
+  // Melting transition
   prevTexture: THREE.VideoTexture | null
   prevVideoEl: HTMLVideoElement | null
   transition: number       // 0 = show prev, 1 = show current
@@ -116,7 +106,6 @@ function loadVideo(videoId: string, signal: AbortSignal): Promise<HTMLVideoEleme
 
     video.load()
 
-    // Clear timeout on resolution
     const origResolve = resolve
     resolve = (v) => {
       clearTimeout(timeout)
@@ -137,18 +126,11 @@ function disposeVideo(videoEl: HTMLVideoElement) {
   videoEl.remove()
 }
 
-function disposeVideoLayer(layer: VideoLayer) {
-  disposeVideo(layer.videoEl)
-  layer.texture.dispose()
-  if (layer.prevVideoEl) disposeVideo(layer.prevVideoEl)
-  if (layer.prevTexture) layer.prevTexture.dispose()
-}
-
 // ── Inner R3F component ──────────────────────────────────────────────────
 
-function DreamLayers() {
-  const [layers, setLayers] = useState<VideoLayer[]>([])
-  const [hasVideos, setHasVideos] = useState<boolean | null>(null) // null = loading
+function DreamLayer() {
+  const [state, setState] = useState<VideoState | null>(null)
+  const [hasVideos, setHasVideos] = useState<boolean | null>(null)
   const videoIdsRef = useRef<string[]>([])
   const nextVideoIndexRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
@@ -156,12 +138,11 @@ function DreamLayers() {
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const cutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rateTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const layersRef = useRef<VideoLayer[]>([])
+  const stateRef = useRef<VideoState | null>(null)
 
-  // Keep layersRef in sync
   useEffect(() => {
-    layersRef.current = layers
-  }, [layers])
+    stateRef.current = state
+  }, [state])
 
   const fetchCacheList = useCallback(async (signal: AbortSignal) => {
     try {
@@ -174,7 +155,7 @@ function DreamLayers() {
     }
   }, [])
 
-  // Initialize: fetch cache list and load initial video layers
+  // Initialize: fetch cache list and load first video
   useEffect(() => {
     const abort = new AbortController()
     abortRef.current = abort
@@ -192,78 +173,46 @@ function DreamLayers() {
 
       setHasVideos(true)
 
-      // Load up to MAX_VIDEO_LAYERS videos
-      const count = Math.min(MAX_VIDEO_LAYERS, ids.length)
-      const loadedLayers: VideoLayer[] = []
-
-      for (let i = 0; i < count; i++) {
-        if (abort.signal.aborted) break
-        try {
-          const videoId = ids[i]!
-          const videoEl = await loadVideo(videoId, abort.signal)
-          if (abort.signal.aborted) {
-            videoEl.pause()
-            videoEl.src = ''
-            break
-          }
-
-          // Set initial slow playback rate
-          const rate = randomRate()
-          videoEl.playbackRate = rate
-
-          await videoEl.play()
-          if (abort.signal.aborted) {
-            videoEl.pause()
-            videoEl.src = ''
-            break
-          }
-
-          const texture = new THREE.VideoTexture(videoEl)
-          texture.minFilter = THREE.LinearFilter
-          texture.magFilter = THREE.LinearFilter
-          texture.colorSpace = THREE.SRGBColorSpace
-
-          loadedLayers.push({
-            videoEl,
-            texture,
-            videoId,
-            fade: i === 0 ? 1.0 : 0.0, // First layer starts visible
-            targetFade: LAYER_CONFIGS[i]!.additive ? 0.6 : 1.0,
-            layerIndex: i,
-            prevTexture: null,
-            prevVideoEl: null,
-            transition: 1.0,
-            transitioning: false,
-            currentRate: rate,
-            targetRate: rate,
-          })
-        } catch (err) {
-          console.warn(`[DreamScene] Failed to load video ${ids[i]}:`, err)
+      try {
+        const videoId = ids[0]!
+        const videoEl = await loadVideo(videoId, abort.signal)
+        if (abort.signal.aborted) {
+          videoEl.pause()
+          videoEl.src = ''
+          return
         }
-      }
 
-      if (abort.signal.aborted) {
-        loadedLayers.forEach(disposeVideoLayer)
-        return
-      }
+        const rate = randomRate()
+        videoEl.playbackRate = rate
 
-      // Stagger fade-in for layers beyond the first
-      loadedLayers.forEach((l, i) => {
-        if (i > 0) {
-          setTimeout(() => {
-            if (!abort.signal.aborted) {
-              setLayers((prev) =>
-                prev.map((pl) =>
-                  pl.videoId === l.videoId ? { ...pl, fade: 0, targetFade: LAYER_CONFIGS[i]?.additive ? 0.6 : 1.0 } : pl
-                )
-              )
-            }
-          }, i * 1000)
+        await videoEl.play()
+        if (abort.signal.aborted) {
+          videoEl.pause()
+          videoEl.src = ''
+          return
         }
-      })
 
-      nextVideoIndexRef.current = count
-      setLayers(loadedLayers)
+        const texture = new THREE.VideoTexture(videoEl)
+        texture.minFilter = THREE.LinearFilter
+        texture.magFilter = THREE.LinearFilter
+        texture.colorSpace = THREE.SRGBColorSpace
+
+        nextVideoIndexRef.current = 1
+        setState({
+          videoEl,
+          texture,
+          videoId,
+          prevTexture: null,
+          prevVideoEl: null,
+          transition: 1.0,
+          transitioning: false,
+          currentRate: rate,
+          targetRate: rate,
+        })
+      } catch (err) {
+        console.warn('[DreamScene] Failed to load initial video:', err)
+        setHasVideos(false)
+      }
     }
 
     void init()
@@ -285,27 +234,29 @@ function DreamLayers() {
       if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
       if (cutTimerRef.current) clearTimeout(cutTimerRef.current)
       if (rateTimerRef.current) clearInterval(rateTimerRef.current)
-      // Dispose all layers
-      setLayers((prev) => {
-        prev.forEach(disposeVideoLayer)
-        return []
+      setState((prev) => {
+        if (prev) {
+          disposeVideo(prev.videoEl)
+          prev.texture.dispose()
+          if (prev.prevVideoEl) disposeVideo(prev.prevVideoEl)
+          if (prev.prevTexture) prev.prevTexture.dispose()
+        }
+        return null
       })
     }
   }, [fetchCacheList, hasVideos])
 
   // ── Random time jumps ───────────────────────────────────────────────
   useEffect(() => {
-    if (!hasVideos || layers.length === 0) return
+    if (!state) return
 
     const scheduleNextCut = () => {
       const delay = RANDOM_CUT_MIN_INTERVAL + Math.random() * (RANDOM_CUT_MAX_INTERVAL - RANDOM_CUT_MIN_INTERVAL)
       cutTimerRef.current = setTimeout(() => {
-        if (Math.random() < RANDOM_CUT_CHANCE) {
-          const currentLayers = layersRef.current
-          const layerIdx = Math.floor(Math.random() * currentLayers.length)
-          const layer = currentLayers[layerIdx]
-          if (layer && layer.videoEl.duration && isFinite(layer.videoEl.duration)) {
-            layer.videoEl.currentTime = Math.random() * layer.videoEl.duration
+        const s = stateRef.current
+        if (s && s.videoEl.duration && isFinite(s.videoEl.duration)) {
+          if (Math.random() < RANDOM_CUT_CHANCE) {
+            s.videoEl.currentTime = Math.random() * s.videoEl.duration
           }
         }
         scheduleNextCut()
@@ -313,33 +264,23 @@ function DreamLayers() {
     }
 
     scheduleNextCut()
-
-    return () => {
-      if (cutTimerRef.current) clearTimeout(cutTimerRef.current)
-    }
-  }, [hasVideos, layers.length])
+    return () => { if (cutTimerRef.current) clearTimeout(cutTimerRef.current) }
+  }, [!!state])
 
   // ── Variable playback rate ──────────────────────────────────────────
   useEffect(() => {
-    if (!hasVideos || layers.length === 0) return
+    if (!state) return
 
     rateTimerRef.current = setInterval(() => {
-      setLayers((prev) =>
-        prev.map((layer) => ({
-          ...layer,
-          targetRate: randomRate(),
-        }))
-      )
+      setState((prev) => prev ? { ...prev, targetRate: randomRate() } : prev)
     }, PLAYBACK_RATE_CHANGE_INTERVAL)
 
-    return () => {
-      if (rateTimerRef.current) clearInterval(rateTimerRef.current)
-    }
-  }, [hasVideos, layers.length])
+    return () => { if (rateTimerRef.current) clearInterval(rateTimerRef.current) }
+  }, [!!state])
 
-  // ── Video layer cycling with melting transitions ────────────────────
+  // ── Video cycling with melting transitions ──────────────────────────
   useEffect(() => {
-    if (!hasVideos || layers.length === 0) return
+    if (!hasVideos || !state) return
 
     const abort = abortRef.current
     if (!abort) return
@@ -348,17 +289,13 @@ function DreamLayers() {
       if (abort.signal.aborted) return
       if (videoIdsRef.current.length === 0) return
 
-      // Pick the oldest layer to replace (cycle overlays, keep base)
-      const currentLayers = layersRef.current
-      const replaceIndex = currentLayers.length > 1
-        ? 1 + ((nextVideoIndexRef.current - currentLayers.length) % (currentLayers.length - 1))
-        : 0
       const nextIdx = nextVideoIndexRef.current % videoIdsRef.current.length
       const nextVideoId = videoIdsRef.current[nextIdx]!
       nextVideoIndexRef.current++
 
-      // Skip if this video is already playing
-      if (currentLayers.some((l) => l.videoId === nextVideoId)) {
+      // Skip if same video
+      const current = stateRef.current
+      if (current && current.videoId === nextVideoId) {
         cycleTimerRef.current = setTimeout(cycle, randomCycleDelay())
         return
       }
@@ -371,7 +308,6 @@ function DreamLayers() {
           return
         }
 
-        // Set slow playback rate
         const rate = randomRate()
         videoEl.playbackRate = rate
 
@@ -387,26 +323,18 @@ function DreamLayers() {
         texture.magFilter = THREE.LinearFilter
         texture.colorSpace = THREE.SRGBColorSpace
 
-        setLayers((prev) => {
-          const old = prev[replaceIndex]
-          const next = [...prev]
-          next[replaceIndex] = {
-            videoEl,
-            texture,
-            videoId: nextVideoId,
-            fade: old ? old.fade : 0,
-            targetFade: LAYER_CONFIGS[replaceIndex]?.additive ? 0.6 : 1.0,
-            layerIndex: replaceIndex,
-            // Keep old texture for melting transition
-            prevTexture: old ? old.texture : null,
-            prevVideoEl: old ? old.videoEl : null,
-            transition: 0.0,
-            transitioning: true,
-            currentRate: rate,
-            targetRate: rate,
-          }
-          return next
-        })
+        setState((prev) => ({
+          videoEl,
+          texture,
+          videoId: nextVideoId,
+          // Keep old for melting transition
+          prevTexture: prev ? prev.texture : null,
+          prevVideoEl: prev ? prev.videoEl : null,
+          transition: 0.0,
+          transitioning: true,
+          currentRate: rate,
+          targetRate: rate,
+        }))
       } catch (err) {
         console.warn('[DreamScene] Failed to cycle video:', err)
       }
@@ -418,69 +346,49 @@ function DreamLayers() {
 
     cycleTimerRef.current = setTimeout(cycle, randomCycleDelay())
 
-    return () => {
-      if (cycleTimerRef.current) clearTimeout(cycleTimerRef.current)
-    }
-  }, [hasVideos, layers])
+    return () => { if (cycleTimerRef.current) clearTimeout(cycleTimerRef.current) }
+  }, [hasVideos, state])
 
-  // ── Per-frame animation: crossfade, transitions, playback rate ─────
+  // ── Per-frame: transition + playback rate ───────────────────────────
   useFrame((_, delta) => {
+    if (!state) return
     const d = Math.min(delta, 0.1)
     const transitionSpeed = 1.0 / (MELT_TRANSITION_DURATION / 1000)
-    let changed = false
+    let needsUpdate = false
+    const updates: Partial<VideoState> = {}
 
-    setLayers((prev) =>
-      prev.map((layer) => {
-        let updates: Partial<VideoLayer> = {}
+    // Melting transition
+    if (state.transitioning) {
+      const newTransition = Math.min(state.transition + transitionSpeed * d, 1.0)
+      if (newTransition >= 1.0) {
+        if (state.prevVideoEl) disposeVideo(state.prevVideoEl)
+        if (state.prevTexture) state.prevTexture.dispose()
+        updates.transition = 1.0
+        updates.transitioning = false
+        updates.prevTexture = null
+        updates.prevVideoEl = null
+      } else {
+        updates.transition = newTransition
+      }
+      needsUpdate = true
+    }
 
-        // Melting transition animation
-        if (layer.transitioning) {
-          const newTransition = Math.min(layer.transition + transitionSpeed * d, 1.0)
-          if (newTransition >= 1.0) {
-            // Transition complete — dispose previous
-            if (layer.prevVideoEl) disposeVideo(layer.prevVideoEl)
-            if (layer.prevTexture) layer.prevTexture.dispose()
-            updates = {
-              transition: 1.0,
-              transitioning: false,
-              prevTexture: null,
-              prevVideoEl: null,
-            }
-          } else {
-            updates.transition = newTransition
-          }
-          changed = true
-        }
+    // Smooth playback rate
+    const rateDiff = state.targetRate - state.currentRate
+    if (Math.abs(rateDiff) > 0.001) {
+      const newRate = state.currentRate + rateDiff * PLAYBACK_RATE_LERP
+      state.videoEl.playbackRate = newRate
+      updates.currentRate = newRate
+      needsUpdate = true
+    }
 
-        // Fade animation
-        const fadeDiff = layer.targetFade - layer.fade
-        if (Math.abs(fadeDiff) > 0.01) {
-          const fadeSpeed = 1.0 / (MELT_TRANSITION_DURATION / 1000)
-          updates.fade = layer.fade + Math.sign(fadeDiff) * fadeSpeed * d
-          changed = true
-        }
-
-        // Smooth playback rate interpolation
-        const rateDiff = layer.targetRate - layer.currentRate
-        if (Math.abs(rateDiff) > 0.001) {
-          const newRate = layer.currentRate + rateDiff * PLAYBACK_RATE_LERP
-          layer.videoEl.playbackRate = newRate
-          updates.currentRate = newRate
-          changed = true
-        }
-
-        if (Object.keys(updates).length > 0) {
-          return { ...layer, ...updates }
-        }
-        return layer
-      })
-    )
-
-    if (!changed) return
+    if (needsUpdate) {
+      setState((prev) => prev ? { ...prev, ...updates } : prev)
+    }
   })
 
-  // Generative fallback when no videos
-  if (hasVideos === false) {
+  // Generative fallback
+  if (hasVideos === false || hasVideos === null) {
     return (
       <mesh>
         <planeGeometry args={[2, 2]} />
@@ -489,36 +397,17 @@ function DreamLayers() {
     )
   }
 
-  // Loading state — show generative while fetching
-  if (hasVideos === null) {
-    return (
-      <mesh>
-        <planeGeometry args={[2, 2]} />
-        <DreamGenerativeMaterial />
-      </mesh>
-    )
-  }
+  if (!state) return null
 
   return (
-    <>
-      {layers.map((layer, i) => {
-        const config = LAYER_CONFIGS[i] || LAYER_CONFIGS[0]!
-        return (
-          <mesh key={layer.videoId} position={[0, 0, -0.01 * i]}>
-            <planeGeometry args={[2, 2]} />
-            <DreamMaterial
-              videoTexture={layer.texture}
-              prevVideoTexture={layer.prevTexture}
-              transition={layer.transition}
-              hueOffset={config.hueOffset}
-              warpSpeed={config.warpSpeed}
-              fade={layer.fade}
-              useAdditiveBlend={config.additive}
-            />
-          </mesh>
-        )
-      })}
-    </>
+    <mesh>
+      <planeGeometry args={[2, 2]} />
+      <DreamMaterial
+        videoTexture={state.texture}
+        prevVideoTexture={state.prevTexture}
+        transition={state.transition}
+      />
+    </mesh>
   )
 }
 
@@ -533,7 +422,7 @@ export function DreamScene() {
         gl={{ antialias: false, alpha: false }}
         style={{ width: '100%', height: '100%' }}
       >
-        <DreamLayers />
+        <DreamLayer />
       </Canvas>
     </div>
   )
