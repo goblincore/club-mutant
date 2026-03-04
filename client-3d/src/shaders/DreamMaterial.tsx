@@ -67,6 +67,21 @@ uniform float uBlendOpacity;
 uniform float uEnableVhs;
 uniform float uVhsStrength;
 
+// Scanlines (moire)
+uniform float uEnableScanlines;
+uniform float uScanlineCount;
+uniform float uScanlineThickness;
+uniform float uScanlineIntensity;
+uniform float uScanlineScrollSpeed;
+
+// Glitch
+uniform float uEnableInterference;
+uniform float uInterferenceIntensity;
+uniform float uEnableGhosting;
+uniform float uGhostIntensity;
+uniform float uEnableDropout;
+uniform float uDropoutIntensity;
+
 #define PI 3.14159265359
 #define SCALE(a) (uResolution.y / 450.0) * (a)
 
@@ -304,6 +319,15 @@ void main() {
     }
   }
 
+  // 7b. Frame ghosting (temporal echo with offset samples)
+  if (uEnableGhosting > 0.5) {
+    vec2 g1 = uv + vec2(sin(uTime * 0.5) * 0.02, cos(uTime * 0.3) * 0.02);
+    vec2 g2 = uv + vec2(sin(uTime * 0.7) * 0.03, cos(uTime * 0.5) * 0.015);
+    vec2 g3 = uv + vec2(sin(uTime * 0.9) * 0.025, cos(uTime * 0.7) * 0.02);
+    vec3 ghostMix = (texture2D(uVideoTex, g1).rgb + texture2D(uVideoTex, g2).rgb + texture2D(uVideoTex, g3).rgb) / 3.0;
+    video.rgb = mix(video.rgb, ghostMix, uGhostIntensity);
+  }
+
   // 8. VHS color processing
   if (uEnableVhs > 0.5) {
     // Shadow tint (greenish tint in dark areas — classic VHS look)
@@ -379,7 +403,42 @@ void main() {
     }
   }
 
-  // 14. Vignette
+  // 14. Moire scanlines (sine-wave with thickness — creates moire with pixel grid)
+  if (uEnableScanlines > 0.5) {
+    float effectiveCount = uScanlineCount > 0.5 ? uScanlineCount : uResolution.y * 0.5;
+    float scanUV = vUv.y;
+    if (uScanlineScrollSpeed > 0.001) {
+      scanUV += uTime * uScanlineScrollSpeed;
+    }
+    float scanlinePos = scanUV * effectiveCount;
+    float scanlinePattern = sin(scanlinePos * PI * 2.0);
+    float thickFactor = mix(0.05, 0.95, uScanlineThickness);
+    float scanlineMask = smoothstep(-thickFactor, thickFactor, scanlinePattern);
+    float minInt = mix(0.8, 0.1, uScanlineIntensity);
+    float scanlineEffect = mix(minInt, 1.0, scanlineMask);
+    video.rgb *= scanlineEffect;
+  }
+
+  // 15. Interference lines (rolling horizontal TV interference)
+  if (uEnableInterference > 0.5) {
+    float interference = sin((vUv.y + uTime * 2.0) * 100.0);
+    video.rgb += vec3(interference * uInterferenceIntensity * 0.15);
+  }
+
+  // 16. Signal dropout (random block corruption)
+  if (uEnableDropout > 0.5) {
+    float dropSize = 0.05;
+    vec2 dropBlock = floor(vUv / dropSize);
+    float dropNoise = hash(dropBlock + vec2(floor(uTime * 6.0)));
+    float thresh = uDropoutIntensity * 0.3;
+    if (dropNoise < thresh) {
+      if (dropNoise < thresh * 0.33)      video.rgb = vec3(0.0);
+      else if (dropNoise < thresh * 0.66) video.rgb = vec3(1.0);
+      else                                 video.rgb = vec3(1.0, 0.0, 0.0);
+    }
+  }
+
+  // 17. Vignette
   if (uEnableVignette > 0.5) {
     if (uEnableVhs > 0.5) {
       // VHS-style vignette (softer, TV-like)
@@ -448,6 +507,19 @@ export function DreamMaterial({
       // VHS
       uEnableVhs: { value: 1.0 },
       uVhsStrength: { value: 0.7 },
+      // Scanlines (moire)
+      uEnableScanlines: { value: 1.0 },
+      uScanlineCount: { value: 0.0 },
+      uScanlineThickness: { value: 0.4 },
+      uScanlineIntensity: { value: 0.5 },
+      uScanlineScrollSpeed: { value: 0.0 },
+      // Glitch
+      uEnableInterference: { value: 0.0 },
+      uInterferenceIntensity: { value: 0.3 },
+      uEnableGhosting: { value: 0.0 },
+      uGhostIntensity: { value: 0.3 },
+      uEnableDropout: { value: 0.0 },
+      uDropoutIntensity: { value: 0.1 },
     }),
     []
   )
@@ -497,6 +569,21 @@ export function DreamMaterial({
     // VHS
     u.uEnableVhs.value = dbg.vhsEffect ? 1.0 : 0.0
     u.uVhsStrength.value = dbg.vhsStrength
+
+    // Scanlines (moire)
+    u.uEnableScanlines.value = dbg.scanlines ? 1.0 : 0.0
+    u.uScanlineCount.value = dbg.scanlineCount
+    u.uScanlineThickness.value = dbg.scanlineThickness
+    u.uScanlineIntensity.value = dbg.scanlineIntensity
+    u.uScanlineScrollSpeed.value = dbg.scanlineScrollSpeed
+
+    // Glitch
+    u.uEnableInterference.value = dbg.interferenceLines ? 1.0 : 0.0
+    u.uInterferenceIntensity.value = dbg.interferenceIntensity
+    u.uEnableGhosting.value = dbg.frameGhosting ? 1.0 : 0.0
+    u.uGhostIntensity.value = dbg.frameGhostIntensity
+    u.uEnableDropout.value = dbg.signalDropout ? 1.0 : 0.0
+    u.uDropoutIntensity.value = dbg.signalDropoutIntensity
 
     // Blend mode
     const modeMap: Record<string, number> = {

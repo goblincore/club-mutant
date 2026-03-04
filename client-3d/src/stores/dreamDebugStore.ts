@@ -38,6 +38,21 @@ export interface DreamDebugState {
   blendMode: BlendMode
   blendOpacity: number       // 0–1
 
+  // Scanlines (moire)
+  scanlines: boolean
+  scanlineCount: number      // 0 = auto (res.y * 0.5)
+  scanlineThickness: number  // 0–1
+  scanlineIntensity: number  // 0–1
+  scanlineScrollSpeed: number // 0 = static
+
+  // Glitch
+  interferenceLines: boolean
+  interferenceIntensity: number  // 0–1
+  frameGhosting: boolean
+  frameGhostIntensity: number   // 0–1
+  signalDropout: boolean
+  signalDropoutIntensity: number // 0–1
+
   // Playback behavior
   playbackRateMin: number
   playbackRateMax: number
@@ -81,6 +96,19 @@ const DEFAULTS = {
 
   blendMode: 'difference' as BlendMode,
   blendOpacity: 0.3,
+
+  scanlines: true,
+  scanlineCount: 0,
+  scanlineThickness: 0.4,
+  scanlineIntensity: 0.5,
+  scanlineScrollSpeed: 0,
+
+  interferenceLines: false,
+  interferenceIntensity: 0.3,
+  frameGhosting: false,
+  frameGhostIntensity: 0.3,
+  signalDropout: false,
+  signalDropoutIntensity: 0.1,
 
   playbackRateMin: 0.5,
   playbackRateMax: 0.8,

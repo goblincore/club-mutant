@@ -150,6 +150,23 @@ export function DreamDebugPanel() {
         <Slider label="vignette size" field="vignetteSize" min={0.1} max={1} />
       </Section>
 
+      <Section title="Scanlines">
+        <Toggle label="scanlines" field="scanlines" />
+        <Slider label="count (0=auto)" field="scanlineCount" min={0} max={500} step={1} />
+        <Slider label="thickness" field="scanlineThickness" min={0} max={1} />
+        <Slider label="intensity" field="scanlineIntensity" min={0} max={1} />
+        <Slider label="scroll speed" field="scanlineScrollSpeed" min={0} max={5} />
+      </Section>
+
+      <Section title="Glitch">
+        <Toggle label="interference lines" field="interferenceLines" />
+        <Slider label="interference amt" field="interferenceIntensity" min={0} max={1} />
+        <Toggle label="frame ghosting" field="frameGhosting" />
+        <Slider label="ghost amt" field="frameGhostIntensity" min={0} max={1} />
+        <Toggle label="signal dropout" field="signalDropout" />
+        <Slider label="dropout amt" field="signalDropoutIntensity" min={0} max={1} />
+      </Section>
+
       <Section title="Transitions">
         <Slider label="duration (ms)" field="transitionDuration" min={1000} max={15000} step={500} />
       </Section>
