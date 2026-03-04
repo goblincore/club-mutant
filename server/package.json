@@ -28,7 +28,7 @@
     "@colyseus/monitor": "^0.17.0",
     "@colyseus/schema": "^4.0.15",
     "@colyseus/tools": "^0.17.0",
-    "@colyseus/uwebsockets-transport": "^0.17.12",
+    "@colyseus/uwebsockets-transport": "0.17.16",
     "bcrypt": "^5.1.1",
     "colyseus": "^0.17.0",
     "cors": "^2.8.5",
