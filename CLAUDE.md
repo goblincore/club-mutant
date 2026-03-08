@@ -4,11 +4,10 @@ Multiplayer virtual world. Monorepo: `client-3d` (React/R3F/Vite), `server` (Col
 
 ## Architecture
 
+- Full reference: `docs/architecture/overview.md`
 - Auth: Nakama (email/guest) → JWT → `nakamaToken` in Colyseus join options → server verifies via `lib/verifyNakamaToken.ts`
-- Auth state: `client-3d/src/stores/authStore.ts`
 - Network: `client-3d/src/network/NetworkManager.ts` — singleton via `getNetwork()`
-- Lobby UI: `client-3d/src/ui/LobbyScreen.tsx`
-- Detailed architecture reference: see `openmemory.md`
+- State: `server/rooms/schema/OfficeState.ts` (authoritative), types in `types/`
 
 ## Dev Setup
 
@@ -23,3 +22,10 @@ cd client-3d && pnpm dev
 
 - Package manager: pnpm
 - Nakama runtime modules (`nakama/modules/index.js`): ES5 only (goja engine) — no arrow fns, const, let, or template literals
+
+## Docs Structure
+
+- `docs/architecture/` — system design, DJ queue, dream mode, performance
+- `docs/guides/` — deployment, Electron, load testing, spritesheet extraction
+- `docs/ideas/` — feature concepts and explorations
+- `docs/legacy/` — completed/superseded plans (kept for reference)

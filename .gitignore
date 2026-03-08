@@ -1,5 +1,6 @@
 /.cache
 /dist
+client-dream/dist
 node_modules
 .DS_Store
 /server/lib
@@ -20,8 +21,9 @@ cookies.txt
 
 # IDE/editor specific
 .opencode/
-
+.claude/
+.vexp/
+.vscode/
 
 # OpenMemory - IDE/Assistant specific rules
-CLAUDE.md
 CLAUDE.md
