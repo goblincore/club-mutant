@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { DreamMaterial } from '../shaders/DreamMaterial'
 import { DreamGenerativeMaterial } from '../shaders/DreamGenerativeMaterial'
 import { useDreamDebugStore } from '../stores/dreamDebugStore'
+import { getDreamAudioPlayer } from '../audio/DreamAudioPlayer'
 import { DreamDebugPanel } from './DreamDebugPanel'
 import { DreamSamCharacter } from './DreamSamCharacter'
 // import { DreamAcsCharacter } from './DreamAcsCharacter'
@@ -440,6 +441,15 @@ export function DreamScene() {
   const showPanel = useDreamDebugStore((s) => s.showPanel)
   const togglePanel = useDreamDebugStore((s) => s.togglePanel)
   const renderScale = useDreamDebugStore((s) => s.dreamRenderScale)
+
+  // Start/stop dream audio player on mount/unmount
+  useEffect(() => {
+    const player = getDreamAudioPlayer()
+    void player.start()
+    return () => {
+      void player.stop()
+    }
+  }, [])
 
   // Keyboard toggle: 'D' key
   useEffect(() => {

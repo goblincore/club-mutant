@@ -6,6 +6,7 @@ import { useMusicStore } from '../stores/musicStore'
 import { useBoothStore } from '../stores/boothStore'
 import { useGameStore } from '../stores/gameStore'
 import { useUIStore } from '../stores/uiStore'
+import { useDreamStore } from '../dream/dreamStore'
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -25,6 +26,7 @@ export function NowPlaying() {
   const musicMode = useGameStore((s) => s.musicMode)
   const isCurrentDJ = currentDjSessionId === mySessionId
   const muted = useUIStore((s) => s.muted)
+  const isDreaming = useDreamStore((s) => s.isDreaming)
 
   const isJukeboxMode = musicMode === 'jukebox' || musicMode === 'personal'
 
@@ -115,7 +117,7 @@ export function NowPlaying() {
           ref={playerRef}
           url={stream.currentLink!}
           playing={stream.isPlaying}
-          volume={muted ? 0 : 0.5}
+          volume={muted || isDreaming ? 0 : 0.5}
           width={1}
           height={1}
           onEnded={handleEnded}
@@ -145,7 +147,7 @@ export function NowPlaying() {
             ref={playerRef}
             url={stream.currentLink!}
             playing={stream.isPlaying}
-            volume={muted ? 0 : 0.5}
+            volume={muted || isDreaming ? 0 : 0.5}
             width={1}
             height={1}
             onEnded={handleEnded}

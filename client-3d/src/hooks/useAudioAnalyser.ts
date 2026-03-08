@@ -16,6 +16,15 @@ export let audioHigh = 0
 export let audioEnergy = 0
 export let audioAnalyserActive = false
 
+// Setter for external writers (DreamAudioPlayer uses this during dream state)
+export function setAudioBands(bass: number, mid: number, high: number, energy: number): void {
+  audioBass = bass
+  audioMid = mid
+  audioHigh = high
+  audioEnergy = energy
+  audioAnalyserActive = bass > 0 || mid > 0 || high > 0 || energy > 0
+}
+
 // ── Singleton AudioContext ─────────────────────────────────────────────
 let audioCtx: AudioContext | null = null
 

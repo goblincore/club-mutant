@@ -61,6 +61,15 @@ export interface DreamDebugState {
   cutIntervalMin: number     // ms
   cutIntervalMax: number     // ms
 
+  // Dream Audio (warped/slowed/reverbed music)
+  dreamAudioEnabled: boolean
+  dreamAudioRateMin: number     // 0.25–1.0
+  dreamAudioRateMax: number     // 0.25–1.0
+  dreamAudioReverbDecay: number // seconds
+  dreamAudioLowpassFreq: number // Hz
+  dreamAudioVolume: number      // 0–1
+  dreamAudioWetMix: number      // 0–1 reverb wet/dry
+
   // SAM Singer
   samEnabled: boolean
   samPitch: number           // 0–255 (SAM formant pitch)
@@ -133,6 +142,14 @@ const DEFAULTS = {
   randomCutChance: 0.6,
   cutIntervalMin: 8_000,
   cutIntervalMax: 20_000,
+
+  dreamAudioEnabled: true,
+  dreamAudioRateMin: 0.5,
+  dreamAudioRateMax: 0.8,
+  dreamAudioReverbDecay: 4.0,
+  dreamAudioLowpassFreq: 2000,
+  dreamAudioVolume: 0.6,
+  dreamAudioWetMix: 0.7,
 
   samEnabled: true,
   samPitch: 48,       // low male — Bonzi-inspired (SAPI4 "Sydney" approx)

@@ -51,7 +51,21 @@
     .del-btn { background: none; border: 1px solid #433; color: #c88; padding: 3px 8px; font-family: inherit; font-size: 10px; cursor: pointer; border-radius: 3px; }
     .del-btn:hover { background: #2e1a1a; color: #f87171; }
 
-    /* Preview */
+    .play-btn { background: none; border: 1px solid #2e2e1a; color: #e7e76e; padding: 3px 8px; font-family: inherit; font-size: 10px; cursor: pointer; border-radius: 3px; }
+    .play-btn:hover { background: #2e2e1a; }
+    .play-btn.playing { background: #2e2e1a; color: #fff; }
+
+    /* Audio preview */
+    #audio-preview { margin-top: 16px; display: none; padding: 12px 14px; background: #111; border: 1px solid #2e2e1a; border-radius: 4px; }
+    #audio-preview .audio-title { font-size: 11px; color: #e7e76e; margin-bottom: 8px; }
+    #audio-preview .audio-controls { display: flex; align-items: center; gap: 12px; }
+    #audio-preview .audio-controls label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+    #audio-preview .audio-controls input[type="range"] { width: 120px; accent-color: #e7e76e; }
+    #audio-preview .audio-controls .rate-val { font-size: 11px; color: #e0e0e0; min-width: 36px; }
+    #audio-preview .close { font-size: 10px; color: #888; cursor: pointer; margin-top: 8px; }
+    #audio-preview .close:hover { color: #e0e0e0; }
+
+    /* Video preview */
     #preview { margin-top: 16px; display: none; }
     #preview video { max-width: 480px; width: 100%; border-radius: 4px; border: 1px solid #333; }
     #preview .close { font-size: 10px; color: #888; cursor: pointer; margin-top: 4px; }
@@ -98,6 +112,19 @@
     </thead>
     <tbody id="table-body"></tbody>
   </table>
+
+  <div id="audio-preview">
+    <div class="audio-title" id="audio-title">audio: —</div>
+    <div class="audio-controls">
+      <button class="play-btn" id="audio-play-btn" onclick="toggleAudioPlayback()">play</button>
+      <label>rate</label>
+      <input type="range" id="audio-rate" min="0.25" max="1.0" step="0.05" value="0.65" oninput="updateAudioRate(this.value)">
+      <span class="rate-val" id="audio-rate-val">0.65x</span>
+      <label>vol</label>
+      <input type="range" id="audio-vol" min="0" max="1.0" step="0.05" value="0.8" oninput="updateAudioVol(this.value)">
+    </div>
+    <div class="close" onclick="closeAudioPreview()">[close]</div>
+  </div>
 
   <div id="preview">
     <video controls muted id="preview-video"></video>
@@ -193,12 +220,17 @@
       var tr = document.createElement('tr');
       if (entry.expired) tr.className = 'expired';
 
+      var actionBtns = '<button class="del-btn" onclick="deleteEntry(\'' + entry.key + '\')">del</button>';
+      if (info.type === 'audio') {
+        actionBtns = '<button class="play-btn" onclick="previewAudio(\'' + info.videoId + '\')">listen</button> ' + actionBtns;
+      }
+
       tr.innerHTML =
         '<td><span class="video-id" onclick="previewVideo(\'' + info.videoId + '\')">' + info.videoId + '</span></td>' +
         '<td><span class="type-badge type-' + info.type + '">' + info.type + '</span></td>' +
         '<td class="size">' + formatBytes(entry.size) + '</td>' +
         '<td class="expires">' + formatExpiry(entry.expiresAt, entry.expired) + '</td>' +
-        '<td><button class="del-btn" onclick="deleteEntry(\'' + entry.key + '\')">del</button></td>';
+        '<td>' + actionBtns + '</td>';
 
       tbody.appendChild(tr);
     });
@@ -256,6 +288,79 @@
     video.pause();
     video.src = '';
     document.getElementById('preview').style.display = 'none';
+  }
+
+  // ── Audio preview ──────────────────────────────────────────────────
+  var audioEl = null;
+  var audioVideoId = null;
+
+  function previewAudio(videoId) {
+    // Stop any existing playback
+    if (audioEl) {
+      audioEl.pause();
+      audioEl.src = '';
+    }
+
+    audioVideoId = videoId;
+    audioEl = new Audio(BASE + '/proxy/' + videoId + '?audioOnly=true');
+    audioEl.crossOrigin = 'anonymous';
+    audioEl.playbackRate = parseFloat(document.getElementById('audio-rate').value);
+    audioEl.volume = parseFloat(document.getElementById('audio-vol').value);
+
+    document.getElementById('audio-title').textContent = 'audio: ' + videoId;
+    document.getElementById('audio-preview').style.display = 'block';
+    document.getElementById('audio-play-btn').textContent = 'loading...';
+    document.getElementById('audio-play-btn').className = 'play-btn';
+
+    audioEl.addEventListener('canplay', function() {
+      audioEl.play();
+      document.getElementById('audio-play-btn').textContent = 'pause';
+      document.getElementById('audio-play-btn').className = 'play-btn playing';
+    }, { once: true });
+
+    audioEl.addEventListener('ended', function() {
+      document.getElementById('audio-play-btn').textContent = 'play';
+      document.getElementById('audio-play-btn').className = 'play-btn';
+    });
+
+    audioEl.addEventListener('error', function() {
+      document.getElementById('audio-play-btn').textContent = 'error';
+      document.getElementById('audio-play-btn').className = 'play-btn';
+    });
+
+    audioEl.load();
+  }
+
+  function toggleAudioPlayback() {
+    if (!audioEl) return;
+    if (audioEl.paused) {
+      audioEl.play();
+      document.getElementById('audio-play-btn').textContent = 'pause';
+      document.getElementById('audio-play-btn').className = 'play-btn playing';
+    } else {
+      audioEl.pause();
+      document.getElementById('audio-play-btn').textContent = 'play';
+      document.getElementById('audio-play-btn').className = 'play-btn';
+    }
+  }
+
+  function updateAudioRate(val) {
+    document.getElementById('audio-rate-val').textContent = parseFloat(val).toFixed(2) + 'x';
+    if (audioEl) audioEl.playbackRate = parseFloat(val);
+  }
+
+  function updateAudioVol(val) {
+    if (audioEl) audioEl.volume = parseFloat(val);
+  }
+
+  function closeAudioPreview() {
+    if (audioEl) {
+      audioEl.pause();
+      audioEl.src = '';
+      audioEl = null;
+    }
+    audioVideoId = null;
+    document.getElementById('audio-preview').style.display = 'none';
   }
 
   // Init
