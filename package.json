@@ -5,6 +5,8 @@
   "main": ".eslintrc.js",
   "scripts": {
     "start": "cd server && npm run start",
+    "dev": "docker compose -f docker-compose.dev.yml up -d && concurrently -k -n server,client,youtube,dream-npc -c blue,green,yellow,magenta \"cd server && pnpm dev\" \"cd client-3d && pnpm dev\" \"cd services/youtube-api && go run .\" \"cd services/dream-npc-go && go run .\"",
+    "dev:no-docker": "concurrently -k -n server,client,youtube,dream-npc -c blue,green,yellow,magenta \"cd server && pnpm dev\" \"cd client-3d && pnpm dev\" \"cd services/youtube-api && go run .\" \"cd services/dream-npc-go && go run .\"",
     "heroku-postbuild": "npm i && cd types && npm i && cd ../server && tsc --project tsconfig.server.json",
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:models": "node scripts/build-models.mjs",
@@ -30,6 +32,7 @@
     "@types/express": "^5.0.0",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
+    "concurrently": "^9.2.1",
     "copyfiles": "^2.4.1",
     "eslint": "^7.11.0",
     "eslint-plugin-valtio": "^0.4.2",
