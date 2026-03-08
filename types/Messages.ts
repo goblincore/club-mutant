@@ -72,4 +72,7 @@ export enum Message {
 
   // Chat History
   CHAT_HISTORY, // Request/receive chat history on join
+
+  // NPC TTS Audio
+  NPC_TTS_AUDIO, // Server → client: base64 WAV audio for NPC speech
 }

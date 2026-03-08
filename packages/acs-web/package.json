@@ -1,0 +1,15 @@
+{
+  "name": "acs-web",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "acs_web_bg.wasm",
+    "acs_web.js",
+    "acs_web.d.ts"
+  ],
+  "main": "acs_web.js",
+  "types": "acs_web.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

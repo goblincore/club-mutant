@@ -568,8 +568,8 @@ export function LobbyScreen() {
                         </span>
                       </button>
 
-                      {/* My Room button — logged-in users only */}
-                      {isAuthenticated && (
+                      {/* My Room button — logged-in users only (+ dev mode for testing) */}
+                      {(isAuthenticated || import.meta.env.DEV) && (
                         <button
                           onClick={handleJoinMyRoom}
                           disabled={connecting}

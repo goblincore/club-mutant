@@ -1,8 +1,11 @@
-// Nakama server-side runtime module for profile metadata management.
+// Nakama server-side runtime module for profile metadata and playlist persistence.
 //
 // RPCs:
-//   update_profile — merges validated fields into user metadata
-//   get_profile    — returns user profile with metadata
+//   update_profile  — merges validated fields into user metadata
+//   get_profile     — returns user profile with metadata
+//   list_playlists  — paginated list of user's playlists (cursor-based)
+//   save_playlist   — create or update a playlist
+//   delete_playlist — delete a playlist by ID
 //
 // Metadata schema:
 // {
@@ -10,6 +13,14 @@
 //   favorite_song: string (max 100 chars)
 //   links: Array<{ label: string, url: string }>  (max 3 entries)
 //   background_url: string (max 500 chars)
+// }
+//
+// Playlist storage (collection: 'playlists', key: playlist UUID):
+// {
+//   name: string           (max 60 chars)
+//   items: PlaylistTrack[] (max 100 items)
+//   createdAt: number      (epoch ms)
+//   updatedAt: number      (epoch ms)
 // }
 
 var MAX_BIO = 200;
@@ -170,11 +181,176 @@ var beforeAuthenticateEmail = function (ctx, logger, nk, data) {
   return data;
 };
 
+// ─── Playlist Persistence ───────────────────────────────────────────
+
+var PLAYLIST_COLLECTION = 'playlists';
+var MAX_PLAYLISTS = 50;
+var MAX_TRACKS_PER_PLAYLIST = 100;
+var MAX_PLAYLIST_NAME = 60;
+var PLAYLIST_PAGE_SIZE = 20;
+var MAX_TRACK_TITLE = 200;
+var MAX_TRACK_LINK = 500;
+
+function validatePlaylistItems(items) {
+  if (!Array.isArray(items)) throw 'items must be an array';
+  var validated = items.slice(0, MAX_TRACKS_PER_PLAYLIST);
+  return validated.map(function (item, idx) {
+    if (!item || typeof item !== 'object') throw 'item at index ' + idx + ' is invalid';
+    if (typeof item.id !== 'string' || !item.id) throw 'item.id is required at index ' + idx;
+    if (typeof item.title !== 'string') throw 'item.title must be a string at index ' + idx;
+    if (typeof item.link !== 'string') throw 'item.link must be a string at index ' + idx;
+    var duration = typeof item.duration === 'number' ? item.duration : 0;
+    return {
+      id: item.id,
+      title: item.title.substring(0, MAX_TRACK_TITLE),
+      link: item.link.substring(0, MAX_TRACK_LINK),
+      duration: duration
+    };
+  });
+}
+
+function countUserPlaylists(nk, userId) {
+  var count = 0;
+  var cursor = '';
+  do {
+    var result = nk.storageList(userId, PLAYLIST_COLLECTION, PLAYLIST_PAGE_SIZE, cursor);
+    var objects = result.objects || result || [];
+    if (Array.isArray(objects)) {
+      count += objects.length;
+    }
+    cursor = result.cursor || '';
+  } while (cursor);
+  return count;
+}
+
+var listPlaylistsRpc = function (ctx, logger, nk, payload) {
+  var input = {};
+  if (payload) {
+    try {
+      input = JSON.parse(payload);
+    } catch (e) {
+      throw 'Invalid JSON payload';
+    }
+  }
+
+  var cursor = input.cursor || '';
+  var result = nk.storageList(ctx.userId, PLAYLIST_COLLECTION, PLAYLIST_PAGE_SIZE, cursor);
+  var objects = result.objects || result || [];
+
+  var playlists = [];
+  if (Array.isArray(objects)) {
+    for (var i = 0; i < objects.length; i++) {
+      var obj = objects[i];
+      var val = obj.value || {};
+      playlists.push({
+        id: obj.key,
+        name: val.name || '',
+        items: val.items || [],
+        createdAt: val.createdAt || 0,
+        updatedAt: val.updatedAt || 0
+      });
+    }
+  }
+
+  var nextCursor = result.cursor || null;
+
+  return JSON.stringify({
+    playlists: playlists,
+    cursor: nextCursor
+  });
+};
+
+var savePlaylistRpc = function (ctx, logger, nk, payload) {
+  var input;
+  try {
+    input = JSON.parse(payload);
+  } catch (e) {
+    throw 'Invalid JSON payload';
+  }
+
+  if (typeof input.id !== 'string' || !input.id) throw 'id is required';
+  if (typeof input.name !== 'string' || !input.name.trim()) throw 'name is required';
+
+  var name = input.name.trim().substring(0, MAX_PLAYLIST_NAME);
+  var items = validatePlaylistItems(input.items || []);
+
+  // Check if this is an existing playlist or new
+  var existing = nk.storageRead([{
+    collection: PLAYLIST_COLLECTION,
+    key: input.id,
+    userId: ctx.userId
+  }]);
+
+  var now = Date.now();
+  var createdAt = now;
+
+  if (existing && existing.length > 0 && existing[0].value) {
+    createdAt = existing[0].value.createdAt || now;
+  } else {
+    // New playlist — enforce limit
+    var count = countUserPlaylists(nk, ctx.userId);
+    if (count >= MAX_PLAYLISTS) {
+      throw 'Playlist limit reached (max ' + MAX_PLAYLISTS + ')';
+    }
+  }
+
+  var value = {
+    name: name,
+    items: items,
+    createdAt: createdAt,
+    updatedAt: now
+  };
+
+  nk.storageWrite([{
+    collection: PLAYLIST_COLLECTION,
+    key: input.id,
+    userId: ctx.userId,
+    value: value,
+    permissionRead: 1,
+    permissionWrite: 1
+  }]);
+
+  logger.info('Playlist saved for user %s: %s (%d tracks)', ctx.userId, input.id, items.length);
+  return JSON.stringify({
+    success: true,
+    playlist: {
+      id: input.id,
+      name: name,
+      items: items,
+      createdAt: createdAt,
+      updatedAt: now
+    }
+  });
+};
+
+var deletePlaylistRpc = function (ctx, logger, nk, payload) {
+  var input;
+  try {
+    input = JSON.parse(payload);
+  } catch (e) {
+    throw 'Invalid JSON payload';
+  }
+
+  if (typeof input.id !== 'string' || !input.id) throw 'id is required';
+
+  nk.storageDelete([{
+    collection: PLAYLIST_COLLECTION,
+    key: input.id,
+    userId: ctx.userId
+  }]);
+
+  logger.info('Playlist deleted for user %s: %s', ctx.userId, input.id);
+  return JSON.stringify({ success: true });
+};
+
 // ─── InitModule ─────────────────────────────────────────────────────
 
 var InitModule = function (ctx, logger, nk, initializer) {
   initializer.registerRpc('update_profile', updateProfileRpc);
   initializer.registerRpc('get_profile', getProfileRpc);
+  initializer.registerRpc('list_playlists', listPlaylistsRpc);
+  initializer.registerRpc('save_playlist', savePlaylistRpc);
+  initializer.registerRpc('delete_playlist', deletePlaylistRpc);
   initializer.registerBeforeAuthenticateEmail(beforeAuthenticateEmail);
-  logger.info('Modules loaded: RPCs (update_profile, get_profile), hooks (beforeAuthenticateEmail)');
+  logger.info('Modules loaded: RPCs (update_profile, get_profile, list_playlists, save_playlist, delete_playlist), hooks (beforeAuthenticateEmail)');
 };

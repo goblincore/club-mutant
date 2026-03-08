@@ -8,6 +8,7 @@ export interface PlayerState {
   scale: number
   isNpc: boolean
   npcCharacterPath: string
+  npcAnimState: string // ACS animation state: idle | speaking | greeting | reacting
   nakamaId: string
 }
 

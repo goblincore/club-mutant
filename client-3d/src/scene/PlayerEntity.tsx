@@ -4,6 +4,8 @@ import { Text } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { PaperDoll } from '../character/PaperDoll'
+import { AcsCharacter } from '../character/AcsCharacter'
+import { isAcsCharacter, paperDollAnimToAcsState, npcBehaviorToAcsState } from '../character/AcsStateMapper'
 import { useGameStore } from '../stores/gameStore'
 import type { PlayerState } from '../stores/gameStore'
 import { getPlayerPosition } from '../stores/gameStore'
@@ -855,20 +857,34 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
     >
       {/* Billboard rotation group — lazily faces camera */}
       <group ref={dollGroupRef}>
-        {/* Character model — PaperDoll self-grounds (feet at Y=0) */}
+        {/* Character model — self-grounds (feet at Y=0) */}
         <group ref={charGroupRef}>
-          <PaperDoll
-            characterPath={characterPath}
-            animationName={animName}
-            flipX={flipX}
-            speed={speed}
-            velocityX={velX}
-            billboardTwist={bbTwist}
-            onLayout={({ visualTopY: vt, headTopY: ht }) => {
-              setVisualTopY(vt)
-              setHeadTopY(ht)
-            }}
-          />
+          {isAcsCharacter(characterPath) ? (
+            <AcsCharacter
+              acsUrl={characterPath}
+              animationState={player.npcAnimState ? npcBehaviorToAcsState(player.npcAnimState) : paperDollAnimToAcsState(animName)}
+              flipX={flipX}
+              speed={speed}
+              isMoving={animName === 'walk'}
+              onLayout={({ visualTopY: vt, headTopY: ht }) => {
+                setVisualTopY(vt)
+                setHeadTopY(ht)
+              }}
+            />
+          ) : (
+            <PaperDoll
+              characterPath={characterPath}
+              animationName={animName}
+              flipX={flipX}
+              speed={speed}
+              velocityX={velX}
+              billboardTwist={bbTwist}
+              onLayout={({ visualTopY: vt, headTopY: ht }) => {
+                setVisualTopY(vt)
+                setHeadTopY(ht)
+              }}
+            />
+          )}
         </group>
 
         {/* Chat bubble */}

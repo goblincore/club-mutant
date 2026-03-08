@@ -61,6 +61,23 @@ export interface DreamDebugState {
   cutIntervalMin: number     // ms
   cutIntervalMax: number     // ms
 
+  // SAM Singer
+  samEnabled: boolean
+  samPitch: number           // 0–255 (SAM formant pitch)
+  samSpeed: number           // 0–255 (SAM speech rate)
+  samMouth: number           // 0–255
+  samThroat: number          // 0–255
+  samLowpassFreq: number     // 500–8000 Hz
+  samLowpassQ: number        // 0.1–10
+  samReverbDecay: number     // 0.5–5 seconds
+  samReverbMix: number       // 0–1 wet/dry
+  samMasterGain: number      // 0–1
+  samBaseMidiNote: number    // 48–72
+  samChorusEnabled: boolean
+  samChorusRate: number      // 0.1–5 Hz (LFO speed)
+  samChorusDepth: number     // 0.001–0.02 (LFO amplitude in seconds)
+  samChorusWet: number       // 0–1 chorus voice level
+
   // Actions
   togglePanel: () => void
   set: (partial: Partial<DreamDebugState>) => void
@@ -116,6 +133,22 @@ const DEFAULTS = {
   randomCutChance: 0.6,
   cutIntervalMin: 8_000,
   cutIntervalMax: 20_000,
+
+  samEnabled: true,
+  samPitch: 48,       // low male — Bonzi-inspired (SAPI4 "Sydney" approx)
+  samSpeed: 80,       // slightly slower, deliberate cadence
+  samMouth: 110,      // below neutral — darker, rounder F1
+  samThroat: 105,     // below neutral — deeper chest resonance
+  samLowpassFreq: 2500,
+  samLowpassQ: 0.7,
+  samReverbDecay: 2.0,
+  samReverbMix: 0.6,
+  samMasterGain: 0.5,
+  samBaseMidiNote: 60,
+  samChorusEnabled: true,
+  samChorusRate: 1.2,
+  samChorusDepth: 0.006,
+  samChorusWet: 0.5,
 }
 
 export const useDreamDebugStore = create<DreamDebugState>((set) => ({

@@ -13,6 +13,7 @@ import { useBoothStore } from '../stores/boothStore'
 import { useJukeboxStore } from '../stores/jukeboxStore'
 import { useUIStore } from '../stores/uiStore'
 import { useToastStore } from '../stores/toastStore'
+import { playNpcTtsAudio } from '../audio/npcTtsPlayer'
 import type { JukeboxItemDto } from '@club-mutant/types/Dtos'
 import { triggerRemoteJump } from '../scene/PlayerEntity'
 import { addRipple } from '../scene/TrampolineRipples'
@@ -455,6 +456,7 @@ export class NetworkManager {
         scale: player.scale,
         isNpc: player.isNpc ?? false,
         npcCharacterPath: player.npcCharacterPath ?? '',
+        npcAnimState: player.npcAnimState ?? '',
         nakamaId: player.nakamaId ?? '',
       })
 
@@ -479,6 +481,10 @@ export class NetworkManager {
 
       playerProxy.listen('scale', (value: number) => {
         useGameStore.getState().updatePlayer(sessionId, { scale: value })
+      })
+
+      playerProxy.listen('npcAnimState', (value: string) => {
+        useGameStore.getState().updatePlayer(sessionId, { npcAnimState: value })
       })
 
       // Don't show "joined" message for NPC players — they're always present
@@ -528,6 +534,13 @@ export class NetworkManager {
       // Show in-world chat bubble
       if (data.clientId) {
         chatStore.setBubble(data.clientId, data.content, data.imageUrl || undefined)
+      }
+    })
+
+    // NPC TTS audio (base64 WAV from SAPI4)
+    this.room.onMessage(Message.NPC_TTS_AUDIO, (data: { audioBase64: string; durationMs: number }) => {
+      if (data.audioBase64) {
+        playNpcTtsAudio(data.audioBase64)
       }
     })
 

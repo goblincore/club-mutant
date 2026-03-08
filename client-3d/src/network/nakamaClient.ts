@@ -339,3 +339,55 @@ export async function getMyAccount() {
   const session = await ensureSession()
   return getClient().getAccount(session)
 }
+
+// ── Playlist API ────────────────────────────────────────────────────────────
+
+import type { MyPlaylist, PlaylistTrack } from '../stores/playlistStore'
+
+interface ServerPlaylist {
+  id: string
+  name: string
+  items: PlaylistTrack[]
+  createdAt: number
+  updatedAt: number
+}
+
+/**
+ * Fetch all playlists from Nakama, paginating through all pages.
+ */
+export async function listServerPlaylists(): Promise<ServerPlaylist[]> {
+  const session = await ensureSession()
+  const all: ServerPlaylist[] = []
+  let cursor: string | null = null
+
+  do {
+    const result = await getClient().rpc(session, 'list_playlists', cursor ? { cursor } : {})
+    const data = result.payload as { playlists: ServerPlaylist[]; cursor: string | null }
+    if (data.playlists) {
+      for (const p of data.playlists) all.push(p)
+    }
+    cursor = data.cursor || null
+  } while (cursor)
+
+  return all
+}
+
+/**
+ * Save (create or update) a playlist on the server.
+ */
+export async function saveServerPlaylist(playlist: {
+  id: string
+  name: string
+  items: PlaylistTrack[]
+}): Promise<void> {
+  const session = await ensureSession()
+  await getClient().rpc(session, 'save_playlist', playlist)
+}
+
+/**
+ * Delete a playlist from the server.
+ */
+export async function deleteServerPlaylist(id: string): Promise<void> {
+  const session = await ensureSession()
+  await getClient().rpc(session, 'delete_playlist', { id })
+}

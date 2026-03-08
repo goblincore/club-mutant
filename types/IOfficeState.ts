@@ -11,6 +11,7 @@ export interface IPlayer extends Schema {
   connected: boolean
   isNpc: boolean
   npcCharacterPath: string
+  npcAnimState: string
   nakamaId: string
 }
 

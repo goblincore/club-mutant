@@ -140,7 +140,7 @@ export function WarpCheckBg() {
         zIndex: 0,
         imageRendering: 'pixelated',
         filter: 'blur(3px)',
-        backgroundColor: '#55ffff',
+        backgroundColor: '#394d41',
       }}
     />
   )

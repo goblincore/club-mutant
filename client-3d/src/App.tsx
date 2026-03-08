@@ -1,8 +1,10 @@
+import { useEffect, useRef } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { getNetwork } from './network/NetworkManager'
 import { useGameStore } from './stores/gameStore'
 import { useUIStore } from './stores/uiStore'
 import { useAuthStore } from './stores/authStore'
+import { usePlaylistStore } from './stores/playlistStore'
 import { AuthScreen } from './ui/AuthScreen'
 import { ProfileBadge } from './ui/ProfileBadge'
 import { NotificationBell } from './ui/NotificationBell'
@@ -103,6 +105,16 @@ function MinimizedBoothBar() {
 }
 
 function MainApp() {
+  // Load playlists from Nakama on first authenticated render
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const playlistSyncTriggered = useRef(false)
+  useEffect(() => {
+    if (isAuthenticated && !playlistSyncTriggered.current) {
+      playlistSyncTriggered.current = true
+      usePlaylistStore.getState().loadFromServer()
+    }
+  }, [isAuthenticated])
+
   const connectionStatus = useGameStore((s) => s.connectionStatus)
   const mySessionId = useGameStore((s) => s.mySessionId)
   const playlistOpen = useUIStore((s) => s.djQueueOpen)
@@ -128,7 +140,6 @@ function MainApp() {
 
   // Auth screen — shown before lobby if user hasn't chosen guest or logged in
   const authReady = useAuthStore((s) => s.authReady)
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
 
   if (!authReady) {
     return <AuthScreen />

@@ -4,6 +4,7 @@ import { Dispatcher } from '@colyseus/command'
 import { verifyNakamaToken, type NakamaTokenPayload } from '../lib/verifyNakamaToken'
 
 import { Player, OfficeState, MusicBooth, ChatMessage } from './schema/OfficeState'
+import { synthesizeSpeech } from '../lib/sapi4Client'
 import { IRoomData, type MusicMode } from '@club-mutant/types/Rooms'
 import { Message } from '@club-mutant/types/Messages'
 import {
@@ -272,6 +273,7 @@ export class ClubMutant extends Room {
     npc.npcCharacterPath = NPC_CHARACTER_PATH
     npc.x = NPC_HOME_X
     npc.y = NPC_HOME_Y
+    npc.npcAnimState = 'idle'
     npc.readyToConnect = true
     npc.connected = true
     this.state.players.set(NPC_SESSION_ID, npc)
@@ -496,6 +498,16 @@ export class ClubMutant extends Room {
         // Stay in place, face toward player (no movement)
         break
       }
+    }
+
+    // ── Sync npcAnimState to schema for ACS character rendering ──
+    const acsState =
+      this.npcState === 'conversing' ? 'speaking' :
+      this.npcState === 'walking' ? 'idle' :
+      this.npcState === 'dancing' ? 'idle' :
+      'idle'
+    if (npc.npcAnimState !== acsState) {
+      npc.npcAnimState = acsState
     }
 
     // ── Music silence nudge ──
@@ -737,6 +749,18 @@ export class ClubMutant extends Room {
     this.broadcast(Message.ADD_CHAT_MESSAGE, {
       clientId: NPC_SESSION_ID,
       content,
+    })
+
+    // Fire-and-forget TTS synthesis — audio arrives after text (intentional)
+    synthesizeSpeech({ text: content }).then((result) => {
+      if (result) {
+        this.broadcast(Message.NPC_TTS_AUDIO, {
+          audioBase64: result.audioBase64,
+          durationMs: result.durationMs,
+        })
+      }
+    }).catch(() => {
+      // TTS failure is non-blocking — text still works
     })
   }
 
@@ -1304,7 +1328,15 @@ export class ClubMutant extends Room {
             greeting = this.npcGreetings[Math.floor(Math.random() * this.npcGreetings.length)]
           }
 
+          // Set greeting animation state briefly
+          const npc = this.state.players.get(NPC_SESSION_ID)
+          if (npc) npc.npcAnimState = 'greeting'
           this.broadcastNpcMessage(greeting)
+          // Return to idle after greeting plays
+          setTimeout(() => {
+            const npc = this.state.players.get(NPC_SESSION_ID)
+            if (npc && npc.npcAnimState === 'greeting') npc.npcAnimState = 'idle'
+          }, 4000)
         }, delay)
       }
     }

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../stores/gameStore'
 import { useUIStore } from '../stores/uiStore'
+import { useDreamStore } from '../stores/dreamStore'
+import { warmAudioContext } from '../audio/npcTtsPlayer'
 
 // ── Dream NPC personality data (from client-dream/src/npc/npcPersonalities.ts) ──
 
@@ -131,6 +133,9 @@ export function DreamChatOverlay() {
     async (text: string) => {
       if (!text.trim() || isLoading) return
 
+      // Warm AudioContext during user gesture so TTS can play later
+      warmAudioContext()
+
       const playerMsg: ChatMessage = {
         id: crypto.randomUUID(),
         sender: 'player',
@@ -166,6 +171,7 @@ export function DreamChatOverlay() {
 
         const data = await res.json()
         const npcConfig = NPC_CLIENT_CONFIGS[activeNpc]
+        const responseText = data.text || getFallback(activeNpc)
 
         setMessages((prev) => [
           ...prev,
@@ -173,21 +179,28 @@ export function DreamChatOverlay() {
             id: crypto.randomUUID(),
             sender: 'npc',
             npcName: npcConfig?.name,
-            text: data.text || getFallback(activeNpc),
+            text: responseText,
           },
         ])
+
+        // Bridge to DreamAcsCharacter for Bonzi speaking animation + TTS
+        useDreamStore.getState().setDreamNpcMessage(responseText)
       } catch {
         if (abort.signal.aborted) return
         const npcConfig = NPC_CLIENT_CONFIGS[activeNpc]
+        const fallbackText = getFallback(activeNpc)
         setMessages((prev) => [
           ...prev,
           {
             id: crypto.randomUUID(),
             sender: 'npc',
             npcName: npcConfig?.name,
-            text: getFallback(activeNpc),
+            text: fallbackText,
           },
         ])
+
+        // Bridge to DreamAcsCharacter even on fallback
+        useDreamStore.getState().setDreamNpcMessage(fallbackText)
       }
 
       setIsLoading(false)

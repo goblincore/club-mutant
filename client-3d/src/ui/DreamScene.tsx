@@ -6,6 +6,8 @@ import { DreamMaterial } from '../shaders/DreamMaterial'
 import { DreamGenerativeMaterial } from '../shaders/DreamGenerativeMaterial'
 import { useDreamDebugStore } from '../stores/dreamDebugStore'
 import { DreamDebugPanel } from './DreamDebugPanel'
+import { DreamSamCharacter } from './DreamSamCharacter'
+// import { DreamAcsCharacter } from './DreamAcsCharacter'
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -468,6 +470,8 @@ export function DreamScene() {
       >
         <DreamResolution />
         <DreamLayer />
+        <DreamSamCharacter />
+        {/* <DreamAcsCharacter /> */}
       </Canvas>
       {showPanel && <DreamDebugPanel />}
     </div>
