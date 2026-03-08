@@ -1,6 +1,5 @@
 # Local dev only — Nakama + PostgreSQL for auth development
 # Usage: docker compose -f docker-compose.dev.yml up -d
-version: '3.8'
 
 services:
   postgres:
@@ -12,7 +11,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - '5432:5432'
+      - '5433:5432'
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U postgres']
       interval: 5s
