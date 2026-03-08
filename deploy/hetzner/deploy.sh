@@ -24,6 +24,11 @@ git -C "$REPO_ROOT" pull
 echo "==> Building + starting services"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build --remove-orphans
 
+# Nakama uses a volume-mounted modules dir (not a custom image), so Docker
+# won't detect changes. Always restart it to pick up updated runtime modules.
+echo "==> Restarting Nakama (reload runtime modules)"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" restart nakama
+
 echo "==> Done"
 
 echo
