@@ -61,6 +61,17 @@ export interface DreamDebugState {
   cutIntervalMin: number     // ms
   cutIntervalMax: number     // ms
 
+  // TV Static (signals from the void)
+  staticBursts: boolean           // random static interference bursts
+  staticBurstChance: number       // 0–1 probability per interval
+  staticBurstIntervalMin: number  // ms between burst checks
+  staticBurstIntervalMax: number  // ms
+  staticBurstDurationMin: number  // ms how long burst lasts
+  staticBurstDurationMax: number  // ms
+  staticTransitions: boolean      // fade through static when cycling videos
+  staticTintA: [number, number, number]  // RGB 0-1 (dark tint A)
+  staticTintB: [number, number, number]  // RGB 0-1 (dark tint B)
+
   // Dream Audio (warped/slowed/reverbed music)
   dreamAudioEnabled: boolean
   dreamAudioRateMin: number     // 0.25–1.0
@@ -69,23 +80,6 @@ export interface DreamDebugState {
   dreamAudioLowpassFreq: number // Hz
   dreamAudioVolume: number      // 0–1
   dreamAudioWetMix: number      // 0–1 reverb wet/dry
-
-  // SAM Singer
-  samEnabled: boolean
-  samPitch: number           // 0–255 (SAM formant pitch)
-  samSpeed: number           // 0–255 (SAM speech rate)
-  samMouth: number           // 0–255
-  samThroat: number          // 0–255
-  samLowpassFreq: number     // 500–8000 Hz
-  samLowpassQ: number        // 0.1–10
-  samReverbDecay: number     // 0.5–5 seconds
-  samReverbMix: number       // 0–1 wet/dry
-  samMasterGain: number      // 0–1
-  samBaseMidiNote: number    // 48–72
-  samChorusEnabled: boolean
-  samChorusRate: number      // 0.1–5 Hz (LFO speed)
-  samChorusDepth: number     // 0.001–0.02 (LFO amplitude in seconds)
-  samChorusWet: number       // 0–1 chorus voice level
 
   // Actions
   togglePanel: () => void
@@ -108,7 +102,7 @@ const DEFAULTS = {
   fisheye: true,
   fisheyeAmount: 0.8,
 
-  hueRotation: true,
+  hueRotation: false,
   hueSpeed: 0.03,
   filmGrain: true,
   vignette: true,
@@ -123,7 +117,7 @@ const DEFAULTS = {
   blendMode: 'difference' as BlendMode,
   blendOpacity: 0.3,
 
-  scanlines: true,
+  scanlines: false,
   scanlineCount: 0,
   scanlineThickness: 0.4,
   scanlineIntensity: 0.5,
@@ -139,8 +133,8 @@ const DEFAULTS = {
   playbackRateMin: 0.5,
   playbackRateMax: 0.8,
   randomCuts: true,
-  randomCutChance: 0.6,
-  cutIntervalMin: 8_000,
+  randomCutChance: 0.95,
+  cutIntervalMin: 3_000,
   cutIntervalMax: 20_000,
 
   dreamAudioEnabled: true,
@@ -151,21 +145,16 @@ const DEFAULTS = {
   dreamAudioVolume: 0.6,
   dreamAudioWetMix: 0.7,
 
-  samEnabled: true,
-  samPitch: 48,       // low male — Bonzi-inspired (SAPI4 "Sydney" approx)
-  samSpeed: 80,       // slightly slower, deliberate cadence
-  samMouth: 110,      // below neutral — darker, rounder F1
-  samThroat: 105,     // below neutral — deeper chest resonance
-  samLowpassFreq: 2500,
-  samLowpassQ: 0.7,
-  samReverbDecay: 2.0,
-  samReverbMix: 0.6,
-  samMasterGain: 0.5,
-  samBaseMidiNote: 60,
-  samChorusEnabled: true,
-  samChorusRate: 1.2,
-  samChorusDepth: 0.006,
-  samChorusWet: 0.5,
+  staticBursts: true,
+  staticBurstChance: 0.4,
+  staticBurstIntervalMin: 8_000,
+  staticBurstIntervalMax: 25_000,
+  staticBurstDurationMin: 500,
+  staticBurstDurationMax: 3_000,
+  staticTransitions: true,
+  staticTintA: [0.15, 0.05, 0.25] as [number, number, number],
+  staticTintB: [0.05, 0.15, 0.2] as [number, number, number],
+
 }
 
 export const useDreamDebugStore = create<DreamDebugState>((set) => ({

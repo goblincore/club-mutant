@@ -1,7 +1,6 @@
 import { useCallback } from 'react'
 import { useDreamDebugStore, type DreamDebugState, type BlendMode } from '../stores/dreamDebugStore'
-import { getSamSinger } from '../audio/SamSinger'
-import { MELODY_OPERA } from '../audio/samMelodies'
+import { getDreamAudioPlayer } from '../audio/DreamAudioPlayer'
 
 type NumericKey = {
   [K in keyof DreamDebugState]: DreamDebugState[K] extends number ? K : never
@@ -182,51 +181,32 @@ export function DreamDebugPanel() {
         <Slider label="cut interval max (ms)" field="cutIntervalMax" min={5000} max={60000} step={1000} />
       </Section>
 
-      <Section title="SAM Singer">
+      <Section title="TV Static (void signals)">
+        <Toggle label="random bursts" field="staticBursts" />
+        <Slider label="burst chance" field="staticBurstChance" min={0} max={1} />
+        <Slider label="interval min (ms)" field="staticBurstIntervalMin" min={2000} max={30000} step={1000} />
+        <Slider label="interval max (ms)" field="staticBurstIntervalMax" min={5000} max={60000} step={1000} />
+        <Slider label="duration min (ms)" field="staticBurstDurationMin" min={100} max={5000} step={100} />
+        <Slider label="duration max (ms)" field="staticBurstDurationMax" min={500} max={10000} step={100} />
+        <Toggle label="static transitions" field="staticTransitions" />
+      </Section>
+
+      <Section title="Dream Audio (DJ Screw)">
         <div className="flex items-center justify-between">
-          <Toggle label="enabled" field="samEnabled" />
+          <Toggle label="enabled" field="dreamAudioEnabled" />
           <button
-            onClick={() => {
-              const dbg = useDreamDebugStore.getState()
-              if (!dbg.samEnabled) return
-              const singer = getSamSinger()
-              singer.updateParams({
-                samPitch: dbg.samPitch,
-                samSpeed: dbg.samSpeed,
-                samMouth: dbg.samMouth,
-                samThroat: dbg.samThroat,
-                lowpassFreq: dbg.samLowpassFreq,
-                lowpassQ: dbg.samLowpassQ,
-                reverbDecay: dbg.samReverbDecay,
-                reverbMix: dbg.samReverbMix,
-                masterGain: dbg.samMasterGain,
-                baseMidiNote: dbg.samBaseMidiNote,
-                chorusEnabled: dbg.samChorusEnabled,
-                chorusRate: dbg.samChorusRate,
-                chorusDepth: dbg.samChorusDepth,
-                chorusWet: dbg.samChorusWet,
-              })
-              singer.sing(MELODY_OPERA)
-            }}
+            onClick={() => getDreamAudioPlayer().syncParams()}
             className="text-[9px] text-green-400/70 hover:text-green-300 transition-colors"
           >
-            sing test
+            sync params
           </button>
         </div>
-        <Slider label="SAM pitch" field="samPitch" min={0} max={255} step={1} />
-        <Slider label="SAM speed" field="samSpeed" min={0} max={255} step={1} />
-        <Slider label="SAM mouth" field="samMouth" min={0} max={255} step={1} />
-        <Slider label="SAM throat" field="samThroat" min={0} max={255} step={1} />
-        <Slider label="lowpass freq" field="samLowpassFreq" min={500} max={8000} step={100} />
-        <Slider label="lowpass Q" field="samLowpassQ" min={0.1} max={10} step={0.1} />
-        <Slider label="reverb decay" field="samReverbDecay" min={0.5} max={5} step={0.1} />
-        <Slider label="reverb mix" field="samReverbMix" min={0} max={1} />
-        <Slider label="master gain" field="samMasterGain" min={0} max={1} />
-        <Slider label="base MIDI note" field="samBaseMidiNote" min={48} max={72} step={1} />
-        <Toggle label="chorus" field="samChorusEnabled" />
-        <Slider label="chorus rate" field="samChorusRate" min={0.1} max={5} step={0.1} />
-        <Slider label="chorus depth" field="samChorusDepth" min={0.001} max={0.02} step={0.001} />
-        <Slider label="chorus wet" field="samChorusWet" min={0} max={1} />
+        <Slider label="volume" field="dreamAudioVolume" min={0} max={1} />
+        <Slider label="rate min (pitch)" field="dreamAudioRateMin" min={0.25} max={1} />
+        <Slider label="rate max (pitch)" field="dreamAudioRateMax" min={0.25} max={1} />
+        <Slider label="lowpass freq" field="dreamAudioLowpassFreq" min={200} max={8000} step={100} />
+        <Slider label="reverb decay" field="dreamAudioReverbDecay" min={0.5} max={8} step={0.1} />
+        <Slider label="reverb wet/dry" field="dreamAudioWetMix" min={0} max={1} />
       </Section>
 
       <div className="text-white/20 text-[9px] text-center pt-1 border-t border-white/5">

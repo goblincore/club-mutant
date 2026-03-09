@@ -7,7 +7,6 @@ import { DreamGenerativeMaterial } from '../shaders/DreamGenerativeMaterial'
 import { useDreamDebugStore } from '../stores/dreamDebugStore'
 import { getDreamAudioPlayer } from '../audio/DreamAudioPlayer'
 import { DreamDebugPanel } from './DreamDebugPanel'
-import { DreamSamCharacter } from './DreamSamCharacter'
 // import { DreamAcsCharacter } from './DreamAcsCharacter'
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -135,9 +134,15 @@ function DreamLayer() {
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const cutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rateTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const staticBurstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const stateRef = useRef<VideoState | null>(null)
   const hasVideosRef = useRef<boolean | null>(null)
   const initDoneRef = useRef(false)
+
+  // TV Static state — smoothly interpolated in useFrame
+  const staticMixRef = useRef(0)
+  const staticTargetRef = useRef(0)
+  const [staticMix, setStaticMix] = useState(0)
 
   useEffect(() => { stateRef.current = state }, [state])
   useEffect(() => { hasVideosRef.current = hasVideos }, [hasVideos])
@@ -233,6 +238,7 @@ function DreamLayer() {
       if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
       if (cutTimerRef.current) clearTimeout(cutTimerRef.current)
       if (rateTimerRef.current) clearInterval(rateTimerRef.current)
+      if (staticBurstTimerRef.current) clearTimeout(staticBurstTimerRef.current)
       const s = stateRef.current
       if (s) {
         disposeVideo(s.videoEl)
@@ -266,6 +272,48 @@ function DreamLayer() {
 
     scheduleNextCut()
     return () => { if (cutTimerRef.current) clearTimeout(cutTimerRef.current) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!state])
+
+  // ── Static bursts (signals from the void) ──────────────────────────
+  useEffect(() => {
+    if (!initDoneRef.current && !state) return
+    if (!state) return
+
+    const scheduleNextBurst = () => {
+      const dbg = useDreamDebugStore.getState()
+      if (!dbg.staticBursts) return
+
+      const delay = dbg.staticBurstIntervalMin +
+        Math.random() * (dbg.staticBurstIntervalMax - dbg.staticBurstIntervalMin)
+
+      staticBurstTimerRef.current = setTimeout(() => {
+        const dbgNow = useDreamDebugStore.getState()
+        if (!dbgNow.staticBursts) {
+          scheduleNextBurst()
+          return
+        }
+
+        // Roll the dice
+        if (Math.random() < dbgNow.staticBurstChance) {
+          // Fade to static
+          staticTargetRef.current = 1.0
+
+          // After burst duration, fade back
+          const burstDuration = dbgNow.staticBurstDurationMin +
+            Math.random() * (dbgNow.staticBurstDurationMax - dbgNow.staticBurstDurationMin)
+
+          setTimeout(() => {
+            staticTargetRef.current = 0.0
+          }, burstDuration)
+        }
+
+        scheduleNextBurst()
+      }, delay)
+    }
+
+    scheduleNextBurst()
+    return () => { if (staticBurstTimerRef.current) clearTimeout(staticBurstTimerRef.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!state])
 
@@ -303,6 +351,17 @@ function DreamLayer() {
         return
       }
 
+      const dbgNow = useDreamDebugStore.getState()
+      const useStaticTransition = dbgNow.staticTransitions
+
+      // If static transitions enabled, fade to static first
+      if (useStaticTransition) {
+        staticTargetRef.current = 1.0
+        // Wait for static to fully cover the screen before swapping
+        await new Promise((r) => setTimeout(r, 800))
+        if (abort.signal.aborted) return
+      }
+
       try {
         const videoEl = await loadVideo(nextVideoId, abort.signal)
         if (abort.signal.aborted) {
@@ -326,19 +385,50 @@ function DreamLayer() {
         texture.magFilter = THREE.LinearFilter
         texture.colorSpace = THREE.SRGBColorSpace
 
-        setState((prev) => ({
-          videoEl,
-          texture,
-          videoId: nextVideoId,
-          prevTexture: prev ? prev.texture : null,
-          prevVideoEl: prev ? prev.videoEl : null,
-          transition: 0.0,
-          transitioning: true,
-          currentRate: rate,
-          targetRate: rate,
-        }))
+        if (useStaticTransition) {
+          // Swap video instantly under the static, then fade static out
+          setState((prev) => {
+            if (prev?.prevVideoEl) disposeVideo(prev.prevVideoEl)
+            if (prev?.prevTexture) prev.prevTexture.dispose()
+            const oldVideoEl = prev?.videoEl ?? null
+            const oldTexture = prev?.texture ?? null
+            // Schedule cleanup of old video
+            if (oldVideoEl) setTimeout(() => disposeVideo(oldVideoEl), 100)
+            if (oldTexture) setTimeout(() => oldTexture.dispose(), 100)
+            return {
+              videoEl,
+              texture,
+              videoId: nextVideoId,
+              prevTexture: null,
+              prevVideoEl: null,
+              transition: 1.0,
+              transitioning: false,
+              currentRate: rate,
+              targetRate: rate,
+            }
+          })
+          // Small delay then fade static back out
+          setTimeout(() => {
+            staticTargetRef.current = 0.0
+          }, 300)
+        } else {
+          // Normal melt dissolve transition
+          setState((prev) => ({
+            videoEl,
+            texture,
+            videoId: nextVideoId,
+            prevTexture: prev ? prev.texture : null,
+            prevVideoEl: prev ? prev.videoEl : null,
+            transition: 0.0,
+            transitioning: true,
+            currentRate: rate,
+            targetRate: rate,
+          }))
+        }
       } catch (err) {
         console.warn('[DreamScene] Failed to cycle video:', err)
+        // If we were mid-static-transition, fade out the static
+        if (useStaticTransition) staticTargetRef.current = 0.0
       }
 
       if (!abort.signal.aborted) {
@@ -390,6 +480,18 @@ function DreamLayer() {
     if (needsUpdate) {
       setState((prev) => prev ? { ...prev, ...updates } : prev)
     }
+
+    // Smooth static mix interpolation
+    const staticDiff = staticTargetRef.current - staticMixRef.current
+    if (Math.abs(staticDiff) > 0.001) {
+      // Fast fade-in to static, slower fade-out (more dramatic emergence)
+      const staticLerp = staticDiff > 0 ? 0.08 : 0.04
+      staticMixRef.current += staticDiff * staticLerp
+      setStaticMix(staticMixRef.current)
+    } else if (Math.abs(staticMixRef.current - staticTargetRef.current) > 0) {
+      staticMixRef.current = staticTargetRef.current
+      setStaticMix(staticMixRef.current)
+    }
   })
 
   // Generative fallback
@@ -411,6 +513,7 @@ function DreamLayer() {
         videoTexture={state.texture}
         prevVideoTexture={state.prevTexture}
         transition={state.transition}
+        staticMix={staticMix}
       />
     </mesh>
   )
@@ -480,8 +583,6 @@ export function DreamScene() {
       >
         <DreamResolution />
         <DreamLayer />
-        <DreamSamCharacter />
-        {/* <DreamAcsCharacter /> */}
       </Canvas>
       {showPanel && <DreamDebugPanel />}
     </div>

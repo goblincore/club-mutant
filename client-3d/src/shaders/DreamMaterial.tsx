@@ -82,6 +82,11 @@ uniform float uGhostIntensity;
 uniform float uEnableDropout;
 uniform float uDropoutIntensity;
 
+// TV Static (signals from the void)
+uniform float uStaticMix;        // 0 = full video, 1 = full static
+uniform vec3 uStaticTintA;       // dark tint A (purple)
+uniform vec3 uStaticTintB;       // dark tint B (teal)
+
 #define PI 3.14159265359
 #define SCALE(a) (uResolution.y / 450.0) * (a)
 
@@ -117,6 +122,38 @@ float fbm(vec2 p) {
     amp *= 0.5;
   }
   return val;
+}
+
+// ── TV Static generation ────────────────────────────────────────────
+vec3 tvStatic(vec2 fragCoord, float time, vec3 tintA, vec3 tintB, float bass, float energy) {
+  float frame = mod(floor(time * 24.0), 3727.0);
+
+  vec2 frameJitter = vec2(
+    hash(vec2(frame, 0.5)),
+    hash(vec2(0.5, frame))
+  );
+
+  vec2 seed = fragCoord * 0.5 + frameJitter * 1000.0;
+  float n = hash(seed);
+
+  // Per-frame flicker
+  float flicker = hash(vec2(frame, 0.0)) * 0.15 - 0.075;
+  n = clamp(n + flicker, 0.0, 1.0);
+
+  // Tint oscillation (audio-reactive)
+  float tintMix = sin(time * (0.3 + energy * 2.0)) * 0.5 + 0.5;
+  tintMix = clamp(tintMix + bass * 0.3, 0.0, 1.0);
+  vec3 tint = mix(tintA, tintB, tintMix);
+
+  float noiseBrightness = 0.45 + bass * 0.35;
+  vec3 color = tint + vec3(n) * noiseBrightness;
+  color += vec3(energy * 0.08);
+
+  // Horizontal scan bands
+  float scanline = sin(fragCoord.y * 0.5 * PI * 2.0) * 0.03;
+  color += scanline;
+
+  return color;
 }
 
 // ── Color conversion ────────────────────────────────────────────────
@@ -454,6 +491,12 @@ void main() {
   // Slight contrast
   video.rgb = pow(video.rgb, vec3(0.95));
 
+  // 18. TV Static overlay (signals from the void)
+  if (uStaticMix > 0.001) {
+    vec3 staticColor = tvStatic(fragCoord, uTime, uStaticTintA, uStaticTintB, uBass, uEnergy);
+    video.rgb = mix(video.rgb, staticColor, uStaticMix);
+  }
+
   gl_FragColor = vec4(video.rgb, 1.0);
 }
 `
@@ -462,12 +505,14 @@ interface DreamMaterialProps {
   videoTexture: THREE.Texture | null
   prevVideoTexture?: THREE.Texture | null
   transition?: number
+  staticMix?: number
 }
 
 export function DreamMaterial({
   videoTexture,
   prevVideoTexture = null,
   transition = 1.0,
+  staticMix = 0.0,
 }: DreamMaterialProps) {
   const matRef = useRef<THREE.ShaderMaterial>(null)
 
@@ -520,6 +565,10 @@ export function DreamMaterial({
       uGhostIntensity: { value: 0.3 },
       uEnableDropout: { value: 0.0 },
       uDropoutIntensity: { value: 0.1 },
+      // TV Static
+      uStaticMix: { value: 0.0 },
+      uStaticTintA: { value: new THREE.Vector3(0.15, 0.05, 0.25) },
+      uStaticTintB: { value: new THREE.Vector3(0.05, 0.15, 0.2) },
     }),
     []
   )
@@ -543,6 +592,7 @@ export function DreamMaterial({
 
     u.uTime.value = t
     u.uTransition.value = transition
+    u.uStaticMix.value = staticMix
     u.uResolution.value.set(size.width, size.height)
 
     // Read debug store
@@ -591,6 +641,10 @@ export function DreamMaterial({
     }
     u.uBlendMode.value = modeMap[dbg.blendMode] ?? 0
     u.uBlendOpacity.value = dbg.blendOpacity
+
+    // Static tints
+    u.uStaticTintA.value.set(dbg.staticTintA[0], dbg.staticTintA[1], dbg.staticTintA[2])
+    u.uStaticTintB.value.set(dbg.staticTintB[0], dbg.staticTintB[1], dbg.staticTintB[2])
 
     // Audio values
     const currentBass = audioAnalyserActive ? audioBass : 0.15 + Math.sin(t * 0.3) * 0.1
