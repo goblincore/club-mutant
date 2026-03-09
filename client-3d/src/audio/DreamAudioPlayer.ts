@@ -1,5 +1,6 @@
 import { useDreamDebugStore } from '../stores/dreamDebugStore'
 import { setAudioBands } from '../hooks/useAudioAnalyser'
+import { randomPitchEffect, type PitchEffect } from './effects'
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -14,6 +15,18 @@ const YOUTUBE_API_BASE =
   (window.location.hostname === 'localhost'
     ? 'http://localhost:8081'
     : `${window.location.origin}/youtube`)
+
+// ── AudioLayer type ──────────────────────────────────────────────────────
+
+interface AudioLayer {
+  audioEl: HTMLAudioElement
+  sourceNode: MediaElementAudioSourceNode
+  gainNode: GainNode
+  pitchEffect: PitchEffect
+  effectOutput: GainNode // pitch effect outputs to this, which feeds into shared lowpass
+  cycleTimer: ReturnType<typeof setTimeout> | null
+  layerIndex: number
+}
 
 // ── Module-level band state (written per-frame via rAF) ─────────────────
 
@@ -32,16 +45,11 @@ function lerp(a: number, b: number, t: number): number {
 class DreamAudioPlayer {
   private ctx: AudioContext | null = null
 
-  // Current track
-  private audioEl: HTMLAudioElement | null = null
-  private sourceNode: MediaElementAudioSourceNode | null = null
+  // Multi-layer audio
+  private layers: AudioLayer[] = []
+  private layerCount = 2
 
-  // Crossfade: outgoing track
-  private prevAudioEl: HTMLAudioElement | null = null
-  private prevSourceNode: MediaElementAudioSourceNode | null = null
-  private prevGainNode: GainNode | null = null
-
-  // Effects chain
+  // Effects chain (shared)
   private lowpass: BiquadFilterNode | null = null
   private convolver: ConvolverNode | null = null
   private wetGain: GainNode | null = null
@@ -55,8 +63,6 @@ class DreamAudioPlayer {
   // State
   private _isPlaying = false
   private videoIds: string[] = []
-  private currentIndex = 0
-  private cycleTimer: ReturnType<typeof setTimeout> | null = null
   private abortController: AbortController | null = null
 
   get isPlaying(): boolean {
@@ -155,6 +161,9 @@ class DreamAudioPlayer {
     if (this.masterGain && this._isPlaying) {
       this.masterGain.gain.value = dbg.dreamAudioVolume
     }
+
+    // Update layer count if changed
+    this.layerCount = dbg.dreamAudioLayerCount
   }
 
   // ── Per-frame analysis (drives module-level band exports) ───────────
@@ -411,11 +420,165 @@ class DreamAudioPlayer {
     })
   }
 
-  private connectSource(audio: HTMLAudioElement): MediaElementAudioSourceNode {
+  // ── Layer info (for debug panel) ──────────────────────────────────
+
+  getLayerInfo(): Array<{ effect: string; videoId: string }> {
+    return this.layers.filter(Boolean).map(l => ({
+      effect: l.pitchEffect.name,
+      videoId: l.audioEl.src.split('/').pop()?.split('?')[0] ?? '?',
+    }))
+  }
+
+  // ── Multi-layer playback ──────────────────────────────────────────
+
+  private async playTrackOnLayer(layerIndex: number, videoId: string): Promise<void> {
+    if (!this.abortController || this.abortController.signal.aborted) return
+
+    const dbg = useDreamDebugStore.getState()
     const ctx = this.ensureContext()
-    const source = ctx.createMediaElementSource(audio)
-    source.connect(this.lowpass!)
-    return source
+
+    if (ctx.state === 'suspended') {
+      await ctx.resume()
+    }
+
+    try {
+      const audio = await this.loadAudioTrack(videoId, this.abortController!.signal)
+      if (this.abortController!.signal.aborted) {
+        audio.pause()
+        audio.src = ''
+        return
+      }
+
+      // Set playback rate
+      const rate = dbg.dreamAudioRateMin +
+        Math.random() * (dbg.dreamAudioRateMax - dbg.dreamAudioRateMin)
+      audio.playbackRate = rate
+
+      // Random seek
+      this.seekToRandomPosition(audio)
+
+      // Beat-matched rate
+      if (this.currentBPM > 0 && this.bpmConfidence > 0.4) {
+        const targetBeatInterval = this.beatInterval
+        if (targetBeatInterval > 0) {
+          const musicalRatios = [0.5, 0.667, 0.75, 0.8, 1.0]
+          const chosenRatio = musicalRatios[Math.floor(Math.random() * musicalRatios.length)]!
+          const matchedRate = rate * chosenRatio
+          const clampedRate = Math.max(dbg.dreamAudioRateMin, Math.min(dbg.dreamAudioRateMax, matchedRate))
+          audio.playbackRate = clampedRate
+          console.log(`[DreamAudio] Layer ${layerIndex} beat-matched rate: ${clampedRate.toFixed(3)}x (ratio: ${chosenRatio}, BPM: ${this.currentBPM.toFixed(1)}, confidence: ${this.bpmConfidence.toFixed(2)})`)
+        }
+      }
+
+      // Beat-aligned crossfade
+      if (this.beatInterval > 0 && this.bpmConfidence > 0.3) {
+        const msUntilNextBeat = this.beatInterval * (1 - this.beatPhase)
+        if (msUntilNextBeat > 50 && msUntilNextBeat < this.beatInterval) {
+          await new Promise(r => setTimeout(r, msUntilNextBeat))
+          if (this.abortController?.signal.aborted) {
+            audio.pause()
+            audio.src = ''
+            return
+          }
+        }
+      }
+
+      // If replacing an existing layer, crossfade out the old one
+      const oldLayer = this.layers[layerIndex]
+      if (oldLayer) {
+        const oldAudio = oldLayer.audioEl
+        const oldSource = oldLayer.sourceNode
+        const oldGain = oldLayer.gainNode
+        const oldEffect = oldLayer.pitchEffect
+        const oldEffectOutput = oldLayer.effectOutput
+
+        // Fade out the old layer's gain
+        oldGain.gain.linearRampToValueAtTime(0, ctx.currentTime + CROSSFADE_DURATION)
+
+        // Clean up after crossfade
+        setTimeout(() => {
+          oldAudio.pause()
+          oldAudio.src = ''
+          oldAudio.load()
+          try { oldSource.disconnect() } catch {}
+          try { oldGain.disconnect() } catch {}
+          try { oldEffect.disconnect() } catch {}
+          try { oldEffectOutput.disconnect() } catch {}
+        }, CROSSFADE_DURATION * 1000 + 500)
+      }
+
+      // Create per-layer nodes
+      const sourceNode = ctx.createMediaElementSource(audio)
+      const layerVolume = dbg.dreamAudioVolume / this.layerCount
+      const gainNode = ctx.createGain()
+      gainNode.gain.value = layerVolume
+
+      const effectOutput = ctx.createGain()
+      effectOutput.gain.value = 1.0
+
+      // Create and connect pitch effect: sourceNode → effect → effectOutput
+      const pitchEffect = randomPitchEffect()
+      pitchEffect.connect(ctx, sourceNode, effectOutput)
+
+      // Wire: effectOutput → gainNode → lowpass (shared)
+      effectOutput.connect(gainNode)
+      gainNode.connect(this.lowpass!)
+
+      // Store layer
+      this.layers[layerIndex] = {
+        audioEl: audio,
+        sourceNode,
+        gainNode,
+        pitchEffect,
+        effectOutput,
+        cycleTimer: oldLayer?.cycleTimer ?? null,
+        layerIndex,
+      }
+
+      await audio.play()
+
+      // Fade in master on first layer
+      if (this.masterGain && !oldLayer) {
+        this.masterGain.gain.linearRampToValueAtTime(
+          dbg.dreamAudioVolume,
+          ctx.currentTime + FADE_DURATION
+        )
+      }
+
+      // Reset onset history for new tracks
+      this.onsetHistory = []
+      this.prevOnsetEnergy = 0
+
+      console.log(`[DreamAudio] Layer ${layerIndex} playing ${videoId} at ${audio.playbackRate.toFixed(3)}x with effect "${pitchEffect.name}"`)
+    } catch (err) {
+      if (this.abortController?.signal.aborted) return
+      console.warn(`[DreamAudio] Layer ${layerIndex} failed to play track:`, err)
+    }
+  }
+
+  private scheduleLayerCycle(layerIndex: number): void {
+    const delay = 60_000 + Math.random() * 60_000
+
+    const layer = this.layers[layerIndex]
+    if (layer?.cycleTimer) clearTimeout(layer.cycleTimer)
+
+    const timer = setTimeout(async () => {
+      if (!this._isPlaying || this.videoIds.length === 0) return
+
+      // Pick a random video different from this layer's current
+      const currentSrc = this.layers[layerIndex]?.audioEl?.src ?? ''
+      let nextId: string
+      do {
+        nextId = this.videoIds[Math.floor(Math.random() * this.videoIds.length)]!
+      } while (this.videoIds.length > 1 && currentSrc.includes(nextId))
+
+      await this.playTrackOnLayer(layerIndex, nextId)
+      this.scheduleLayerCycle(layerIndex)
+    }, delay)
+
+    if (this.layers[layerIndex]) {
+      this.layers[layerIndex].cycleTimer = timer
+    }
   }
 
   // ── Playback control ────────────────────────────────────────────────
@@ -428,6 +591,7 @@ class DreamAudioPlayer {
 
     this._isPlaying = true
     this.abortController = new AbortController()
+    this.layerCount = dbg.dreamAudioLayerCount
 
     // Fetch available audio IDs
     try {
@@ -448,145 +612,19 @@ class DreamAudioPlayer {
       return
     }
 
-    this.currentIndex = 0
-    await this.playTrack(this.videoIds[0]!)
-
-    // Start cycling
-    this.scheduleCycle()
-  }
-
-  private async playTrack(videoId: string): Promise<void> {
-    if (!this.abortController || this.abortController.signal.aborted) return
-
-    const dbg = useDreamDebugStore.getState()
-    const ctx = this.ensureContext()
-
-    if (ctx.state === 'suspended') {
-      await ctx.resume()
+    // Launch layers with staggered starts
+    for (let i = 0; i < this.layerCount && i < this.videoIds.length; i++) {
+      const videoId = this.videoIds[i % this.videoIds.length]!
+      const delay = i * (5000 + Math.random() * 10000)
+      setTimeout(() => {
+        void this.playTrackOnLayer(i, videoId)
+        this.scheduleLayerCycle(i)
+      }, delay)
     }
 
-    try {
-      const audio = await this.loadAudioTrack(videoId, this.abortController!.signal)
-      if (this.abortController!.signal.aborted) {
-        audio.pause()
-        audio.src = ''
-        return
-      }
-
-      // Set playback rate (may be overridden by BPM matching later)
-      const rate = dbg.dreamAudioRateMin +
-        Math.random() * (dbg.dreamAudioRateMax - dbg.dreamAudioRateMin)
-      audio.playbackRate = rate
-
-      // Random seek — try now, retry after play if duration isn't available yet
-      this.seekToRandomPosition(audio)
-
-      // Beat-matched rate: if we have a confident BPM, try to match it
-      // (within the dreamy slow range — we're not trying to be a real DJ,
-      //  just making things mesh more musically)
-      if (this.currentBPM > 0 && this.bpmConfidence > 0.4) {
-        // Wait briefly for the new track's own natural BPM to be guessable
-        // For now, use the rate range but bias toward matching the beat interval
-        // by slightly adjusting the rate
-        const targetBeatInterval = this.beatInterval
-        if (targetBeatInterval > 0) {
-          // The new track is playing at `rate` speed, so its effective beat
-          // interval would be beatInterval/rate. We want to match the outgoing
-          // track's beat interval. But since we don't know the new track's BPM
-          // yet, we just nudge the rate to create interesting phase relationships.
-          // Use a rate that's a musical ratio (3/4, 2/3, 1/2) of the original
-          const musicalRatios = [0.5, 0.667, 0.75, 0.8, 1.0]
-          const chosenRatio = musicalRatios[Math.floor(Math.random() * musicalRatios.length)]!
-          const matchedRate = rate * chosenRatio
-          // Clamp to DJ Screw range
-          const clampedRate = Math.max(dbg.dreamAudioRateMin, Math.min(dbg.dreamAudioRateMax, matchedRate))
-          audio.playbackRate = clampedRate
-          console.log(`[DreamAudio] Beat-matched rate: ${clampedRate.toFixed(3)}x (ratio: ${chosenRatio}, BPM: ${this.currentBPM.toFixed(1)}, confidence: ${this.bpmConfidence.toFixed(2)})`)
-        }
-      }
-
-      // Beat-aligned crossfade: wait for next beat boundary before starting the fade
-      if (this.beatInterval > 0 && this.bpmConfidence > 0.3) {
-        const msUntilNextBeat = this.beatInterval * (1 - this.beatPhase)
-        if (msUntilNextBeat > 50 && msUntilNextBeat < this.beatInterval) {
-          await new Promise(r => setTimeout(r, msUntilNextBeat))
-          if (this.abortController?.signal.aborted) {
-            audio.pause()
-            audio.src = ''
-            return
-          }
-        }
-      }
-
-      // If there's a current track, crossfade
-      if (this.audioEl && this.sourceNode) {
-        // Move current to prev for fadeout
-        this.prevAudioEl = this.audioEl
-        this.prevSourceNode = this.sourceNode
-
-        // Create a gain for the outgoing track and fade it out
-        this.prevGainNode = ctx.createGain()
-        this.prevGainNode.gain.value = 1.0
-        this.prevSourceNode.disconnect()
-        this.prevSourceNode.connect(this.prevGainNode)
-        this.prevGainNode.connect(this.lowpass!)
-        this.prevGainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + CROSSFADE_DURATION)
-
-        // Clean up prev after crossfade
-        const prevAudio = this.prevAudioEl
-        const prevSource = this.prevSourceNode
-        const prevGain = this.prevGainNode
-        setTimeout(() => {
-          prevAudio.pause()
-          prevAudio.src = ''
-          prevAudio.load()
-          try { prevSource.disconnect() } catch {}
-          try { prevGain.disconnect() } catch {}
-        }, CROSSFADE_DURATION * 1000 + 500)
-      }
-
-      // Connect new track
-      const source = this.connectSource(audio)
-      this.audioEl = audio
-      this.sourceNode = source
-
-      await audio.play()
-
-      // Fade in master on first track
-      if (this.masterGain) {
-        this.masterGain.gain.linearRampToValueAtTime(
-          dbg.dreamAudioVolume,
-          ctx.currentTime + FADE_DURATION
-        )
-      }
-
-      // Start analysis loop
-      this.startAnalysisLoop()
-
-      // Reset onset history for the new track (keep currentBPM as reference)
-      this.onsetHistory = []
-      this.prevOnsetEnergy = 0
-
-      console.log(`[DreamAudio] Playing ${videoId} at ${audio.playbackRate.toFixed(3)}x`)
-    } catch (err) {
-      if (this.abortController?.signal.aborted) return
-      console.warn('[DreamAudio] Failed to play track:', err)
-    }
-  }
-
-  private scheduleCycle(): void {
-    if (this.cycleTimer) clearTimeout(this.cycleTimer)
-
-    // Cycle every 20-45 seconds
-    const delay = 20_000 + Math.random() * 25_000
-
-    this.cycleTimer = setTimeout(async () => {
-      if (!this._isPlaying || this.videoIds.length === 0) return
-
-      this.currentIndex = (this.currentIndex + 1) % this.videoIds.length
-      await this.playTrack(this.videoIds[this.currentIndex]!)
-      this.scheduleCycle()
-    }, delay)
+    // Start analysis loop
+    this.ensureContext()
+    this.startAnalysisLoop()
   }
 
   async stop(): Promise<void> {
@@ -597,9 +635,12 @@ class DreamAudioPlayer {
     this.abortController?.abort()
     this.abortController = null
 
-    if (this.cycleTimer) {
-      clearTimeout(this.cycleTimer)
-      this.cycleTimer = null
+    // Clear all layer cycle timers
+    for (const layer of this.layers) {
+      if (layer?.cycleTimer) {
+        clearTimeout(layer.cycleTimer)
+        layer.cycleTimer = null
+      }
     }
 
     this.stopAnalysisLoop()
@@ -616,26 +657,19 @@ class DreamAudioPlayer {
   }
 
   private cleanup(): void {
-    if (this.audioEl) {
-      this.audioEl.pause()
-      this.audioEl.src = ''
-      this.audioEl.load()
-      this.audioEl = null
+    // Clean up all layers
+    for (const layer of this.layers) {
+      if (!layer) continue
+      layer.audioEl.pause()
+      layer.audioEl.src = ''
+      layer.audioEl.load()
+      try { layer.sourceNode.disconnect() } catch {}
+      try { layer.gainNode.disconnect() } catch {}
+      try { layer.pitchEffect.disconnect() } catch {}
+      try { layer.effectOutput.disconnect() } catch {}
+      if (layer.cycleTimer) clearTimeout(layer.cycleTimer)
     }
-    if (this.prevAudioEl) {
-      this.prevAudioEl.pause()
-      this.prevAudioEl.src = ''
-      this.prevAudioEl.load()
-      this.prevAudioEl = null
-    }
-
-    try { this.sourceNode?.disconnect() } catch {}
-    try { this.prevSourceNode?.disconnect() } catch {}
-    try { this.prevGainNode?.disconnect() } catch {}
-
-    this.sourceNode = null
-    this.prevSourceNode = null
-    this.prevGainNode = null
+    this.layers = []
 
     // Disconnect effects chain but keep context alive for re-use
     try { this.lowpass?.disconnect() } catch {}
