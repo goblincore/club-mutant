@@ -189,7 +189,7 @@ export function DreamDebugPanel() {
       <Section title="Color / Post">
         <Toggle label="hue rotation" field="hueRotation" />
         <Slider label="hue speed" field="hueSpeed" min={0} max={0.2} />
-        <Slider label="saturation" field="saturation" min={0.5} max={2} />
+        <Slider label="saturation" field="saturation" min={0.5} max={4} />
         <Toggle label="film grain" field="filmGrain" />
         <Toggle label="vignette" field="vignette" />
         <Slider label="vignette size" field="vignetteSize" min={0.1} max={1} />
@@ -223,16 +223,6 @@ export function DreamDebugPanel() {
         <Slider label="cut chance" field="randomCutChance" min={0} max={1} />
         <Slider label="cut interval min (ms)" field="cutIntervalMin" min={3000} max={30000} step={1000} />
         <Slider label="cut interval max (ms)" field="cutIntervalMax" min={5000} max={60000} step={1000} />
-      </Section>
-
-      <Section title="TV Static (void signals)">
-        <Toggle label="random bursts" field="staticBursts" />
-        <Slider label="burst chance" field="staticBurstChance" min={0} max={1} />
-        <Slider label="interval min (ms)" field="staticBurstIntervalMin" min={2000} max={30000} step={1000} />
-        <Slider label="interval max (ms)" field="staticBurstIntervalMax" min={5000} max={60000} step={1000} />
-        <Slider label="duration min (ms)" field="staticBurstDurationMin" min={100} max={5000} step={100} />
-        <Slider label="duration max (ms)" field="staticBurstDurationMax" min={500} max={10000} step={100} />
-        <Toggle label="static transitions" field="staticTransitions" />
       </Section>
 
       <Section title="Dream Audio (DJ Screw)">

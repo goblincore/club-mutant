@@ -61,17 +61,6 @@ export interface DreamDebugState {
   cutIntervalMin: number     // ms
   cutIntervalMax: number     // ms
 
-  // TV Static (signals from the void)
-  staticBursts: boolean           // random static interference bursts
-  staticBurstChance: number       // 0–1 probability per interval
-  staticBurstIntervalMin: number  // ms between burst checks
-  staticBurstIntervalMax: number  // ms
-  staticBurstDurationMin: number  // ms how long burst lasts
-  staticBurstDurationMax: number  // ms
-  staticTransitions: boolean      // fade through static when cycling videos
-  staticTintA: [number, number, number]  // RGB 0-1 (dark tint A)
-  staticTintB: [number, number, number]  // RGB 0-1 (dark tint B)
-
   // Dream Audio (warped/slowed/reverbed music)
   dreamAudioEnabled: boolean
   dreamAudioRateMin: number     // 0.25–1.0
@@ -80,6 +69,7 @@ export interface DreamDebugState {
   dreamAudioLowpassFreq: number // Hz
   dreamAudioVolume: number      // 0–1
   dreamAudioWetMix: number      // 0–1 reverb wet/dry
+  dreamAudioLayerCount: number  // 1-3
 
   // Actions
   togglePanel: () => void
@@ -98,8 +88,8 @@ const DEFAULTS = {
   rotation: true,
   stretch: true,
   liquidWarp: true,
-  liquidAmount: 0.06,
-  fisheye: true,
+  liquidAmount: 0.01,
+  fisheye: false,
   fisheyeAmount: 0.8,
 
   hueRotation: false,
@@ -107,15 +97,15 @@ const DEFAULTS = {
   filmGrain: true,
   vignette: true,
   vignetteSize: 0.3,
-  saturation: 1.3,
+  saturation: 2.2,
 
-  vhsEffect: true,
+  vhsEffect: false,
   vhsStrength: 0.7,
 
   transitionDuration: 5000,
 
   blendMode: 'difference' as BlendMode,
-  blendOpacity: 0.3,
+  blendOpacity: 0.5,
 
   scanlines: false,
   scanlineCount: 0,
@@ -144,16 +134,7 @@ const DEFAULTS = {
   dreamAudioLowpassFreq: 2000,
   dreamAudioVolume: 0.6,
   dreamAudioWetMix: 0.7,
-
-  staticBursts: true,
-  staticBurstChance: 0.4,
-  staticBurstIntervalMin: 8_000,
-  staticBurstIntervalMax: 25_000,
-  staticBurstDurationMin: 500,
-  staticBurstDurationMax: 3_000,
-  staticTransitions: true,
-  staticTintA: [0.15, 0.05, 0.25] as [number, number, number],
-  staticTintB: [0.05, 0.15, 0.2] as [number, number, number],
+  dreamAudioLayerCount: 2,
 
 }
 
