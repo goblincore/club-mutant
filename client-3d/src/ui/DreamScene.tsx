@@ -24,18 +24,22 @@ const YOUTUBE_API_BASE =
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-interface VideoState {
+interface VideoLayer {
   videoEl: HTMLVideoElement
   texture: THREE.VideoTexture
   videoId: string
-  // Melting transition
-  prevTexture: THREE.VideoTexture | null
-  prevVideoEl: HTMLVideoElement | null
-  transition: number       // 0 = show prev, 1 = show current
-  transitioning: boolean
-  // Playback rate
   currentRate: number
   targetRate: number
+}
+
+interface DualLayerState {
+  layerA: VideoLayer
+  layerB: VideoLayer | null  // null until second layer loads
+  // Which layer is currently transitioning (swapping its video)
+  swappingLayer: 'a' | 'b' | null
+  swapTransition: number  // 0-1 melt progress for the swapping layer
+  swapPrevTexture: THREE.VideoTexture | null
+  swapPrevVideoEl: HTMLVideoElement | null
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -47,9 +51,13 @@ function randomRate(): number {
 
 function randomCycleDelay(): number {
   // Fixed range — not debug-controlled (transition duration is separate)
-  const min = 15_000
-  const max = 40_000
+  const min = 60_000
+  const max = 120_000
   return min + Math.random() * (max - min)
+}
+
+function randomLayerBDelay(): number {
+  return 5_000 + Math.random() * 10_000  // 5-15s
 }
 
 // ── Video loading helper ─────────────────────────────────────────────────
@@ -124,17 +132,29 @@ function disposeVideo(videoEl: HTMLVideoElement) {
 
 // ── Inner R3F component ──────────────────────────────────────────────────
 
+function makeTexture(videoEl: HTMLVideoElement): THREE.VideoTexture {
+  const texture = new THREE.VideoTexture(videoEl)
+  texture.minFilter = THREE.LinearFilter
+  texture.magFilter = THREE.LinearFilter
+  texture.colorSpace = THREE.SRGBColorSpace
+  return texture
+}
+
 function DreamLayer() {
-  const [state, setState] = useState<VideoState | null>(null)
+  const [state, setState] = useState<DualLayerState | null>(null)
   const [hasVideos, setHasVideos] = useState<boolean | null>(null)
   const videoIdsRef = useRef<string[]>([])
   const nextVideoIndexRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
-  const cycleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cycleTimerARef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cycleTimerBRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const cutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const rateTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const stateRef = useRef<VideoState | null>(null)
+  const cutTimerARef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cutTimerBRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rateTimerARef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const rateTimerBRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const layerBDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const stateRef = useRef<DualLayerState | null>(null)
   const hasVideosRef = useRef<boolean | null>(null)
   const initDoneRef = useRef(false)
 
@@ -152,7 +172,83 @@ function DreamLayer() {
     }
   }, [])
 
-  // Initialize: fetch cache list and load first video (runs once)
+  // ── Pick next video id (round-robin through cache list) ────────────
+  const pickNextVideoId = useCallback((excludeId?: string): string | null => {
+    const ids = videoIdsRef.current
+    if (ids.length === 0) return null
+    // Try a few times to avoid picking the excluded id
+    for (let i = 0; i < ids.length; i++) {
+      const idx = nextVideoIndexRef.current % ids.length
+      nextVideoIndexRef.current++
+      const id = ids[idx]!
+      if (id !== excludeId) return id
+    }
+    // Fallback: just return next
+    const idx = nextVideoIndexRef.current % ids.length
+    nextVideoIndexRef.current++
+    return ids[idx]!
+  }, [])
+
+  // ── Load + play a video, return a VideoLayer ──────────────────────
+  const loadLayer = useCallback(async (videoId: string, signal: AbortSignal): Promise<VideoLayer> => {
+    const videoEl = await loadVideo(videoId, signal)
+    if (signal.aborted) {
+      videoEl.pause(); videoEl.src = ''
+      throw new Error('Aborted')
+    }
+    const rate = randomRate()
+    videoEl.playbackRate = rate
+    await videoEl.play()
+    if (signal.aborted) {
+      videoEl.pause(); videoEl.src = ''
+      throw new Error('Aborted')
+    }
+    const texture = makeTexture(videoEl)
+    return { videoEl, texture, videoId, currentRate: rate, targetRate: rate }
+  }, [])
+
+  // ── Cycle a single layer ──────────────────────────────────────────
+  const cycleLayer = useCallback(async (which: 'a' | 'b') => {
+    const abort = abortRef.current
+    if (!abort || abort.signal.aborted) return
+    const s = stateRef.current
+    if (!s) return
+    // Don't start a new swap while another is in progress
+    if (s.swappingLayer) return
+
+    const currentLayer = which === 'a' ? s.layerA : s.layerB
+    const excludeId = currentLayer?.videoId
+    const nextId = pickNextVideoId(excludeId)
+    if (!nextId) return
+
+    try {
+      const newLayer = await loadLayer(nextId, abort.signal)
+      if (abort.signal.aborted) return
+
+      // Begin swap transition
+      setState((prev) => {
+        if (!prev) return prev
+        const oldLayer = which === 'a' ? prev.layerA : prev.layerB
+        return {
+          ...prev,
+          swappingLayer: which,
+          swapTransition: 0,
+          swapPrevTexture: oldLayer?.texture ?? null,
+          swapPrevVideoEl: oldLayer?.videoEl ?? null,
+          // Install the new layer immediately (shader will dissolve from old)
+          ...(which === 'a'
+            ? { layerA: newLayer }
+            : { layerB: newLayer }),
+        }
+      })
+    } catch (err) {
+      if (!(err instanceof Error && err.message === 'Aborted')) {
+        console.warn(`[DreamScene] Failed to cycle layer ${which}:`, err)
+      }
+    }
+  }, [pickNextVideoId, loadLayer])
+
+  // ── Initialize: fetch cache list and load first video (runs once) ──
   useEffect(() => {
     const abort = new AbortController()
     abortRef.current = abort
@@ -171,42 +267,35 @@ function DreamLayer() {
       setHasVideos(true)
 
       try {
-        const videoId = ids[0]!
-        const videoEl = await loadVideo(videoId, abort.signal)
-        if (abort.signal.aborted) {
-          videoEl.pause()
-          videoEl.src = ''
-          return
-        }
-
-        const rate = randomRate()
-        videoEl.playbackRate = rate
-
-        await videoEl.play()
-        if (abort.signal.aborted) {
-          videoEl.pause()
-          videoEl.src = ''
-          return
-        }
-
-        const texture = new THREE.VideoTexture(videoEl)
-        texture.minFilter = THREE.LinearFilter
-        texture.magFilter = THREE.LinearFilter
-        texture.colorSpace = THREE.SRGBColorSpace
-
+        // Layer A: load immediately
+        const videoIdA = ids[0]!
         nextVideoIndexRef.current = 1
+        const layerA = await loadLayer(videoIdA, abort.signal)
+        if (abort.signal.aborted) return
+
         initDoneRef.current = true
         setState({
-          videoEl,
-          texture,
-          videoId,
-          prevTexture: null,
-          prevVideoEl: null,
-          transition: 1.0,
-          transitioning: false,
-          currentRate: rate,
-          targetRate: rate,
+          layerA,
+          layerB: null,
+          swappingLayer: null,
+          swapTransition: 0,
+          swapPrevTexture: null,
+          swapPrevVideoEl: null,
         })
+
+        // Layer B: load after a random delay with a different video
+        layerBDelayRef.current = setTimeout(async () => {
+          if (abort.signal.aborted) return
+          const videoIdB = pickNextVideoId(videoIdA)
+          if (!videoIdB) return
+          try {
+            const layerB = await loadLayer(videoIdB, abort.signal)
+            if (abort.signal.aborted) return
+            setState((prev) => prev ? { ...prev, layerB } : prev)
+          } catch (err) {
+            console.warn('[DreamScene] Failed to load layer B:', err)
+          }
+        }, randomLayerBDelay())
       } catch (err) {
         console.warn('[DreamScene] Failed to load initial video:', err)
         setHasVideos(false)
@@ -228,131 +317,112 @@ function DreamLayer() {
 
     return () => {
       abort.abort()
-      if (cycleTimerRef.current) clearTimeout(cycleTimerRef.current)
+      if (cycleTimerARef.current) clearTimeout(cycleTimerARef.current)
+      if (cycleTimerBRef.current) clearTimeout(cycleTimerBRef.current)
       if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
-      if (cutTimerRef.current) clearTimeout(cutTimerRef.current)
-      if (rateTimerRef.current) clearInterval(rateTimerRef.current)
+      if (cutTimerARef.current) clearTimeout(cutTimerARef.current)
+      if (cutTimerBRef.current) clearTimeout(cutTimerBRef.current)
+      if (rateTimerARef.current) clearInterval(rateTimerARef.current)
+      if (rateTimerBRef.current) clearInterval(rateTimerBRef.current)
+      if (layerBDelayRef.current) clearTimeout(layerBDelayRef.current)
       const s = stateRef.current
       if (s) {
-        disposeVideo(s.videoEl)
-        s.texture.dispose()
-        if (s.prevVideoEl) disposeVideo(s.prevVideoEl)
-        if (s.prevTexture) s.prevTexture.dispose()
+        disposeVideo(s.layerA.videoEl)
+        s.layerA.texture.dispose()
+        if (s.layerB) {
+          disposeVideo(s.layerB.videoEl)
+          s.layerB.texture.dispose()
+        }
+        if (s.swapPrevVideoEl) disposeVideo(s.swapPrevVideoEl)
+        if (s.swapPrevTexture) s.swapPrevTexture.dispose()
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Random time jumps ───────────────────────────────────────────────
+  // ── Random time jumps (both layers) ────────────────────────────────
   useEffect(() => {
     if (!initDoneRef.current && !state) return
     if (!state) return
 
-    const scheduleNextCut = () => {
+    const scheduleNextCut = (layerKey: 'layerA' | 'layerB', timerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>) => {
       const dbg = useDreamDebugStore.getState()
       const delay = dbg.cutIntervalMin + Math.random() * (dbg.cutIntervalMax - dbg.cutIntervalMin)
-      cutTimerRef.current = setTimeout(() => {
+      timerRef.current = setTimeout(() => {
         const dbgNow = useDreamDebugStore.getState()
         const s = stateRef.current
-        if (dbgNow.randomCuts && s && s.videoEl.duration && isFinite(s.videoEl.duration)) {
+        const layer = s?.[layerKey]
+        if (dbgNow.randomCuts && layer && layer.videoEl.duration && isFinite(layer.videoEl.duration)) {
           if (Math.random() < dbgNow.randomCutChance) {
-            s.videoEl.currentTime = Math.random() * s.videoEl.duration
+            layer.videoEl.currentTime = Math.random() * layer.videoEl.duration
           }
         }
-        scheduleNextCut()
+        scheduleNextCut(layerKey, timerRef)
       }, delay)
     }
 
-    scheduleNextCut()
-    return () => { if (cutTimerRef.current) clearTimeout(cutTimerRef.current) }
+    scheduleNextCut('layerA', cutTimerARef)
+    scheduleNextCut('layerB', cutTimerBRef)
+    return () => {
+      if (cutTimerARef.current) clearTimeout(cutTimerARef.current)
+      if (cutTimerBRef.current) clearTimeout(cutTimerBRef.current)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!state])
 
-  // ── Variable playback rate ──────────────────────────────────────────
+  // ── Variable playback rate (both layers) ───────────────────────────
   useEffect(() => {
     if (!state) return
 
-    rateTimerRef.current = setInterval(() => {
-      setState((prev) => prev ? { ...prev, targetRate: randomRate() } : prev)
+    rateTimerARef.current = setInterval(() => {
+      setState((prev) => prev ? { ...prev, layerA: { ...prev.layerA, targetRate: randomRate() } } : prev)
     }, PLAYBACK_RATE_CHANGE_INTERVAL)
 
-    return () => { if (rateTimerRef.current) clearInterval(rateTimerRef.current) }
+    rateTimerBRef.current = setInterval(() => {
+      setState((prev) => {
+        if (!prev || !prev.layerB) return prev
+        return { ...prev, layerB: { ...prev.layerB, targetRate: randomRate() } }
+      })
+    }, PLAYBACK_RATE_CHANGE_INTERVAL)
+
+    return () => {
+      if (rateTimerARef.current) clearInterval(rateTimerARef.current)
+      if (rateTimerBRef.current) clearInterval(rateTimerBRef.current)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!state])
 
-  // ── Video cycling with transitions ─────────────────────────────────
+  // ── Video cycling timers (both layers independently) ───────────────
   useEffect(() => {
     if (!state) return
-
     const abort = abortRef.current
     if (!abort || abort.signal.aborted) return
 
-    const cycle = async () => {
-      if (abort.signal.aborted) return
-      if (videoIdsRef.current.length === 0) return
-
-      const nextIdx = nextVideoIndexRef.current % videoIdsRef.current.length
-      const nextVideoId = videoIdsRef.current[nextIdx]!
-      nextVideoIndexRef.current++
-
-      // Skip if same video
-      const current = stateRef.current
-      if (current && current.videoId === nextVideoId) {
-        cycleTimerRef.current = setTimeout(cycle, randomCycleDelay())
-        return
-      }
-
-      try {
-        const videoEl = await loadVideo(nextVideoId, abort.signal)
-        if (abort.signal.aborted) {
-          videoEl.pause()
-          videoEl.src = ''
-          return
-        }
-
-        const rate = randomRate()
-        videoEl.playbackRate = rate
-
-        await videoEl.play()
-        if (abort.signal.aborted) {
-          videoEl.pause()
-          videoEl.src = ''
-          return
-        }
-
-        const texture = new THREE.VideoTexture(videoEl)
-        texture.minFilter = THREE.LinearFilter
-        texture.magFilter = THREE.LinearFilter
-        texture.colorSpace = THREE.SRGBColorSpace
-
-        // Melt dissolve transition
-        setState((prev) => ({
-          videoEl,
-          texture,
-          videoId: nextVideoId,
-          prevTexture: prev ? prev.texture : null,
-          prevVideoEl: prev ? prev.videoEl : null,
-          transition: 0.0,
-          transitioning: true,
-          currentRate: rate,
-          targetRate: rate,
-        }))
-      } catch (err) {
-        console.warn('[DreamScene] Failed to cycle video:', err)
-      }
-
-      if (!abort.signal.aborted) {
-        cycleTimerRef.current = setTimeout(cycle, randomCycleDelay())
-      }
+    const scheduleCycleA = () => {
+      cycleTimerARef.current = setTimeout(async () => {
+        await cycleLayer('a')
+        if (!abort.signal.aborted) scheduleCycleA()
+      }, randomCycleDelay())
     }
 
-    cycleTimerRef.current = setTimeout(cycle, randomCycleDelay())
+    const scheduleCycleB = () => {
+      cycleTimerBRef.current = setTimeout(async () => {
+        await cycleLayer('b')
+        if (!abort.signal.aborted) scheduleCycleB()
+      }, randomCycleDelay())
+    }
 
-    return () => { if (cycleTimerRef.current) clearTimeout(cycleTimerRef.current) }
+    scheduleCycleA()
+    scheduleCycleB()
+
+    return () => {
+      if (cycleTimerARef.current) clearTimeout(cycleTimerARef.current)
+      if (cycleTimerBRef.current) clearTimeout(cycleTimerBRef.current)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!state])
 
-  // ── Per-frame: transition + playback rate ───────────────────────────
+  // ── Per-frame: swap transition + playback rate smoothing ──────────
   useFrame((_, delta) => {
     const s = stateRef.current
     if (!s) return
@@ -360,40 +430,51 @@ function DreamLayer() {
     const dbg = useDreamDebugStore.getState()
     const transitionSpeed = 1.0 / (dbg.transitionDuration / 1000)
     let needsUpdate = false
-    const updates: Partial<VideoState> = {}
+    const updates: Partial<DualLayerState> = {}
 
-    // Melting transition
-    if (s.transitioning) {
-      const newTransition = Math.min(s.transition + transitionSpeed * d, 1.0)
-      if (newTransition >= 1.0) {
-        if (s.prevVideoEl) disposeVideo(s.prevVideoEl)
-        if (s.prevTexture) s.prevTexture.dispose()
-        updates.transition = 1.0
-        updates.transitioning = false
-        updates.prevTexture = null
-        updates.prevVideoEl = null
+    // Swap transition animation
+    if (s.swappingLayer !== null) {
+      const newT = Math.min(s.swapTransition + transitionSpeed * d, 1.0)
+      if (newT >= 1.0) {
+        // Swap complete — dispose old resources
+        if (s.swapPrevVideoEl) disposeVideo(s.swapPrevVideoEl)
+        if (s.swapPrevTexture) s.swapPrevTexture.dispose()
+        updates.swappingLayer = null
+        updates.swapTransition = 0
+        updates.swapPrevTexture = null
+        updates.swapPrevVideoEl = null
       } else {
-        updates.transition = newTransition
+        updates.swapTransition = newT
       }
       needsUpdate = true
     }
 
-    // Smooth playback rate
-    const rateDiff = s.targetRate - s.currentRate
-    if (Math.abs(rateDiff) > 0.001) {
-      const newRate = s.currentRate + rateDiff * PLAYBACK_RATE_LERP
-      s.videoEl.playbackRate = newRate
-      updates.currentRate = newRate
+    // Smooth playback rate — layer A
+    const rateDiffA = s.layerA.targetRate - s.layerA.currentRate
+    if (Math.abs(rateDiffA) > 0.001) {
+      const newRate = s.layerA.currentRate + rateDiffA * PLAYBACK_RATE_LERP
+      s.layerA.videoEl.playbackRate = newRate
+      updates.layerA = { ...s.layerA, ...(updates.layerA as Partial<VideoLayer> | undefined), currentRate: newRate }
       needsUpdate = true
+    }
+
+    // Smooth playback rate — layer B
+    if (s.layerB) {
+      const rateDiffB = s.layerB.targetRate - s.layerB.currentRate
+      if (Math.abs(rateDiffB) > 0.001) {
+        const newRate = s.layerB.currentRate + rateDiffB * PLAYBACK_RATE_LERP
+        s.layerB.videoEl.playbackRate = newRate
+        updates.layerB = { ...s.layerB, ...(updates.layerB as Partial<VideoLayer> | undefined), currentRate: newRate }
+        needsUpdate = true
+      }
     }
 
     if (needsUpdate) {
       setState((prev) => prev ? { ...prev, ...updates } : prev)
     }
-
   })
 
-  // Generative fallback
+  // ── Generative fallback ───────────────────────────────────────────
   if (hasVideos === false || hasVideos === null) {
     return (
       <mesh>
@@ -405,13 +486,30 @@ function DreamLayer() {
 
   if (!state) return null
 
+  // ── Determine shader textures based on swap state ─────────────────
+  let videoTexture: THREE.VideoTexture = state.layerA.texture
+  let prevVideoTexture: THREE.VideoTexture = state.layerB?.texture ?? state.layerA.texture
+  let transition = 1.0
+
+  if (state.swappingLayer === 'a' && state.swapPrevTexture) {
+    // Dissolving from old A → new A; temporarily use old A as prev
+    videoTexture = state.layerA.texture   // new A
+    prevVideoTexture = state.swapPrevTexture // old A
+    transition = state.swapTransition
+  } else if (state.swappingLayer === 'b' && state.swapPrevTexture) {
+    // Dissolving from old B → new B; temporarily use old B as video, new B as prev
+    videoTexture = state.layerB?.texture ?? state.layerA.texture  // new B
+    prevVideoTexture = state.swapPrevTexture // old B
+    transition = state.swapTransition
+  }
+
   return (
     <mesh>
       <planeGeometry args={[2, 2]} />
       <DreamMaterial
-        videoTexture={state.texture}
-        prevVideoTexture={state.prevTexture}
-        transition={state.transition}
+        videoTexture={videoTexture}
+        prevVideoTexture={prevVideoTexture}
+        transition={transition}
       />
     </mesh>
   )
