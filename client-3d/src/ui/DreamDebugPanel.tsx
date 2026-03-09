@@ -82,6 +82,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function BPMDisplay() {
   const [bpmInfo, setBpmInfo] = useState({ bpm: 0, confidence: 0, phase: 0 })
+  const [layerInfo, setLayerInfo] = useState<Array<{ effect: string; videoId: string }>>([])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -91,6 +92,8 @@ function BPMDisplay() {
         confidence: player.getBPMConfidence(),
         phase: player.getBeatPhase(),
       })
+      const layers = player.getLayerInfo()
+      setLayerInfo(layers)
     }, 100)
     return () => clearInterval(interval)
   }, [])
@@ -120,6 +123,16 @@ function BPMDisplay() {
           style={{ width: `${barWidth}%` }}
         />
       </div>
+      {layerInfo.length > 0 && (
+        <div className="flex flex-col gap-0.5 text-[9px]">
+          {layerInfo.map((l, i) => (
+            <div key={i} className="flex justify-between">
+              <span className="text-white/30">L{i + 1}</span>
+              <span className="text-purple-400/60 font-mono">{l.effect}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -235,6 +248,7 @@ export function DreamDebugPanel() {
             sync params
           </button>
         </div>
+        <Slider label="audio layers" field="dreamAudioLayerCount" min={1} max={3} step={1} />
         <Slider label="volume" field="dreamAudioVolume" min={0} max={1} />
         <Slider label="rate min (pitch)" field="dreamAudioRateMin" min={0.25} max={1} />
         <Slider label="rate max (pitch)" field="dreamAudioRateMax" min={0.25} max={1} />
