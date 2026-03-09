@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useDreamDebugStore, type DreamDebugState, type BlendMode } from '../stores/dreamDebugStore'
 import { getDreamAudioPlayer } from '../audio/DreamAudioPlayer'
 
@@ -76,6 +76,50 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         {title}
       </div>
       {children}
+    </div>
+  )
+}
+
+function BPMDisplay() {
+  const [bpmInfo, setBpmInfo] = useState({ bpm: 0, confidence: 0, phase: 0 })
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const player = getDreamAudioPlayer()
+      setBpmInfo({
+        bpm: player.getBPM(),
+        confidence: player.getBPMConfidence(),
+        phase: player.getBeatPhase(),
+      })
+    }, 100)
+    return () => clearInterval(interval)
+  }, [])
+
+  if (bpmInfo.bpm === 0) {
+    return (
+      <div className="text-white/20 text-[9px] italic pt-1 border-t border-white/5">
+        detecting BPM...
+      </div>
+    )
+  }
+
+  const barWidth = Math.round(bpmInfo.phase * 100)
+  const confidenceColor = bpmInfo.confidence > 0.6 ? 'text-green-400/70' : bpmInfo.confidence > 0.3 ? 'text-yellow-400/70' : 'text-red-400/70'
+
+  return (
+    <div className="flex flex-col gap-0.5 pt-1 border-t border-white/5">
+      <div className="flex justify-between text-[9px]">
+        <span className="text-white/40">BPM</span>
+        <span className={`${confidenceColor} tabular-nums font-mono`}>
+          {bpmInfo.bpm.toFixed(1)} <span className="text-white/20">({(bpmInfo.confidence * 100).toFixed(0)}%)</span>
+        </span>
+      </div>
+      <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-purple-500/50 transition-none"
+          style={{ width: `${barWidth}%` }}
+        />
+      </div>
     </div>
   )
 }
@@ -207,6 +251,7 @@ export function DreamDebugPanel() {
         <Slider label="lowpass freq" field="dreamAudioLowpassFreq" min={200} max={8000} step={100} />
         <Slider label="reverb decay" field="dreamAudioReverbDecay" min={0.5} max={8} step={0.1} />
         <Slider label="reverb wet/dry" field="dreamAudioWetMix" min={0} max={1} />
+        <BPMDisplay />
       </Section>
 
       <div className="text-white/20 text-[9px] text-center pt-1 border-t border-white/5">

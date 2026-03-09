@@ -200,6 +200,9 @@ class DreamAudioPlayer {
       // Write to shared module-level exports
       setAudioBands(currentBass, currentMid, currentHigh, currentEnergy)
 
+      // Run beat detection
+      this.detectBeats()
+
       rafId = requestAnimationFrame(tick)
     }
 
@@ -217,6 +220,140 @@ class DreamAudioPlayer {
     currentHigh = 0
     currentEnergy = 0
     setAudioBands(0, 0, 0, 0)
+  }
+
+  // ── Random seek ──────────────────────────────────────────────────────
+
+  private seekToRandomPosition(audio: HTMLAudioElement): void {
+    const trySeek = () => {
+      if (audio.duration && isFinite(audio.duration) && audio.duration > 20) {
+        // Seek to 5%-70% of the track (avoid intros and outros)
+        const minPos = audio.duration * 0.05
+        const maxPos = audio.duration * 0.7
+        audio.currentTime = minPos + Math.random() * (maxPos - minPos)
+        console.log(`[DreamAudio] Seeked to ${audio.currentTime.toFixed(1)}s / ${audio.duration.toFixed(1)}s`)
+        return true
+      }
+      return false
+    }
+
+    // Try immediately
+    if (trySeek()) return
+
+    // If duration not available, wait for metadata or durationchange
+    const onDuration = () => {
+      audio.removeEventListener('durationchange', onDuration)
+      audio.removeEventListener('loadedmetadata', onDuration)
+      // Small delay to ensure the seek is accepted
+      setTimeout(() => trySeek(), 100)
+    }
+    audio.addEventListener('durationchange', onDuration)
+    audio.addEventListener('loadedmetadata', onDuration)
+
+    // Fallback: try again after 2 seconds
+    setTimeout(() => {
+      audio.removeEventListener('durationchange', onDuration)
+      audio.removeEventListener('loadedmetadata', onDuration)
+      trySeek()
+    }, 2000)
+  }
+
+  // ── BPM Detection (onset detection in bass frequencies) ─────────────
+
+  private currentBPM = 0
+  private beatPhase = 0 // 0-1, where in the current beat we are
+  private lastBeatTime = 0
+  private beatInterval = 0 // ms between beats
+  private onsetHistory: number[] = [] // timestamps of detected bass onsets
+  private prevOnsetEnergy = 0
+  private onsetThreshold = 0.15
+  private bpmConfidence = 0 // 0-1 how confident we are in the detected BPM
+
+  getBPM(): number { return this.currentBPM }
+  getBeatPhase(): number { return this.beatPhase }
+  getBPMConfidence(): number { return this.bpmConfidence }
+
+  private detectBeats(): void {
+    if (!this.analyser || !this.dataArray) return
+
+    // We're already reading FFT data in the analysis loop, so just
+    // look at the bass energy for onset detection
+    const bassEnergy = currentBass
+
+    // Onset detection: look for sudden energy increases in bass
+    const energyDelta = bassEnergy - this.prevOnsetEnergy
+    this.prevOnsetEnergy = bassEnergy * 0.7 + this.prevOnsetEnergy * 0.3 // smoothed envelope
+
+    const now = performance.now()
+
+    if (energyDelta > this.onsetThreshold && now - this.lastBeatTime > 200) {
+      // Detected an onset (beat)
+      this.lastBeatTime = now
+      this.onsetHistory.push(now)
+
+      // Keep last 20 onsets
+      if (this.onsetHistory.length > 20) {
+        this.onsetHistory.shift()
+      }
+
+      // Calculate BPM from inter-onset intervals
+      if (this.onsetHistory.length >= 4) {
+        const intervals: number[] = []
+        for (let i = 1; i < this.onsetHistory.length; i++) {
+          const interval = this.onsetHistory[i]! - this.onsetHistory[i - 1]!
+          // Filter out unreasonable intervals (only keep 70-200 BPM range)
+          if (interval > 300 && interval < 860) {
+            intervals.push(interval)
+          }
+        }
+
+        if (intervals.length >= 3) {
+          // Use median interval for robustness
+          intervals.sort((a, b) => a - b)
+          const medianInterval = intervals[Math.floor(intervals.length / 2)]!
+
+          // Also try double-time and half-time
+          const bpm = 60000 / medianInterval
+          const prevBPM = this.currentBPM
+
+          // Smooth BPM updates (don't jump wildly)
+          if (prevBPM === 0) {
+            this.currentBPM = bpm
+          } else {
+            // Check if new BPM is close to current, double, or half
+            const ratio = bpm / prevBPM
+            if (ratio > 0.9 && ratio < 1.1) {
+              // Close to current — smooth update
+              this.currentBPM = this.currentBPM * 0.8 + bpm * 0.2
+            } else if (ratio > 1.8 && ratio < 2.2) {
+              // Double time — use half
+              this.currentBPM = this.currentBPM * 0.8 + (bpm / 2) * 0.2
+            } else if (ratio > 0.4 && ratio < 0.6) {
+              // Half time — use double
+              this.currentBPM = this.currentBPM * 0.8 + (bpm * 2) * 0.2
+            } else {
+              // Big change — new song section, jump
+              this.currentBPM = bpm
+            }
+          }
+
+          this.beatInterval = 60000 / this.currentBPM
+
+          // Confidence based on variance of intervals
+          const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length
+          const variance = intervals.reduce((a, b) => a + (b - mean) ** 2, 0) / intervals.length
+          const stdDev = Math.sqrt(variance)
+          // Low std dev relative to mean = high confidence
+          this.bpmConfidence = Math.max(0, Math.min(1, 1 - (stdDev / mean) * 3))
+        }
+      }
+    }
+
+    // Update beat phase (where in the current beat we are)
+    if (this.beatInterval > 0) {
+      const elapsed = now - this.lastBeatTime
+      this.beatPhase = (elapsed % this.beatInterval) / this.beatInterval
+    }
   }
 
   // ── Track loading ───────────────────────────────────────────────────
@@ -336,14 +473,49 @@ class DreamAudioPlayer {
         return
       }
 
-      // Set playback rate
+      // Set playback rate (may be overridden by BPM matching later)
       const rate = dbg.dreamAudioRateMin +
         Math.random() * (dbg.dreamAudioRateMax - dbg.dreamAudioRateMin)
       audio.playbackRate = rate
 
-      // Random seek position for variety
-      if (audio.duration && isFinite(audio.duration) && audio.duration > 30) {
-        audio.currentTime = Math.random() * (audio.duration * 0.7)
+      // Random seek — try now, retry after play if duration isn't available yet
+      this.seekToRandomPosition(audio)
+
+      // Beat-matched rate: if we have a confident BPM, try to match it
+      // (within the dreamy slow range — we're not trying to be a real DJ,
+      //  just making things mesh more musically)
+      if (this.currentBPM > 0 && this.bpmConfidence > 0.4) {
+        // Wait briefly for the new track's own natural BPM to be guessable
+        // For now, use the rate range but bias toward matching the beat interval
+        // by slightly adjusting the rate
+        const targetBeatInterval = this.beatInterval
+        if (targetBeatInterval > 0) {
+          // The new track is playing at `rate` speed, so its effective beat
+          // interval would be beatInterval/rate. We want to match the outgoing
+          // track's beat interval. But since we don't know the new track's BPM
+          // yet, we just nudge the rate to create interesting phase relationships.
+          // Use a rate that's a musical ratio (3/4, 2/3, 1/2) of the original
+          const musicalRatios = [0.5, 0.667, 0.75, 0.8, 1.0]
+          const chosenRatio = musicalRatios[Math.floor(Math.random() * musicalRatios.length)]!
+          const matchedRate = rate * chosenRatio
+          // Clamp to DJ Screw range
+          const clampedRate = Math.max(dbg.dreamAudioRateMin, Math.min(dbg.dreamAudioRateMax, matchedRate))
+          audio.playbackRate = clampedRate
+          console.log(`[DreamAudio] Beat-matched rate: ${clampedRate.toFixed(3)}x (ratio: ${chosenRatio}, BPM: ${this.currentBPM.toFixed(1)}, confidence: ${this.bpmConfidence.toFixed(2)})`)
+        }
+      }
+
+      // Beat-aligned crossfade: wait for next beat boundary before starting the fade
+      if (this.beatInterval > 0 && this.bpmConfidence > 0.3) {
+        const msUntilNextBeat = this.beatInterval * (1 - this.beatPhase)
+        if (msUntilNextBeat > 50 && msUntilNextBeat < this.beatInterval) {
+          await new Promise(r => setTimeout(r, msUntilNextBeat))
+          if (this.abortController?.signal.aborted) {
+            audio.pause()
+            audio.src = ''
+            return
+          }
+        }
       }
 
       // If there's a current track, crossfade
@@ -391,7 +563,11 @@ class DreamAudioPlayer {
       // Start analysis loop
       this.startAnalysisLoop()
 
-      console.log(`[DreamAudio] Playing ${videoId} at ${rate.toFixed(2)}x`)
+      // Reset onset history for the new track (keep currentBPM as reference)
+      this.onsetHistory = []
+      this.prevOnsetEnergy = 0
+
+      console.log(`[DreamAudio] Playing ${videoId} at ${audio.playbackRate.toFixed(3)}x`)
     } catch (err) {
       if (this.abortController?.signal.aborted) return
       console.warn('[DreamAudio] Failed to play track:', err)
