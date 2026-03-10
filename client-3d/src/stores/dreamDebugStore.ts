@@ -80,7 +80,7 @@ export interface DreamDebugState {
 const DEFAULTS = {
   showPanel: false,
 
-  dreamRenderScale: 0.35,
+  dreamRenderScale: 0.7,
 
   chromaAberration: true,
   chromaStrength: 1.0,
@@ -99,13 +99,13 @@ const DEFAULTS = {
   vignetteSize: 0.3,
   saturation: 2.2,
 
-  vhsEffect: false,
+  vhsEffect: true,
   vhsStrength: 0.7,
 
   transitionDuration: 5000,
 
-  blendMode: 'difference' as BlendMode,
-  blendOpacity: 0.5,
+  blendMode: (Math.random() < 0.5 ? 'add' : 'difference') as BlendMode,
+  blendOpacity: 0.81,
 
   scanlines: false,
   scanlineCount: 0,
@@ -113,27 +113,27 @@ const DEFAULTS = {
   scanlineIntensity: 0.5,
   scanlineScrollSpeed: 0,
 
-  interferenceLines: false,
+  interferenceLines: true,
   interferenceIntensity: 0.3,
   frameGhosting: false,
   frameGhostIntensity: 0.3,
   signalDropout: false,
   signalDropoutIntensity: 0.1,
 
-  playbackRateMin: 0.5,
-  playbackRateMax: 0.8,
+  playbackRateMin: 0.7,
+  playbackRateMax: 0.9,
   randomCuts: true,
   randomCutChance: 0.95,
   cutIntervalMin: 3_000,
   cutIntervalMax: 20_000,
 
   dreamAudioEnabled: true,
-  dreamAudioRateMin: 0.5,
-  dreamAudioRateMax: 0.8,
+  dreamAudioRateMin: 0.7,
+  dreamAudioRateMax: 0.9,
   dreamAudioReverbDecay: 4.0,
   dreamAudioLowpassFreq: 2000,
   dreamAudioVolume: 0.6,
-  dreamAudioWetMix: 0.7,
+  dreamAudioWetMix: 0.47,
   dreamAudioLayerCount: 2,
 
 }

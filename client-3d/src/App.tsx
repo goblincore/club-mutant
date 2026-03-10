@@ -5,6 +5,7 @@ import { useGameStore } from './stores/gameStore'
 import { useUIStore } from './stores/uiStore'
 import { useAuthStore } from './stores/authStore'
 import { usePlaylistStore } from './stores/playlistStore'
+import { useDreamStore } from './dream/dreamStore'
 import { AuthScreen } from './ui/AuthScreen'
 import { ProfileBadge } from './ui/ProfileBadge'
 import { NotificationBell } from './ui/NotificationBell'
@@ -145,8 +146,11 @@ function MainApp() {
     return <AuthScreen />
   }
 
+  // Hide social nav in dream mode
+  const isDreaming = useDreamStore((s) => s.isDreaming)
+
   // Badge/bell: fixed overlay, always on top regardless of lobby or game view
-  const socialBar = isAuthenticated && (
+  const socialBar = isAuthenticated && !isDreaming && (
     <div className="fixed top-3 right-3 flex items-center gap-2" style={{ zIndex: 200 }}>
       <NotificationBell />
       <FriendsSidebar />
