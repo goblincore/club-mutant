@@ -131,9 +131,9 @@ const DEFAULTS = {
   dreamAudioRateMin: 0.7,
   dreamAudioRateMax: 0.9,
   dreamAudioReverbDecay: 4.0,
-  dreamAudioLowpassFreq: 2000,
-  dreamAudioVolume: 0.6,
-  dreamAudioWetMix: 0.47,
+  dreamAudioLowpassFreq: 3000,
+  dreamAudioVolume: 1.0,
+  dreamAudioWetMix: 1.0,
   dreamAudioLayerCount: 2,
 
 }
