@@ -4,6 +4,7 @@ import { getNetwork } from '../network/NetworkManager'
 import { useToastStore } from '../stores/toastStore'
 import { useGameStore } from '../stores/gameStore'
 import { useJukeboxStore } from '../stores/jukeboxStore'
+import { useBoothStore } from '../stores/boothStore'
 import { usePlaylistStore, type PlaylistTrack } from '../stores/playlistStore'
 
 interface SearchResult {
@@ -54,8 +55,10 @@ export function MyPlaylistsPanel() {
   const musicMode = useGameStore((s) => s.musicMode)
   const mySessionId = useGameStore((s) => s.mySessionId)
   const jukeboxOccupantId = useJukeboxStore((s) => s.occupantId)
+  const djQueue = useBoothStore((s) => s.djQueue)
   const isJukeboxMode = musicMode === 'jukebox' || musicMode === 'personal'
-  const canAddToQueue = !isJukeboxMode || jukeboxOccupantId === mySessionId
+  const isInDjQueue = djQueue.some((e) => e.sessionId === mySessionId)
+  const canAddToQueue = isJukeboxMode ? jukeboxOccupantId === mySessionId : isInDjQueue
   const queueLabel = isJukeboxMode ? 'jukebox' : 'dj queue'
 
   const playlists = usePlaylistStore((s) => s.playlists)
