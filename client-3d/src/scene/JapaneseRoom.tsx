@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 
+import { getNetwork } from '../network/NetworkManager'
 import { useGameStore, getPlayerPosition } from '../stores/gameStore'
 import { useUIStore } from '../stores/uiStore'
 import { TatamiFloorMaterial } from '../shaders/TatamiFloorMaterial'
@@ -192,30 +193,10 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
         <StripedWallMaterial repeat={[8, 1]} />
       </mesh>
 
-      {/* Back wall attachments: ocean window + shelves */}
+      {/* Back wall attachments: ocean window */}
       <group ref={setWallAttachmentRef(0)}>
-        {/* Ocean view window — centered on back wall */}
-        <OceanWindow position={[0, WALL_HEIGHT * 0.6, -HALF_D + 0.03]} size={[3.0, 1.4]} />
-
-        {/* Wooden shelf to the right of the window */}
-        <GLBModel
-          src="/models/wooden-shelf.glb"
-          position={[HALF_W - 1.0, 0, -(HALF_D - 0.25)]}
-        />
-
-        {/* Trophies on the shelf */}
-        <GLBModel
-          src="/models/trophy.glb"
-          position={[HALF_W - 1.3, 0.57, -(HALF_D - 0.25)]}
-        />
-        <GLBModel
-          src="/models/trophy.glb"
-          position={[HALF_W - 1.0, 0.57, -(HALF_D - 0.25)]}
-        />
-        <GLBModel
-          src="/models/trophy.glb"
-          position={[HALF_W - 0.7, 0.57, -(HALF_D - 0.25)]}
-        />
+        {/* Ocean view window — left of center on back wall */}
+        <OceanWindow position={[-1.0, WALL_HEIGHT * 0.6, -HALF_D + 0.03]} size={[3.0, 1.4]} />
       </group>
 
       {/* ── Left wall (-X) — red/white stripes ── */}
@@ -228,8 +209,29 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
         <StripedWallMaterial repeat={[7, 1]} />
       </mesh>
 
-      {/* Left wall attachments (empty for now) */}
-      <group ref={setWallAttachmentRef(1)} />
+      {/* Left wall attachments: metal shelf + trophies */}
+      <group ref={setWallAttachmentRef(1)}>
+        <GLBModel
+          src="/models/wooden-shelf.glb"
+          position={[-(HALF_W - 0.25), 0, 0]}
+          rotation={[0, Math.PI / 2, 0]}
+          colorOverride="#7a7a7a"
+          emissiveOverride="#888888"
+          emissiveIntensity={0.15}
+        />
+        <GLBModel
+          src="/models/trophy.glb"
+          position={[-(HALF_W - 0.25), 0.57, -0.3]}
+        />
+        <GLBModel
+          src="/models/trophy.glb"
+          position={[-(HALF_W - 0.25), 0.57, 0]}
+        />
+        <GLBModel
+          src="/models/trophy.glb"
+          position={[-(HALF_W - 0.25), 0.57, 0.3]}
+        />
+      </group>
 
       {/* ── Right wall (+X) — red/white stripes ── */}
       <mesh
@@ -250,9 +252,73 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
         <StripedWallMaterial repeat={[8, 1]} />
       </mesh>
 
-      {/* Front wall attachments: shoji door */}
+      {/* Front wall attachments: blue exit door */}
       <group ref={setWallAttachmentRef(3)}>
-        <GLBModel src="/models/shoji-door.glb" position={[0, 0, HALF_D - 0.02]} />
+        <InteractableObject
+          interactDistance={2.0}
+          onInteract={() => useUIStore.getState().setLeaveRoomPromptOpen(true)}
+        >
+          <group position={[0, 0, HALF_D - 0.02]}>
+            {/* Door frame — stone/cream surround */}
+            {/* Top */}
+            <mesh position={[0, 1.55, 0.01]}>
+              <boxGeometry args={[0.95, 0.1, 0.06]} />
+              <meshStandardMaterial color="#c8bfa8" />
+            </mesh>
+            {/* Left */}
+            <mesh position={[-0.425, 0.75, 0.01]}>
+              <boxGeometry args={[0.1, 1.5, 0.06]} />
+              <meshStandardMaterial color="#c8bfa8" />
+            </mesh>
+            {/* Right */}
+            <mesh position={[0.425, 0.75, 0.01]}>
+              <boxGeometry args={[0.1, 1.5, 0.06]} />
+              <meshStandardMaterial color="#c8bfa8" />
+            </mesh>
+            {/* Door panel — deep navy blue */}
+            <mesh position={[0, 0.75, 0]}>
+              <boxGeometry args={[0.75, 1.5, 0.05]} />
+              <meshStandardMaterial color="#1a1a5e" emissive="#1a1a5e" emissiveIntensity={0.08} />
+            </mesh>
+            {/* Upper panels (recessed details) */}
+            <mesh position={[-0.15, 1.25, 0.027]}>
+              <boxGeometry args={[0.22, 0.22, 0.008]} />
+              <meshStandardMaterial color="#222270" emissive="#222270" emissiveIntensity={0.05} />
+            </mesh>
+            <mesh position={[0.15, 1.25, 0.027]}>
+              <boxGeometry args={[0.22, 0.22, 0.008]} />
+              <meshStandardMaterial color="#222270" emissive="#222270" emissiveIntensity={0.05} />
+            </mesh>
+            {/* Middle panels */}
+            <mesh position={[-0.15, 0.8, 0.027]}>
+              <boxGeometry args={[0.22, 0.35, 0.008]} />
+              <meshStandardMaterial color="#222270" emissive="#222270" emissiveIntensity={0.05} />
+            </mesh>
+            <mesh position={[0.15, 0.8, 0.027]}>
+              <boxGeometry args={[0.22, 0.35, 0.008]} />
+              <meshStandardMaterial color="#222270" emissive="#222270" emissiveIntensity={0.05} />
+            </mesh>
+            {/* Lower panels */}
+            <mesh position={[-0.15, 0.3, 0.027]}>
+              <boxGeometry args={[0.22, 0.3, 0.008]} />
+              <meshStandardMaterial color="#222270" emissive="#222270" emissiveIntensity={0.05} />
+            </mesh>
+            <mesh position={[0.15, 0.3, 0.027]}>
+              <boxGeometry args={[0.22, 0.3, 0.008]} />
+              <meshStandardMaterial color="#222270" emissive="#222270" emissiveIntensity={0.05} />
+            </mesh>
+            {/* Door handle — brass */}
+            <mesh position={[0.28, 0.75, 0.04]}>
+              <boxGeometry args={[0.02, 0.12, 0.03]} />
+              <meshStandardMaterial color="#c4a44a" metalness={0.8} roughness={0.3} />
+            </mesh>
+            {/* Mail slot — brass */}
+            <mesh position={[0, 0.45, 0.03]}>
+              <boxGeometry args={[0.2, 0.03, 0.02]} />
+              <meshStandardMaterial color="#c4a44a" metalness={0.8} roughness={0.3} />
+            </mesh>
+          </group>
+        </InteractableObject>
       </group>
 
       {/* ── Furniture ── */}
@@ -269,10 +335,10 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
         />
       </InteractableObject>
 
-      {/* Computer desk against the left wall, facing into the room */}
+      {/* Computer desk centered in front of the window */}
       <GLBModel
         src="/models/low-computer-desk.glb"
-        position={[-(HALF_W - 0.9), 0, -(HALF_D - 1.0)]}
+        position={[0, 0, -(HALF_D - 1.0)]}
       />
 
       {/* Egg computer on the desk — interactable */}
@@ -283,14 +349,14 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
       >
         <GLBModel
           src="/models/retro-computer.glb"
-          position={[-(HALF_W - 0.9), 0.36, -(HALF_D - 1.0)]}
+          position={[0, 0.36, -(HALF_D - 1.0)]}
         />
       </InteractableObject>
 
       {/* Zabuton in front of the computer desk */}
       <GLBModel
         src="/models/zabuton.glb"
-        position={[-(HALF_W - 0.9), 0, -(HALF_D - 2.2)]}
+        position={[0, 0, -(HALF_D - 2.2)]}
       />
 
       {/* Low table with flower vase — center of the room */}
@@ -306,7 +372,10 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
       {/* Boombox on the low table — interactable, opens playlist panel */}
       <InteractableObject
         interactDistance={2.0}
-        onInteract={() => useUIStore.getState().setDjQueueOpen(true)}
+        onInteract={() => {
+          getNetwork().jukeboxConnect()
+          useUIStore.getState().setDjQueueOpen(true)
+        }}
       >
         <group position={[1.0, 0.21, 0.5]} rotation={[0, -0.3, 0]}>
           {/* Placeholder boombox (will be replaced by GLB model) */}
@@ -367,10 +436,10 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
         src="/models/candle.glb"
         position={[HALF_W - 1.5, 0, 0.8]}
       />
-      {/* Candle near the computer desk */}
+      {/* Candle near the left wall */}
       <GLBModel
         src="/models/candle.glb"
-        position={[-(HALF_W - 0.3), 0, -(HALF_D - 2.5)]}
+        position={[-(HALF_W - 0.5), 0, -0.5]}
       />
 
       {/* ── Skybox — nighttime ── */}
@@ -389,14 +458,14 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
       {/* Candle near futon */}
       <pointLight position={[HALF_W - 1.5, 0.2, 0.8]} intensity={0.4} color="#ff8833" distance={3} decay={2} />
 
-      {/* Candle near computer desk */}
-      <pointLight position={[-(HALF_W - 0.3), 0.2, -(HALF_D - 2.5)]} intensity={0.4} color="#ff8833" distance={3} decay={2} />
+      {/* Candle near left wall */}
+      <pointLight position={[-(HALF_W - 0.5), 0.2, -0.5]} intensity={0.4} color="#ff8833" distance={3} decay={2} />
 
       {/* Computer screen glow — purple-pink spill */}
-      <pointLight position={[-(HALF_W - 0.9), 0.6, -(HALF_D - 1.0)]} intensity={0.3} color="#cc88ff" distance={2.5} decay={2} />
+      <pointLight position={[0, 0.6, -(HALF_D - 1.0)]} intensity={0.3} color="#cc88ff" distance={2.5} decay={2} />
 
       {/* Moonlight from the window — faint cool accent */}
-      <pointLight position={[0, 1.5, -(HALF_D - 0.3)]} intensity={0.15} color="#8899cc" distance={4} decay={2} />
+      <pointLight position={[-1.0, 1.5, -(HALF_D - 0.3)]} intensity={0.15} color="#8899cc" distance={4} decay={2} />
     </group>
   )
 }

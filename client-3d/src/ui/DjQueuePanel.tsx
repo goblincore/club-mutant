@@ -176,7 +176,7 @@ export function DjQueuePanel() {
 
           <button
             onClick={() => {
-              if (isJukeboxOccupant) getNetwork().jukeboxDisconnect()
+              if (isJukeboxOccupant && musicMode !== 'personal') getNetwork().jukeboxDisconnect()
               useUIStore.getState().setDjQueueOpen(false)
             }}
             className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white transition-colors rounded hover:bg-white/10 flex-shrink-0"
@@ -192,9 +192,9 @@ export function DjQueuePanel() {
           {jukeboxOccupantId && (
             <div className="text-[11px] font-mono mb-1">
               {isJukeboxOccupant ? (
-                <span className="text-green-400">● you are using the jukebox</span>
+                <span className="text-green-400">● you are using the {musicMode === 'personal' ? 'boombox' : 'jukebox'}</span>
               ) : (
-                <span className="text-amber-400">● {jukeboxOccupantName} is using the jukebox</span>
+                <span className="text-amber-400">● {jukeboxOccupantName} is using the {musicMode === 'personal' ? 'boombox' : 'jukebox'}</span>
               )}
             </div>
           )}
@@ -338,7 +338,7 @@ export function DjQueuePanel() {
                       </button>
                     </>
                   ) : (
-                    <p>no tracks in the jukebox yet</p>
+                    <p>no tracks in the {musicMode === 'personal' ? 'boombox' : 'jukebox'} yet</p>
                   )}
                 </div>
               )}
