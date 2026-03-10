@@ -120,7 +120,7 @@ const DEFAULTS = {
   signalDropout: false,
   signalDropoutIntensity: 0.1,
 
-  playbackRateMin: 0.7,
+  playbackRateMin: 0.6,
   playbackRateMax: 0.9,
   randomCuts: true,
   randomCutChance: 0.95,
@@ -130,10 +130,10 @@ const DEFAULTS = {
   dreamAudioEnabled: true,
   dreamAudioRateMin: 0.7,
   dreamAudioRateMax: 0.9,
-  dreamAudioReverbDecay: 4.0,
+  dreamAudioReverbDecay: 2.10,
   dreamAudioLowpassFreq: 3000,
   dreamAudioVolume: 1.0,
-  dreamAudioWetMix: 1.0,
+  dreamAudioWetMix: 0.4,
   dreamAudioLayerCount: 2,
 
 }
