@@ -7,6 +7,7 @@ import { DreamGenerativeMaterial } from '../shaders/DreamGenerativeMaterial'
 import { useDreamDebugStore } from '../stores/dreamDebugStore'
 import { getDreamAudioPlayer } from '../audio/DreamAudioPlayer'
 import { DreamDebugPanel } from './DreamDebugPanel'
+import { DreamWakeButton } from './DreamWakeButton'
 // import { DreamAcsCharacter } from './DreamAcsCharacter'
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -581,6 +582,7 @@ export function DreamScene() {
         <DreamLayer />
       </Canvas>
       {showPanel && <DreamDebugPanel />}
+      <DreamWakeButton />
     </div>
   )
 }

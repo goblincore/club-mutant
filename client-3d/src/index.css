@@ -18,3 +18,14 @@ body,
   color: white;
   font-family: 'JetBrains Mono', monospace;
 }
+
+@keyframes dreamZ {
+  0%, 100% {
+    opacity: 0.15;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.6;
+    transform: translateY(-4px);
+  }
+}
