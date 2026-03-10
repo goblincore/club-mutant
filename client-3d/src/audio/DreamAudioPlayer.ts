@@ -449,6 +449,9 @@ class DreamAudioPlayer {
         return
       }
 
+      // Disable browser pitch correction — we WANT pitch to drop with speed (DJ Screw)
+      audio.preservesPitch = false
+
       // Set playback rate
       const rate = dbg.dreamAudioRateMin +
         Math.random() * (dbg.dreamAudioRateMax - dbg.dreamAudioRateMin)
