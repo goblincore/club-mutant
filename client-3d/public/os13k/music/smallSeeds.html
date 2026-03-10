@@ -1,0 +1,27 @@
+<style>body{background:#111;color:#fff;user-select:none;text-align:center}</style>
+Length <input type=number id=L value=1 style=width:50>
+Randomness <input type=number id=R value=.05 style=width:50>
+Frequency <input type=number id=F style=width:50>&nbsp;&nbsp;
+<button onmousedown=o(y-=108)>◀</button>
+<button onmousedown=o(y+=108)>▶</button>
+<hr><div id=S>
+<script>
+
+p=p=>
+{
+    x&&x.stop();
+    x=OS13k.PlaySeed(p,L.value,1,R.value,F.value?F.value:undefined);
+}
+
+o=e=>
+{
+    S.innerHTML = '';
+    for(i=y;i<y+108;)
+        S.innerHTML += 
+        `<input value=${i} style=width:50 readonly onfocus=p(${i}) onmousedown=p(${i++})>` + ((i%9+9)%9 ? '' : '<br>')
+}
+
+x = 0;
+o(y = -9);
+
+</script>

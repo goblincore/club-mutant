@@ -1,0 +1,313 @@
+
+<!--
+
+OS13k is a tiny operating system designed for JS13k.
+It has native support for Shadertoys, Dweets, ZzFX, trophies, and more.
+https://github.com/KilledByAPixel/OS13k
+
+❤️ OS13k Team ✌️😄
+
+-->
+<head></head><body>
+<title>OS13k - A Tiny JavaScript OS</title>
+<link rel=icon type=image/x-icon href='favicon.ico'/>
+<meta name="title" content="OS13k"></meta>
+<meta name="author" content="Frank Force"></meta>
+<meta name="description" content="A Fantasy OS and Tiny Game Engine for Creative Coding"></meta>
+<meta name=viewport content='width=device-width,initial-scale=1,user-scalable=0'>
+<meta charset=utf-8>
+<script src=music/songs/cuddly.js?9></script>
+<script src=music/songs/iamback.js?9></script>
+<script src=music/songs/sanxion.js?9></script>
+<script src=music/songs/depp.js?9></script>
+<script src=music/songs/packabunchas.js?9></script>
+<script src=music/songs/captaincallisto.js?9></script>
+
+<!-- HTML above is OPTIONAL -->
+
+<style>
+body
+{
+    opacity:0;
+    margin:0;
+    overflow:hidden;
+    font-family:arial;
+    font-size:22;
+    user-select:none;
+    white-space:nowrap;
+    background:#000;
+}
+#menu
+{
+    display:flex;
+    flex-direction:column;
+    background:#000;
+}
+.programMenu { background:linear-gradient(#fff,#888); }
+#menu, .programMenu
+{
+    visibility:hidden;
+    position:absolute;
+    z-index:20000;
+    box-shadow:5px 5px 9px;
+    border:2px solid;
+}
+.program
+{
+    font-size:18;
+    height:18;
+    padding:4;
+}
+.activeWindow { border:3px solid#aaa; }
+.desktopIcon 
+{ 
+    width:99;
+    height:99;
+    padding:9;
+    font-size:15;
+    color:#fff;
+    text-shadow:1px 1px 2px#000; 
+    overflow:hidden;
+    text-align:center;
+    white-space:normal;
+}
+.desktopIcon:hover         { background:linear-gradient(#ff8,#fff); }
+.desktopIconIcon           { color:#000; font-size:36; margin:4; pointer-events:none; }
+#taskbar
+{
+    position:absolute;
+    z-index:10000;
+    width:100%;
+    background:linear-gradient(#888,#333);
+    box-shadow:0px 1px 9px;
+    border:2px solid;
+    left:-2;
+}
+.taskbarIcon { width:50; height:40; text-shadow:1px 1px 3px#000; overflow:hidden; }
+.programActive,
+.taskbarIconActive         { background:linear-gradient(#ff8,#fff); }
+.taskbarIcon:hover         { background:linear-gradient(#fff,#44f); }
+#tray
+{
+    margin:2;
+    padding-left:9;
+    padding-right:9;
+    color:#fff;
+    background:linear-gradient(#000,#333);
+    border:1px solid;
+    border-radius:6px;
+    text-shadow:1px 1px 3px#000;
+}
+.trayIcon       { padding:2; }
+.trayIcon:hover { background:#fff3; }
+.popup
+{
+    position:relative;
+    z-index:10000;
+    width:200;
+    padding:8;
+    white-space:normal;
+    text-align:center;
+    background:linear-gradient(#eee,#888);
+    box-shadow:9px 9px 19px;
+    border:2px solid;
+    border-radius:9px;
+}
+.trophyIcon
+{
+    padding:9;
+    font-size:40;
+    text-shadow:2px 2px 4px;
+    white-space:nowrap;
+}
+#background
+{
+    opacity:0;
+    position:absolute;
+    width:100%;
+    height:100%;
+    color:#0003;
+    font-family:impact;
+    font-size:28vw;
+    font-weight:900;
+}
+.program, #taskbar, .taskbarIcon, #background, #tray
+{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+}
+</style>
+<div id=background></div>
+<div id=desktop>
+<div id=taskbar>
+<div id=taskbarSpace style=flex:1></div>
+<div id=tray></div>
+</div>
+<div id=popups style=float:right></div>
+<div id=programsMenu style=position:absolute></div>
+<div id=menu></div>
+<div id=desktopIcons style=position:absolute;top:60;display:flex;flex-wrap:wrap>
+<iframe id=windowTemplate style=display:none>
+<style>
+:host
+{
+    position:absolute;
+    background:#000;
+    box-shadow:5px 5px 9px;
+    border:3px solid#222;
+    border-radius:6px;
+    overflow:hidden;
+}
+.desktopIcon 
+{ 
+    width:99;
+    height:99;
+    padding:9;
+    font-size:15;
+    color:#fff;
+    text-shadow:1px 1px 2px#000; 
+    overflow:hidden;
+    text-align:center;
+    white-space:normal;
+}
+.desktopIcon:hover         { background:linear-gradient(#ff8,#fff); }
+.desktopIconIcon           { color:#000; font-size:36; margin:4; pointer-events:none; }
+input, button, span { margin:4; }
+textarea            { padding:9; }
+span                { white-space:nowrap; }
+.titlebar
+{
+    height:34;
+    font-size:24;
+    display:flex;
+    align-items:center;
+    white-space:nowrap;
+    background:linear-gradient(#ccc,#444);
+    border-bottom:3px solid;
+}
+.titlebarActive       { background:linear-gradient(#eee,#88f); }
+.titlebarActiveUser   { background:linear-gradient(#eee,#8f8); }
+.titlebarActiveSticky { background:linear-gradient(#eee,#f88); }
+.titlebarSticky       { background:linear-gradient(#ccc,#844); }
+.folder
+{
+    background:linear-gradient(#888,#333);
+    display:flex;
+    flex-wrap:wrap;
+    align-content:flex-start;
+    overflow-y:auto;
+}
+#name                 { width:100%; overflow:hidden; cursor:grab; }
+#icon           
+{ 
+    display:inline;
+    text-shadow:1px 1px 3px#000;
+    margin-left:9;
+    margin-right:9;
+    pointer-events:none;
+}
+#frame
+{
+    width:100%;
+    height:100%;
+    background:#fff;
+    border:none;
+    visibility:hidden;
+}
+#codeText
+{
+    height:199;
+    background:#000;
+    color:#fff;
+}
+#errorText
+{
+    background:#000;
+    color:#f00;
+}
+#codeOptions
+{
+    background:#111;
+    color:#fff;
+    font-size:16;
+    overflow:auto;
+}
+#codeText, #errorText, #codeOptions
+{
+    width:100%;
+    resize:none;
+    outline:0;
+    border-top:2px solid;
+}
+</style>
+</iframe>
+<script>
+
+///////////////////////////////////////////////////////////////////////////////
+// OS13k Version Check
+
+const OS13kVersion = 81;
+{
+    // version check, clear local storage if older
+    if (localStorage.OS13k && localStorage.OS13kVersion != OS13kVersion)
+    {
+        alert('OS13k version out of date! System reset in 3, 2, 1...');
+
+        delete localStorage.OS13k;
+        //localStorage.clear();
+    }
+
+    localStorage.OS13kVersion = OS13kVersion;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Minification Notes
+
+// 1. Combine all js files into index.html
+// 2. HTML Minifier http://minifycode.com/html-minifier/
+// 3. Google Closure https://closure-compiler.appspot.com/home
+// 4. JavaScript Minifier https://javascript-minifier.com/
+// 5. Zip
+// 6. Advzip "advzip -z -4 -i 1000 OS13kMin.zip"
+
+// ==ClosureCompiler==
+// @compilation_level ADVANCED_OPTIMIZATIONS
+// @language_out ECMASCRIPT_2019
+// @js_externs OS13k.Clamp, OS13k.Percent, OS13k.Lerp, OS13k.Hash
+// @js_externs OS13k.Random, OS13k.randomSeed, iframeContent.OS13kReload
+// @js_externs OS13k.Trophies, OS13k.Trophy, OS13k.GetTrophy
+// @js_externs OS13k.PlaySamples, OS13k.Note, OS13k.PianoKey
+// @js_externs OS13k.PlayMusic, OS13k.GetAnalyser, OS13k.GetAnalyserData
+// @js_externs OS13k.Speak, OS13k.StopSpeech, OS13k.PlaySeed
+// @js_externs OS13k.SeedSamples, OS13k.SeedParameters
+// @js_externs OS13k.Settings, OS13k.SaveSettings, OS13k.Input
+// @js_externs OS13k.CreateShader, OS13k.RenderShader
+// @js_externs OS13k.KeyDirection, OS13k.StripHTML, OS13k.StringToMusic, OS13k.Popup
+// @js_externs localStorage.OS13k, localStorage.OS13kVersion, OS13k, source.gain
+// @js_externs iframeContent, iframeContent.OS13k, iframeContent.OS13kWindow
+// @js_externs iframeContent.zzfx, zzfx, zzfxG, zzfxM
+// @js_externs settings.v, settings.m, settings.s, settings.p, settings.o
+// @js_externs settings.c, settings.d, settings.t, settings.f
+// @js_externs window.document.OS13kInput.x
+// @js_externs window.document.OS13kInput.y
+// @js_externs window.document.OS13kInput.keypress
+// @js_externs window.document.OS13kInput.mousepress
+// @js_externs window.document.OS13kInput.keydown
+// @js_externs window.document.OS13kInput.mousedown
+// @js_externs window.document.OS13kInput.mousex
+// @js_externs window.document.OS13kInput.mousey
+// @output_file_name OS13k.min.js
+// ==/ClosureCompiler==
+
+</script>
+<script src=OS13k\OS13kProgramMenu.js?338></script>
+<script src=OS13k\OS13kProgram.js?338></script>
+<script src=OS13k\OS13kWindow.js?338></script>
+<script src=OS13k\OS13kTaskbarIcon.js?338></script>
+<script src=OS13k\OS13kTrayIcon.js?338></script>
+<script src=OS13k\OS13kDesktopIcon.js?338></script>
+<script src=OS13k\OS13kZzFX.js?338></script>
+<script src=programs.js?338></script>
+<script src=OS13k\OS13k.js?338></script>
+<script src=OS13k\OS13kInput.js?338></script>

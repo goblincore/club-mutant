@@ -1,0 +1,55 @@
+<style>body{background:#111;color:#fff;user-select:none;text-align:center}</style>
+Volume <input type=range id=V oninput=s() style=width:99>
+Music <input type=range id=M oninput=s() style=width:99><p>
+System Sounds <input type=checkbox id=Y oninput=s()>
+Speech <input type=checkbox id=S oninput=s()>
+Popups <input type=checkbox id=P oninput=s()>
+<br><br>Background
+<input id=C type=color oninput=s()>
+<input id=D type=color oninput=s()>
+<input id=T oninput=s()><p>Filters
+<span id=F><script>
+
+// save settings and rebuild
+s = e=>parent.OS13k.SaveSettings
+(
+    V.value / 100,  // volume
+    M.value / 100,  // music volume
+    S.checked,      // speech
+    P.checked,      // system sounds
+    Y.checked,      // popups
+    D.value,        // color 1
+    C.value,        // color 2
+    T.value,        // background text
+    t,              // filter
+    F.innerHTML = '',                         // init filters
+    [   ['Default',  ''],
+        ['Gray',     'grayscale('],
+        ['Game Boy', 'sepia()hue-rotate(40deg)contrast(.8)brightness(.8'],
+        ['Ocean',    'invert()sepia()invert('],
+        ['Sepia',    'sepia('],
+        ['Fruity',   'saturate(9',]
+    ].map(e=>                                 // rebuilld filters
+        F.innerHTML +=                        // add to html
+        `<button style='border:5px solid${    // create button
+            e[1] == t ? '#f00' : '#111'       // selected color
+            }'onmousedown=s(t='${ e[1] }')>`  // set filter
+            + e[0]                            // set button text
+    )
+);
+
+// build settings
+s(
+    i = parent.OS13k.Settings(),  // load settings
+    V.value   = i.v * 100,        // volume
+    M.value   = i.m * 100,        // music volume
+    S.checked = i.s,              // speech
+    P.checked = i.p,              // popups
+    Y.checked = i.o,              // system sounds
+    C.value   = i.d,              // color 1
+    D.value   = i.c,              // color 2
+    T.value   = i.t,              // background text
+    t = i.f || 0                  // filter
+);
+
+</script>
