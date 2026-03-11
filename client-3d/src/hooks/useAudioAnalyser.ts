@@ -16,6 +16,7 @@ export let audioHigh = 0
 export let audioEnergy = 0
 export let audioAnalyserActive = false
 export let audioBeatKick = 0 // 0-1, spikes on detected bass kick
+export let audioSnareHit = 0 // 0-1, spikes on detected snare hit
 
 // Setter for external writers (DreamAudioPlayer uses this during dream state)
 export function setAudioBands(bass: number, mid: number, high: number, energy: number): void {
@@ -28,6 +29,10 @@ export function setAudioBands(bass: number, mid: number, high: number, energy: n
 
 export function setAudioBeatKick(kick: number): void {
   audioBeatKick = kick
+}
+
+export function setAudioSnareHit(snare: number): void {
+  audioSnareHit = snare
 }
 
 // ── Singleton AudioContext ─────────────────────────────────────────────

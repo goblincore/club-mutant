@@ -9,6 +9,7 @@ import {
   audioEnergy,
   audioAnalyserActive,
   audioBeatKick,
+  audioSnareHit,
 } from '../hooks/useAudioAnalyser'
 import { useDreamDebugStore } from '../stores/dreamDebugStore'
 
@@ -85,6 +86,9 @@ uniform float uDropoutIntensity;
 
 // Beat kick (0-1, spikes on bass hit then decays)
 uniform float uBeatKick;
+
+// Snare hit (0-1, spikes on snare then decays — faster than kick)
+uniform float uSnareHit;
 
 uniform float uDriftZoom;
 
@@ -398,6 +402,41 @@ void main() {
     }
   }
 
+  // 11c. Snare hit effects — chromatic burst, scan distortion, hue flash
+  // Designed to look great during snare rolls (rapid-fire hits)
+  if (uSnareHit > 0.01) {
+    // Chromatic aberration burst: RGB channels split horizontally on snare
+    // This creates a "shatter" look that stacks beautifully during rolls
+    float snareCA = uSnareHit * 0.012;
+    vec2 snareDir = vec2(1.0, 0.0); // horizontal split
+    float sR = texture2D(uVideoTex, uv + snareDir * snareCA).r;
+    float sB = texture2D(uVideoTex, uv - snareDir * snareCA).b;
+    video.r = mix(video.r, sR, uSnareHit * 0.7);
+    video.b = mix(video.b, sB, uSnareHit * 0.7);
+
+    // Horizontal scanline tear: offset a thin band of pixels
+    float tearY = fract(uTime * 7.0 + uSnareHit * 3.0);
+    float tearBand = smoothstep(0.0, 0.02, abs(vUv.y - tearY));
+    float tearOffset = (1.0 - tearBand) * uSnareHit * 0.03;
+    vec3 tearSample = texture2D(uVideoTex, uv + vec2(tearOffset, 0.0)).rgb;
+    video.rgb = mix(video.rgb, tearSample, (1.0 - tearBand) * uSnareHit * 0.5);
+
+    // Hue shift flash: rapid color rotation that stacks during rolls
+    vec3 snareHsv = rgb2hsv(video.rgb);
+    snareHsv.x = fract(snareHsv.x + uSnareHit * 0.15);
+    // Boost saturation on snare for vivid color pops
+    snareHsv.y = min(1.0, snareHsv.y + uSnareHit * 0.3);
+    vec3 snareRgb = hsv2rgb(snareHsv);
+    video.rgb = mix(video.rgb, snareRgb, uSnareHit * 0.4);
+
+    // High-frequency noise shimmer on strong snares (the "crack" texture)
+    if (uSnareHit > 0.25) {
+      float fineNoise = hash(vUv * uResolution + vec2(floor(uTime * 60.0)));
+      float shimmer = (uSnareHit - 0.25) * 0.15;
+      video.rgb += vec3(fineNoise * shimmer);
+    }
+  }
+
   // 12. Film grain (VHS-style monochromatic if VHS is on)
   if (uEnableGrain > 0.5) {
     if (uEnableVhs > 0.5) {
@@ -459,12 +498,14 @@ void main() {
     video.rgb *= scanlineEffect;
   }
 
-  // 15. Interference lines (rolling horizontal TV interference) — amplified by kicks
+  // 15. Interference lines (rolling horizontal TV interference) — amplified by kicks & snares
   if (uEnableInterference > 0.5) {
-    float intBoost = 1.0 + uBeatKick * 3.0;
+    float intBoost = 1.0 + uBeatKick * 3.0 + uSnareHit * 2.0;
     float interference = sin((vUv.y + uTime * 2.0) * 100.0);
     // Add a second faster frequency on kicks for dirty texture
     interference += sin((vUv.y + uTime * 8.0) * 200.0) * uBeatKick * 0.6;
+    // Snare adds ultra-fast thin lines (the "crack" feeling)
+    interference += sin((vUv.y + uTime * 15.0) * 400.0) * uSnareHit * 0.4;
     video.rgb += vec3(interference * uInterferenceIntensity * 0.15 * intBoost);
   }
 
@@ -563,8 +604,9 @@ export function DreamMaterial({
       uGhostIntensity: { value: 0.3 },
       uEnableDropout: { value: 0.0 },
       uDropoutIntensity: { value: 0.1 },
-      // Beat kick
+      // Beat kick & snare
       uBeatKick: { value: 0.0 },
+      uSnareHit: { value: 0.0 },
       // Drift zoom
       uDriftZoom: { value: 0.0 },
     }),
@@ -660,8 +702,9 @@ export function DreamMaterial({
         : 0.2 + Math.sin(t * 0.4) * 0.1
     )
 
-    // Beat kick uniform
+    // Beat kick & snare uniforms
     u.uBeatKick.value = audioBeatKick
+    u.uSnareHit.value = audioSnareHit
 
     // Zoom pulse — now also boosted by detected kicks for harder punch
     const bassDelta = currentBass - prevBass

@@ -1,5 +1,5 @@
 import { useDreamDebugStore } from '../stores/dreamDebugStore'
-import { setAudioBands, setAudioBeatKick } from '../hooks/useAudioAnalyser'
+import { setAudioBands, setAudioBeatKick, setAudioSnareHit } from '../hooks/useAudioAnalyser'
 import { randomPitchEffect, type PitchEffect } from './effects'
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -57,7 +57,23 @@ class DreamAudioPlayer {
   private sidechainGain: GainNode | null = null // sidechain ducking
   private masterGain: GainNode | null = null
 
-  // Analysis
+  // Spectral processing — separate FX for high frequencies
+  private hiSplitFilter: BiquadFilterNode | null = null  // highshelf to extract highs
+  private hiDelay: DelayNode | null = null
+  private hiDelayFeedback: GainNode | null = null
+  private hiDelayWet: GainNode | null = null
+  private hiReverb: ConvolverNode | null = null
+  private hiReverbGain: GainNode | null = null
+
+  // Radio static / noise
+  private noiseGain: GainNode | null = null
+  private noiseSource: AudioBufferSourceNode | null = null
+
+  // Analysis — pre-lowpass for raw onset detection
+  private preAnalyser: AnalyserNode | null = null
+  private preDataArray: Uint8Array<ArrayBuffer> | null = null
+
+  // Analysis — post-chain for visual band data
   private analyser: AnalyserNode | null = null
   private dataArray: Uint8Array<ArrayBuffer> | null = null
 
@@ -79,13 +95,21 @@ class DreamAudioPlayer {
 
     const dbg = useDreamDebugStore.getState()
 
-    // Lowpass filter
+    // ── Pre-lowpass analyser for raw onset/beat detection ──────────────
+    // This taps the signal BEFORE any filtering so kick transients aren't
+    // dulled by the lowpass. Uses minimal smoothing for sharp transients.
+    this.preAnalyser = this.ctx.createAnalyser()
+    this.preAnalyser.fftSize = FFT_SIZE
+    this.preAnalyser.smoothingTimeConstant = 0.3 // low smoothing for transient detection
+    this.preDataArray = new Uint8Array(this.preAnalyser.frequencyBinCount) as Uint8Array<ArrayBuffer>
+
+    // ── Main lowpass filter ───────────────────────────────────────────
     this.lowpass = this.ctx.createBiquadFilter()
     this.lowpass.type = 'lowpass'
     this.lowpass.frequency.value = dbg.dreamAudioLowpassFreq
     this.lowpass.Q.value = 0.7
 
-    // Reverb convolver
+    // ── Reverb convolver (main) ───────────────────────────────────────
     this.convolver = this.ctx.createConvolver()
     this.convolver.buffer = this.generateIR(dbg.dreamAudioReverbDecay)
 
@@ -96,30 +120,71 @@ class DreamAudioPlayer {
     this.dryGain = this.ctx.createGain()
     this.dryGain.gain.value = 1.0 - dbg.dreamAudioWetMix
 
-    // Master volume
+    // ── Spectral processing: extra FX on high frequencies ─────────────
+    // High-shelf filter boosts highs, then feeds into delay + extra reverb
+    // Creates shimmering, echoing high-end that floats above the murky lows
+    this.hiSplitFilter = this.ctx.createBiquadFilter()
+    this.hiSplitFilter.type = 'highshelf'
+    this.hiSplitFilter.frequency.value = 2000
+    this.hiSplitFilter.gain.value = 6 // boost highs by 6dB
+
+    // Ping-pong-ish delay on highs (random delay time per session)
+    this.hiDelay = this.ctx.createDelay(2.0)
+    this.hiDelay.delayTime.value = 0.15 + Math.random() * 0.35 // 150-500ms
+    this.hiDelayFeedback = this.ctx.createGain()
+    this.hiDelayFeedback.gain.value = 0.35 + Math.random() * 0.2 // 35-55% feedback
+    this.hiDelayWet = this.ctx.createGain()
+    this.hiDelayWet.gain.value = 0.15 // subtle blend
+
+    // Delay feedback loop
+    this.hiDelay.connect(this.hiDelayFeedback)
+    this.hiDelayFeedback.connect(this.hiDelay)
+    this.hiDelay.connect(this.hiDelayWet)
+
+    // Extra reverb on highs — longer, brighter than the main reverb
+    this.hiReverb = this.ctx.createConvolver()
+    this.hiReverb.buffer = this.generateIR(dbg.dreamAudioReverbDecay * 1.5)
+    this.hiReverbGain = this.ctx.createGain()
+    this.hiReverbGain.gain.value = 0.12
+
+    // ── Master volume ─────────────────────────────────────────────────
     this.masterGain = this.ctx.createGain()
     this.masterGain.gain.value = 0 // start silent, fade in
 
-    // Sidechain ducking gain — sits after master, before destination
-    // Ducks volume on bass kicks for a pumping effect that clears up the mix
+    // Sidechain ducking gain
     this.sidechainGain = this.ctx.createGain()
     this.sidechainGain.gain.value = 1.0
 
-    // Analyser for writing band data
+    // Post-chain analyser for visual band data
     this.analyser = this.ctx.createAnalyser()
     this.analyser.fftSize = FFT_SIZE
     this.analyser.smoothingTimeConstant = 0.8
     this.dataArray = new Uint8Array(this.analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>
 
-    // Wiring: lowpass → dry → master → sidechain → destination
-    //         lowpass → convolver → wet → master
-    //         master → analyser (for band data)
+    // ── Wiring ────────────────────────────────────────────────────────
+    //
+    // layers → lowpass ──┬── dry ─────────────────────────────┐
+    //                    └── convolver → wet ─────────────────┤
+    //                                                         ↓
+    // layers → preAnalyser (for beat detection, taps raw)    master → sidechain → dest
+    //                                                         ↑
+    // layers → hiSplit → hiDelay → hiDelayWet ───────────────┤
+    //                  → hiReverb → hiReverbGain ────────────┘
+    //                                                    master → analyser
+
     this.lowpass.connect(this.dryGain)
     this.dryGain.connect(this.masterGain)
 
     this.lowpass.connect(this.convolver)
     this.convolver.connect(this.wetGain)
     this.wetGain.connect(this.masterGain)
+
+    // Spectral highs path
+    this.hiSplitFilter.connect(this.hiDelay)
+    this.hiSplitFilter.connect(this.hiReverb)
+    this.hiReverb.connect(this.hiReverbGain)
+    this.hiReverbGain.connect(this.masterGain)
+    this.hiDelayWet.connect(this.masterGain)
 
     this.masterGain.connect(this.sidechainGain)
     this.sidechainGain.connect(this.ctx.destination)
@@ -149,6 +214,109 @@ class DreamAudioPlayer {
     }
 
     return ir
+  }
+
+  // ── Noise generation ─────────────────────────────────────────────────
+
+  /** Generate a brown noise buffer (warmer than white, like radio static) */
+  private generateNoiseBuffer(duration: number): AudioBuffer {
+    const ctx = this.ctx!
+    const length = Math.floor(ctx.sampleRate * duration)
+    const buffer = ctx.createBuffer(2, length, ctx.sampleRate)
+
+    for (let ch = 0; ch < 2; ch++) {
+      const data = buffer.getChannelData(ch)
+      let lastOut = 0
+
+      for (let i = 0; i < length; i++) {
+        const white = Math.random() * 2 - 1
+
+        // Brown noise: integrate white noise with leak
+        lastOut = (lastOut + 0.02 * white) / 1.02
+        data[i] = lastOut * 3.5 // boost amplitude
+
+        // Add occasional crackle pops (radio tuning texture)
+        if (Math.random() < 0.0003) {
+          data[i] += (Math.random() - 0.5) * 0.8
+        }
+      }
+    }
+
+    return buffer
+  }
+
+  /** Play radio static burst on dream entry, then fade into music */
+  private playEntryStatic(): void {
+    if (!this.ctx || !this.sidechainGain) return
+
+    const noiseBuffer = this.generateNoiseBuffer(4.0) // 4 seconds of static
+
+    this.noiseSource = this.ctx.createBufferSource()
+    this.noiseSource.buffer = noiseBuffer
+    this.noiseSource.loop = false
+
+    this.noiseGain = this.ctx.createGain()
+    this.noiseGain.gain.value = 0.5
+
+    // Bandpass the noise to sound more like radio tuning
+    const noiseBandpass = this.ctx.createBiquadFilter()
+    noiseBandpass.type = 'bandpass'
+    noiseBandpass.frequency.value = 1000 + Math.random() * 3000
+    noiseBandpass.Q.value = 0.8
+
+    // Sweep the bandpass frequency for radio-tuning effect
+    const now = this.ctx.currentTime
+    noiseBandpass.frequency.setValueAtTime(800, now)
+    noiseBandpass.frequency.exponentialRampToValueAtTime(4000, now + 1.0)
+    noiseBandpass.frequency.exponentialRampToValueAtTime(600, now + 2.0)
+    noiseBandpass.frequency.exponentialRampToValueAtTime(2000, now + 3.0)
+
+    // Fade: start loud, fade out as music fades in
+    this.noiseGain.gain.setValueAtTime(0.5, now)
+    this.noiseGain.gain.linearRampToValueAtTime(0.6, now + 0.5)
+    this.noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 3.5)
+
+    this.noiseSource.connect(noiseBandpass)
+    noiseBandpass.connect(this.noiseGain)
+    this.noiseGain.connect(this.sidechainGain)
+
+    this.noiseSource.start()
+    this.noiseSource.onended = () => {
+      this.noiseSource = null
+      this.noiseGain = null
+    }
+
+    console.log('[DreamAudio] Entry static playing')
+  }
+
+  /** Play a brief radio-tuning burst (between track transitions) */
+  playTuningBurst(): void {
+    if (!this.ctx || !this.sidechainGain) return
+
+    const duration = 0.3 + Math.random() * 0.7 // 0.3-1.0s
+    const noiseBuffer = this.generateNoiseBuffer(duration)
+
+    const source = this.ctx.createBufferSource()
+    source.buffer = noiseBuffer
+
+    const gain = this.ctx.createGain()
+    const now = this.ctx.currentTime
+    gain.gain.setValueAtTime(0, now)
+    gain.gain.linearRampToValueAtTime(0.25, now + 0.02) // fast attack
+    gain.gain.exponentialRampToValueAtTime(0.01, now + duration * 0.8)
+
+    // Random bandpass for varied radio texture
+    const bp = this.ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.value = 500 + Math.random() * 5000
+    bp.Q.value = 1.0 + Math.random() * 3.0
+
+    source.connect(bp)
+    bp.connect(gain)
+    gain.connect(this.sidechainGain)
+
+    source.start()
+    source.stop(now + duration)
   }
 
   // ── Param sync (called from DreamScene's useFrame or useEffect) ─────
@@ -184,6 +352,7 @@ class DreamAudioPlayer {
         return
       }
 
+      // ── Post-chain analyser: smooth band data for visuals ──────────
       this.analyser.getByteFrequencyData(this.dataArray)
       const binCount = this.dataArray.length // 128
 
@@ -207,20 +376,42 @@ class DreamAudioPlayer {
       for (let i = 0; i < binCount; i++) energySum += this.dataArray[i]!
       const rawEnergy = energySum / (binCount * 255)
 
-      // Smooth
+      // Smooth for visual stability
       currentBass = lerp(currentBass, rawBass, SMOOTHING)
       currentMid = lerp(currentMid, rawMid, SMOOTHING)
       currentHigh = lerp(currentHigh, rawHigh, SMOOTHING)
       currentEnergy = lerp(currentEnergy, rawEnergy, SMOOTHING)
 
-      // Write to shared module-level exports
       setAudioBands(currentBass, currentMid, currentHigh, currentEnergy)
 
-      // Run beat detection on RAW bass (before smoothing flattens transients)
-      this.detectBeats(rawBass)
+      // ── Pre-lowpass analyser: raw bass for beat detection ──────────
+      // Taps the signal BEFORE the lowpass filter and with low smoothing
+      // so kick transients come through sharp and clear
+      let rawOnsetBass = rawBass // fallback
+      if (this.preAnalyser && this.preDataArray) {
+        this.preAnalyser.getByteFrequencyData(this.preDataArray)
+        let preBassSum = 0
+        for (let i = 0; i < 8; i++) preBassSum += this.preDataArray[i]!
+        rawOnsetBass = preBassSum / (8 * 255)
+      }
 
-      // Write kick value for shader consumption
+      // Extract snare band (mid-high) from pre-analyser: bins 10-60 (~500Hz-8kHz)
+      // This captures the snare's characteristic "crack" and body
+      let rawOnsetMidHigh = rawMid // fallback
+      if (this.preAnalyser && this.preDataArray) {
+        let snareBandSum = 0
+        const snareStart = 10 // ~500Hz
+        const snareEnd = 60   // ~8kHz
+        for (let i = snareStart; i < snareEnd; i++) snareBandSum += this.preDataArray[i]!
+        rawOnsetMidHigh = snareBandSum / ((snareEnd - snareStart) * 255)
+      }
+
+      this.detectBeats(rawOnsetBass)
+      this.detectSnares(rawOnsetMidHigh)
+
+      // Write kick and snare values for shader consumption
       setAudioBeatKick(this._beatKick)
+      setAudioSnareHit(this._snareHit)
 
       rafId = requestAnimationFrame(tick)
     }
@@ -289,10 +480,17 @@ class DreamAudioPlayer {
   private bpmConfidence = 0 // 0-1 how confident we are in the detected BPM
   private _beatKick = 0 // 0-1, spikes on kick then decays
 
+  // Snare detection state
+  private prevSnareEnergy = 0
+  private snareThreshold = 0.04  // lower than kick — snares are often quieter
+  private lastSnareTime = 0
+  private _snareHit = 0 // 0-1, spikes on snare then decays
+
   getBPM(): number { return this.currentBPM }
   getBeatPhase(): number { return this.beatPhase }
   getBPMConfidence(): number { return this.bpmConfidence }
   getBeatKick(): number { return this._beatKick }
+  getSnareHit(): number { return this._snareHit }
 
   private detectBeats(rawBass: number): void {
     if (!this.analyser || !this.dataArray) return
@@ -391,6 +589,34 @@ class DreamAudioPlayer {
     if (this.beatInterval > 0) {
       const elapsed = now - this.lastBeatTime
       this.beatPhase = (elapsed % this.beatInterval) / this.beatInterval
+    }
+  }
+
+  // ── Snare detection (mid-high frequency onset) ─────────────────────
+
+  private detectSnares(rawMidHigh: number): void {
+    // Snares have a distinctive broadband "crack" in the 2-8kHz range
+    // plus a body around 150-300Hz. We detect the high-frequency transient
+    // which is what makes snare rolls visually exciting.
+    const snareEnergy = rawMidHigh
+
+    // Slow envelope follower (same approach as kick detection)
+    const energyDelta = snareEnergy - this.prevSnareEnergy
+    this.prevSnareEnergy = snareEnergy * 0.08 + this.prevSnareEnergy * 0.92
+
+    const now = performance.now()
+
+    // Decay snare value each frame (~0.88 per frame = faster decay than kick for snappy feel)
+    this._snareHit *= 0.88
+
+    // Snares can be closer together than kicks (snare rolls!), so shorter cooldown (100ms)
+    if (energyDelta > this.snareThreshold && now - this.lastSnareTime > 100) {
+      // Make sure this isn't just a kick bleed-through:
+      // If a kick JUST fired (within 30ms), skip — it's likely the same transient
+      if (now - this.lastBeatTime < 30) return
+
+      this._snareHit = Math.min(1.0, energyDelta * 8.0)
+      this.lastSnareTime = now
     }
   }
 
@@ -552,9 +778,13 @@ class DreamAudioPlayer {
       const pitchEffect = randomPitchEffect()
       pitchEffect.connect(ctx, sourceNode, effectOutput)
 
-      // Wire: effectOutput → gainNode → lowpass (shared)
+      // Wire: effectOutput → gainNode → lowpass (main chain)
+      //                              → preAnalyser (raw onset detection)
+      //                              → hiSplitFilter (spectral highs processing)
       effectOutput.connect(gainNode)
       gainNode.connect(this.lowpass!)
+      gainNode.connect(this.preAnalyser!)
+      gainNode.connect(this.hiSplitFilter!)
 
       // Store layer
       this.layers[layerIndex] = {
@@ -596,6 +826,11 @@ class DreamAudioPlayer {
 
     const timer = setTimeout(async () => {
       if (!this._isPlaying || this.videoIds.length === 0) return
+
+      // Radio tuning burst before switching tracks (50% chance)
+      if (Math.random() < 0.5) {
+        this.playTuningBurst()
+      }
 
       // Pick a random video different from this layer's current
       const currentSrc = this.layers[layerIndex]?.audioEl?.src ?? ''
@@ -644,19 +879,21 @@ class DreamAudioPlayer {
       return
     }
 
-    // Launch layers with staggered starts
+    // Start analysis loop & play entry static
+    this.ensureContext()
+    this.playEntryStatic()
+    this.startAnalysisLoop()
+
+    // Launch layers with staggered starts — delay first layer to let static play
+    const staticLeadIn = 1500 + Math.random() * 1000 // 1.5-2.5s of static before music
     for (let i = 0; i < this.layerCount && i < this.videoIds.length; i++) {
       const videoId = this.videoIds[i % this.videoIds.length]!
-      const delay = i * (5000 + Math.random() * 10000)
+      const delay = staticLeadIn + i * (5000 + Math.random() * 10000)
       setTimeout(() => {
         void this.playTrackOnLayer(i, videoId)
         this.scheduleLayerCycle(i)
       }, delay)
     }
-
-    // Start analysis loop
-    this.ensureContext()
-    this.startAnalysisLoop()
   }
 
   async stop(): Promise<void> {
@@ -703,6 +940,13 @@ class DreamAudioPlayer {
     }
     this.layers = []
 
+    // Stop noise
+    try { this.noiseSource?.stop() } catch {}
+    try { this.noiseSource?.disconnect() } catch {}
+    try { this.noiseGain?.disconnect() } catch {}
+    this.noiseSource = null
+    this.noiseGain = null
+
     // Disconnect effects chain but keep context alive for re-use
     try { this.lowpass?.disconnect() } catch {}
     try { this.convolver?.disconnect() } catch {}
@@ -711,6 +955,13 @@ class DreamAudioPlayer {
     try { this.sidechainGain?.disconnect() } catch {}
     try { this.masterGain?.disconnect() } catch {}
     try { this.analyser?.disconnect() } catch {}
+    try { this.preAnalyser?.disconnect() } catch {}
+    try { this.hiSplitFilter?.disconnect() } catch {}
+    try { this.hiDelay?.disconnect() } catch {}
+    try { this.hiDelayFeedback?.disconnect() } catch {}
+    try { this.hiDelayWet?.disconnect() } catch {}
+    try { this.hiReverb?.disconnect() } catch {}
+    try { this.hiReverbGain?.disconnect() } catch {}
 
     this.lowpass = null
     this.convolver = null
@@ -720,6 +971,14 @@ class DreamAudioPlayer {
     this.masterGain = null
     this.analyser = null
     this.dataArray = null
+    this.preAnalyser = null
+    this.preDataArray = null
+    this.hiSplitFilter = null
+    this.hiDelay = null
+    this.hiDelayFeedback = null
+    this.hiDelayWet = null
+    this.hiReverb = null
+    this.hiReverbGain = null
 
     if (this.ctx && this.ctx.state !== 'closed') {
       void this.ctx.close()
