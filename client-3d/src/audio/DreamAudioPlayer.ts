@@ -216,8 +216,8 @@ class DreamAudioPlayer {
       // Write to shared module-level exports
       setAudioBands(currentBass, currentMid, currentHigh, currentEnergy)
 
-      // Run beat detection (updates _beatKick)
-      this.detectBeats()
+      // Run beat detection on RAW bass (before smoothing flattens transients)
+      this.detectBeats(rawBass)
 
       // Write kick value for shader consumption
       setAudioBeatKick(this._beatKick)
@@ -285,7 +285,7 @@ class DreamAudioPlayer {
   private beatInterval = 0 // ms between beats
   private onsetHistory: number[] = [] // timestamps of detected bass onsets
   private prevOnsetEnergy = 0
-  private onsetThreshold = 0.08
+  private onsetThreshold = 0.06
   private bpmConfidence = 0 // 0-1 how confident we are in the detected BPM
   private _beatKick = 0 // 0-1, spikes on kick then decays
 
@@ -294,18 +294,17 @@ class DreamAudioPlayer {
   getBPMConfidence(): number { return this.bpmConfidence }
   getBeatKick(): number { return this._beatKick }
 
-  private detectBeats(): void {
+  private detectBeats(rawBass: number): void {
     if (!this.analyser || !this.dataArray) return
 
-    // We're already reading FFT data in the analysis loop, so just
-    // look at the bass energy for onset detection
-    const bassEnergy = currentBass
+    // Use RAW (unsmoothed) bass for onset detection — the smoothed value
+    // (lerp with 0.15) flattens transients so much that kicks become invisible.
+    // Raw bass preserves the sharp edge of a kick drum.
+    const bassEnergy = rawBass
 
-    // Onset detection: look for sudden energy increases in bass
-    // Slow envelope follower — 10% current, 90% previous — so transients
-    // create a large delta when bass suddenly spikes above the envelope
+    // Onset detection: slow envelope follower so transients create large deltas
     const energyDelta = bassEnergy - this.prevOnsetEnergy
-    this.prevOnsetEnergy = bassEnergy * 0.1 + this.prevOnsetEnergy * 0.9
+    this.prevOnsetEnergy = bassEnergy * 0.05 + this.prevOnsetEnergy * 0.95
 
     const now = performance.now()
 
@@ -314,7 +313,8 @@ class DreamAudioPlayer {
 
     if (energyDelta > this.onsetThreshold && now - this.lastBeatTime > 200) {
       // Detected an onset (beat) — fire the kick
-      this._beatKick = Math.min(1.0, energyDelta * 4.0)
+      // Scale delta to 0-1 range: raw bass deltas on techno kicks can be 0.1-0.5+
+      this._beatKick = Math.min(1.0, energyDelta * 6.0)
       this.lastBeatTime = now
       this.onsetHistory.push(now)
 
