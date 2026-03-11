@@ -8,6 +8,7 @@ import {
   audioHigh,
   audioEnergy,
   audioAnalyserActive,
+  audioBeatKick,
 } from '../hooks/useAudioAnalyser'
 import { useDreamDebugStore } from '../stores/dreamDebugStore'
 
@@ -81,6 +82,9 @@ uniform float uEnableGhosting;
 uniform float uGhostIntensity;
 uniform float uEnableDropout;
 uniform float uDropoutIntensity;
+
+// Beat kick (0-1, spikes on bass hit then decays)
+uniform float uBeatKick;
 
 uniform float uDriftZoom;
 
@@ -367,6 +371,33 @@ void main() {
   // 11. Energy brightness pulse
   video.rgb *= 0.85 + uEnergy * 0.3;
 
+  // 11b. Bass kick effects — distinct visual punch on detected kicks
+  if (uBeatKick > 0.01) {
+    // Flash: hard white/color flash that decays
+    float flashIntensity = pow(uBeatKick, 2.0) * 0.35;
+    video.rgb += vec3(flashIntensity);
+
+    // Kick noise burst: blocky digital noise on hard kicks
+    if (uBeatKick > 0.3) {
+      float noiseBlock = 0.03;
+      vec2 nBlock = floor(vUv / noiseBlock);
+      float kickNoise = hash(nBlock + vec2(floor(uTime * 30.0)));
+      float noiseMix = (uBeatKick - 0.3) * 0.4;
+      video.rgb = mix(video.rgb, vec3(kickNoise), noiseMix);
+    }
+
+    // Kick wobble: horizontal UV distortion echo
+    float wobble = sin(vUv.y * 40.0 + uTime * 20.0) * uBeatKick * 0.008;
+    vec3 wobbleSample = texture2D(uVideoTex, uv + vec2(wobble, 0.0)).rgb;
+    video.rgb = mix(video.rgb, wobbleSample, uBeatKick * 0.3);
+
+    // Kick invert: brief color inversion on strong kicks
+    if (uBeatKick > 0.5) {
+      float invertMix = (uBeatKick - 0.5) * 0.6;
+      video.rgb = mix(video.rgb, vec3(1.0) - video.rgb, invertMix);
+    }
+  }
+
   // 12. Film grain (VHS-style monochromatic if VHS is on)
   if (uEnableGrain > 0.5) {
     if (uEnableVhs > 0.5) {
@@ -428,10 +459,13 @@ void main() {
     video.rgb *= scanlineEffect;
   }
 
-  // 15. Interference lines (rolling horizontal TV interference)
+  // 15. Interference lines (rolling horizontal TV interference) — amplified by kicks
   if (uEnableInterference > 0.5) {
+    float intBoost = 1.0 + uBeatKick * 3.0;
     float interference = sin((vUv.y + uTime * 2.0) * 100.0);
-    video.rgb += vec3(interference * uInterferenceIntensity * 0.15);
+    // Add a second faster frequency on kicks for dirty texture
+    interference += sin((vUv.y + uTime * 8.0) * 200.0) * uBeatKick * 0.6;
+    video.rgb += vec3(interference * uInterferenceIntensity * 0.15 * intBoost);
   }
 
   // 16. Signal dropout (random block corruption)
@@ -529,6 +563,8 @@ export function DreamMaterial({
       uGhostIntensity: { value: 0.3 },
       uEnableDropout: { value: 0.0 },
       uDropoutIntensity: { value: 0.1 },
+      // Beat kick
+      uBeatKick: { value: 0.0 },
       // Drift zoom
       uDriftZoom: { value: 0.0 },
     }),
@@ -624,11 +660,18 @@ export function DreamMaterial({
         : 0.2 + Math.sin(t * 0.4) * 0.1
     )
 
-    // Zoom pulse
+    // Beat kick uniform
+    u.uBeatKick.value = audioBeatKick
+
+    // Zoom pulse — now also boosted by detected kicks for harder punch
     const bassDelta = currentBass - prevBass
     prevBass = currentBass
     if (bassDelta > 0.05) {
       zoomPulseValue = Math.min(zoomPulseValue + bassDelta * 2.5, 1.0)
+    }
+    // Kicks add an extra zoom punch
+    if (audioBeatKick > 0.2) {
+      zoomPulseValue = Math.min(zoomPulseValue + audioBeatKick * 1.5, 1.0)
     }
     zoomPulseValue *= 0.93
     u.uZoomPulse.value = zoomPulseValue

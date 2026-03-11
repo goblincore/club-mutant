@@ -1,5 +1,5 @@
 import { useDreamDebugStore } from '../stores/dreamDebugStore'
-import { setAudioBands } from '../hooks/useAudioAnalyser'
+import { setAudioBands, setAudioBeatKick } from '../hooks/useAudioAnalyser'
 import { randomPitchEffect, type PitchEffect } from './effects'
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -54,6 +54,7 @@ class DreamAudioPlayer {
   private convolver: ConvolverNode | null = null
   private wetGain: GainNode | null = null
   private dryGain: GainNode | null = null
+  private sidechainGain: GainNode | null = null // sidechain ducking
   private masterGain: GainNode | null = null
 
   // Analysis
@@ -99,14 +100,19 @@ class DreamAudioPlayer {
     this.masterGain = this.ctx.createGain()
     this.masterGain.gain.value = 0 // start silent, fade in
 
+    // Sidechain ducking gain — sits after master, before destination
+    // Ducks volume on bass kicks for a pumping effect that clears up the mix
+    this.sidechainGain = this.ctx.createGain()
+    this.sidechainGain.gain.value = 1.0
+
     // Analyser for writing band data
     this.analyser = this.ctx.createAnalyser()
     this.analyser.fftSize = FFT_SIZE
     this.analyser.smoothingTimeConstant = 0.8
     this.dataArray = new Uint8Array(this.analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>
 
-    // Wiring: lowpass → dry → master → destination
-    //         lowpass → convolver → wet → master → destination
+    // Wiring: lowpass → dry → master → sidechain → destination
+    //         lowpass → convolver → wet → master
     //         master → analyser (for band data)
     this.lowpass.connect(this.dryGain)
     this.dryGain.connect(this.masterGain)
@@ -115,7 +121,8 @@ class DreamAudioPlayer {
     this.convolver.connect(this.wetGain)
     this.wetGain.connect(this.masterGain)
 
-    this.masterGain.connect(this.ctx.destination)
+    this.masterGain.connect(this.sidechainGain)
+    this.sidechainGain.connect(this.ctx.destination)
     this.masterGain.connect(this.analyser)
 
     return this.ctx
@@ -209,8 +216,11 @@ class DreamAudioPlayer {
       // Write to shared module-level exports
       setAudioBands(currentBass, currentMid, currentHigh, currentEnergy)
 
-      // Run beat detection
+      // Run beat detection (updates _beatKick)
       this.detectBeats()
+
+      // Write kick value for shader consumption
+      setAudioBeatKick(this._beatKick)
 
       rafId = requestAnimationFrame(tick)
     }
@@ -275,12 +285,14 @@ class DreamAudioPlayer {
   private beatInterval = 0 // ms between beats
   private onsetHistory: number[] = [] // timestamps of detected bass onsets
   private prevOnsetEnergy = 0
-  private onsetThreshold = 0.15
+  private onsetThreshold = 0.08
   private bpmConfidence = 0 // 0-1 how confident we are in the detected BPM
+  private _beatKick = 0 // 0-1, spikes on kick then decays
 
   getBPM(): number { return this.currentBPM }
   getBeatPhase(): number { return this.beatPhase }
   getBPMConfidence(): number { return this.bpmConfidence }
+  getBeatKick(): number { return this._beatKick }
 
   private detectBeats(): void {
     if (!this.analyser || !this.dataArray) return
@@ -290,15 +302,32 @@ class DreamAudioPlayer {
     const bassEnergy = currentBass
 
     // Onset detection: look for sudden energy increases in bass
+    // Slow envelope follower — 10% current, 90% previous — so transients
+    // create a large delta when bass suddenly spikes above the envelope
     const energyDelta = bassEnergy - this.prevOnsetEnergy
-    this.prevOnsetEnergy = bassEnergy * 0.7 + this.prevOnsetEnergy * 0.3 // smoothed envelope
+    this.prevOnsetEnergy = bassEnergy * 0.1 + this.prevOnsetEnergy * 0.9
 
     const now = performance.now()
 
+    // Decay beat kick value each frame (~0.92 per frame at 60fps ≈ fast decay)
+    this._beatKick *= 0.92
+
     if (energyDelta > this.onsetThreshold && now - this.lastBeatTime > 200) {
-      // Detected an onset (beat)
+      // Detected an onset (beat) — fire the kick
+      this._beatKick = Math.min(1.0, energyDelta * 4.0)
       this.lastBeatTime = now
       this.onsetHistory.push(now)
+
+      // Sidechain ducking — fast attack, slow release
+      // Duck to 0.4 (60% reduction) on kick, release over 300ms
+      if (this.sidechainGain && this.ctx) {
+        const g = this.sidechainGain.gain
+        const t = this.ctx.currentTime
+        g.cancelScheduledValues(t)
+        g.setValueAtTime(g.value, t)
+        g.linearRampToValueAtTime(0.4, t + 0.01) // 10ms attack
+        g.linearRampToValueAtTime(1.0, t + 0.30) // 300ms release
+      }
 
       // Keep last 20 onsets
       if (this.onsetHistory.length > 20) {
@@ -679,6 +708,7 @@ class DreamAudioPlayer {
     try { this.convolver?.disconnect() } catch {}
     try { this.wetGain?.disconnect() } catch {}
     try { this.dryGain?.disconnect() } catch {}
+    try { this.sidechainGain?.disconnect() } catch {}
     try { this.masterGain?.disconnect() } catch {}
     try { this.analyser?.disconnect() } catch {}
 
@@ -686,6 +716,7 @@ class DreamAudioPlayer {
     this.convolver = null
     this.wetGain = null
     this.dryGain = null
+    this.sidechainGain = null
     this.masterGain = null
     this.analyser = null
     this.dataArray = null
