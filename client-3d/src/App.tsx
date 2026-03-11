@@ -142,12 +142,12 @@ function MainApp() {
   // Auth screen — shown before lobby if user hasn't chosen guest or logged in
   const authReady = useAuthStore((s) => s.authReady)
 
+  // Hide social nav in dream mode (must be above early returns to satisfy rules of hooks)
+  const isDreaming = useDreamStore((s) => s.isDreaming)
+
   if (!authReady) {
     return <AuthScreen />
   }
-
-  // Hide social nav in dream mode
-  const isDreaming = useDreamStore((s) => s.isDreaming)
 
   // Badge/bell: fixed overlay, always on top regardless of lobby or game view
   const socialBar = isAuthenticated && !isDreaming && (
