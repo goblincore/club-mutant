@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { lazy, Suspense, useEffect, useRef } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { getNetwork } from './network/NetworkManager'
 import { useGameStore } from './stores/gameStore'
@@ -25,11 +25,14 @@ import { IframeVideoBackground } from './ui/IframeVideoBackground'
 import { BoothPrompt } from './ui/BoothPrompt'
 import { ToastContainer } from './ui/ToastContainer'
 import { DisconnectedOverlay } from './ui/DisconnectedOverlay'
-import { ComputerBrowser } from './ui/ComputerBrowser'
-import { MagazineReader } from './ui/MagazineReader'
 import { SleepPrompt } from './ui/SleepPrompt'
 import { WakePrompt } from './ui/WakePrompt'
-import { DreamIframe } from './ui/DreamIframe'
+
+// Lazy-loaded: dream scene (heavy — R3F Canvas, shaders, audio player)
+const DreamIframe = lazy(() => import('./ui/DreamIframe').then((m) => ({ default: m.DreamIframe })))
+// Lazy-loaded: rarely-used interactive overlays
+const ComputerBrowser = lazy(() => import('./ui/ComputerBrowser').then((m) => ({ default: m.ComputerBrowser })))
+const MagazineReader = lazy(() => import('./ui/MagazineReader').then((m) => ({ default: m.MagazineReader })))
 
 const PLAYLIST_WIDTH = 360
 const RIGHT_PANEL_WIDTH = 340
@@ -236,14 +239,12 @@ function MainApp() {
       {/* Booth prompt popup */}
       <BoothPrompt />
 
-      {/* Computer desk mini browser */}
-      <ComputerBrowser />
-
-      {/* Magazine rack reader */}
-      <MagazineReader />
-
-      {/* Dream mode iframe (Phaser app) */}
-      <DreamIframe />
+      {/* Lazy-loaded overlays */}
+      <Suspense>
+        <ComputerBrowser />
+        <MagazineReader />
+        <DreamIframe />
+      </Suspense>
 
       {/* Sleep prompt (dream mode entry) */}
       <SleepPrompt />
