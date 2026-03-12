@@ -24,6 +24,7 @@ interface AudioLayer {
   gainNode: GainNode
   pitchEffect: PitchEffect
   effectOutput: GainNode // pitch effect outputs to this, which feeds into shared lowpass
+  spectralFilter: BiquadFilterNode | null // per-layer spectral split (lowpass for lows, highpass for highs)
   cycleTimer: ReturnType<typeof setTimeout> | null
   layerIndex: number
 }
@@ -77,6 +78,9 @@ class DreamAudioPlayer {
   private analyser: AnalyserNode | null = null
   private dataArray: Uint8Array<ArrayBuffer> | null = null
 
+  // Spectral layer split crossover (randomized per session, set in ensureContext)
+  private spectralCrossover = 1000 // Hz — lows layer gets below this, highs layer gets above
+
   // State
   private _isPlaying = false
   private videoIds: string[] = []
@@ -92,6 +96,11 @@ class DreamAudioPlayer {
     if (this.ctx) return this.ctx
 
     this.ctx = new AudioContext({ sampleRate: IR_SAMPLE_RATE })
+
+    // Randomize spectral crossover per session: 600-1400Hz
+    // This is the frequency that splits "lows" layers from "highs" layers
+    this.spectralCrossover = 600 + Math.random() * 800
+    console.log(`[DreamAudio] Spectral crossover: ${this.spectralCrossover.toFixed(0)}Hz`)
 
     const dbg = useDreamDebugStore.getState()
 
@@ -754,6 +763,7 @@ class DreamAudioPlayer {
         oldGain.gain.linearRampToValueAtTime(0, ctx.currentTime + CROSSFADE_DURATION)
 
         // Clean up after crossfade
+        const oldSpectralFilter = oldLayer.spectralFilter
         setTimeout(() => {
           oldAudio.pause()
           oldAudio.src = ''
@@ -762,6 +772,7 @@ class DreamAudioPlayer {
           try { oldGain.disconnect() } catch {}
           try { oldEffect.disconnect() } catch {}
           try { oldEffectOutput.disconnect() } catch {}
+          try { oldSpectralFilter?.disconnect() } catch {}
         }, CROSSFADE_DURATION * 1000 + 500)
       }
 
@@ -778,11 +789,32 @@ class DreamAudioPlayer {
       const pitchEffect = randomPitchEffect()
       pitchEffect.connect(ctx, sourceNode, effectOutput)
 
-      // Wire: effectOutput → gainNode → lowpass (main chain)
-      //                              → preAnalyser (raw onset detection)
-      //                              → hiSplitFilter (spectral highs processing)
+      // Spectral layer split: layer 0 keeps lows, layer 1 keeps highs, others full spectrum
+      // This creates the effect of one track's bass driving the mix while another's
+      // presence/texture floats on top — unexpected harmonic combinations
+      let spectralFilter: BiquadFilterNode | null = null
+      if (layerIndex === 0) {
+        spectralFilter = ctx.createBiquadFilter()
+        spectralFilter.type = 'lowpass'
+        spectralFilter.frequency.value = this.spectralCrossover
+        spectralFilter.Q.value = 0.9
+      } else if (layerIndex === 1) {
+        spectralFilter = ctx.createBiquadFilter()
+        spectralFilter.type = 'highpass'
+        spectralFilter.frequency.value = this.spectralCrossover
+        spectralFilter.Q.value = 0.9
+      }
+
+      // Wire: effectOutput → gainNode → [spectralFilter] → lowpass (main chain)
+      //                              → preAnalyser (raw, bypasses spectral filter for clean beat detection)
+      //                              → hiSplitFilter (spectral highs processing, full spectrum)
       effectOutput.connect(gainNode)
-      gainNode.connect(this.lowpass!)
+      if (spectralFilter) {
+        gainNode.connect(spectralFilter)
+        spectralFilter.connect(this.lowpass!)
+      } else {
+        gainNode.connect(this.lowpass!)
+      }
       gainNode.connect(this.preAnalyser!)
       gainNode.connect(this.hiSplitFilter!)
 
@@ -793,6 +825,7 @@ class DreamAudioPlayer {
         gainNode,
         pitchEffect,
         effectOutput,
+        spectralFilter,
         cycleTimer: oldLayer?.cycleTimer ?? null,
         layerIndex,
       }
@@ -936,6 +969,7 @@ class DreamAudioPlayer {
       try { layer.gainNode.disconnect() } catch {}
       try { layer.pitchEffect.disconnect() } catch {}
       try { layer.effectOutput.disconnect() } catch {}
+      try { layer.spectralFilter?.disconnect() } catch {}
       if (layer.cycleTimer) clearTimeout(layer.cycleTimer)
     }
     this.layers = []
