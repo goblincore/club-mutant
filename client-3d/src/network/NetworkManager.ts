@@ -78,6 +78,7 @@ export class NetworkManager {
   private youtubeBaseUrl: string
   private _timeSync: TimeSync | null = null
   private _myTextureId: number = 0
+  private _wearablesJson: string = ''
   private _tabId: string = crypto.randomUUID()
   private _heartbeatInterval: ReturnType<typeof setInterval> | null = null
   private _onUnload = () => this.releaseSessionLock()
@@ -238,6 +239,15 @@ export class NetworkManager {
     this.requestChatHistory()
   }
 
+  /** Set wearables JSON to include in the next room join. */
+  setWearablesJson(json: string) {
+    this._wearablesJson = json
+  }
+
+  private getWearablesOption(): { wearables?: string } {
+    return this._wearablesJson ? { wearables: this._wearablesJson } : {}
+  }
+
   async joinPublicRoom(playerName: string, textureId?: number): Promise<void> {
     try {
       this.checkNoActiveSession()
@@ -250,6 +260,7 @@ export class NetworkManager {
           spawnY: 0,
           ...(textureId != null ? { textureId } : {}),
           ...authOpts,
+          ...this.getWearablesOption(),
         }),
         15000,
         'Join public room'
@@ -277,6 +288,7 @@ export class NetworkManager {
           spawnX: 0,
           spawnY: 0,
           ...authOpts,
+          ...this.getWearablesOption(),
         }),
         15000,
         'Join MyRoom'
@@ -312,6 +324,7 @@ export class NetworkManager {
           spawnX: 0,
           spawnY: 0,
           ...authOpts,
+          ...this.getWearablesOption(),
         }),
         15000,
         'Create jukebox room'
@@ -349,6 +362,7 @@ export class NetworkManager {
           spawnX: 0,
           spawnY: 0,
           ...authOpts,
+          ...this.getWearablesOption(),
         }),
         15000,
         'Create custom room'
@@ -381,6 +395,7 @@ export class NetworkManager {
           spawnX: 0,
           spawnY: 0,
           ...authOpts,
+          ...this.getWearablesOption(),
         }),
         15000,
         'Join custom room'
@@ -458,6 +473,7 @@ export class NetworkManager {
         npcCharacterPath: player.npcCharacterPath ?? '',
         npcAnimState: player.npcAnimState ?? '',
         nakamaId: player.nakamaId ?? '',
+        wearables: (player as any).wearables ?? '',
       })
 
       if (isLocal) {
@@ -485,6 +501,10 @@ export class NetworkManager {
 
       playerProxy.listen('npcAnimState', (value: string) => {
         useGameStore.getState().updatePlayer(sessionId, { npcAnimState: value })
+      })
+
+      playerProxy.listen('wearables', (value: string) => {
+        useGameStore.getState().updatePlayer(sessionId, { wearables: value })
       })
 
       // Don't show "joined" message for NPC players — they're always present

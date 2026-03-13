@@ -5,6 +5,8 @@ import * as THREE from 'three'
 
 import { PaperDoll } from '../character/PaperDoll'
 import { AcsCharacter } from '../character/AcsCharacter'
+import { WearableOverlay } from '../character/WearableOverlay'
+import type { WearableConfig, BoneRole } from '@club-mutant/types/Wearables'
 import { isAcsCharacter, paperDollAnimToAcsState, npcBehaviorToAcsState } from '../character/AcsStateMapper'
 import { useGameStore } from '../stores/gameStore'
 import type { PlayerState } from '../stores/gameStore'
@@ -883,6 +885,24 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
                 setVisualTopY(vt)
                 setHeadTopY(ht)
               }}
+              boneChildren={(() => {
+                if (!player.wearables) return undefined
+                try {
+                  const config: WearableConfig = JSON.parse(player.wearables)
+                  if (!config.slots?.length) return undefined
+                  const children: Record<string, React.ReactNode> = {}
+                  for (const slot of config.slots) {
+                    const bone = slot.attachBone || 'head'
+                    children[bone] = (
+                      <WearableOverlay
+                        key={`${slot.itemId}-${bone}`}
+                        slot={slot}
+                      />
+                    )
+                  }
+                  return children
+                } catch { return undefined }
+              })()}
             />
           )}
         </group>

@@ -5,6 +5,7 @@ import {
   updateProfileMetadata,
   type ProfileMetadata,
 } from '../network/nakamaClient'
+import { WearableEditor } from './WearableEditor'
 
 interface ProfileEditPanelProps {
   onClose: () => void
@@ -30,6 +31,7 @@ export function ProfileEditPanel({ onClose }: ProfileEditPanelProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [showWearables, setShowWearables] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -110,6 +112,10 @@ export function ProfileEditPanel({ onClose }: ProfileEditPanelProps) {
   const removeLink = (i: number) => setLinks(links.filter((_, idx) => idx !== i))
   const updateLink = (i: number, field: 'label' | 'url', value: string) => {
     setLinks(links.map((l, idx) => (idx === i ? { ...l, [field]: value } : l)))
+  }
+
+  if (showWearables) {
+    return <WearableEditor onClose={() => setShowWearables(false)} />
   }
 
   return (
@@ -304,6 +310,28 @@ export function ProfileEditPanel({ onClose }: ProfileEditPanelProps) {
                 })
               }
             />
+          </div>
+
+          {/* Wearables */}
+          <div className="flex flex-col gap-1">
+            <label className={labelClass}>character</label>
+            <button
+              onClick={() => setShowWearables(true)}
+              className="w-full py-2 rounded-lg text-xs font-mono border transition-all duration-200"
+              style={{
+                borderColor: 'rgba(57,255,20,0.3)',
+                color: 'rgba(57,255,20,0.8)',
+                backgroundColor: 'rgba(57,255,20,0.06)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(57,255,20,0.15)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(57,255,20,0.06)'
+              }}
+            >
+              customize wearables
+            </button>
           </div>
 
           {/* Error / Success */}

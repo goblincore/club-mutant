@@ -13,6 +13,7 @@ export interface IPlayer extends Schema {
   npcCharacterPath: string
   npcAnimState: string
   nakamaId: string
+  wearables: string
 }
 
 export interface IDJUserInfo extends Schema {

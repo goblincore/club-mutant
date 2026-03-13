@@ -1258,6 +1258,11 @@ export class ClubMutant extends Room {
       player.textureId = rawTextureId != null ? sanitizeTextureId(rawTextureId) : TEXTURE_IDS.mutant
       player.animId = packDirectionalAnimId('idle', 'down')
 
+      // Wearables: pass through client-provided JSON string (validated by Nakama RPC)
+      if (typeof options?.wearables === 'string' && options.wearables) {
+        player.wearables = options.wearables
+      }
+
       // Use exact coordinates provided by client or default to 0,0 instead of 2D 705,500
       player.x = typeof options?.spawnX === 'number' ? options.spawnX : 0
       player.y = typeof options?.spawnY === 'number' ? options.spawnY : 0

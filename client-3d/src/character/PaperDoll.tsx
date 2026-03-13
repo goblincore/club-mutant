@@ -258,6 +258,7 @@ interface PaperDollProps {
   velocityX?: number // horizontal velocity direction
   billboardTwist?: number // angular velocity from billboard rotation
   onLayout?: (layout: { worldHeight: number; headTopY: number; visualTopY: number }) => void
+  boneChildren?: Record<string, React.ReactNode> // keyed by boneRole, rendered as children of that bone's group
 }
 
 // A single part mesh within the bone hierarchy
@@ -269,6 +270,7 @@ function PartMesh({
   registerBone,
   onMaterialCreated,
   partDistortMap,
+  boneChildren,
 }: {
   part: ManifestPart
   childrenByParent: Map<string | null, ManifestPart[]>
@@ -277,6 +279,7 @@ function PartMesh({
   registerBone: (id: string, boneRole: string | null, group: THREE.Group | null) => void
   onMaterialCreated: (mat: THREE.MeshBasicMaterial) => void
   partDistortMap: Map<string, PartDistortInfo>
+  boneChildren?: Record<string, React.ReactNode>
 }) {
   const groupRef = useRef<THREE.Group>(null)
 
@@ -318,6 +321,8 @@ function PartMesh({
 
   const children = childrenByParent.get(part.id) ?? []
 
+  const extraChildren = part.boneRole ? boneChildren?.[part.boneRole] : null
+
   return (
     <group
       ref={groupRef}
@@ -325,6 +330,8 @@ function PartMesh({
       renderOrder={part.zIndex}
     >
       <mesh geometry={geometry} material={material} renderOrder={part.zIndex} />
+
+      {extraChildren}
 
       {children.map((child) => {
         const childTex = textures.get(child.id)
@@ -340,6 +347,7 @@ function PartMesh({
             registerBone={registerBone}
             onMaterialCreated={onMaterialCreated}
             partDistortMap={partDistortMap}
+            boneChildren={boneChildren}
           />
         )
       })}
@@ -355,6 +363,7 @@ export function PaperDoll({
   velocityX = 0,
   billboardTwist = 0,
   onLayout,
+  boneChildren,
 }: PaperDollProps) {
   const [loaded, setLoaded] = useState<LoadedCharacter | null>(null)
   const boneRefs = useRef<Map<string, THREE.Group>>(new Map())
@@ -534,6 +543,7 @@ export function PaperDoll({
             registerBone={registerBone}
             onMaterialCreated={onMaterialCreated}
             partDistortMap={partDistortMap}
+            boneChildren={boneChildren}
           />
         )
       })}

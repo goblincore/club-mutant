@@ -181,6 +181,101 @@ var beforeAuthenticateEmail = function (ctx, logger, nk, data) {
   return data;
 };
 
+// ─── Wearable Persistence ───────────────────────────────────────────
+
+var WEARABLE_COLLECTION = 'wearables';
+var WEARABLE_KEY = 'equipped';
+var MAX_WEARABLE_SLOTS = 3;
+var MAX_ITEM_ID_LEN = 60;
+
+var VALID_BONE_ROLES = ['head', 'torso', 'arm_l', 'arm_r', 'leg_l', 'leg_r'];
+
+function validateWearableSlot(slot, idx) {
+  if (!slot || typeof slot !== 'object') throw 'slot at index ' + idx + ' is invalid';
+  if (typeof slot.itemId !== 'string' || !slot.itemId) throw 'slot.itemId is required at index ' + idx;
+  if (slot.itemId.length > MAX_ITEM_ID_LEN) throw 'slot.itemId too long at index ' + idx;
+
+  var attachBone = typeof slot.attachBone === 'string' ? slot.attachBone : 'head';
+  if (VALID_BONE_ROLES.indexOf(attachBone) === -1) attachBone = 'head';
+
+  var offsetX = typeof slot.offsetX === 'number' ? slot.offsetX : 0;
+  var offsetY = typeof slot.offsetY === 'number' ? slot.offsetY : 0;
+  var scale = typeof slot.scale === 'number' ? slot.scale : 1;
+  var zIndex = typeof slot.zIndex === 'number' ? slot.zIndex : 10;
+
+  // Clamp values (bone-local offsets can be larger than ±1)
+  offsetX = Math.max(-2, Math.min(2, offsetX));
+  offsetY = Math.max(-2, Math.min(2, offsetY));
+  scale = Math.max(0.1, Math.min(2, scale));
+  zIndex = Math.max(-100, Math.min(100, Math.round(zIndex)));
+
+  return {
+    itemId: slot.itemId,
+    attachBone: attachBone,
+    offsetX: offsetX,
+    offsetY: offsetY,
+    scale: scale,
+    zIndex: zIndex
+  };
+}
+
+var saveWearablesRpc = function (ctx, logger, nk, payload) {
+  var input;
+  try {
+    input = JSON.parse(payload);
+  } catch (e) {
+    throw 'Invalid JSON payload';
+  }
+
+  var slots = [];
+  if (input.slots && Array.isArray(input.slots)) {
+    var rawSlots = input.slots.slice(0, MAX_WEARABLE_SLOTS);
+    for (var i = 0; i < rawSlots.length; i++) {
+      slots.push(validateWearableSlot(rawSlots[i], i));
+    }
+  }
+
+  var value = { slots: slots };
+
+  nk.storageWrite([{
+    collection: WEARABLE_COLLECTION,
+    key: WEARABLE_KEY,
+    userId: ctx.userId,
+    value: value,
+    permissionRead: 2, // public read
+    permissionWrite: 1  // owner write
+  }]);
+
+  logger.info('Wearables saved for user %s (%d slots)', ctx.userId, slots.length);
+  return JSON.stringify({ success: true, config: value });
+};
+
+var getWearablesRpc = function (ctx, logger, nk, payload) {
+  var input = {};
+  if (payload) {
+    try {
+      input = JSON.parse(payload);
+    } catch (e) {
+      throw 'Invalid JSON payload';
+    }
+  }
+
+  var targetUserId = input.user_id || ctx.userId;
+
+  var objects = nk.storageRead([{
+    collection: WEARABLE_COLLECTION,
+    key: WEARABLE_KEY,
+    userId: targetUserId
+  }]);
+
+  var config = { slots: [] };
+  if (objects && objects.length > 0 && objects[0].value) {
+    config = objects[0].value;
+  }
+
+  return JSON.stringify({ config: config });
+};
+
 // ─── Playlist Persistence ───────────────────────────────────────────
 
 var PLAYLIST_COLLECTION = 'playlists';
@@ -348,9 +443,11 @@ var deletePlaylistRpc = function (ctx, logger, nk, payload) {
 var InitModule = function (ctx, logger, nk, initializer) {
   initializer.registerRpc('update_profile', updateProfileRpc);
   initializer.registerRpc('get_profile', getProfileRpc);
+  initializer.registerRpc('save_wearables', saveWearablesRpc);
+  initializer.registerRpc('get_wearables', getWearablesRpc);
   initializer.registerRpc('list_playlists', listPlaylistsRpc);
   initializer.registerRpc('save_playlist', savePlaylistRpc);
   initializer.registerRpc('delete_playlist', deletePlaylistRpc);
   initializer.registerBeforeAuthenticateEmail(beforeAuthenticateEmail);
-  logger.info('Modules loaded: RPCs (update_profile, get_profile, list_playlists, save_playlist, delete_playlist), hooks (beforeAuthenticateEmail)');
+  logger.info('Modules loaded: RPCs (update_profile, get_profile, save_wearables, get_wearables, list_playlists, save_playlist, delete_playlist), hooks (beforeAuthenticateEmail)');
 };

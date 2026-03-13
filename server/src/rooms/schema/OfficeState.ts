@@ -37,6 +37,7 @@ export class Player extends Schema {
   @type('string') npcAnimState = '' // ACS NPC animation state: idle | speaking | greeting | reacting
   @type(['string']) collectibles = new ArraySchema<string>()
   @type('string') nakamaId = '' // Nakama user ID (empty for guests) — synced for client-side social features
+  @type('string') wearables = '' // JSON-encoded WearableConfig (empty = no wearables)
   roomQueuePlaylist: RoomQueuePlaylistItem[] = [] // Server-only, not synced (clients use targeted messages)
   playerId = '' // Server-only: persistent client identity for NPC memory (not synced)
 }

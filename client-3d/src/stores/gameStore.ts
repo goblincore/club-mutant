@@ -10,6 +10,7 @@ export interface PlayerState {
   npcCharacterPath: string
   npcAnimState: string // ACS animation state: idle | speaking | greeting | reacting
   nakamaId: string
+  wearables: string // JSON-encoded WearableConfig
 }
 
 // ── Mutable position map (outside React state for hot-path perf) ──

@@ -340,6 +340,28 @@ export async function getMyAccount() {
   return getClient().getAccount(session)
 }
 
+// ── Wearables API ───────────────────────────────────────────────────────────
+
+import type { WearableConfig } from '@club-mutant/types/Wearables'
+
+/**
+ * Save equipped wearable config to Nakama Storage Engine.
+ */
+export async function saveWearables(config: WearableConfig): Promise<void> {
+  const session = await ensureSession()
+  await getClient().rpc(session, 'save_wearables', config)
+}
+
+/**
+ * Load equipped wearable config from Nakama Storage Engine.
+ * Returns empty config if none saved.
+ */
+export async function getWearables(userId?: string): Promise<WearableConfig> {
+  const session = await ensureSession()
+  const result = await getClient().rpc(session, 'get_wearables', userId ? { user_id: userId } : {})
+  return (result.payload as { config: WearableConfig }).config
+}
+
 // ── Playlist API ────────────────────────────────────────────────────────────
 
 import type { MyPlaylist, PlaylistTrack } from '../stores/playlistStore'

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 
 import { getNetwork } from '../network/NetworkManager'
+import { getWearables } from '../network/nakamaClient'
 import { useGameStore } from '../stores/gameStore'
 import { useAuthStore } from '../stores/authStore'
 import { getCharacters, getCharactersSync, type CharacterEntry } from '../character/characterRegistry'
@@ -45,6 +46,18 @@ export function LobbyScreen() {
   useEffect(() => {
     getNetwork()
   }, [])
+
+  // Pre-load wearables for authenticated users so they're ready before any room join
+  useEffect(() => {
+    if (!isAuthenticated) return
+    getWearables()
+      .then((config) => {
+        if (config.slots?.length > 0) {
+          getNetwork().setWearablesJson(JSON.stringify(config))
+        }
+      })
+      .catch(() => {}) // silently fail — wearables are optional
+  }, [isAuthenticated])
 
   // Warm up the server connection and start lobby join when Screen 2 mounts.
   // The health fetch establishes a live HTTP/2 connection (TLS session reuse),
