@@ -258,6 +258,13 @@ export function DreamDebugPanel() {
         <BPMDisplay />
       </Section>
 
+      <Section title="Ethereal / Angelic">
+        <Toggle label="shimmer reverb" field="dreamEtherealEnabled" />
+        <Slider label="shimmer mix" field="dreamEtherealMix" min={0} max={0.5} step={0.01} />
+        <Toggle label="vocal formants" field="dreamFormantEnabled" />
+        <Slider label="formant depth" field="dreamFormantDepth" min={0} max={1} step={0.01} />
+      </Section>
+
       <div className="text-white/20 text-[9px] text-center pt-1 border-t border-white/5">
         press <span className="text-white/40">D</span> to toggle
       </div>

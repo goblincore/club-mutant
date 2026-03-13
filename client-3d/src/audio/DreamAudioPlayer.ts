@@ -1,6 +1,7 @@
 import { useDreamDebugStore } from '../stores/dreamDebugStore'
 import { setAudioBands, setAudioBeatKick, setAudioSnareHit } from '../hooks/useAudioAnalyser'
 import { randomPitchEffect, type PitchEffect } from './effects'
+import { VocalFormant } from './effects/VocalFormant'
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -65,6 +66,15 @@ class DreamAudioPlayer {
   private hiDelayWet: GainNode | null = null
   private hiReverb: ConvolverNode | null = null
   private hiReverbGain: GainNode | null = null
+
+  // Shimmer reverb — bright parallel path for angelic halo
+  private shimmerHPF: BiquadFilterNode | null = null
+  private shimmerReverb: ConvolverNode | null = null
+  private shimmerOutputGain: GainNode | null = null
+
+  // Vocal formant resonators — choral quality on the filtered mix
+  private formantChain: VocalFormant | null = null
+  private formantOutputGain: GainNode | null = null
 
   // Radio static / noise
   private noiseGain: GainNode | null = null
@@ -156,6 +166,31 @@ class DreamAudioPlayer {
     this.hiReverbGain = this.ctx.createGain()
     this.hiReverbGain.gain.value = 0.12
 
+    // ── Shimmer reverb: bright parallel path for angelic halo ─────────
+    // Taps from each per-layer gainNode (same as hiSplitFilter).
+    // Uses a bright unsmoothed IR (no smoothing loop = full-spectrum noise)
+    // to create a sustained, glowing high-frequency halo above the music.
+    this.shimmerHPF = this.ctx.createBiquadFilter()
+    this.shimmerHPF.type = 'highpass'
+    this.shimmerHPF.frequency.value = 2000
+    this.shimmerHPF.Q.value = 0.5
+
+    this.shimmerReverb = this.ctx.createConvolver()
+    this.shimmerReverb.buffer = this.generateBrightIR(8.0)
+
+    this.shimmerOutputGain = this.ctx.createGain()
+    this.shimmerOutputGain.gain.value = dbg.dreamEtherealEnabled ? dbg.dreamEtherealMix : 0
+
+    // ── Vocal formant resonators: choral quality on the filtered mix ──
+    // Sits between the lowpass output and the wet/dry split.
+    // 4 peaking EQ filters at female choir vowel formants (350/900/2400/3500Hz)
+    // with very slow LFO wobble — zeroing gain = transparent pass-through.
+    this.formantChain = new VocalFormant()
+    this.formantOutputGain = this.ctx.createGain()
+    this.formantOutputGain.gain.value = 1.0
+    this.formantChain.connect(this.ctx, this.lowpass, this.formantOutputGain)
+    this.formantChain.setEnabled(dbg.dreamFormantEnabled, dbg.dreamFormantDepth)
+
     // ── Master volume ─────────────────────────────────────────────────
     this.masterGain = this.ctx.createGain()
     this.masterGain.gain.value = 0 // start silent, fade in
@@ -172,19 +207,22 @@ class DreamAudioPlayer {
 
     // ── Wiring ────────────────────────────────────────────────────────
     //
-    // layers → lowpass ──┬── dry ─────────────────────────────┐
-    //                    └── convolver → wet ─────────────────┤
-    //                                                         ↓
-    // layers → preAnalyser (for beat detection, taps raw)    master → sidechain → dest
-    //                                                         ↑
-    // layers → hiSplit → hiDelay → hiDelayWet ───────────────┤
-    //                  → hiReverb → hiReverbGain ────────────┘
-    //                                                    master → analyser
+    // layers → lowpass → formantChain → formantOutputGain ──┬── dry ─────────────────────────┐
+    //                                                       └── convolver → wet ─────────────┤
+    //                                                                                         ↓
+    // layers → preAnalyser (beat detection, raw tap)                         master → sidechain → dest
+    //                                                                                         ↑
+    // layers → hiSplit → hiDelay → hiDelayWet ─────────────────────────────────────────────┤
+    //                  → hiReverb → hiReverbGain ──────────────────────────────────────────┤
+    //                                                                                       |
+    // layers → shimmerHPF → shimmerReverb → shimmerOutputGain ──────────────────────────┘
+    //                                                                         master → analyser
 
-    this.lowpass.connect(this.dryGain)
+    // Formant chain sits between lowpass and wet/dry split (already connected above via connect())
+    this.formantOutputGain.connect(this.dryGain)
     this.dryGain.connect(this.masterGain)
 
-    this.lowpass.connect(this.convolver)
+    this.formantOutputGain.connect(this.convolver)
     this.convolver.connect(this.wetGain)
     this.wetGain.connect(this.masterGain)
 
@@ -194,6 +232,11 @@ class DreamAudioPlayer {
     this.hiReverb.connect(this.hiReverbGain)
     this.hiReverbGain.connect(this.masterGain)
     this.hiDelayWet.connect(this.masterGain)
+
+    // Shimmer path
+    this.shimmerHPF.connect(this.shimmerReverb)
+    this.shimmerReverb.connect(this.shimmerOutputGain)
+    this.shimmerOutputGain.connect(this.masterGain)
 
     this.masterGain.connect(this.sidechainGain)
     this.sidechainGain.connect(this.ctx.destination)
@@ -219,6 +262,27 @@ class DreamAudioPlayer {
         for (let i = length - 1; i >= 2; i--) {
           data[i] = (data[i]! + data[i - 1]! + data[i - 2]!) / 3
         }
+      }
+    }
+
+    return ir
+  }
+
+  /** Bright impulse response — same as generateIR but WITHOUT the smoothing loop.
+   *  The smoothing averages adjacent samples, which rolls off high frequencies.
+   *  Omitting it preserves full-spectrum brightness for the angelic shimmer. */
+  private generateBrightIR(decay: number): AudioBuffer {
+    const ctx = this.ctx!
+    const length = Math.floor(IR_SAMPLE_RATE * decay)
+    const ir = ctx.createBuffer(2, length, IR_SAMPLE_RATE)
+
+    for (let ch = 0; ch < 2; ch++) {
+      const data = ir.getChannelData(ch)
+      for (let i = 0; i < length; i++) {
+        const t = i / IR_SAMPLE_RATE
+        const envelope = Math.exp(-t / (decay * 0.40)) // slightly slower decay than dark IR
+        data[i] = (Math.random() * 2 - 1) * envelope
+        // No smoothing passes — brightness preserved
       }
     }
 
@@ -344,6 +408,13 @@ class DreamAudioPlayer {
     }
     if (this.masterGain && this._isPlaying) {
       this.masterGain.gain.value = dbg.dreamAudioVolume
+    }
+
+    if (this.shimmerOutputGain) {
+      this.shimmerOutputGain.gain.value = dbg.dreamEtherealEnabled ? dbg.dreamEtherealMix : 0
+    }
+    if (this.formantChain) {
+      this.formantChain.setEnabled(dbg.dreamFormantEnabled, dbg.dreamFormantDepth)
     }
 
     // Update layer count if changed
@@ -817,6 +888,7 @@ class DreamAudioPlayer {
       }
       gainNode.connect(this.preAnalyser!)
       gainNode.connect(this.hiSplitFilter!)
+      if (this.shimmerHPF) gainNode.connect(this.shimmerHPF)
 
       // Store layer
       this.layers[layerIndex] = {
@@ -996,6 +1068,11 @@ class DreamAudioPlayer {
     try { this.hiDelayWet?.disconnect() } catch {}
     try { this.hiReverb?.disconnect() } catch {}
     try { this.hiReverbGain?.disconnect() } catch {}
+    try { this.shimmerHPF?.disconnect() } catch {}
+    try { this.shimmerReverb?.disconnect() } catch {}
+    try { this.shimmerOutputGain?.disconnect() } catch {}
+    try { this.formantChain?.disconnect() } catch {}
+    try { this.formantOutputGain?.disconnect() } catch {}
 
     this.lowpass = null
     this.convolver = null
@@ -1013,6 +1090,11 @@ class DreamAudioPlayer {
     this.hiDelayWet = null
     this.hiReverb = null
     this.hiReverbGain = null
+    this.shimmerHPF = null
+    this.shimmerReverb = null
+    this.shimmerOutputGain = null
+    this.formantChain = null
+    this.formantOutputGain = null
 
     if (this.ctx && this.ctx.state !== 'closed') {
       void this.ctx.close()
