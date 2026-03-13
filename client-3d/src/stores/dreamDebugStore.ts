@@ -71,6 +71,12 @@ export interface DreamDebugState {
   dreamAudioWetMix: number      // 0–1 reverb wet/dry
   dreamAudioLayerCount: number  // 1-3
 
+  // Ethereal / Angelic processing
+  dreamEtherealEnabled: boolean
+  dreamEtherealMix: number      // 0–0.5 shimmer reverb wet level
+  dreamFormantEnabled: boolean
+  dreamFormantDepth: number     // 0–1 LFO depth scalar
+
   // Actions
   togglePanel: () => void
   set: (partial: Partial<DreamDebugState>) => void
@@ -135,6 +141,11 @@ const DEFAULTS = {
   dreamAudioVolume: 1.0,
   dreamAudioWetMix: 0.4,
   dreamAudioLayerCount: 2,
+
+  dreamEtherealEnabled: true,
+  dreamEtherealMix: 0.12,
+  dreamFormantEnabled: true,
+  dreamFormantDepth: 0.5,
 
 }
 
