@@ -1,9 +1,9 @@
 module github.com/club-mutant/dream-npc-go
 
-go 1.24
+go 1.24.0
 
 require (
-	github.com/goblincore/geoffreyengram v0.0.0
+	github.com/goblincore/geoffreyengram v0.1.1
 	github.com/gofiber/fiber/v2 v2.52.12
 	github.com/joho/godotenv v1.5.1
 )
@@ -29,5 +29,3 @@ require (
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.46.1 // indirect
 )
-
-replace github.com/goblincore/geoffreyengram => /Users/donny/Projects/2026/geoffreyengram
