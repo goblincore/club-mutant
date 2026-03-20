@@ -1,6 +1,6 @@
 module github.com/club-mutant/dream-npc-go
 
-go 1.25.6
+go 1.24
 
 require (
 	github.com/goblincore/geoffreyengram v0.0.0
