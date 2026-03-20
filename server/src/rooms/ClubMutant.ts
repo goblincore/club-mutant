@@ -4,7 +4,7 @@ import { Dispatcher } from '@colyseus/command'
 import { verifyNakamaToken, type NakamaTokenPayload } from '../lib/verifyNakamaToken'
 
 import { Player, OfficeState, MusicBooth, ChatMessage } from './schema/OfficeState'
-import { synthesizeSpeech } from '../lib/sapi4Client'
+
 import { IRoomData, type MusicMode } from '@club-mutant/types/Rooms'
 import { Message } from '@club-mutant/types/Messages'
 import {
@@ -751,17 +751,6 @@ export class ClubMutant extends Room {
       content,
     })
 
-    // Fire-and-forget TTS synthesis — audio arrives after text (intentional)
-    synthesizeSpeech({ text: content }).then((result) => {
-      if (result) {
-        this.broadcast(Message.NPC_TTS_AUDIO, {
-          audioBase64: result.audioBase64,
-          durationMs: result.durationMs,
-        })
-      }
-    }).catch(() => {
-      // TTS failure is non-blocking — text still works
-    })
   }
 
   private readonly npcFallbackPhrases = [

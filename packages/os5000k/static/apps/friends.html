@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #fff;
+  color: #222;
+  font-family: arial, sans-serif;
+  font-size: 13px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Toolbar ────────────────────────────────── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: linear-gradient(#f0f0f0, #ddd);
+  border-bottom: 1px solid #bbb;
+  min-height: 30px;
+}
+.toolbar-title {
+  font-weight: bold;
+  font-size: 13px;
+  color: #222;
+}
+
+/* ── Tabs ───────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #ccc;
+  background: #f5f5f5;
+  padding: 0 6px;
+}
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #666;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-family: arial, sans-serif;
+  font-size: 12px;
+}
+.tab:hover { color: #222; background: #eef; }
+.tab.active {
+  color: #44f;
+  border-bottom-color: #44f;
+  font-weight: bold;
+}
+.badge {
+  background: #44f;
+  color: #fff;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  margin-left: 4px;
+  font-weight: bold;
+}
+
+/* ── List ───────────────────────────────────── */
+.list { flex: 1; overflow-y: auto; }
+.friend {
+  display: flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-bottom: 1px solid #eee;
+  gap: 8px;
+}
+.friend:hover { background: #f0f0ff; }
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.online { background: #0a0; }
+.offline { background: transparent; border: 2px solid #ccc; width: 9px; height: 9px; }
+.friend-info { flex: 1; min-width: 0; }
+.friend-name { color: #222; font-size: 13px; font-weight: bold; }
+.friend-user { color: #888; font-size: 11px; }
+.actions { display: flex; gap: 4px; }
+.btn {
+  background: linear-gradient(#f8f8f8, #ddd);
+  border: 1px solid #aaa;
+  border-radius: 2px;
+  color: #333;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: arial, sans-serif;
+  font-size: 11px;
+}
+.btn:hover { background: linear-gradient(#fff, #e8e8ff); border-color: #88f; }
+.btn-accept { color: #060; }
+.btn-accept:hover { background: linear-gradient(#f0fff0, #cfc); border-color: #0a0; }
+.btn-decline { color: #c00; }
+.btn-decline:hover { background: linear-gradient(#fff0f0, #fcc); border-color: #c00; }
+.empty { color: #999; font-style: italic; padding: 30px; text-align: center; }
+.error { color: #c00; padding: 12px; }
+.loading { color: #999; font-style: italic; padding: 12px; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="toolbar-title">👫 Friends</span>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-state="0" onclick="switchTab(0)">Friends</button>
+  <button class="tab" data-state="2" onclick="switchTab(2)">Requests <span id="reqBadge"></span></button>
+  <button class="tab" data-state="1" onclick="switchTab(1)">Sent</button>
+</div>
+
+<div class="list" id="list">
+  <div class="loading">Loading friends...</div>
+</div>
+
+<script>
+var currentState = 0;
+var friendsCache = {};
+var onlineSet = {};
+
+function switchTab(state) {
+  currentState = state;
+  var tabs = document.querySelectorAll('.tab');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].className = 'tab' + (parseInt(tabs[i].getAttribute('data-state')) === state ? ' active' : '');
+  }
+  loadFriends(state);
+}
+
+function loadFriends(state) {
+  var list = document.getElementById('list');
+  list.innerHTML = '<div class="loading">Loading...</div>';
+
+  OS5000k.getFriends(state).then(function (result) {
+    friendsCache[state] = result.friends;
+    renderFriends(result.friends, state);
+  }).catch(function (err) {
+    list.innerHTML = '<div class="error">Failed: ' + esc(err.message) + '</div>';
+  });
+}
+
+function renderFriends(friends, state) {
+  var list = document.getElementById('list');
+  if (!friends || friends.length === 0) {
+    var msg = state === 0 ? 'No friends yet.' : state === 2 ? 'No pending requests.' : 'No sent requests.';
+    list.innerHTML = '<div class="empty">' + msg + '</div>';
+    return;
+  }
+
+  var html = '';
+  for (var i = 0; i < friends.length; i++) {
+    var f = friends[i];
+    var isOnline = f.online || onlineSet[f.userId];
+    html += '<div class="friend">';
+    html += '<div class="status-dot ' + (isOnline ? 'online' : 'offline') + '"></div>';
+    html += '<div class="friend-info">';
+    html += '<div class="friend-name">' + esc(f.displayName || f.username) + '</div>';
+    html += '<div class="friend-user">@' + esc(f.username) + '</div>';
+    html += '</div>';
+    html += '<div class="actions">';
+
+    if (state === 0) {
+      html += '<button class="btn" onclick="viewProfile(\'' + esc(f.userId) + '\')">Profile</button>';
+      html += '<button class="btn" onclick="openMail(\'' + esc(f.userId) + '\')">Mail</button>';
+      html += '<button class="btn btn-decline" onclick="doRemove(\'' + esc(f.userId) + '\')">Remove</button>';
+    } else if (state === 2) {
+      html += '<button class="btn btn-accept" onclick="doAccept(\'' + esc(f.userId) + '\')">Accept</button>';
+      html += '<button class="btn btn-decline" onclick="doRemove(\'' + esc(f.userId) + '\')">Decline</button>';
+    } else if (state === 1) {
+      html += '<button class="btn btn-decline" onclick="doRemove(\'' + esc(f.userId) + '\')">Cancel</button>';
+    }
+
+    html += '</div></div>';
+  }
+  list.innerHTML = html;
+}
+
+function viewProfile(userId) {
+  if (OS5000k) {
+    OS5000k.getUserProfile(userId).then(function (profile) {
+      alert('@' + profile.username + '\n' + (profile.bio || 'No bio'));
+    });
+  }
+}
+
+function openMail(userId) {
+  alert('Open the Mail app from the desktop to compose a message.');
+}
+
+function doAccept(userId) {
+  OS5000k.addFriend({ userId: userId }).then(function () {
+    loadFriends(currentState);
+  }).catch(function (err) {
+    alert('Failed: ' + err.message);
+  });
+}
+
+function doRemove(userId) {
+  OS5000k.removeFriend(userId).then(function () {
+    loadFriends(currentState);
+  }).catch(function (err) {
+    alert('Failed: ' + err.message);
+  });
+}
+
+function esc(str) {
+  var div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+// Wait for bridge
+function initFriendsApp() {
+  OS5000k.on('friends.presenceUpdate', function (data) {
+    onlineSet[data.userId] = data.online;
+    if (currentState === 0 && friendsCache[0]) {
+      for (var i = 0; i < friendsCache[0].length; i++) {
+        if (friendsCache[0][i].userId === data.userId) {
+          friendsCache[0][i].online = data.online;
+        }
+      }
+      renderFriends(friendsCache[0], 0);
+    }
+  });
+
+  OS5000k.getFriends(2).then(function (result) {
+    if (result.friends && result.friends.length > 0) {
+      document.getElementById('reqBadge').innerHTML = '<span class="badge">' + result.friends.length + '</span>';
+    }
+  });
+
+  loadFriends(0);
+}
+
+function waitForBridge() {
+  if (typeof OS5000k !== 'undefined') {
+    initFriendsApp();
+  } else {
+    var attempts = 0;
+    var check = setInterval(function () {
+      attempts++;
+      if (typeof OS5000k !== 'undefined') {
+        clearInterval(check);
+        initFriendsApp();
+      } else if (attempts > 50) {
+        clearInterval(check);
+        document.getElementById('list').innerHTML = '<div class="error">Not logged in. Friends requires authentication.</div>';
+      }
+    }, 100);
+  }
+}
+waitForBridge();
+</script>
+</body>
+</html>

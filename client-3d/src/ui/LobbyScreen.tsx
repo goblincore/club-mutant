@@ -9,6 +9,7 @@ import { TurntableCarousel } from './components/TurntableCarousel'
 import { CharacterSidePreview } from './CharacterSidePreview'
 import { CustomRoomBrowser } from './CustomRoomBrowser'
 import { CreateRoomForm } from './CreateRoomForm'
+import { VersionTag } from './components/VersionTag'
 
 type Screen = 'character-select' | 'room-select'
 type RoomSubView = 'choose' | 'browse' | 'create'
@@ -319,6 +320,7 @@ export function LobbyScreen() {
   return (
     <div className="relative flex flex-col items-center w-full h-full overflow-hidden">
       <WarpCheckBg />
+      <VersionTag />
 
       {/* ───────── Screen 1: Character Select ───────── */}
       {screen === 'character-select' && (

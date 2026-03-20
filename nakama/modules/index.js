@@ -343,6 +343,329 @@ var deletePlaylistRpc = function (ctx, logger, nk, payload) {
   return JSON.stringify({ success: true });
 };
 
+// ─── Direct Messaging ───────────────────────────────────────────────
+
+var DM_MESSAGES_COLLECTION = 'dm_messages';
+var DM_CONVERSATIONS_COLLECTION = 'dm_conversations';
+var DM_MAX_SUBJECT = 100;
+var DM_MAX_BODY = 2000;
+var DM_RATE_LIMIT_WINDOW = 60;  // seconds
+var DM_RATE_LIMIT_MAX = 10;     // messages per window
+var DM_PAGE_SIZE = 50;
+var DM_NOTIFICATION_CODE = 100;
+
+/**
+ * send_message RPC — send a DM to another user.
+ * Writes two copies (sender + recipient), updates conversation indexes,
+ * and sends a Nakama notification to the recipient.
+ *
+ * Input: { recipient_id, subject, body }
+ * Output: { messageId, createdAt }
+ */
+var sendMessageRpc = function (ctx, logger, nk, payload) {
+  var input;
+  try {
+    input = JSON.parse(payload);
+  } catch (e) {
+    throw 'Invalid JSON payload';
+  }
+
+  var recipientId = input.recipient_id;
+  var subject = input.subject;
+  var body = input.body;
+
+  if (!recipientId || typeof recipientId !== 'string') throw 'recipient_id is required';
+  if (!subject || typeof subject !== 'string') throw 'subject is required';
+  if (!body || typeof body !== 'string') throw 'body is required';
+
+  subject = subject.trim().substring(0, DM_MAX_SUBJECT);
+  body = body.trim().substring(0, DM_MAX_BODY);
+
+  if (!subject) throw 'subject cannot be empty';
+  if (!body) throw 'body cannot be empty';
+
+  // Prevent sending to self
+  if (recipientId === ctx.userId) throw 'Cannot message yourself';
+
+  // Rate limit
+  if (!checkRateLimit(nk, logger, ctx.userId, 'dm_send', DM_RATE_LIMIT_WINDOW, DM_RATE_LIMIT_MAX)) {
+    throw 'Too many messages. Please wait before sending more.';
+  }
+
+  // Verify recipient exists
+  var recipientAccount;
+  try {
+    recipientAccount = nk.accountGetId(recipientId);
+  } catch (e) {
+    throw 'Recipient not found';
+  }
+  if (!recipientAccount || !recipientAccount.user) throw 'Recipient not found';
+
+  var senderAccount = nk.accountGetId(ctx.userId);
+  var senderUsername = (senderAccount.user && senderAccount.user.username) || 'Unknown';
+  var recipientUsername = recipientAccount.user.username || 'Unknown';
+
+  var messageId = nk.uuidv4();
+  var now = Date.now();
+  // Zero-padded timestamp for lexicographic sorting
+  var tsKey = ('0000000000000' + now).slice(-13) + '_' + messageId;
+
+  var messageValue = {
+    messageId: messageId,
+    senderId: ctx.userId,
+    recipientId: recipientId,
+    senderUsername: senderUsername,
+    recipientUsername: recipientUsername,
+    subject: subject,
+    body: body,
+    createdAt: now,
+    read: false
+  };
+
+  // Write sender copy (read=true) and recipient copy (read=false)
+  var senderCopy = {};
+  for (var k in messageValue) {
+    if (messageValue.hasOwnProperty(k)) senderCopy[k] = messageValue[k];
+  }
+  senderCopy.read = true;
+
+  nk.storageWrite([
+    {
+      collection: DM_MESSAGES_COLLECTION,
+      key: tsKey,
+      userId: ctx.userId,
+      value: senderCopy,
+      permissionRead: 1,
+      permissionWrite: 0
+    },
+    {
+      collection: DM_MESSAGES_COLLECTION,
+      key: tsKey,
+      userId: recipientId,
+      value: messageValue,
+      permissionRead: 1,
+      permissionWrite: 0
+    }
+  ]);
+
+  // Update conversation indexes for both users
+  var preview = body.substring(0, 80);
+
+  // Sender's conversation index (with recipient)
+  updateConversationIndex(nk, ctx.userId, recipientId, recipientUsername, preview, now, 0);
+  // Recipient's conversation index (with sender) — increment unread
+  updateConversationIndex(nk, recipientId, ctx.userId, senderUsername, preview, now, 1);
+
+  // Send notification to recipient
+  try {
+    nk.notificationSend(
+      recipientId,
+      'New message from ' + senderUsername,
+      DM_NOTIFICATION_CODE,
+      {
+        messageId: messageId,
+        senderId: ctx.userId,
+        senderUsername: senderUsername,
+        subject: subject,
+        preview: preview
+      },
+      ctx.userId,
+      false
+    );
+  } catch (e) {
+    logger.warn('Failed to send DM notification: %s', e);
+  }
+
+  logger.info('DM sent from %s to %s: %s', ctx.userId, recipientId, messageId);
+  return JSON.stringify({ messageId: messageId, createdAt: now });
+};
+
+/**
+ * Update or create a conversation index entry.
+ * If incrementUnread > 0, adds to existing unreadCount.
+ */
+function updateConversationIndex(nk, userId, otherUserId, otherUsername, preview, timestamp, incrementUnread) {
+  var existing = nk.storageRead([{
+    collection: DM_CONVERSATIONS_COLLECTION,
+    key: otherUserId,
+    userId: userId
+  }]);
+
+  var unreadCount = incrementUnread;
+  if (existing && existing.length > 0 && existing[0].value) {
+    if (incrementUnread > 0) {
+      unreadCount = (existing[0].value.unreadCount || 0) + incrementUnread;
+    }
+  }
+
+  nk.storageWrite([{
+    collection: DM_CONVERSATIONS_COLLECTION,
+    key: otherUserId,
+    userId: userId,
+    value: {
+      otherUserId: otherUserId,
+      otherUsername: otherUsername,
+      lastMessagePreview: preview,
+      lastMessageAt: timestamp,
+      unreadCount: unreadCount
+    },
+    permissionRead: 1,
+    permissionWrite: 0
+  }]);
+}
+
+/**
+ * list_conversations RPC — list conversation partners with last message info.
+ *
+ * Input: { cursor? }
+ * Output: { conversations: ConversationSummary[], cursor? }
+ */
+var listConversationsRpc = function (ctx, logger, nk, payload) {
+  var input = {};
+  if (payload) {
+    try {
+      input = JSON.parse(payload);
+    } catch (e) {
+      throw 'Invalid JSON payload';
+    }
+  }
+
+  var cursor = input.cursor || '';
+  var result = nk.storageList(ctx.userId, DM_CONVERSATIONS_COLLECTION, DM_PAGE_SIZE, cursor);
+  var objects = result.objects || result || [];
+
+  var conversations = [];
+  if (Array.isArray(objects)) {
+    for (var i = 0; i < objects.length; i++) {
+      var val = objects[i].value || {};
+      conversations.push({
+        otherUserId: val.otherUserId || objects[i].key || '',
+        otherUsername: val.otherUsername || '',
+        lastMessagePreview: val.lastMessagePreview || '',
+        lastMessageAt: val.lastMessageAt || 0,
+        unreadCount: val.unreadCount || 0
+      });
+    }
+  }
+
+  // Sort by most recent first
+  conversations.sort(function (a, b) { return b.lastMessageAt - a.lastMessageAt; });
+
+  return JSON.stringify({
+    conversations: conversations,
+    cursor: result.cursor || null
+  });
+};
+
+/**
+ * get_messages RPC — get messages for a conversation with a specific user.
+ * Uses key prefix scanning since keys are "{timestamp}_{messageId}".
+ *
+ * Input: { other_user_id, cursor? }
+ * Output: { messages: MailMessage[], cursor? }
+ */
+var getMessagesRpc = function (ctx, logger, nk, payload) {
+  var input;
+  try {
+    input = JSON.parse(payload);
+  } catch (e) {
+    throw 'Invalid JSON payload';
+  }
+
+  var otherUserId = input.other_user_id;
+  if (!otherUserId) throw 'other_user_id is required';
+
+  var cursor = input.cursor || '';
+  var allMessages = [];
+  var nextCursor = cursor;
+
+  // Scan through messages and filter by conversation partner
+  // We may need multiple pages since not all messages are with this partner
+  var scanned = 0;
+  var maxScans = 5; // Prevent runaway scanning
+
+  while (scanned < maxScans) {
+    var result = nk.storageList(ctx.userId, DM_MESSAGES_COLLECTION, DM_PAGE_SIZE, nextCursor);
+    var objects = result.objects || result || [];
+
+    if (!Array.isArray(objects) || objects.length === 0) {
+      nextCursor = '';
+      break;
+    }
+
+    for (var i = 0; i < objects.length; i++) {
+      var msg = objects[i].value || {};
+      // Match if the other user is either sender or recipient
+      var isMatch = (msg.senderId === otherUserId || msg.recipientId === otherUserId);
+      if (isMatch) {
+        allMessages.push(msg);
+      }
+    }
+
+    nextCursor = result.cursor || '';
+    scanned++;
+
+    // Stop if we have enough messages or no more pages
+    if (allMessages.length >= DM_PAGE_SIZE || !nextCursor) break;
+  }
+
+  // Messages are already in chronological order (keys are timestamp-based)
+  // Reverse so newest first
+  allMessages.reverse();
+
+  // Trim to page size
+  if (allMessages.length > DM_PAGE_SIZE) {
+    allMessages = allMessages.slice(0, DM_PAGE_SIZE);
+  }
+
+  return JSON.stringify({
+    messages: allMessages,
+    cursor: nextCursor || null
+  });
+};
+
+/**
+ * mark_read RPC — mark a conversation as read.
+ * Resets unread count on the conversation index.
+ *
+ * Input: { other_user_id }
+ * Output: { success: true }
+ */
+var markReadRpc = function (ctx, logger, nk, payload) {
+  var input;
+  try {
+    input = JSON.parse(payload);
+  } catch (e) {
+    throw 'Invalid JSON payload';
+  }
+
+  var otherUserId = input.other_user_id;
+  if (!otherUserId) throw 'other_user_id is required';
+
+  // Read existing conversation index
+  var existing = nk.storageRead([{
+    collection: DM_CONVERSATIONS_COLLECTION,
+    key: otherUserId,
+    userId: ctx.userId
+  }]);
+
+  if (existing && existing.length > 0 && existing[0].value) {
+    var val = existing[0].value;
+    val.unreadCount = 0;
+
+    nk.storageWrite([{
+      collection: DM_CONVERSATIONS_COLLECTION,
+      key: otherUserId,
+      userId: ctx.userId,
+      value: val,
+      permissionRead: 1,
+      permissionWrite: 0
+    }]);
+  }
+
+  return JSON.stringify({ success: true });
+};
+
 // ─── InitModule ─────────────────────────────────────────────────────
 
 var InitModule = function (ctx, logger, nk, initializer) {
@@ -351,6 +674,10 @@ var InitModule = function (ctx, logger, nk, initializer) {
   initializer.registerRpc('list_playlists', listPlaylistsRpc);
   initializer.registerRpc('save_playlist', savePlaylistRpc);
   initializer.registerRpc('delete_playlist', deletePlaylistRpc);
+  initializer.registerRpc('send_message', sendMessageRpc);
+  initializer.registerRpc('list_conversations', listConversationsRpc);
+  initializer.registerRpc('get_messages', getMessagesRpc);
+  initializer.registerRpc('mark_read', markReadRpc);
   initializer.registerBeforeAuthenticateEmail(beforeAuthenticateEmail);
-  logger.info('Modules loaded: RPCs (update_profile, get_profile, list_playlists, save_playlist, delete_playlist), hooks (beforeAuthenticateEmail)');
+  logger.info('Modules loaded: RPCs (update_profile, get_profile, list_playlists, save_playlist, delete_playlist, send_message, list_conversations, get_messages, mark_read), hooks (beforeAuthenticateEmail)');
 };

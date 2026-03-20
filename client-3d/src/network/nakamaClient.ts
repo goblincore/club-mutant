@@ -2,6 +2,7 @@ import { Client, Session } from '@heroiclabs/nakama-js'
 import type { Socket, Presence } from '@heroiclabs/nakama-js'
 import { useAuthStore } from '../stores/authStore'
 import { usePresenceStore } from '../stores/presenceStore'
+import { pushToOS5k } from '../events/os5000kEvents'
 
 const NAKAMA_SERVER_KEY = import.meta.env.VITE_NAKAMA_SERVER_KEY || 'clubmutant_dev'
 const NAKAMA_HOST = import.meta.env.VITE_NAKAMA_HOST || 'localhost'
@@ -194,10 +195,35 @@ export async function connectSocket(): Promise<void> {
   socket.onstatuspresence = (event) => {
     const store = usePresenceStore.getState()
     if (event.joins?.length) {
-      store.addOnline(event.joins.map((p: Presence) => p.user_id))
+      const ids = event.joins.map((p: Presence) => p.user_id)
+      store.addOnline(ids)
+      // Push presence updates to OS5000k bridge
+      for (const id of ids) pushToOS5k('friends.presenceUpdate', { userId: id, online: true })
     }
     if (event.leaves?.length) {
-      store.removeOnline(event.leaves.map((p: Presence) => p.user_id))
+      const ids = event.leaves.map((p: Presence) => p.user_id)
+      store.removeOnline(ids)
+      for (const id of ids) pushToOS5k('friends.presenceUpdate', { userId: id, online: false })
+    }
+  }
+
+  socket.onnotification = (notification) => {
+    if (notification.code === 100) {
+      // DM notification
+      const data = notification.content as {
+        messageId: string
+        senderId: string
+        senderUsername: string
+        subject: string
+        preview: string
+      }
+      pushToOS5k('mail.newMessage', {
+        from: { userId: data.senderId, username: data.senderUsername },
+        subject: data.subject,
+        preview: data.preview,
+        messageId: data.messageId,
+      })
+      console.log('[nakama] DM notification from %s', data.senderUsername)
     }
   }
 
@@ -390,4 +416,70 @@ export async function saveServerPlaylist(playlist: {
 export async function deleteServerPlaylist(id: string): Promise<void> {
   const session = await ensureSession()
   await getClient().rpc(session, 'delete_playlist', { id })
+}
+
+// ── User Profile Lookup ─────────────────────────────────────────────────────
+
+export interface UserProfileData {
+  user_id: string
+  username: string
+  display_name: string
+  avatar_url: string
+  metadata: Record<string, unknown>
+}
+
+/**
+ * Get another user's profile via server-side RPC.
+ */
+export async function getUserProfile(userId: string): Promise<UserProfileData> {
+  const session = await ensureSession()
+  const result = await getClient().rpc(session, 'get_profile', { user_id: userId })
+  return result.payload as UserProfileData
+}
+
+// ── Direct Messaging API ────────────────────────────────────────────────────
+
+import type { MailMessage, ConversationSummary } from '../../../types/Mail'
+
+export async function sendDirectMessage(
+  recipientId: string,
+  subject: string,
+  body: string,
+): Promise<{ messageId: string; createdAt: number }> {
+  const session = await ensureSession()
+  const result = await getClient().rpc(session, 'send_message', {
+    recipient_id: recipientId,
+    subject,
+    body,
+  })
+  return result.payload as { messageId: string; createdAt: number }
+}
+
+export async function listConversations(
+  cursor?: string,
+): Promise<{ conversations: ConversationSummary[]; cursor?: string }> {
+  const session = await ensureSession()
+  const result = await getClient().rpc(
+    session,
+    'list_conversations',
+    cursor ? { cursor } : {},
+  )
+  return result.payload as { conversations: ConversationSummary[]; cursor?: string }
+}
+
+export async function getDirectMessages(
+  otherUserId: string,
+  cursor?: string,
+): Promise<{ messages: MailMessage[]; cursor?: string }> {
+  const session = await ensureSession()
+  const result = await getClient().rpc(session, 'get_messages', {
+    other_user_id: otherUserId,
+    cursor,
+  })
+  return result.payload as { messages: MailMessage[]; cursor?: string }
+}
+
+export async function markMessagesRead(otherUserId: string): Promise<void> {
+  const session = await ensureSession()
+  await getClient().rpc(session, 'mark_read', { other_user_id: otherUserId })
 }

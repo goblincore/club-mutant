@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { authenticateEmail } from '../network/nakamaClient'
 import { WarpCheckBg } from './WarpCheckBg'
+import { VersionTag } from './components/VersionTag'
 import { TurntableCarousel } from './components/TurntableCarousel'
 import {
   getCharacters,
@@ -99,6 +100,7 @@ export function AuthScreen() {
   return (
     <div className="relative flex flex-col items-center w-full h-full overflow-hidden">
       <WarpCheckBg />
+      <VersionTag />
 
       {/* Character carousel — fills viewport absolutely, scale() from default transform-origin
           (50% 50%) = viewport center. Clean zoom in/out transition always anchored to center. */}

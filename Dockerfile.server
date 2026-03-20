@@ -17,6 +17,8 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY package.json ./
 COPY types/package.json ./types/
 COPY server/package.json ./server/
+COPY packages/os5000k/package.json ./packages/os5000k/
+COPY packages/acs-web/package.json ./packages/acs-web/
 
 # Install all workspace dependencies
 RUN pnpm install --frozen-lockfile
@@ -47,6 +49,8 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY package.json ./
 COPY types/package.json ./types/
 COPY server/package.json ./server/
+COPY packages/os5000k/package.json ./packages/os5000k/
+COPY packages/acs-web/package.json ./packages/acs-web/
 
 # Install production deps only
 RUN pnpm install --frozen-lockfile --prod

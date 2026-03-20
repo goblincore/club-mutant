@@ -2,6 +2,7 @@ package npc
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -11,14 +12,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/club-mutant/dream-npc-go/npc/cogmem"
+	"github.com/goblincore/geoffreyengram/dualmem"
 )
 
 var (
-	cache           *LRUCache
-	rateLimiter     *RateLimiter
-	client          *http.Client
-	cogMemInstance   *cogmem.CogMem
+	cache       *LRUCache
+	rateLimiter *RateLimiter
+	client      *http.Client
+	dmEngine    *dualmem.Engine
 )
 
 func init() {
@@ -26,28 +27,26 @@ func init() {
 	rateLimiter = NewRateLimiter()
 	client = &http.Client{Timeout: 8 * time.Second}
 
-	// Initialize cognitive memory (replaces mem0 cloud API)
 	apiKey := os.Getenv("GEMINI_API_KEY")
-	dbPath := os.Getenv("COGMEM_DB_PATH")
+	dbPath := os.Getenv("DUALMEM_DB_PATH")
 	if dbPath == "" {
-		dbPath = "./data/cogmem.db"
+		dbPath = "./data/dualmem.db"
 	}
 	if apiKey != "" {
-		var err error
-		cogMemInstance, err = cogmem.Init(cogmem.Config{
-			DBPath:       dbPath,
-			GeminiAPIKey: apiKey,
+		engine, err := dualmem.New(dualmem.Config{
+			SQLitePath:        dbPath,
+			EmbeddingProvider: dualmem.NewGeminiEmbedder(apiKey, 768),
+			Classifier:        dualmem.NewGeminiClassifier(apiKey),
+			Summarizer:        dualmem.NewGeminiSummarizer(apiKey, ""),
 		})
 		if err != nil {
-			log.Printf("[cogmem] Init failed: %v — cognitive memory disabled", err)
+			log.Printf("[dualmem] Init failed: %v — memory disabled", err)
+		} else {
+			dmEngine = engine
+			log.Println("[dualmem] Memory enabled (dual-path)")
 		}
 	} else {
-		log.Println("[cogmem] GEMINI_API_KEY not set — cognitive memory disabled")
-	}
-
-	// Keep mem0 as fallback (if MEM0_API_KEY is set and cogmem is not available)
-	if cogMemInstance == nil {
-		InitMem0()
+		log.Println("[dualmem] GEMINI_API_KEY not set — memory disabled")
 	}
 }
 
@@ -83,33 +82,25 @@ func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
 	// Record request
 	rateLimiter.Record(sessionKey)
 
-	// Start memory search in parallel with prompt building
+	// Start memory context assembly in parallel with prompt building
 	memUserID := ""
-	var cogMemCh chan []cogmem.SearchResult
-	var mem0Ch chan []Mem0Memory
+	var memCtxCh chan *dualmem.ContextBlock
 
 	if req.PlayerID != "" {
 		memUserID = personality.ID + ":" + req.PlayerID
 
-		if cogMemInstance != nil {
-			// Use cognitive memory (primary)
-			cogMemCh = make(chan []cogmem.SearchResult, 1)
+		if dmEngine != nil {
+			memCtxCh = make(chan *dualmem.ContextBlock, 1)
 			go func() {
-				weights := cogmem.DefaultSectorWeights()
-				if personality.SectorWeights != nil {
-					for k, v := range personality.SectorWeights {
-						weights[cogmem.Sector(k)] = v
-					}
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+				block, err := dmEngine.AssembleContext(ctx, memUserID, req.Message, 1500)
+				if err != nil {
+					log.Printf("[dualmem] AssembleContext: %v", err)
+					memCtxCh <- nil
+				} else {
+					memCtxCh <- block
 				}
-				results := cogMemInstance.Search(req.Message, memUserID, 5, weights)
-				cogMemCh <- results
-			}()
-		} else if mem0Client != nil {
-			// Fallback to mem0 cloud API
-			mem0Ch = make(chan []Mem0Memory, 1)
-			go func() {
-				results := Mem0Search(req.Message, "lily:"+req.PlayerID, 5)
-				mem0Ch <- results
 			}()
 		}
 	}
@@ -124,28 +115,11 @@ func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
 		contextParts = append(contextParts, "The person talking to you right now is named \""+req.SenderName+"\".")
 	}
 
-	// Collect memory results (blocks until search completes or was never started)
-	if cogMemCh != nil {
-		memories := <-cogMemCh
-		if len(memories) > 0 {
-			var lines []string
-			for _, m := range memories {
-				lines = append(lines, "- "+m.Summary)
-			}
+	// Collect memory context (blocks until assembly completes or was never started)
+	if memCtxCh != nil {
+		if block := <-memCtxCh; block != nil && block.Text != "" {
 			contextParts = append(contextParts,
-				"THINGS YOU REMEMBER ABOUT THIS PERSON FROM PAST VISITS:\n"+
-					strings.Join(lines, "\n"))
-		}
-	} else if mem0Ch != nil {
-		memories := <-mem0Ch
-		if len(memories) > 0 {
-			var lines []string
-			for _, m := range memories {
-				lines = append(lines, "- "+m.Memory)
-			}
-			contextParts = append(contextParts,
-				"THINGS YOU REMEMBER ABOUT THIS PERSON FROM PAST VISITS:\n"+
-					strings.Join(lines, "\n"))
+				"BACKGROUND IMPRESSIONS (these shape your tone and warmth — do not mention them directly):\n"+block.Text)
 		}
 	}
 
@@ -162,17 +136,8 @@ func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
 			cache.Set(cacheKey, parsedText, parsedBehavior)
 
 			// Store conversation in memory (fire-and-forget)
-			if memUserID != "" {
-				if cogMemInstance != nil {
-					// cogmem tracks userID separately — no need for name prefix
-					go cogMemInstance.Add(req.Message, parsedText, memUserID)
-				} else if mem0Client != nil {
-					taggedMsg := req.Message
-					if req.SenderName != "" {
-						taggedMsg = "[" + req.SenderName + "]: " + req.Message
-					}
-					go Mem0Add(taggedMsg, parsedText, "lily:"+req.PlayerID)
-				}
+			if memUserID != "" && dmEngine != nil {
+				go dmEngine.Add(req.Message, parsedText, memUserID)
 			}
 
 			return 200, NpcChatResponse{Text: parsedText, Behavior: parsedBehavior}

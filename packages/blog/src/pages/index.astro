@@ -1,0 +1,35 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'
+import { getCollection } from 'astro:content'
+
+const devlogPosts = await getCollection('devlog')
+const changelogPosts = await getCollection('changelog')
+
+const allPosts = [
+  ...devlogPosts.map(p => ({ ...p, type: 'devlog' as const })),
+  ...changelogPosts.map(p => ({ ...p, type: 'changelog' as const })),
+].sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
+---
+<BaseLayout>
+  <h1 style="margin-top: 0;">latest</h1>
+  <ul style="list-style: none; padding: 0;">
+    {allPosts.map(post => {
+      const href = `/${post.type}/${post.slug}`
+      const dateStr = post.data.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      return (
+        <li style="margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border);">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap;">
+            <a href={href} style="font-size: 1.1rem; font-weight: bold; color: #fff;">{post.data.title}</a>
+            <span style="color: var(--text-muted); font-size: 0.8rem; white-space: nowrap;">
+              {dateStr}
+              <span style={`margin-left: 0.5rem; padding: 0.1em 0.5em; border-radius: 3px; font-size: 0.75rem; ${post.type === 'changelog' ? 'background: var(--accent-dim); color: var(--accent);' : 'background: #222; color: var(--text-muted);'}`}>
+                {post.type}
+              </span>
+            </span>
+          </div>
+          <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;">{post.data.description}</p>
+        </li>
+      )
+    })}
+  </ul>
+</BaseLayout>

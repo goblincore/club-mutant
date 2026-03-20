@@ -1,0 +1,41 @@
+---
+import '../styles/global.css'
+
+interface Props {
+  title?: string
+  description?: string
+}
+
+const { title = 'Club Mutant Blog', description = 'Dev blog and changelog for Club Mutant' } = Astro.props
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+  </head>
+  <body>
+    <header>
+      <nav style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 0; border-bottom: 1px solid var(--border); margin-bottom: 2rem;">
+        <a href="/" style="font-size: 1.2rem; font-weight: bold; color: #fff;">
+          club mutant
+        </a>
+        <div style="display: flex; gap: 1.5rem; align-items: center;">
+          <a href="/devlog">devlog</a>
+          <a href="/changelog">changelog</a>
+          <span style="color: var(--text-muted); font-size: 0.8rem;">v{__APP_VERSION__}</span>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer style="margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.8rem; text-align: center;">
+      <a href="https://mutante.club" target="_blank">play club mutant</a>
+    </footer>
+  </body>
+</html>

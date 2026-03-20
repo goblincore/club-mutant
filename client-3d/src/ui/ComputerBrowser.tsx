@@ -1,7 +1,30 @@
+import { useEffect, useRef } from 'react'
 import { useUIStore } from '../stores/uiStore'
+import { OS5000kBridgeHost } from './os5000k/OS5000kBridgeHost'
 
 export function ComputerBrowser() {
   const open = useUIStore((s) => s.computerIframeOpen)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const bridgeRef = useRef<OS5000kBridgeHost | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+
+    const bridge = new OS5000kBridgeHost()
+    bridgeRef.current = bridge
+
+    return () => {
+      bridge.destroy()
+      bridgeRef.current = null
+    }
+  }, [open])
+
+  const handleIframeLoad = () => {
+    if (iframeRef.current && bridgeRef.current) {
+      bridgeRef.current.setIframe(iframeRef.current)
+      bridgeRef.current.sendConnected()
+    }
+  }
 
   if (!open) return null
 
@@ -46,7 +69,7 @@ export function ComputerBrowser() {
 
           {/* Title */}
           <div className="flex-1 text-center text-[11px] font-mono text-white/40 select-none">
-            OS13k
+            OS5000k
           </div>
 
           {/* Close button */}
@@ -70,13 +93,15 @@ export function ComputerBrowser() {
           </button>
         </div>
 
-        {/* OS13k content */}
+        {/* OS5000k content */}
         <div className="flex-1 bg-black">
           <iframe
-            src="/os13k/index.html"
-            title="OS13k"
+            ref={iframeRef}
+            src="/os5000k/index.html"
+            title="OS5000k"
             sandbox="allow-scripts allow-same-origin allow-popups"
             className="w-full h-full border-0"
+            onLoad={handleIframeLoad}
           />
         </div>
       </div>

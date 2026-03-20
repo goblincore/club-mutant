@@ -1,6 +1,8 @@
 /.cache
 /dist
 client-dream/dist
+packages/os5000k/dist
+firebase-debug.log
 node_modules
 .DS_Store
 /server/lib

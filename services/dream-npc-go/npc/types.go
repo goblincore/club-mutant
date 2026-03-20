@@ -62,5 +62,5 @@ type NpcPersonality struct {
 	ID              string
 	SystemPrompt    string
 	FallbackPhrases []string
-	SectorWeights   map[string]float64 // cogmem sector weights (episodic, semantic, procedural, emotional, reflective)
+	SectorWeights   map[string]float64 // dualmem sector weights (episodic, semantic, procedural, emotional, reflective)
 }
