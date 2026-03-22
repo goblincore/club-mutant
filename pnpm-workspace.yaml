@@ -10,8 +10,6 @@ packages:
 onlyBuiltDependencies:
   - '@parcel/watcher'
   - bcrypt
-  - electron
-  - electron-winstaller
   - esbuild
   - msgpackr-extract
   - swiper
