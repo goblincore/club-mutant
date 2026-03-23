@@ -101,13 +101,14 @@ function SceneContent() {
   const roomType = useGameStore((s) => s.roomType)
   const musicMode = useGameStore((s) => s.musicMode)
   const isDreaming = useDreamStore((s) => s.isDreaming)
+  const osActive = useUIStore((s) => s.osActive)
 
   // Custom rooms with jukebox musicMode also use the JukeboxRoom scene
   const useJukeboxScene = roomType === 'jukebox' || (roomType === 'custom' && musicMode === 'jukebox')
 
   // Dream mode is now handled by a fullscreen iframe overlay (DreamIframe.tsx)
   // The 3D scene stays mounted underneath but is hidden by the iframe
-  if (isDreaming) {
+  if (isDreaming || osActive) {
     return null
   }
 

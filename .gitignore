@@ -8,6 +8,7 @@ node_modules
 /server/lib
 
 __pycache__
+.venv/
 
 # Sensitive files
 cookies.txt

@@ -344,7 +344,7 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
       {/* Egg computer on the desk — interactable */}
       <InteractableObject
         interactDistance={2.0}
-        onInteract={() => useUIStore.getState().setComputerIframeOpen(true)}
+        onInteract={() => useUIStore.getState().setOsActive(true)}
         occludeHighlight
       >
         <GLBModel

@@ -75,6 +75,25 @@ body {
 .error { color: #c00; padding: 12px; }
 .loading { color: #999; font-style: italic; padding: 12px; }
 
+/* ── Inbox header ──────────────────────────── */
+.inbox-header {
+  display: flex;
+  align-items: center;
+  padding: 4px 10px;
+  gap: 8px;
+  background: #eee;
+  border-bottom: 1px solid #ccc;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #888;
+  font-weight: bold;
+  min-height: 22px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
 /* ── Inbox rows ─────────────────────────────── */
 .inbox-row {
   display: flex;
@@ -85,8 +104,10 @@ body {
   gap: 8px;
   min-height: 36px;
 }
+.inbox-row:nth-child(odd) { background: #fafafa; }
 .inbox-row:hover { background: #e8e8f8; }
 .inbox-row.unread { background: #f0f4ff; font-weight: bold; }
+.inbox-row.unread:nth-child(odd) { background: #eef2ff; }
 .inbox-row.unread:hover { background: #e4e8f8; }
 
 .row-dot {
@@ -97,6 +118,7 @@ body {
 }
 .row-dot.unread { background: #44f; }
 .row-dot.read { background: transparent; border: 1px solid #ccc; }
+.row-dot.header { visibility: hidden; }
 
 .row-sender {
   width: 100px;
@@ -147,6 +169,7 @@ body {
 }
 .msg-from { color: #44f; font-weight: bold; }
 .msg-from.self { color: #666; }
+.msg-from.system { color: #a0a; }
 .msg-time { color: #999; }
 .msg-subject {
   font-weight: bold;
@@ -162,7 +185,7 @@ body {
   white-space: pre-wrap;
 }
 
-/* ── Compose area ───────────────────────────── */
+/* ── Compact compose (thread reply) ─────────── */
 .compose {
   padding: 8px 10px;
   border-top: 1px solid #bbb;
@@ -200,6 +223,67 @@ body {
   gap: 6px;
   margin-top: 4px;
 }
+
+/* ── Full-height compose (new message) ──────── */
+.compose-full {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 10px;
+  background: #fff;
+}
+.compose-full .compose-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.compose-full .compose-field label {
+  color: #666;
+  font-size: 12px;
+  width: 55px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.compose-full .compose-field input {
+  flex: 1;
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #222;
+  padding: 4px 6px;
+  font-family: arial, sans-serif;
+  font-size: 12px;
+  outline: none;
+  border-radius: 2px;
+}
+.compose-full .compose-field input:focus { border-color: #88f; }
+.compose-full .compose-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 6px;
+}
+.compose-full .compose-body textarea {
+  flex: 1;
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #222;
+  padding: 6px;
+  font-family: arial, sans-serif;
+  font-size: 12px;
+  outline: none;
+  border-radius: 2px;
+  resize: none;
+  min-height: 60px;
+}
+.compose-full .compose-body textarea:focus { border-color: #88f; }
+.compose-full .compose-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #ddd;
+}
 </style>
 </head>
 <body>
@@ -216,37 +300,47 @@ body {
   <div class="loading">Loading...</div>
 </div>
 
-<div class="compose" id="composeArea" style="display:none">
-  <div class="compose-field" id="toField">
-    <label>To:</label>
-    <input id="composeTo" placeholder="User ID">
-  </div>
-  <div class="compose-field">
-    <label>Subject:</label>
-    <input id="composeSubject" placeholder="Subject">
-  </div>
-  <div class="compose-field">
-    <label>Message:</label>
-    <textarea id="composeBody" placeholder="Write your message..."></textarea>
-  </div>
-  <div class="compose-actions">
-    <button class="btn" onclick="hideCompose()">Cancel</button>
-    <button class="btn btn-send" onclick="doSend()">Send ▸</button>
-  </div>
-</div>
-
 <script>
 var currentView = 'inbox';
 var currentOtherUserId = null;
 var selfUserId = null;
 
+var WELCOME_MAIL = {
+  senderUsername: 'SYSTEM',
+  subject: 'Welcome to Club Mutant',
+  preview: 'Your neural link has been established...',
+  body: 'GREETINGS, NEW MUTANT.\n\n' +
+    'Your neural link has been established and your terminal is now online. ' +
+    'Welcome to the Club.\n\n' +
+    'From this terminal you can send and receive transmissions to other mutants. ' +
+    'Hit Compose to broadcast your first signal.\n\n' +
+    'A few things to know:\n' +
+    '  - Messages are delivered instantly via the neural mesh\n' +
+    '  - Your inbox updates in real-time\n' +
+    '  - Keep it weird. Keep it mutant.\n\n' +
+    'See you on the dance floor.\n\n' +
+    '-- Club Mutant Systems Division\n' +
+    '   [AUTOMATED TRANSMISSION]',
+  createdAt: Date.now()
+};
+
+function inboxHeaderHtml() {
+  return '<div class="inbox-header">' +
+    '<div class="row-dot header"></div>' +
+    '<div class="row-sender">From</div>' +
+    '<div class="row-subject">Subject</div>' +
+    '<div class="row-time">Date</div>' +
+    '</div>';
+}
+
 function showInbox() {
   currentView = 'inbox';
+  var content = document.getElementById('content');
+  content.style.overflow = '';
   document.getElementById('toolbarTitle').innerHTML = '<span class="icon">\u2709</span> Inbox';
   document.getElementById('backBtn').style.display = 'none';
   document.getElementById('composeBtn').style.display = '';
   document.getElementById('refreshBtn').style.display = '';
-  hideCompose();
   loadConversations();
 }
 
@@ -257,11 +351,19 @@ function loadConversations() {
   OS5000k.listConversations().then(function (result) {
     var convos = result.conversations || [];
     if (convos.length === 0) {
-      content.innerHTML = '<div class="empty">\u2709 No messages yet.<br><br>Click <b>Compose</b> to send your first message!</div>';
+      var html = inboxHeaderHtml();
+      html += '<div class="inbox-row unread" onclick="openWelcome()">';
+      html += '<div class="row-dot unread"></div>';
+      html += '<div class="row-sender">' + esc(WELCOME_MAIL.senderUsername) + '</div>';
+      html += '<div class="row-subject">' + esc(WELCOME_MAIL.subject) +
+        ' <span class="row-preview">\u2014 ' + esc(WELCOME_MAIL.preview) + '</span></div>';
+      html += '<div class="row-time">now</div>';
+      html += '</div>';
+      content.innerHTML = html;
       return;
     }
 
-    var html = '';
+    var html = inboxHeaderHtml();
     for (var i = 0; i < convos.length; i++) {
       var c = convos[i];
       var isUnread = c.unreadCount > 0;
@@ -278,6 +380,25 @@ function loadConversations() {
   });
 }
 
+function openWelcome() {
+  currentView = 'thread';
+  document.getElementById('toolbarTitle').innerHTML = '<span class="icon">\uD83D\uDCAC</span> SYSTEM';
+  document.getElementById('backBtn').style.display = '';
+  document.getElementById('composeBtn').style.display = 'none';
+  document.getElementById('refreshBtn').style.display = 'none';
+
+  var content = document.getElementById('content');
+  var html = '<div class="msg-card">';
+  html += '<div class="msg-meta">';
+  html += '<span class="msg-from system">SYSTEM</span>';
+  html += '<span class="msg-time">Just now</span>';
+  html += '</div>';
+  html += '<div class="msg-subject">' + esc(WELCOME_MAIL.subject) + '</div>';
+  html += '<div class="msg-body">' + esc(WELCOME_MAIL.body) + '</div>';
+  html += '</div>';
+  content.innerHTML = html;
+}
+
 function openThread(otherUserId, otherUsername) {
   currentView = 'thread';
   currentOtherUserId = otherUserId;
@@ -287,6 +408,7 @@ function openThread(otherUserId, otherUsername) {
   document.getElementById('refreshBtn').style.display = 'none';
 
   var content = document.getElementById('content');
+  content.style.overflow = '';
   content.innerHTML = '<div class="loading">Loading messages...</div>';
 
   OS5000k.markRead(otherUserId);
@@ -295,7 +417,7 @@ function openThread(otherUserId, otherUsername) {
     var messages = result.messages || [];
     if (messages.length === 0) {
       content.innerHTML = '<div class="empty">No messages yet. Start the conversation below.</div>';
-      showThreadCompose(otherUserId);
+      appendThreadCompose(otherUserId);
       return;
     }
 
@@ -317,21 +439,28 @@ function openThread(otherUserId, otherUsername) {
       html += '</div>';
     }
     content.innerHTML = html;
-    content.scrollTop = content.scrollHeight;
 
-    showThreadCompose(otherUserId);
+    appendThreadCompose(otherUserId);
+    content.scrollTop = content.scrollHeight;
   }).catch(function (err) {
     content.innerHTML = '<div class="error">Failed: ' + esc(err.message) + '</div>';
   });
 }
 
-function showThreadCompose(otherUserId) {
-  document.getElementById('composeArea').style.display = '';
-  document.getElementById('toField').style.display = 'none';
-  document.getElementById('composeTo').value = otherUserId;
-  document.getElementById('composeTo').disabled = true;
-  document.getElementById('composeSubject').value = '';
-  document.getElementById('composeBody').value = '';
+function appendThreadCompose(otherUserId) {
+  var content = document.getElementById('content');
+  var html =
+    '<div class="compose">' +
+      '<div class="compose-field">' +
+        '<label>Reply:</label>' +
+        '<textarea id="composeBody" placeholder="Write your reply..."></textarea>' +
+      '</div>' +
+      '<div class="compose-actions">' +
+        '<button class="btn btn-send" onclick="doSend()">Send \u25B8</button>' +
+      '</div>' +
+    '</div>';
+  content.insertAdjacentHTML('beforeend', html);
+  currentOtherUserId = otherUserId;
   document.getElementById('composeBody').focus();
 }
 
@@ -341,37 +470,52 @@ function showCompose() {
   document.getElementById('backBtn').style.display = '';
   document.getElementById('composeBtn').style.display = 'none';
   document.getElementById('refreshBtn').style.display = 'none';
-  document.getElementById('content').innerHTML = '';
-  document.getElementById('composeArea').style.display = '';
-  document.getElementById('toField').style.display = '';
-  document.getElementById('composeTo').value = '';
-  document.getElementById('composeTo').disabled = false;
-  document.getElementById('composeSubject').value = '';
-  document.getElementById('composeBody').value = '';
+
+  var content = document.getElementById('content');
+  content.style.overflow = 'hidden';
+  content.innerHTML =
+    '<div class="compose-full">' +
+      '<div class="compose-field">' +
+        '<label>To:</label>' +
+        '<input id="composeTo" placeholder="User ID">' +
+      '</div>' +
+      '<div class="compose-field">' +
+        '<label>Subject:</label>' +
+        '<input id="composeSubject" placeholder="Subject">' +
+      '</div>' +
+      '<div class="compose-body">' +
+        '<textarea id="composeBody" placeholder="Write your message..."></textarea>' +
+      '</div>' +
+      '<div class="compose-actions">' +
+        '<button class="btn" onclick="showInbox()">Cancel</button>' +
+        '<button class="btn btn-send" onclick="doSend()">Send \u25B8</button>' +
+      '</div>' +
+    '</div>';
   document.getElementById('composeTo').focus();
 }
 
-function hideCompose() {
-  document.getElementById('composeArea').style.display = 'none';
-  document.getElementById('toField').style.display = '';
-  document.getElementById('composeTo').disabled = false;
-}
-
 function doSend() {
-  var recipientId = document.getElementById('composeTo').value.trim();
-  var subject = document.getElementById('composeSubject').value.trim();
-  var body = document.getElementById('composeBody').value.trim();
-
-  if (!recipientId) { alert('Recipient is required'); return; }
-  if (!subject) { alert('Subject is required'); return; }
+  var bodyEl = document.getElementById('composeBody');
+  var body = bodyEl ? bodyEl.value.trim() : '';
   if (!body) { alert('Message body is required'); return; }
 
-  OS5000k.sendMail(recipientId, subject, body).then(function () {
-    document.getElementById('composeSubject').value = '';
-    document.getElementById('composeBody').value = '';
+  var recipientId, subject;
+  if (currentView === 'compose') {
+    var toEl = document.getElementById('composeTo');
+    var subEl = document.getElementById('composeSubject');
+    recipientId = toEl ? toEl.value.trim() : '';
+    subject = subEl ? subEl.value.trim() : '';
+    if (!recipientId) { alert('Recipient is required'); return; }
+    if (!subject) { alert('Subject is required'); return; }
+  } else {
+    recipientId = currentOtherUserId;
+    subject = 'Re';
+  }
 
+  OS5000k.sendMail(recipientId, subject, body).then(function () {
     if (currentView === 'thread') {
-      openThread(currentOtherUserId, document.getElementById('toolbarTitle').textContent.trim());
+      var title = document.getElementById('toolbarTitle').textContent || '';
+      openThread(currentOtherUserId, title.replace('\uD83D\uDCAC', '').trim());
     } else {
       showInbox();
     }
@@ -429,6 +573,19 @@ function initMailApp() {
   });
 }
 
+function showDemoInbox() {
+  var content = document.getElementById('content');
+  var html = inboxHeaderHtml();
+  html += '<div class="inbox-row unread" onclick="openWelcome()">';
+  html += '<div class="row-dot unread"></div>';
+  html += '<div class="row-sender">' + esc(WELCOME_MAIL.senderUsername) + '</div>';
+  html += '<div class="row-subject">' + esc(WELCOME_MAIL.subject) +
+    ' <span class="row-preview">\u2014 ' + esc(WELCOME_MAIL.preview) + '</span></div>';
+  html += '<div class="row-time">now</div>';
+  html += '</div>';
+  content.innerHTML = html;
+}
+
 function waitForBridge() {
   if (typeof OS5000k !== 'undefined') {
     initMailApp();
@@ -441,7 +598,7 @@ function waitForBridge() {
         initMailApp();
       } else if (attempts > 50) {
         clearInterval(check);
-        document.getElementById('content').innerHTML = '<div class="error">Not logged in. Mail requires authentication.</div>';
+        showDemoInbox();
       }
     }, 100);
   }

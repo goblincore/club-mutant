@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="../os5k-components.js"></script>
+<style>
+/* ── MutantTube theme ─────────────────────────── */
+.mt-header {
+  background: linear-gradient(180deg, #fff 0%, #e8e8e8 100%);
+  padding: 6px 8px;
+  border-bottom: 2px solid #cd201f;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mt-logo {
+  font-family: Arial Black, Arial, sans-serif;
+  font-size: 15px;
+  color: #fff;
+  background: #cd201f;
+  padding: 1px 6px;
+  border-radius: 3px;
+  letter-spacing: -1px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.mt-logo span { font-weight: normal; }
+.mt-search {
+  flex: 1;
+  display: flex;
+}
+.mt-search input {
+  flex: 1;
+  padding: 3px 6px;
+  border: 1px solid #bbb;
+  font-size: 12px;
+  border-radius: 2px 0 0 2px;
+  font-family: Arial, sans-serif;
+  outline: none;
+}
+.mt-search input:focus { border-color: #cd201f; }
+.mt-search button {
+  background: linear-gradient(#f8f8f8, #ddd);
+  border: 1px solid #bbb;
+  border-left: 0;
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 0 2px 2px 0;
+  cursor: pointer;
+  font-family: Arial, sans-serif;
+}
+.mt-search button:hover { background: linear-gradient(#fff, #eee); }
+.mt-nav {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.mt-nav-link {
+  color: #03c;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  padding: 0;
+}
+.mt-nav-link:hover { text-decoration: underline; }
+.mt-nav-link.active { font-weight: bold; color: #cd201f; }
+
+/* ── Content ──────────────────────────────────── */
+.mt-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  background: #f2f2f2;
+}
+.mt-results-info {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 6px;
+}
+
+/* ── Video card (search result) ───────────────── */
+.mt-video-card {
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 8px;
+  margin-bottom: 6px;
+  display: flex;
+  gap: 8px;
+  cursor: pointer;
+}
+.mt-video-card:hover { background: #fafafa; border-color: #ccc; }
+.mt-thumb {
+  width: 120px;
+  height: 68px;
+  background: #1a1a2e;
+  flex-shrink: 0;
+  position: relative;
+  border: 1px solid #ccc;
+  overflow: hidden;
+}
+.mt-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.mt-thumb-duration {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  font-size: 9px;
+  padding: 1px 3px;
+}
+.mt-thumb-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(255,255,255,0.5);
+  font-size: 24px;
+}
+.mt-video-info { flex: 1; min-width: 0; }
+.mt-video-title {
+  font-size: 13px;
+  color: #03c;
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mt-video-views { font-size: 11px; color: #666; margin-top: 2px; }
+.mt-video-channel { font-size: 11px; color: #666; }
+.mt-video-stars { color: #f90; }
+.mt-video-desc {
+  font-size: 10px;
+  color: #999;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mt-add-btn {
+  background: #f0f0f0;
+  border: 1px solid #ccc;
+  padding: 1px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  border-radius: 2px;
+  font-family: Arial, sans-serif;
+  margin-top: 4px;
+  display: inline-block;
+}
+.mt-add-btn:hover { background: #e0e0e0; border-color: #cd201f; }
+
+/* ── Video grid (homepage) ────────────────────── */
+.mt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.mt-grid-card {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 2px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.mt-grid-card:hover { border-color: #ccc; }
+.mt-grid-thumb {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: #1a1a2e;
+  position: relative;
+  overflow: hidden;
+}
+.mt-grid-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.mt-grid-info { padding: 4px 6px; }
+.mt-grid-title {
+  font-size: 11px;
+  color: #03c;
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mt-grid-channel { font-size: 10px; color: #666; }
+.mt-grid-views { font-size: 10px; color: #999; }
+
+/* ── Playlists ────────────────────────────────── */
+.mt-playlist-header {
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 10px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.mt-playlist-title { font-size: 14px; font-weight: bold; color: #333; }
+.mt-playlist-sub { font-size: 11px; color: #666; margin-top: 2px; }
+.mt-playlist-row {
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 8px;
+  margin-bottom: 4px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+}
+.mt-playlist-row:hover { background: #fafafa; }
+.mt-playlist-icon {
+  width: 60px;
+  height: 34px;
+  background: #1a1a2e;
+  flex-shrink: 0;
+  border: 1px solid #ccc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.4);
+  font-size: 10px;
+}
+.mt-playlist-name { font-size: 12px; color: #03c; font-weight: bold; }
+.mt-playlist-meta { font-size: 10px; color: #666; }
+
+/* ── Import ───────────────────────────────────── */
+.mt-import {
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 10px;
+  margin-top: 8px;
+}
+.mt-import-title { font-size: 12px; font-weight: bold; margin-bottom: 6px; }
+.mt-import-row { display: flex; gap: 4px; }
+.mt-import-row input {
+  flex: 1;
+  padding: 4px 6px;
+  border: 1px solid #bbb;
+  font-size: 11px;
+  font-family: Arial, sans-serif;
+  border-radius: 2px;
+  outline: none;
+}
+.mt-import-row button {
+  background: linear-gradient(#f8f8f8, #ddd);
+  border: 1px solid #bbb;
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 2px;
+  font-family: Arial, sans-serif;
+}
+
+/* ── Watch view ───────────────────────────────── */
+.mt-watch {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mt-player-wrap {
+  background: #000;
+  width: 100%;
+  aspect-ratio: 16/9;
+  position: relative;
+}
+.mt-player-wrap iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+.mt-watch-info {
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 10px;
+}
+.mt-watch-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 4px;
+}
+.mt-watch-meta {
+  font-size: 11px;
+  color: #666;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.mt-watch-channel {
+  font-weight: bold;
+  color: #333;
+}
+.mt-watch-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.mt-watch-btn {
+  background: linear-gradient(#f8f8f8, #ddd);
+  border: 1px solid #bbb;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 2px;
+  font-family: Arial, sans-serif;
+}
+.mt-watch-btn:hover { background: linear-gradient(#fff, #eee); }
+.mt-watch-btn.primary { background: #cd201f; color: #fff; border-color: #b01a19; }
+.mt-watch-btn.primary:hover { background: #e02521; }
+
+/* ── Playlist modal ───────────────────────────── */
+.mt-modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+.mt-modal {
+  background: #fff;
+  border: 1px solid #ccc;
+  padding: 12px;
+  min-width: 200px;
+  max-width: 280px;
+  border-radius: 3px;
+}
+.mt-modal h3 { font-size: 13px; margin-bottom: 8px; }
+.mt-modal-item {
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  border-radius: 2px;
+}
+.mt-modal-item:hover { background: #f0f0ff; }
+.mt-modal-close {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #666;
+  cursor: pointer;
+  text-align: center;
+  background: none;
+  border: none;
+  font-family: inherit;
+  width: 100%;
+}
+</style>
+</head>
+<body>
+<div id="app" style="display:flex;flex-direction:column;height:100vh;overflow:hidden;">
+  <div class="os5k-loading">Loading MutantTube...</div>
+</div>
+
+<script>
+var app = document.getElementById('app');
+var bridge = null;
+var currentView = 'home'; // home, search, playlists, playlist-detail, watch
+var searchResults = [];
+var playlists = [];
+var currentPlaylist = null;
+var pendingAddVideo = null;
+var watchingVideo = null;
+var prevView = 'home';
+
+// Random word pools for generating obscure search queries
+var RANDOM_WORDS = [
+  'my', 'first', 'test', 'video', 'vlog', 'day', 'new', 'trying',
+  'how', 'to', 'backyard', 'room', 'tour', 'morning', 'routine',
+  'cooking', 'garden', 'cat', 'dog', 'fish', 'bird', 'hamster',
+  'school', 'project', 'homework', 'practice', 'tutorial', 'diy',
+  'fix', 'broken', 'old', 'found', 'weird', 'random', 'update',
+  'haul', 'unboxing', 'review', 'challenge', 'attempt', 'fail',
+  'timelapse', 'asmr', 'walk', 'drive', 'rain', 'sunset', 'night',
+  'garage', 'shed', 'basement', 'attic', 'closet', 'desk', 'setup'
+];
+
+function randomQuery() {
+  var count = 2 + Math.floor(Math.random() * 2); // 2-3 words
+  var words = [];
+  for (var i = 0; i < count; i++) {
+    words.push(RANDOM_WORDS[Math.floor(Math.random() * RANDOM_WORDS.length)]);
+  }
+  return words.join(' ');
+}
+
+function formatViewCount(n) {
+  if (typeof n !== 'number' || isNaN(n)) return '0 views';
+  if (n === 1) return '1 view';
+  if (n < 1000) return n + ' views';
+  if (n < 1000000) return Math.floor(n / 1000) + 'K views';
+  return (n / 1000000).toFixed(1) + 'M views';
+}
+
+OS5kApp.init('mutanttube', function (b) {
+  bridge = b;
+  if (!bridge) {
+    showHome();
+    return;
+  }
+  showHome();
+});
+
+function render() {
+  var html = '';
+
+  // Header
+  html += '<div class="mt-header">';
+  html += '<div class="mt-logo" onclick="showHome()">Mutant<span>Tube</span></div>';
+  html += '<div class="mt-search">';
+  html += '<input id="searchInput" placeholder="Search..." onkeydown="if(event.key===\'Enter\')doSearch()"';
+  html += '>';
+  html += '<button onclick="doSearch()">Search</button>';
+  html += '</div>';
+  html += '<div class="mt-nav">';
+  html += '<button class="mt-nav-link' + (currentView === 'home' ? ' active' : '') + '" onclick="showHome()">Home</button>';
+  html += '<button class="mt-nav-link' + (currentView === 'playlists' || currentView === 'playlist-detail' ? ' active' : '') + '" onclick="showPlaylists()">My Playlists</button>';
+  html += '</div>';
+  html += '</div>';
+
+  // Content
+  html += '<div class="mt-content" id="content"></div>';
+
+  app.innerHTML = html;
+}
+
+function showHome() {
+  currentView = 'home';
+  render();
+  var content = document.getElementById('content');
+  content.innerHTML = '<div style="text-align:center;color:#999;font-style:italic;padding:20px;">Finding random videos...</div>';
+
+  if (!bridge) {
+    content.innerHTML = '<div style="text-align:center;color:#999;padding:30px;">Connect to browse videos.</div>';
+    return;
+  }
+
+  // Fire 3 random queries in parallel, merge results, sort by lowest views
+  var queries = [randomQuery(), randomQuery(), randomQuery()];
+  var promises = queries.map(function (q) {
+    return bridge.searchYouTube(q).catch(function () { return []; });
+  });
+
+  Promise.all(promises).then(function (allResults) {
+    var merged = [];
+    for (var i = 0; i < allResults.length; i++) {
+      var batch = allResults[i] || [];
+      for (var j = 0; j < batch.length; j++) {
+        merged.push(batch[j]);
+      }
+    }
+
+    // Dedupe by video id
+    var seen = {};
+    var unique = [];
+    for (var k = 0; k < merged.length; k++) {
+      if (!seen[merged[k].id]) {
+        seen[merged[k].id] = true;
+        unique.push(merged[k]);
+      }
+    }
+
+    // Sort by lowest view count first
+    unique.sort(function (a, b) {
+      return (a.viewCount || 0) - (b.viewCount || 0);
+    });
+
+    var items = unique.slice(0, 12);
+    var html = '<div style="font-size:13px;font-weight:bold;color:#333;margin-bottom:8px;">Random Finds</div>';
+    html += '<div class="mt-grid">';
+    for (var m = 0; m < items.length; m++) {
+      html += renderGridCard(items[m]);
+    }
+    html += '</div>';
+    if (items.length === 0) {
+      html = '<div style="text-align:center;color:#999;padding:30px;">No videos found. Try refreshing!</div>';
+    }
+    content.innerHTML = html;
+  }).catch(function (err) {
+    content.innerHTML = '<div class="os5k-error">Failed to load: ' + OS5kApp.esc(err.message) + '</div>';
+  });
+}
+
+function doSearch() {
+  var input = document.getElementById('searchInput');
+  var query = input ? input.value.trim() : '';
+  if (!query) return;
+
+  currentView = 'search';
+  render();
+  // Restore search term
+  var searchInput = document.getElementById('searchInput');
+  if (searchInput) searchInput.value = query;
+
+  var content = document.getElementById('content');
+  content.innerHTML = '<div style="text-align:center;color:#999;font-style:italic;padding:20px;">Searching...</div>';
+
+  bridge.searchYouTube(query).then(function (results) {
+    searchResults = results || [];
+    var html = '<div class="mt-results-info">About ' + searchResults.length + ' results for "' + OS5kApp.esc(query) + '"</div>';
+    for (var i = 0; i < searchResults.length; i++) {
+      html += renderVideoCard(searchResults[i]);
+    }
+    if (searchResults.length === 0) {
+      html += '<div style="text-align:center;color:#999;padding:30px;">No results found.</div>';
+    }
+    content.innerHTML = html;
+  }).catch(function (err) {
+    content.innerHTML = '<div class="os5k-error">Search failed: ' + OS5kApp.esc(err.message) + '</div>';
+  });
+}
+
+function renderGridCard(video) {
+  var html = '<div class="mt-grid-card" onclick="openWatch(' + JSON.stringify(video).replace(/"/g, '&quot;') + ')">';
+  html += '<div class="mt-grid-thumb">';
+  if (video.thumbnail) {
+    html += '<img src="' + OS5kApp.esc(video.thumbnail) + '" onerror="this.style.display=\'none\'">';
+  }
+  html += '<div class="mt-thumb-duration">' + OS5kApp.esc(video.duration || '') + '</div>';
+  html += '</div>';
+  html += '<div class="mt-grid-info">';
+  html += '<div class="mt-grid-title">' + OS5kApp.esc(video.title) + '</div>';
+  html += '<div class="mt-grid-channel">' + OS5kApp.esc(video.channelTitle || '') + '</div>';
+  html += '<div class="mt-grid-views">' + formatViewCount(video.viewCount) + '</div>';
+  html += '</div></div>';
+  return html;
+}
+
+function renderVideoCard(video) {
+  var html = '<div class="mt-video-card" onclick="openWatch(' + JSON.stringify(video).replace(/"/g, '&quot;') + ')">';
+  html += '<div class="mt-thumb">';
+  if (video.thumbnail) {
+    html += '<img src="' + OS5kApp.esc(video.thumbnail) + '" onerror="this.style.display=\'none\'">';
+  }
+  html += '<div class="mt-thumb-duration">' + OS5kApp.esc(video.duration || '') + '</div>';
+  html += '<div class="mt-thumb-play">&#9654;</div>';
+  html += '</div>';
+  html += '<div class="mt-video-info">';
+  html += '<div class="mt-video-title">' + OS5kApp.esc(video.title) + '</div>';
+  html += '<div class="mt-video-views">' + formatViewCount(video.viewCount) + ' &middot; ' + OS5kApp.esc(video.channelTitle || '') + '</div>';
+  html += '<div class="mt-video-desc">' + OS5kApp.esc(video.title) + '</div>';
+  html += '<button class="mt-add-btn" onclick="event.stopPropagation();showAddToPlaylist(\'' + OS5kApp.esc(video.id) + '\')">+ Add to Playlist</button>';
+  html += '</div></div>';
+  return html;
+}
+
+function openWatch(video) {
+  watchingVideo = video;
+  prevView = currentView;
+  currentView = 'watch';
+  render();
+  var content = document.getElementById('content');
+  renderWatchView(content);
+}
+
+function renderWatchView(container) {
+  var v = watchingVideo;
+  if (!v) return;
+
+  var html = '<div class="mt-watch">';
+
+  // Back link
+  html += '<div>';
+  html += '<button class="mt-nav-link" onclick="goBackFromWatch()">&larr; Back</button>';
+  html += '</div>';
+
+  // Inline YouTube player
+  html += '<div class="mt-player-wrap">';
+  html += '<iframe src="https://www.youtube-nocookie.com/embed/' + OS5kApp.esc(v.id) + '?autoplay=1&rel=0" ';
+  html += 'allow="autoplay; encrypted-media" allowfullscreen></iframe>';
+  html += '</div>';
+
+  // Video info
+  html += '<div class="mt-watch-info">';
+  html += '<div class="mt-watch-title">' + OS5kApp.esc(v.title) + '</div>';
+  html += '<div class="mt-watch-meta">';
+  html += '<span class="mt-watch-channel">' + OS5kApp.esc(v.channelTitle || 'Unknown') + '</span>';
+  if (v.duration) html += '<span>' + OS5kApp.esc(v.duration) + '</span>';
+  html += '<span class="mt-video-stars">&#9733;&#9733;&#9733;&#9733;&#9734;</span>';
+  html += '</div>';
+
+  // Actions
+  html += '<div class="mt-watch-actions">';
+  html += '<button class="mt-watch-btn primary" onclick="showAddToPlaylist(\'' + OS5kApp.esc(v.id) + '\')">+ Add to Playlist</button>';
+  html += '</div>';
+  html += '</div>';
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function goBackFromWatch() {
+  watchingVideo = null;
+  if (prevView === 'search') {
+    currentView = 'search';
+    render();
+    var content = document.getElementById('content');
+    var html = '<div class="mt-results-info">Showing ' + searchResults.length + ' results</div>';
+    for (var i = 0; i < searchResults.length; i++) {
+      html += renderVideoCard(searchResults[i]);
+    }
+    content.innerHTML = html;
+  } else {
+    showHome();
+  }
+}
+
+function showPlaylists() {
+  currentView = 'playlists';
+  render();
+  var content = document.getElementById('content');
+
+  if (!bridge) {
+    content.innerHTML = '<div class="os5k-auth-gate">Log in to manage playlists.</div>';
+    return;
+  }
+
+  content.innerHTML = '<div style="text-align:center;color:#999;font-style:italic;padding:20px;">Loading playlists...</div>';
+
+  bridge.getPlaylists().then(function (result) {
+    playlists = result.playlists || [];
+    renderPlaylistsView(content);
+  }).catch(function (err) {
+    content.innerHTML = '<div class="os5k-error">Failed to load playlists: ' + OS5kApp.esc(err.message) + '</div>';
+  });
+}
+
+function renderPlaylistsView(container) {
+  var html = '';
+
+  // Header
+  html += '<div class="mt-playlist-header">';
+  html += '<div>';
+  html += '<div class="mt-playlist-title">My Playlists</div>';
+  html += '<div class="mt-playlist-sub">' + playlists.length + ' playlist' + (playlists.length !== 1 ? 's' : '') + '</div>';
+  html += '</div>';
+  html += '<button class="mt-add-btn" style="font-size:11px;padding:3px 10px;" onclick="showCreatePlaylist()">+ New Playlist</button>';
+  html += '</div>';
+
+  // Playlist rows
+  if (playlists.length === 0) {
+    html += '<div style="text-align:center;color:#999;padding:30px;font-style:italic;">No playlists yet. Create one to save your favorite videos!</div>';
+  } else {
+    for (var i = 0; i < playlists.length; i++) {
+      var pl = playlists[i];
+      html += '<div class="mt-playlist-row" onclick="showPlaylistDetail(\'' + OS5kApp.esc(pl.id) + '\')">';
+      html += '<div class="mt-playlist-icon">&#9654; ' + (pl.trackCount || 0) + '</div>';
+      html += '<div style="flex:1;">';
+      html += '<div class="mt-playlist-name">' + OS5kApp.esc(pl.name) + '</div>';
+      html += '<div class="mt-playlist-meta">' + (pl.trackCount || 0) + ' video' + (pl.trackCount !== 1 ? 's' : '') + '</div>';
+      html += '</div></div>';
+    }
+  }
+
+  // Import section
+  html += '<div class="mt-import">';
+  html += '<div class="mt-import-title">Import YouTube Playlist</div>';
+  html += '<div class="mt-import-row">';
+  html += '<input id="importUrl" placeholder="Paste YouTube playlist URL...">';
+  html += '<button onclick="doImport()" id="importBtn">Import</button>';
+  html += '</div>';
+  html += '<div id="importStatus" style="font-size:10px;color:#666;margin-top:4px;"></div>';
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+function showPlaylistDetail(playlistId) {
+  currentView = 'playlist-detail';
+  render();
+  var content = document.getElementById('content');
+  content.innerHTML = '<div style="text-align:center;color:#999;font-style:italic;padding:20px;">Loading playlist...</div>';
+
+  // Find playlist in cache
+  var pl = null;
+  for (var i = 0; i < playlists.length; i++) {
+    if (playlists[i].id === playlistId) { pl = playlists[i]; break; }
+  }
+
+  if (!pl) {
+    content.innerHTML = '<div class="os5k-error">Playlist not found.</div>';
+    return;
+  }
+
+  // Reload full playlist data
+  bridge.getPlaylists().then(function (result) {
+    var fullPlaylists = result.playlists || [];
+    for (var j = 0; j < fullPlaylists.length; j++) {
+      if (fullPlaylists[j].id === playlistId) {
+        currentPlaylist = fullPlaylists[j];
+        break;
+      }
+    }
+    if (!currentPlaylist) {
+      content.innerHTML = '<div class="os5k-error">Playlist not found.</div>';
+      return;
+    }
+    renderPlaylistDetail(content);
+  }).catch(function (err) {
+    content.innerHTML = '<div class="os5k-error">Failed: ' + OS5kApp.esc(err.message) + '</div>';
+  });
+}
+
+function renderPlaylistDetail(container) {
+  var pl = currentPlaylist;
+  if (!pl) return;
+
+  var html = '';
+  html += '<div style="margin-bottom:8px;">';
+  html += '<button class="mt-nav-link" onclick="showPlaylists()">&larr; Back to Playlists</button>';
+  html += '</div>';
+
+  html += '<div class="mt-playlist-header">';
+  html += '<div>';
+  html += '<div class="mt-playlist-title">' + OS5kApp.esc(pl.name) + '</div>';
+  html += '<div class="mt-playlist-sub">' + (pl.items ? pl.items.length : 0) + ' videos</div>';
+  html += '</div></div>';
+
+  var items = pl.items || [];
+  if (items.length === 0) {
+    html += '<div style="text-align:center;color:#999;padding:30px;font-style:italic;">This playlist is empty. Search for videos and add them!</div>';
+  } else {
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      var watchData = JSON.stringify({id: item.id, title: item.title, duration: item.duration ? OS5kApp.formatDuration(item.duration) : '', channelTitle: '', thumbnail: ''}).replace(/"/g, '&quot;');
+      html += '<div class="mt-video-card" onclick="openWatch(' + watchData + ')">';
+      html += '<div class="mt-thumb" style="width:80px;height:45px;">';
+      html += '<div class="mt-thumb-play" style="font-size:16px;">&#9654;</div>';
+      html += '</div>';
+      html += '<div class="mt-video-info">';
+      html += '<div class="mt-video-title">' + OS5kApp.esc(item.title) + '</div>';
+      html += '<div class="mt-video-views">' + OS5kApp.formatDuration(item.duration) + '</div>';
+      html += '<button class="mt-add-btn" style="color:#cd201f;" onclick="event.stopPropagation();doRemoveFromPlaylist(\'' + OS5kApp.esc(pl.id) + '\',\'' + OS5kApp.esc(item.id) + '\')">Remove</button>';
+      html += '</div></div>';
+    }
+  }
+
+  container.innerHTML = html;
+}
+
+function showAddToPlaylist(videoId) {
+  // Find the video in search results
+  var video = null;
+  for (var i = 0; i < searchResults.length; i++) {
+    if (searchResults[i].id === videoId) { video = searchResults[i]; break; }
+  }
+  if (!video) return;
+
+  pendingAddVideo = {
+    id: video.id,
+    title: video.title,
+    link: 'https://youtube.com/watch?v=' + video.id,
+    duration: 0
+  };
+
+  // Load playlists for the modal
+  bridge.getPlaylists().then(function (result) {
+    playlists = result.playlists || [];
+    showPlaylistModal();
+  }).catch(function () {
+    showPlaylistModal();
+  });
+}
+
+function showPlaylistModal() {
+  var overlay = document.createElement('div');
+  overlay.className = 'mt-modal-overlay';
+  overlay.id = 'playlistModal';
+  overlay.onclick = function (e) { if (e.target === overlay) closeModal(); };
+
+  var html = '<div class="mt-modal">';
+  html += '<h3>Add to Playlist</h3>';
+
+  if (playlists.length === 0) {
+    html += '<div style="font-size:11px;color:#999;margin-bottom:8px;">No playlists yet.</div>';
+  } else {
+    for (var i = 0; i < playlists.length; i++) {
+      html += '<div class="mt-modal-item" onclick="doAddToPlaylist(\'' + OS5kApp.esc(playlists[i].id) + '\')">';
+      html += OS5kApp.esc(playlists[i].name) + ' (' + (playlists[i].trackCount || 0) + ')';
+      html += '</div>';
+    }
+  }
+
+  html += '<div class="mt-modal-item" style="color:#03c;font-weight:bold;" onclick="promptNewPlaylistAndAdd()">+ Create New Playlist</div>';
+  html += '<button class="mt-modal-close" onclick="closeModal()">Cancel</button>';
+  html += '</div>';
+
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function closeModal() {
+  var modal = document.getElementById('playlistModal');
+  if (modal) modal.remove();
+  pendingAddVideo = null;
+}
+
+function doAddToPlaylist(playlistId) {
+  if (!pendingAddVideo) return;
+  closeModal();
+
+  bridge.addVideoToPlaylist(playlistId, pendingAddVideo).then(function () {
+    pendingAddVideo = null;
+  }).catch(function (err) {
+    alert('Failed to add: ' + err.message);
+  });
+}
+
+function promptNewPlaylistAndAdd() {
+  var name = prompt('New playlist name:');
+  if (!name || !name.trim()) return;
+
+  closeModal();
+  bridge.createPlaylist(name.trim()).then(function (pl) {
+    if (pendingAddVideo) {
+      return bridge.addVideoToPlaylist(pl.id, pendingAddVideo);
+    }
+  }).then(function () {
+    pendingAddVideo = null;
+  }).catch(function (err) {
+    alert('Failed: ' + err.message);
+  });
+}
+
+function showCreatePlaylist() {
+  var name = prompt('New playlist name:');
+  if (!name || !name.trim()) return;
+
+  bridge.createPlaylist(name.trim()).then(function () {
+    showPlaylists();
+  }).catch(function (err) {
+    alert('Failed: ' + err.message);
+  });
+}
+
+function doRemoveFromPlaylist(playlistId, videoId) {
+  bridge.removeVideoFromPlaylist(playlistId, videoId).then(function () {
+    showPlaylistDetail(playlistId);
+  }).catch(function (err) {
+    alert('Failed: ' + err.message);
+  });
+}
+
+function doImport() {
+  var input = document.getElementById('importUrl');
+  var url = input ? input.value.trim() : '';
+  if (!url) return;
+
+  var btn = document.getElementById('importBtn');
+  var status = document.getElementById('importStatus');
+  if (btn) { btn.disabled = true; btn.textContent = 'Importing...'; }
+  if (status) status.textContent = 'Resolving playlist... this may take a moment.';
+
+  bridge.importPlaylist(url).then(function (pl) {
+    if (status) status.textContent = 'Imported! ' + (pl.items ? pl.items.length : 0) + ' videos added.';
+    if (btn) { btn.disabled = false; btn.textContent = 'Import'; }
+    if (input) input.value = '';
+    // Refresh playlists
+    setTimeout(function () { showPlaylists(); }, 1500);
+  }).catch(function (err) {
+    if (status) status.textContent = 'Failed: ' + err.message;
+    if (btn) { btn.disabled = false; btn.textContent = 'Import'; }
+  });
+}
+</script>
+</body>
+</html>

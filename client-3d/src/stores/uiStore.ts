@@ -22,7 +22,7 @@ interface UIState {
   vertexFisheye: number
   vortexOob: boolean
   crtFrame: boolean
-  computerIframeOpen: boolean
+  osActive: boolean
   magazineReaderOpen: boolean
   sleepPromptOpen: boolean
   wakePromptOpen: boolean
@@ -43,7 +43,7 @@ interface UIState {
   setVertexFisheye: (v: number) => void
   toggleVortexOob: () => void
   toggleCrtFrame: () => void
-  setComputerIframeOpen: (open: boolean) => void
+  setOsActive: (open: boolean) => void
   setMagazineReaderOpen: (open: boolean) => void
   setSleepPromptOpen: (open: boolean) => void
   setWakePromptOpen: (open: boolean) => void
@@ -68,7 +68,7 @@ export const useUIStore = create<UIState>((set) => ({
   vertexFisheye: 0,
   vortexOob: false,
   crtFrame: true,
-  computerIframeOpen: false,
+  osActive: false,
   magazineReaderOpen: false,
   sleepPromptOpen: false,
   wakePromptOpen: false,
@@ -91,7 +91,7 @@ export const useUIStore = create<UIState>((set) => ({
   setVertexFisheye: (v) => set({ vertexFisheye: v }),
   toggleVortexOob: () => set((s) => ({ vortexOob: !s.vortexOob })),
   toggleCrtFrame: () => set((s) => ({ crtFrame: !s.crtFrame })),
-  setComputerIframeOpen: (open) => set({ computerIframeOpen: open }),
+  setOsActive: (open) => set({ osActive: open }),
   setMagazineReaderOpen: (open) => set({ magazineReaderOpen: open }),
   setSleepPromptOpen: (open) => set({ sleepPromptOpen: open }),
   setWakePromptOpen: (open) => set({ wakePromptOpen: open }),

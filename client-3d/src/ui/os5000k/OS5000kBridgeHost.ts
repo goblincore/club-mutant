@@ -10,13 +10,19 @@ import {
   sendFriendRequest,
   removeFriend,
   listServerPlaylists,
+  saveServerPlaylist,
   sendDirectMessage,
   listConversations,
   getDirectMessages,
   markMessagesRead,
+  createWallPost,
+  getWallPosts,
+  deleteWallPost,
 } from '../../network/nakamaClient'
+import { getNetwork } from '../../network/NetworkManager'
 import { usePresenceStore } from '../../stores/presenceStore'
 import { useAuthStore } from '../../stores/authStore'
+import { useOS5kStore } from '../../stores/os5000kStore'
 import { setOS5kPushHandler } from '../../events/os5000kEvents'
 
 interface OS5kRequest {
@@ -29,7 +35,8 @@ interface OS5kRequest {
 type Handler = (payload: Record<string, unknown>) => Promise<unknown>
 
 export class OS5000kBridgeHost {
-  private iframe: HTMLIFrameElement | null = null
+  private iframes = new Set<HTMLIFrameElement>()
+  private requestSources = new Map<string, MessageEventSource>()
   private handlers: Map<string, Handler>
   private rateCounts = new Map<string, { count: number; resetAt: number }>()
   private readonly RATE_LIMIT = 10 // requests per second per method
@@ -46,31 +53,47 @@ export class OS5000kBridgeHost {
       ['mail.getMessages', this.handleMailGetMessages],
       ['mail.markRead', this.handleMailMarkRead],
       ['playlists.list', this.handlePlaylistsList],
+      ['playlists.create', this.handlePlaylistsCreate],
+      ['playlists.addVideo', this.handlePlaylistsAddVideo],
+      ['playlists.removeVideo', this.handlePlaylistsRemoveVideo],
+      ['wall.getPosts', this.handleWallGetPosts],
+      ['wall.createPost', this.handleWallCreatePost],
+      ['wall.deletePost', this.handleWallDeletePost],
+      ['youtube.search', this.handleYouTubeSearch],
+      ['youtube.resolve', this.handleYouTubeResolve],
+      ['youtube.importPlaylist', this.handleYouTubeImportPlaylist],
+      ['video.play', this.handleVideoPlay],
+      ['video.stop', this.handleVideoStop],
     ])
 
     window.addEventListener('message', this.onMessage)
     setOS5kPushHandler(this.push)
   }
 
-  setIframe(iframe: HTMLIFrameElement): void {
-    this.iframe = iframe
+  registerIframe(iframe: HTMLIFrameElement): void {
+    this.iframes.add(iframe)
+  }
+
+  unregisterIframe(iframe: HTMLIFrameElement): void {
+    this.iframes.delete(iframe)
   }
 
   destroy(): void {
     window.removeEventListener('message', this.onMessage)
     setOS5kPushHandler(null)
-    this.iframe = null
+    this.iframes.clear()
+    this.requestSources.clear()
   }
 
-  /** Send a push event (unsolicited) to the OS5000k iframe */
+  /** Send a push event (unsolicited) to all registered iframes */
   push = (method: string, payload: unknown): void => {
-    this.iframe?.contentWindow?.postMessage(
-      { type: 'os5k:push', id: '', method, payload },
-      '*',
-    )
+    const msg = { type: 'os5k:push', id: '', method, payload }
+    for (const iframe of this.iframes) {
+      iframe.contentWindow?.postMessage(msg, '*')
+    }
   }
 
-  /** Send the initial connected event with user info */
+  /** Send the initial connected event with user info (broadcasts to all) */
   sendConnected(): void {
     const auth = useAuthStore.getState()
     this.push('system.connected', {
@@ -79,9 +102,23 @@ export class OS5000kBridgeHost {
     })
   }
 
+  /** Send connected event to a specific iframe */
+  sendConnectedTo(iframe: HTMLIFrameElement): void {
+    const auth = useAuthStore.getState()
+    iframe.contentWindow?.postMessage(
+      { type: 'os5k:push', id: '', method: 'system.connected', payload: { userId: auth.userId || '', username: auth.username || '' } },
+      '*',
+    )
+  }
+
   private onMessage = async (event: MessageEvent): Promise<void> => {
     const msg = event.data as OS5kRequest
     if (!msg || msg.type !== 'os5k:request' || !msg.id || !msg.method) return
+
+    // Track the source so respond() can route back to the correct iframe
+    if (event.source) {
+      this.requestSources.set(msg.id, event.source)
+    }
 
     // Rate limit
     if (!this.checkRate(msg.method)) {
@@ -99,19 +136,17 @@ export class OS5000kBridgeHost {
       const result = await handler(msg.payload || {})
       this.respond(msg.id, result)
     } catch (err) {
-      this.respond(
-        msg.id,
-        null,
-        err instanceof Error ? err.message : String(err),
-      )
+      this.respond(msg.id, null, err instanceof Error ? err.message : String(err))
     }
   }
 
   private respond(id: string, payload: unknown, error?: string): void {
-    this.iframe?.contentWindow?.postMessage(
-      { type: 'os5k:response', id, method: '', payload, error },
-      '*',
-    )
+    const source = this.requestSources.get(id)
+    this.requestSources.delete(id)
+    const msg = { type: 'os5k:response', id, method: '', payload, error }
+    if (source && 'postMessage' in source) {
+      ;(source as WindowProxy).postMessage(msg, '*')
+    }
   }
 
   private checkRate(method: string): boolean {
@@ -240,7 +275,130 @@ export class OS5000kBridgeHost {
         id: p.id,
         name: p.name,
         trackCount: p.items?.length || 0,
+        items: p.items || [],
       })),
     }
+  }
+
+  // ── Playlist CRUD (read-modify-write through save_playlist) ────────
+
+  private handlePlaylistsCreate = async (
+    payload: Record<string, unknown>,
+  ): Promise<unknown> => {
+    const name = payload.name as string
+    if (!name) throw new Error('name required')
+    const id = crypto.randomUUID()
+    const now = Date.now()
+    await saveServerPlaylist({ id, name, items: [] })
+    return { id, name, items: [], createdAt: now, updatedAt: now }
+  }
+
+  private handlePlaylistsAddVideo = async (
+    payload: Record<string, unknown>,
+  ): Promise<unknown> => {
+    const playlistId = payload.playlistId as string
+    const video = payload.video as { id: string; title: string; link: string; duration: number }
+    if (!playlistId || !video) throw new Error('playlistId and video required')
+
+    const playlists = await listServerPlaylists()
+    const pl = playlists.find((p) => p.id === playlistId)
+    if (!pl) throw new Error('Playlist not found')
+
+    const items = pl.items || []
+    if (items.some((item) => item.id === video.id)) {
+      return { success: true } // already in playlist
+    }
+    items.push(video)
+    await saveServerPlaylist({ id: pl.id, name: pl.name, items })
+    return { success: true }
+  }
+
+  private handlePlaylistsRemoveVideo = async (
+    payload: Record<string, unknown>,
+  ): Promise<unknown> => {
+    const playlistId = payload.playlistId as string
+    const videoId = payload.videoId as string
+    if (!playlistId || !videoId) throw new Error('playlistId and videoId required')
+
+    const playlists = await listServerPlaylists()
+    const pl = playlists.find((p) => p.id === playlistId)
+    if (!pl) throw new Error('Playlist not found')
+
+    const items = (pl.items || []).filter((item) => item.id !== videoId)
+    await saveServerPlaylist({ id: pl.id, name: pl.name, items })
+    return { success: true }
+  }
+
+  // ── Wall Posts ─────────────────────────────────────────────────────
+
+  private handleWallGetPosts = async (
+    payload: Record<string, unknown>,
+  ): Promise<unknown> => {
+    const userId = payload.userId as string
+    if (!userId) throw new Error('userId required')
+    return getWallPosts(userId, payload.cursor as string | undefined)
+  }
+
+  private handleWallCreatePost = async (
+    payload: Record<string, unknown>,
+  ): Promise<unknown> => {
+    const targetUserId = payload.targetUserId as string
+    const content = payload.content as string
+    if (!targetUserId || !content) throw new Error('targetUserId and content required')
+    return createWallPost(targetUserId, content)
+  }
+
+  private handleWallDeletePost = async (
+    payload: Record<string, unknown>,
+  ): Promise<unknown> => {
+    const postId = payload.postId as string
+    const targetUserId = payload.targetUserId as string
+    if (!postId || !targetUserId) throw new Error('postId and targetUserId required')
+    await deleteWallPost(postId, targetUserId)
+    return { success: true }
+  }
+
+  // ── YouTube ────────────────────────────────────────────────────────
+
+  private handleYouTubeSearch = async (
+    payload: Record<string, unknown>,
+  ): Promise<unknown> => {
+    const query = payload.query as string
+    if (!query) throw new Error('query required')
+    return getNetwork().searchYouTube(query)
+  }
+
+  private handleYouTubeResolve = async (
+    payload: Record<string, unknown>,
+  ): Promise<unknown> => {
+    const videoId = payload.videoId as string
+    if (!videoId) throw new Error('videoId required')
+    return getNetwork().resolveYouTube(videoId)
+  }
+
+  private handleYouTubeImportPlaylist = async (
+    payload: Record<string, unknown>,
+  ): Promise<unknown> => {
+    const url = payload.url as string
+    if (!url) throw new Error('url required')
+    // TODO: Call Go service playlist endpoint when implemented
+    throw new Error('Playlist import not yet available')
+  }
+
+  // ── Video playback ─────────────────────────────────────────────
+
+  private handleVideoPlay = async (
+    payload: Record<string, unknown>,
+  ): Promise<unknown> => {
+    const videoId = payload.videoId as string
+    const title = (payload.title as string) || ''
+    if (!videoId) throw new Error('videoId required')
+    useOS5kStore.getState().setActiveVideo({ videoId, title })
+    return { success: true }
+  }
+
+  private handleVideoStop = async (): Promise<unknown> => {
+    useOS5kStore.getState().setActiveVideo(null)
+    return { success: true }
   }
 }

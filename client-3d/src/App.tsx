@@ -31,7 +31,7 @@ import { WakePrompt } from './ui/WakePrompt'
 // Lazy-loaded: dream scene (heavy — R3F Canvas, shaders, audio player)
 const DreamIframe = lazy(() => import('./ui/DreamIframe').then((m) => ({ default: m.DreamIframe })))
 // Lazy-loaded: rarely-used interactive overlays
-const ComputerBrowser = lazy(() => import('./ui/ComputerBrowser').then((m) => ({ default: m.ComputerBrowser })))
+const OS5000kShell = lazy(() => import('./ui/os5000k/OS5000kShell').then((m) => ({ default: m.OS5000kShell })))
 const MagazineReader = lazy(() => import('./ui/MagazineReader').then((m) => ({ default: m.MagazineReader })))
 
 const PLAYLIST_WIDTH = 360
@@ -241,7 +241,7 @@ function MainApp() {
 
       {/* Lazy-loaded overlays */}
       <Suspense>
-        <ComputerBrowser />
+        <OS5000kShell />
         <MagazineReader />
         <DreamIframe />
       </Suspense>

@@ -5,6 +5,10 @@ import type {
   MailMessage,
   ConversationSummary,
   PlaylistEntry,
+  WallPost,
+  Video,
+  Playlist,
+  PlaylistItem,
 } from './types'
 
 type PushHandler = (payload: unknown) => void
@@ -146,6 +150,64 @@ class OS5000kBridge {
 
   getPlaylists(): Promise<{ playlists: PlaylistEntry[] }> {
     return this.request('playlists.list')
+  }
+
+  // ── Wall posts ────────────────────────────────────────────────────
+
+  getWallPosts(
+    userId: string,
+    cursor?: string,
+  ): Promise<{ posts: WallPost[]; cursor?: string }> {
+    return this.request('wall.getPosts', { userId, cursor })
+  }
+
+  createWallPost(
+    targetUserId: string,
+    content: string,
+  ): Promise<WallPost> {
+    return this.request('wall.createPost', { targetUserId, content })
+  }
+
+  deleteWallPost(postId: string, targetUserId: string): Promise<{ success: boolean }> {
+    return this.request('wall.deletePost', { postId, targetUserId })
+  }
+
+  // ── YouTube ───────────────────────────────────────────────────────
+
+  searchYouTube(query: string): Promise<Video[]> {
+    return this.request('youtube.search', { query })
+  }
+
+  resolveYouTube(videoId: string): Promise<{ url: string; expiresAt: number }> {
+    return this.request('youtube.resolve', { videoId })
+  }
+
+  importPlaylist(playlistUrl: string): Promise<Playlist> {
+    return this.request('youtube.importPlaylist', { url: playlistUrl })
+  }
+
+  // ── Playlist CRUD ─────────────────────────────────────────────────
+
+  createPlaylist(name: string): Promise<Playlist> {
+    return this.request('playlists.create', { name })
+  }
+
+  addVideoToPlaylist(playlistId: string, video: PlaylistItem): Promise<{ success: boolean }> {
+    return this.request('playlists.addVideo', { playlistId, video })
+  }
+
+  removeVideoFromPlaylist(playlistId: string, videoId: string): Promise<{ success: boolean }> {
+    return this.request('playlists.removeVideo', { playlistId, videoId })
+  }
+
+  // ── Video playback ───────────────────────────────────────────
+
+  playVideo(videoId: string, title?: string): Promise<{ success: boolean }> {
+    return this.request('video.play', { videoId, title })
+  }
+
+  stopVideo(): Promise<{ success: boolean }> {
+    return this.request('video.stop', {})
   }
 }
 

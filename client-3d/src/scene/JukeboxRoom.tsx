@@ -1381,10 +1381,10 @@ export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps
       <CounterProps position={[2.5, 0.38, -2.2]} />
 
       {/* ── Arcade Machines ── */}
-      <InteractableObject onInteract={() => useUIStore.getState().setComputerIframeOpen(true)} occludeHighlight={false} interactDistance={2.5}>
+      <InteractableObject onInteract={() => useUIStore.getState().setOsActive(true)} occludeHighlight={false} interactDistance={2.5}>
         <ArcadeMachine position={[-HALF_W + 0.6, 0.05, 2.5]} rotation={[0, Math.PI / 5, 0]} theme="fighter" />
       </InteractableObject>
-      <InteractableObject onInteract={() => useUIStore.getState().setComputerIframeOpen(true)} occludeHighlight={false} interactDistance={2.5}>
+      <InteractableObject onInteract={() => useUIStore.getState().setOsActive(true)} occludeHighlight={false} interactDistance={2.5}>
         <ArcadeMachine position={[-HALF_W + 0.6, 0.05, 1.5]} rotation={[0, Math.PI / 4, 0]} theme="racer" />
       </InteractableObject>
 

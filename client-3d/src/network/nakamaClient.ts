@@ -483,3 +483,57 @@ export async function markMessagesRead(otherUserId: string): Promise<void> {
   const session = await ensureSession()
   await getClient().rpc(session, 'mark_read', { other_user_id: otherUserId })
 }
+
+// ── Wall Posts ────────────────────────────────────────────────────────
+
+export interface WallPost {
+  postId: string
+  authorId: string
+  authorUsername: string
+  targetUserId: string
+  content: string
+  createdAt: number
+}
+
+export async function createWallPost(
+  targetUserId: string,
+  content: string,
+): Promise<WallPost> {
+  const session = await ensureSession()
+  const result = await getClient().rpc(session, 'create_wall_post', {
+    target_user_id: targetUserId,
+    content,
+  })
+  const payload = result.payload as { postId: string; createdAt: number }
+  return {
+    postId: payload.postId,
+    authorId: session.user_id || '',
+    authorUsername: session.username || '',
+    targetUserId,
+    content,
+    createdAt: payload.createdAt,
+  }
+}
+
+export async function getWallPosts(
+  targetUserId: string,
+  cursor?: string,
+): Promise<{ posts: WallPost[]; cursor?: string }> {
+  const session = await ensureSession()
+  const result = await getClient().rpc(session, 'get_wall_posts', {
+    target_user_id: targetUserId,
+    cursor,
+  })
+  return result.payload as { posts: WallPost[]; cursor?: string }
+}
+
+export async function deleteWallPost(
+  postId: string,
+  targetUserId: string,
+): Promise<void> {
+  const session = await ensureSession()
+  await getClient().rpc(session, 'delete_wall_post', {
+    post_id: postId,
+    target_user_id: targetUserId,
+  })
+}

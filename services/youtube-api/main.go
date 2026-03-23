@@ -37,6 +37,7 @@ type VideoResult struct {
 	Duration     string `json:"duration"`
 	IsLive       bool   `json:"isLive"`
 	Thumbnail    string `json:"thumbnail"`
+	ViewCount    int    `json:"viewCount"`
 }
 
 type SearchResponse struct {
@@ -1212,6 +1213,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 				Duration:     formatDuration(video.Duration),
 				IsLive:       video.Duration == 0,
 				Thumbnail:    thumbnail,
+				ViewCount:    video.ViewCount,
 			})
 		}
 

@@ -1,11 +1,19 @@
-// Nakama server-side runtime module for profile metadata and playlist persistence.
+// Nakama server-side runtime module for profile metadata, playlist persistence,
+// direct messaging, and wall posts.
 //
 // RPCs:
-//   update_profile  — merges validated fields into user metadata
-//   get_profile     — returns user profile with metadata
-//   list_playlists  — paginated list of user's playlists (cursor-based)
-//   save_playlist   — create or update a playlist
-//   delete_playlist — delete a playlist by ID
+//   update_profile    — merges validated fields into user metadata
+//   get_profile       — returns user profile with metadata
+//   list_playlists    — paginated list of user's playlists (cursor-based)
+//   save_playlist     — create or update a playlist
+//   delete_playlist   — delete a playlist by ID
+//   send_message      — send a DM to another user
+//   list_conversations — list conversation partners with last message info
+//   get_messages      — get messages for a conversation
+//   mark_read         — mark a conversation as read
+//   create_wall_post  — post on a user's wall (friends-only)
+//   get_wall_posts    — get posts on a user's wall (newest first)
+//   delete_wall_post  — delete a wall post (author only)
 //
 // Metadata schema:
 // {
@@ -666,6 +674,227 @@ var markReadRpc = function (ctx, logger, nk, payload) {
   return JSON.stringify({ success: true });
 };
 
+// ─── Wall Posts ─────────────────────────────────────────────────────
+
+var WALL_POSTS_COLLECTION = 'wall_posts';
+var WALL_MAX_CONTENT = 500;
+var WALL_RATE_LIMIT_WINDOW = 60;
+var WALL_RATE_LIMIT_MAX = 5;
+var WALL_PAGE_SIZE = 20;
+var WALL_NOTIFICATION_CODE = 101;
+
+/**
+ * create_wall_post RPC — post on a user's wall.
+ * Friends-only unless posting on own wall.
+ *
+ * Input: { target_user_id, content }
+ * Output: { postId, createdAt }
+ */
+var createWallPostRpc = function (ctx, logger, nk, payload) {
+  var input;
+  try {
+    input = JSON.parse(payload);
+  } catch (e) {
+    throw 'Invalid JSON payload';
+  }
+
+  var targetUserId = input.target_user_id;
+  var content = input.content;
+
+  if (!targetUserId || typeof targetUserId !== 'string') throw 'target_user_id is required';
+  if (!content || typeof content !== 'string') throw 'content is required';
+
+  content = content.trim().substring(0, WALL_MAX_CONTENT);
+  if (!content) throw 'content cannot be empty';
+
+  // Verify target user exists
+  var targetAccount;
+  try {
+    targetAccount = nk.accountGetId(targetUserId);
+  } catch (e) {
+    throw 'Target user not found';
+  }
+  if (!targetAccount || !targetAccount.user) throw 'Target user not found';
+
+  // If not posting on own wall, verify friendship
+  if (targetUserId !== ctx.userId) {
+    var friends = nk.friendsList(ctx.userId, 100, null, 0);
+    var friendList = (friends && friends.friends) ? friends.friends : (Array.isArray(friends) ? friends : []);
+    var isFriend = false;
+    for (var i = 0; i < friendList.length; i++) {
+      var f = friendList[i];
+      var friendId = (f.user && f.user.id) ? f.user.id : (f.userId || '');
+      if (friendId === targetUserId) {
+        isFriend = true;
+        break;
+      }
+    }
+    if (!isFriend) throw 'You must be friends to post on this wall';
+  }
+
+  // Rate limit
+  if (!checkRateLimit(nk, logger, ctx.userId, 'wall_post', WALL_RATE_LIMIT_WINDOW, WALL_RATE_LIMIT_MAX)) {
+    throw 'Too many posts. Please wait before posting again.';
+  }
+
+  var authorAccount = nk.accountGetId(ctx.userId);
+  var authorUsername = (authorAccount.user && authorAccount.user.username) || 'Unknown';
+
+  var postId = nk.uuidv4();
+  var now = Date.now();
+  var tsKey = ('0000000000000' + now).slice(-13) + '_' + postId;
+
+  var postValue = {
+    postId: postId,
+    authorId: ctx.userId,
+    authorUsername: authorUsername,
+    targetUserId: targetUserId,
+    content: content,
+    createdAt: now
+  };
+
+  nk.storageWrite([{
+    collection: WALL_POSTS_COLLECTION,
+    key: tsKey,
+    userId: targetUserId,
+    value: postValue,
+    permissionRead: 2,
+    permissionWrite: 0
+  }]);
+
+  // Notify target user (skip if self-post)
+  if (targetUserId !== ctx.userId) {
+    try {
+      nk.notificationSend(
+        targetUserId,
+        authorUsername + ' posted on your wall',
+        WALL_NOTIFICATION_CODE,
+        {
+          postId: postId,
+          authorId: ctx.userId,
+          authorUsername: authorUsername,
+          preview: content.substring(0, 80)
+        },
+        ctx.userId,
+        false
+      );
+    } catch (e) {
+      logger.warn('Failed to send wall post notification: %s', e);
+    }
+  }
+
+  logger.info('Wall post created by %s on wall of %s: %s', ctx.userId, targetUserId, postId);
+  return JSON.stringify({ postId: postId, createdAt: now });
+};
+
+/**
+ * get_wall_posts RPC — get posts on a user's wall.
+ *
+ * Input: { target_user_id, cursor? }
+ * Output: { posts: WallPost[], cursor? }
+ */
+var getWallPostsRpc = function (ctx, logger, nk, payload) {
+  var input;
+  try {
+    input = JSON.parse(payload);
+  } catch (e) {
+    throw 'Invalid JSON payload';
+  }
+
+  var targetUserId = input.target_user_id;
+  if (!targetUserId || typeof targetUserId !== 'string') throw 'target_user_id is required';
+
+  var cursor = input.cursor || '';
+  var result = nk.storageList(targetUserId, WALL_POSTS_COLLECTION, WALL_PAGE_SIZE, cursor);
+  var objects = result.objects || result || [];
+
+  var posts = [];
+  if (Array.isArray(objects)) {
+    for (var i = 0; i < objects.length; i++) {
+      var val = objects[i].value || {};
+      posts.push({
+        postId: val.postId || '',
+        authorId: val.authorId || '',
+        authorUsername: val.authorUsername || '',
+        targetUserId: val.targetUserId || '',
+        content: val.content || '',
+        createdAt: val.createdAt || 0
+      });
+    }
+  }
+
+  // Reverse for newest-first (storageList returns oldest first by key)
+  posts.reverse();
+
+  return JSON.stringify({
+    posts: posts,
+    cursor: result.cursor || null
+  });
+};
+
+/**
+ * delete_wall_post RPC — delete a post from a wall (author only).
+ *
+ * Input: { post_id, target_user_id }
+ * Output: { success: true }
+ */
+var deleteWallPostRpc = function (ctx, logger, nk, payload) {
+  var input;
+  try {
+    input = JSON.parse(payload);
+  } catch (e) {
+    throw 'Invalid JSON payload';
+  }
+
+  var postId = input.post_id;
+  var targetUserId = input.target_user_id;
+
+  if (!postId || typeof postId !== 'string') throw 'post_id is required';
+  if (!targetUserId || typeof targetUserId !== 'string') throw 'target_user_id is required';
+
+  // Scan wall posts for the target user to find the post
+  var foundKey = '';
+  var scanCursor = '';
+  var maxScans = 10;
+  var scanned = 0;
+
+  while (scanned < maxScans) {
+    var result = nk.storageList(targetUserId, WALL_POSTS_COLLECTION, WALL_PAGE_SIZE, scanCursor);
+    var objects = result.objects || result || [];
+
+    if (!Array.isArray(objects) || objects.length === 0) break;
+
+    for (var i = 0; i < objects.length; i++) {
+      var val = objects[i].value || {};
+      if (val.postId === postId) {
+        // Verify author
+        if (val.authorId !== ctx.userId) {
+          throw 'Only the author can delete this post';
+        }
+        foundKey = objects[i].key;
+        break;
+      }
+    }
+
+    if (foundKey) break;
+
+    scanCursor = result.cursor || '';
+    if (!scanCursor) break;
+    scanned++;
+  }
+
+  if (!foundKey) throw 'Post not found';
+
+  nk.storageDelete([{
+    collection: WALL_POSTS_COLLECTION,
+    key: foundKey,
+    userId: targetUserId
+  }]);
+
+  logger.info('Wall post deleted by %s: %s from wall of %s', ctx.userId, postId, targetUserId);
+  return JSON.stringify({ success: true });
+};
+
 // ─── InitModule ─────────────────────────────────────────────────────
 
 var InitModule = function (ctx, logger, nk, initializer) {
@@ -678,6 +907,9 @@ var InitModule = function (ctx, logger, nk, initializer) {
   initializer.registerRpc('list_conversations', listConversationsRpc);
   initializer.registerRpc('get_messages', getMessagesRpc);
   initializer.registerRpc('mark_read', markReadRpc);
+  initializer.registerRpc('create_wall_post', createWallPostRpc);
+  initializer.registerRpc('get_wall_posts', getWallPostsRpc);
+  initializer.registerRpc('delete_wall_post', deleteWallPostRpc);
   initializer.registerBeforeAuthenticateEmail(beforeAuthenticateEmail);
-  logger.info('Modules loaded: RPCs (update_profile, get_profile, list_playlists, save_playlist, delete_playlist, send_message, list_conversations, get_messages, mark_read), hooks (beforeAuthenticateEmail)');
+  logger.info('Modules loaded: RPCs (update_profile, get_profile, list_playlists, save_playlist, delete_playlist, send_message, list_conversations, get_messages, mark_read, create_wall_post, get_wall_posts, delete_wall_post), hooks (beforeAuthenticateEmail)');
 };

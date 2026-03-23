@@ -1,5 +1,5 @@
 import { buildSync } from 'esbuild'
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { cpSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -21,18 +21,19 @@ buildSync({
   minify: false,
 })
 
-// 3. Inject bridge script tag into index.html (before OS13k scripts)
-const indexPath = resolve(dist, 'index.html')
-let html = readFileSync(indexPath, 'utf-8')
-html = html.replace(
-  '<script src=OS13k\\OS13kProgramMenu.js',
-  '<script src=os5000k-bridge.js></script>\n<script src=OS13k\\OS13kProgramMenu.js',
-)
-
-// Update title
-html = html.replace('OS13k - A Tiny JavaScript OS', 'OS5000k')
-html = html.replace("settings.t||'OS13k'", "settings.t||'OS5000k'")
-
-writeFileSync(indexPath, html)
+// 3. Inject bridge script tag into each app HTML file
+const appsDir = resolve(dist, 'apps')
+const appFiles = readdirSync(appsDir).filter(f => f.endsWith('.html'))
+for (const file of appFiles) {
+  const filePath = resolve(appsDir, file)
+  let html = readFileSync(filePath, 'utf-8')
+  // Inject bridge script before the first existing script tag or before </head>
+  if (html.includes('<script')) {
+    html = html.replace('<script', '<script src="../os5000k-bridge.js"></script>\n<script')
+  } else if (html.includes('</head>')) {
+    html = html.replace('</head>', '<script src="../os5000k-bridge.js"></script>\n</head>')
+  }
+  writeFileSync(filePath, html)
+}
 
 console.log('OS5000k built → dist/')

@@ -50,3 +50,37 @@ export interface PlaylistEntry {
   name: string
   trackCount: number
 }
+
+export interface WallPost {
+  postId: string
+  authorId: string
+  authorUsername: string
+  targetUserId: string
+  content: string
+  createdAt: number
+}
+
+export interface Video {
+  id: string
+  title: string
+  channelTitle: string
+  duration: string
+  thumbnail: string
+  isLive: boolean
+  viewCount: number
+}
+
+export interface Playlist {
+  id: string
+  name: string
+  items: PlaylistItem[]
+  createdAt: number
+  updatedAt: number
+}
+
+export interface PlaylistItem {
+  id: string
+  title: string
+  link: string
+  duration: number
+}
