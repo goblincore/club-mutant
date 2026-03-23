@@ -1,5 +1,4 @@
 packages:
-  - client
   - client-3d
   - client-dream
   - server

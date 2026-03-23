@@ -46,6 +46,32 @@ Root
 └── deploy/          Deployment configs
 ```
 
+## Dependency Graph
+
+### Build-time (imports)
+```
+types ──→ server        (imports @club-mutant/types)
+types ──→ client-3d     (imports @club-mutant/types)
+types ──→ client-dream  (imports @club-mutant/types)
+os5000k → client-3d     (iframe embed, must build os5000k first)
+acs-web → client-3d     (WASM import)
+```
+
+### Runtime (network calls)
+```
+client-3d ──WebSocket──→ server         (Colyseus rooms)
+client-3d ──HTTP──────→ nakama          (auth, profiles, playlists, DMs)
+server ────HTTP──────→ nakama           (JWT verification)
+server ────HTTP──────→ dream-npc-go     (NPC chat proxy)
+server ────HTTP──────→ youtube-api      (music search/resolve)
+youtube-api ──HTTP───→ pot-provider     (YouTube PO tokens)
+```
+
+### Build order
+1. `types` (no deps)
+2. `packages/os5000k` + `packages/acs-web` (no deps on workspace packages)
+3. `server`, `client-3d`, `client-dream` (depend on types, os5000k)
+
 ## Services
 
 ### youtube-api (Go, port 8081)

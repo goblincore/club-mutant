@@ -25,3 +25,6 @@ TASKS.md
 
 # OpenMemory - IDE/Assistant specific rules
 CLAUDE.md
+!*/CLAUDE.md
+!*/*/CLAUDE.md
+!*/*/*/CLAUDE.md
