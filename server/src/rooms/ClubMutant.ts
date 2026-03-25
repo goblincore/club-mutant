@@ -100,14 +100,14 @@ export class ClubMutant extends Room {
   private npcLastChatAt = 0 // timestamp of last NPC chat request
   private npcConversationTimeout = 0 // ms remaining before leaving conversation
   private npcChatHistory: { role: string; content: string }[] = [] // recent conversation history
-  private npcLastGreetingAt = 0 // timestamp of last greeting (rate-limit greetings)
   private npcResponseQueue: string[] = [] // queued sentence chunks for chunked delivery
   private npcResponseTimer: NodeJS.Timeout | null = null // drains npcResponseQueue
   private npcConversationWindows = new Map<string, number>() // sessionId → timestamp of last exchange with Lily
-  private npcRecentChatters: { sessionId: string; at: number }[] = [] // track who's been chatting recently
-  private npcOverwhelmedUntil = 0 // timestamp — Lily is overwhelmed and won't respond until this time
-  private npcLastMusicSilenceCheck = 0 // timestamp of last "no music" nudge
-  private npcMusicSilenceSince = 0 // when silence started (0 = music is playing or not tracked yet)
+
+  // ── Heartbeat state (inner life system) ──
+  private npcHeartbeatTimeout: NodeJS.Timeout | null = null
+  private heartbeatFailures = 0
+  private playerJoinTimes = new Map<string, number>() // sessionId → join timestamp
 
   private readonly npcGreetings = [
     "hi! I'm Lily. if you need anything just say my name",
@@ -115,21 +115,6 @@ export class ClubMutant extends Room {
     "hey~ I'm Lily, the bartender here. say my name if you need me",
     "oh! hi. I'm Lily. just say \"Lily\" and I'll hear you",
     "welcome~ I'm Lily. call me by name if you want something!",
-  ]
-
-  private readonly npcOverwhelmedPhrases = [
-    "ah... sorry, there's a lot of people talking... give me a second",
-    "oh... I need to catch my breath... one moment",
-    "too many voices at once... I'll be back in a bit",
-    "s-sorry... I need a little break... just a minute",
-  ]
-
-  private readonly npcSuggestMusicPhrases = [
-    "it's really quiet in here... someone should put on some music",
-    "hmm... this silence is nice but... maybe a song would be good?",
-    "does anyone want to play something? the jukebox is right there",
-    "I keep thinking about Denki Groove... someone should play something",
-    "the bar feels a little empty without music... just saying",
   ]
 
   /** Returns true if the message should be dropped (too frequent). */
@@ -298,108 +283,13 @@ export class ClubMutant extends Room {
 
   /**
    * Called when a new jukebox track starts playing.
-   * ~30% chance Lily comments on it unprompted.
+   * Now handled by heartbeat system — kept as no-op for command compatibility.
    */
-  notifyNpcMusicStarted(title: string) {
-    if (!this.state.players.has(NPC_SESSION_ID)) return
-    if (Math.random() > 0.3) return // 30% chance
-
-    // Small delay so the music announcement settles first
-    setTimeout(async () => {
-      try {
-        const res = await fetch(`${NPC_SERVICE_URL}/bartender/npc-chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            personalityId: NPC_PERSONALITY_ID,
-            message: `[SYSTEM]: A new song just started playing: "${title}". React briefly and naturally.`,
-            history: this.npcChatHistory.slice(-10),
-            roomId: this.roomId,
-            musicContext: `Currently playing: "${title}"`,
-          }),
-          signal: AbortSignal.timeout(8000),
-        })
-
-        if (!res.ok) return
-
-        const data = (await res.json()) as { text?: string }
-        if (data.text) {
-          this.npcChatHistory.push({ role: 'assistant', content: data.text })
-          this.broadcastNpcMessage(data.text)
-        }
-      } catch (e) {
-        // Silent fail — spontaneous commentary is optional
-        if (LOG_ENABLED) console.log('[NPC] Spontaneous music comment failed:', e)
-      }
-    }, 2000 + Math.random() * 3000) // 2-5s after track starts
+  notifyNpcMusicStarted(_title: string) {
+    // Proactive music reactions are now handled by the heartbeat system
   }
 
-  /**
-   * Generate a memory-aware greeting for a returning authenticated player.
-   * Calls the NPC chat service which searches cogmem for past interactions.
-   * Returns null on failure — caller should fall back to hardcoded greeting.
-   */
-  private async greetPlayerWithMemory(player: Player): Promise<string | null> {
-    try {
-      const res = await fetch(`${NPC_SERVICE_URL}/bartender/npc-chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          personalityId: NPC_PERSONALITY_ID,
-          message: `[SYSTEM]: ${player.name} just walked into the bar. They are a returning visitor. Greet them naturally using what you remember about them. If they asked you to greet them a specific way, do that.`,
-          history: [],
-          roomId: this.roomId,
-          senderName: player.name,
-          playerId: player.playerId,
-        }),
-        signal: AbortSignal.timeout(6000),
-      })
-
-      if (!res.ok) return null
-      const data = (await res.json()) as { text?: string }
-      return data.text || null
-    } catch {
-      return null
-    }
-  }
-
-  /**
-   * Generate a dynamic music suggestion when the bar has been quiet.
-   * Uses the NPC chat service so Lily can suggest a specific song.
-   * Returns null on failure — caller should fall back to hardcoded nudge phrases.
-   */
-  private async suggestMusicDynamically(): Promise<string | null> {
-    try {
-      const ms = this.state.musicStream
-      const lastTrack = ms.currentTitle && ms.status !== 'playing' ? ms.currentTitle : null
-
-      let systemMsg =
-        '[SYSTEM]: The bar has been quiet for a while. Suggest a specific song someone should play — give the song title and artist.'
-      if (lastTrack) {
-        systemMsg += ` The last song that was playing was "${lastTrack}".`
-      }
-
-      const res = await fetch(`${NPC_SERVICE_URL}/bartender/npc-chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          personalityId: NPC_PERSONALITY_ID,
-          message: systemMsg,
-          history: [],
-          roomId: this.roomId,
-          senderName: '',
-          playerId: '',
-        }),
-        signal: AbortSignal.timeout(5000),
-      })
-
-      if (!res.ok) return null
-      const data = (await res.json()) as { text?: string }
-      return data.text || null
-    } catch {
-      return null
-    }
-  }
+  // greetPlayerWithMemory and suggestMusicDynamically removed — handled by heartbeat system
 
   private randomIdleTime(): number {
     return 3000 + Math.random() * 5000 // 3-8 seconds
@@ -510,33 +400,7 @@ export class ClubMutant extends Room {
       npc.npcAnimState = acsState
     }
 
-    // ── Music silence nudge ──
-    // If no music has been playing for a while and there are humans present, suggest music
-    const now = Date.now()
-    if (isMusicPlaying) {
-      this.npcMusicSilenceSince = 0 // reset when music is playing
-    } else {
-      if (this.npcMusicSilenceSince === 0) {
-        this.npcMusicSilenceSince = now // start tracking silence
-      }
-      const silenceDuration = now - this.npcMusicSilenceSince
-      // After 2 minutes of silence, nudge every 3 minutes (max ~once per 3m)
-      if (
-        silenceDuration > 120_000 &&
-        now - this.npcLastMusicSilenceCheck > 180_000 &&
-        this.getHumanPlayerCount() > 0 &&
-        this.npcState !== 'conversing' &&
-        now >= this.npcOverwhelmedUntil
-      ) {
-        this.npcLastMusicSilenceCheck = now
-        this.suggestMusicDynamically().then((suggestion) => {
-          const msg =
-            suggestion ??
-            this.npcSuggestMusicPhrases[Math.floor(Math.random() * this.npcSuggestMusicPhrases.length)]
-          this.broadcastNpcMessage(msg)
-        })
-      }
-    }
+    // Music silence nudge and proactive behaviors now handled by heartbeat system
   }
 
   /** Count human (non-NPC) players in the room */
@@ -556,25 +420,7 @@ export class ClubMutant extends Room {
     if (now - this.npcLastChatAt < 2000) return
     this.npcLastChatAt = now
 
-    // ── Overwhelm check: if Lily is taking a break, silently ignore ──
-    if (now < this.npcOverwhelmedUntil) return
-
-    // Track recent chatters (sliding 30s window)
-    this.npcRecentChatters = this.npcRecentChatters.filter((c) => now - c.at < 30_000)
-    // Only add if this player isn't already in the recent list
-    if (!this.npcRecentChatters.some((c) => c.sessionId === senderSessionId)) {
-      this.npcRecentChatters.push({ sessionId: senderSessionId, at: now })
-    }
-    // Count unique chatters in last 30s
-    const uniqueChatters = new Set(this.npcRecentChatters.map((c) => c.sessionId)).size
-    if (uniqueChatters > 3) {
-      // Lily is overwhelmed — announce break and pause for 30s
-      const phrase = this.npcOverwhelmedPhrases[Math.floor(Math.random() * this.npcOverwhelmedPhrases.length)]
-      this.broadcastNpcMessage(phrase)
-      this.npcOverwhelmedUntil = now + 30_000
-      this.npcRecentChatters = [] // reset so the window starts fresh after break
-      return
-    }
+    // Overwhelm detection now handled by inner state (low energy + low socialDesire)
 
     // Interrupt any pending chunked response queue
     this.stopDrainingNpcQueue()
@@ -768,6 +614,138 @@ export class ClubMutant extends Room {
     this.broadcastNpcMessage(phrase)
   }
 
+  // ── Heartbeat System (NPC Inner Life) ──
+
+  private startNpcHeartbeat() {
+    const scheduleNext = () => {
+      // Jittered interval: 30-60s, with backoff on failures
+      const baseDelay = 30000 + Math.random() * 30000
+      const delay = Math.min(baseDelay * Math.pow(1.5, this.heartbeatFailures), 300000)
+      this.npcHeartbeatTimeout = setTimeout(() => {
+        this.doHeartbeat().then(scheduleNext).catch(() => scheduleNext())
+      }, delay)
+    }
+    scheduleNext()
+  }
+
+  private stopNpcHeartbeat() {
+    if (this.npcHeartbeatTimeout) {
+      clearTimeout(this.npcHeartbeatTimeout)
+      this.npcHeartbeatTimeout = null
+    }
+  }
+
+  private async doHeartbeat() {
+    try {
+      if (this.npcState === 'conversing') return // Don't interrupt active conversation
+      if (this.getHumanPlayerCount() === 0) return // No players, skip
+
+      const snapshot = this.buildWorldSnapshot()
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+      const response = await fetch(`${NPC_SERVICE_URL}/bartender/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(snapshot),
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+
+      const result = await response.json() as { action: string; text?: string; target?: string; behavior?: string }
+      this.heartbeatFailures = 0 // Reset on success
+
+      if (result.action === 'speak' && result.text) {
+        this.broadcastNpcMessage(result.text)
+        if (result.behavior) {
+          const npc = this.state.players.get(NPC_SESSION_ID)
+          if (npc) {
+            npc.npcAnimState = result.behavior === 'turn_to_player' ? 'greeting' : 'idle'
+            // Reset after 4s
+            setTimeout(() => {
+              const npc = this.state.players.get(NPC_SESSION_ID)
+              if (npc && npc.npcAnimState === 'greeting') npc.npcAnimState = 'idle'
+            }, 4000)
+          }
+        }
+      }
+    } catch (err: any) {
+      this.heartbeatFailures = Math.min(this.heartbeatFailures + 1, 5)
+      if (LOG_ENABLED) console.warn(`[NPC] Heartbeat failed (attempt ${this.heartbeatFailures}):`, err?.message)
+    }
+  }
+
+  private buildWorldSnapshot() {
+    const now = Date.now()
+    const players: { id: string; name: string; lastChatAge: number; isNew: boolean }[] = []
+
+    this.state.players.forEach((player, sessionId) => {
+      if (player.isNpc) return
+      const lastChatWindow = this.npcConversationWindows.get(sessionId)
+      const lastChatAge = lastChatWindow ? Math.floor((now - lastChatWindow) / 1000) : -1
+      const joinTime = this.playerJoinTimes.get(sessionId) ?? now
+      const isNew = now - joinTime < 30000 // joined in last 30s
+
+      players.push({
+        id: player.playerId || sessionId,
+        name: player.name,
+        lastChatAge,
+        isNew,
+      })
+    })
+
+    const ms = this.state.musicStream
+    const isMusicPlaying = ms.status === 'playing' && ms.currentLink && !ms.isAmbient
+
+    const hour = new Date().getHours()
+    const timeOfDay = hour < 6 ? 'late_night' : hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'
+
+    return {
+      players,
+      musicPlaying: isMusicPlaying ? (ms.currentTitle || '') : '',
+      silenceDuration: this.getSecondsSinceLastAnyChatMessage(),
+      recentChatCount: this.getRecentChatCount(60),
+      recentMessages: this.getLastNMessages(3),
+      timeOfDay,
+    }
+  }
+
+  private getSecondsSinceLastAnyChatMessage(): number {
+    const chatMessages = this.state.chatMessages
+    if (chatMessages.length === 0) return 999
+    const lastMsg = chatMessages[chatMessages.length - 1]
+    if (!lastMsg?.createdAt) return 999
+    return Math.floor((Date.now() - lastMsg.createdAt) / 1000)
+  }
+
+  private getRecentChatCount(windowSeconds: number): number {
+    const cutoff = Date.now() - windowSeconds * 1000
+    let count = 0
+    for (let i = this.state.chatMessages.length - 1; i >= 0; i--) {
+      const msg = this.state.chatMessages[i]
+      if (msg.createdAt && msg.createdAt >= cutoff) {
+        count++
+      } else {
+        break // messages are ordered by time
+      }
+    }
+    return count
+  }
+
+  private getLastNMessages(n: number): string[] {
+    const messages: string[] = []
+    const chatMessages = this.state.chatMessages
+    const start = Math.max(0, chatMessages.length - n)
+    for (let i = start; i < chatMessages.length; i++) {
+      const msg = chatMessages[i]
+      if (msg.content && msg.author !== NPC_NAME) {
+        messages.push(msg.content)
+      }
+    }
+    return messages
+  }
+
   async onCreate(options: IRoomData) {
     console.log(`[onCreate] room=${this.roomId} name=${options.name} musicMode=${options.musicMode ?? 'default'}`)
     const { name, description, password, autoDispose, isPublic } = options
@@ -810,6 +788,7 @@ export class ClubMutant extends Room {
     // Spawn NPC bartender for jukebox rooms
     if (this.musicMode === 'jukebox') {
       this.spawnNpc()
+      this.startNpcHeartbeat()
     }
 
     this.onMessage(Message.TIME_SYNC_REQUEST, (client, message: { clientSentAtMs?: unknown }) => {
@@ -1291,43 +1270,9 @@ export class ClubMutant extends Room {
     }
     if (LOG_ENABLED) console.log('////onJoin, musicStream.status', musicStream.status)
 
-    // ── NPC greeting on player join ──
-    if (this.musicMode === 'jukebox' && this.state.players.has(NPC_SESSION_ID)) {
-      const now = Date.now()
-      // Rate-limit greetings to 1 per 15 seconds (avoid spam on multi-join)
-      if (now - this.npcLastGreetingAt > 15_000) {
-        this.npcLastGreetingAt = now
-        const delay = 1500 + Math.random() * 1500 // 1.5–3s randomized delay
-        const greetingSessionId = client.sessionId
-        const playerIsAuthenticated = isAuthenticated // capture for closure
-
-        setTimeout(async () => {
-          if (!this.state.players.has(greetingSessionId)) return
-
-          const player = this.state.players.get(greetingSessionId)!
-          let greeting: string | null = null
-
-          // Authenticated returning players: try memory-aware greeting via NPC service
-          if (playerIsAuthenticated && player.playerId) {
-            greeting = await this.greetPlayerWithMemory(player)
-          }
-
-          // Fallback: hardcoded intro (for guests, new players, or service failure)
-          if (!greeting) {
-            greeting = this.npcGreetings[Math.floor(Math.random() * this.npcGreetings.length)]
-          }
-
-          // Set greeting animation state briefly
-          const npc = this.state.players.get(NPC_SESSION_ID)
-          if (npc) npc.npcAnimState = 'greeting'
-          this.broadcastNpcMessage(greeting)
-          // Return to idle after greeting plays
-          setTimeout(() => {
-            const npc = this.state.players.get(NPC_SESSION_ID)
-            if (npc && npc.npcAnimState === 'greeting') npc.npcAnimState = 'idle'
-          }, 4000)
-        }, delay)
-      }
+    // ── Track player join for heartbeat ──
+    if (this.musicMode === 'jukebox') {
+      this.playerJoinTimes.set(client.sessionId, Date.now())
     }
   }
 
@@ -1361,6 +1306,7 @@ export class ClubMutant extends Room {
     this.lastPlayerActionAtMsBySessionId.delete(client.sessionId)
     this.messageThrottles.delete(client.sessionId)
     this.npcConversationWindows.delete(client.sessionId)
+    this.playerJoinTimes.delete(client.sessionId)
 
     if (this.state.players.has(client.sessionId)) {
       this.state.players.delete(client.sessionId)
@@ -1406,6 +1352,7 @@ export class ClubMutant extends Room {
   onDispose() {
     console.log(`[onDispose] room=${this.roomId} players=${this.state.players.size}`)
 
+    this.stopNpcHeartbeat()
     this.cleanupNpc()
     this.clearTrackWatchdog()
     this.stopMusicStreamTickIfNeeded()

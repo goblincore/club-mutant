@@ -1,15 +1,15 @@
 package main
 
 import (
-"log"
-"os"
+	"log"
+	"os"
 
-"github.com/club-mutant/dream-npc-go/npc"
+	"github.com/club-mutant/dream-npc-go/npc"
 
-"github.com/gofiber/fiber/v2"
-"github.com/gofiber/fiber/v2/middleware/cors"
-"github.com/gofiber/fiber/v2/middleware/logger"
-"github.com/joho/godotenv"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -21,9 +21,27 @@ func main() {
 		port = "4000"
 	}
 
+	// Initialize inner life systems
+	stateMgr := npc.NewStateManager()
+	npc.SetStateManager(stateMgr)
+
+	dbPath := os.Getenv("DUALMEM_DB_PATH")
+	if dbPath == "" {
+		dbPath = "./data/dualmem.db"
+	}
+	relStore, err := npc.NewRelationshipStore(dbPath)
+	if err != nil {
+		log.Printf("[relationships] Init failed: %v — relationships disabled", err)
+	} else {
+		npc.SetRelationshipStore(relStore)
+		defer relStore.Close()
+	}
+
+	heartbeatHandler := npc.NewHeartbeatHandler(stateMgr, relStore)
+
 	app := fiber.New(fiber.Config{
-DisableStartupMessage: true,
-})
+		DisableStartupMessage: true,
+	})
 
 	app.Use(logger.New())
 
@@ -51,11 +69,20 @@ ip := c.IP()
 	})
 
 	app.Post("/bartender/npc-chat", func(c *fiber.Ctx) error {
-var body npc.NpcChatRequest
-if err := c.BodyParser(&body); err == nil && body.RoomID != "" {
+		var body npc.NpcChatRequest
+		if err := c.BodyParser(&body); err == nil && body.RoomID != "" {
 			return handleIncomingChat(c, "bartender:"+body.RoomID)
 		}
 		return handleIncomingChat(c, "bartender:default")
+	})
+
+	app.Post("/bartender/heartbeat", func(c *fiber.Ctx) error {
+		var snapshot npc.WorldSnapshot
+		if err := c.BodyParser(&snapshot); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid JSON"})
+		}
+		result := heartbeatHandler.HandleHeartbeat("lily_bartender", snapshot)
+		return c.JSON(result)
 	})
 
 	log.Printf("🌙 Dream NPC Go service listening on http://localhost:%s\n", port)

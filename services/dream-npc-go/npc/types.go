@@ -1,5 +1,7 @@
 package npc
 
+import "time"
+
 type NpcChatRequest struct {
 	PersonalityID string    `json:"personalityId"`
 	Message       string    `json:"message"`
@@ -16,8 +18,10 @@ type Message struct {
 }
 
 type NpcChatResponse struct {
-	Text     string `json:"text"`
-	Behavior string `json:"behavior,omitempty"`
+	Text          string  `json:"text"`
+	Behavior      string  `json:"behavior,omitempty"`
+	AffinityDelta float64 `json:"affinityDelta,omitempty"`
+	Note          string  `json:"note,omitempty"`
 }
 
 type NpcErrorResponse struct {
@@ -61,6 +65,62 @@ type GeminiCandidate struct {
 type NpcPersonality struct {
 	ID              string
 	SystemPrompt    string
+	ReflectionPrompt string // abbreviated personality for inner monologue reflections
 	FallbackPhrases []string
 	SectorWeights   map[string]float64 // dualmem sector weights (episodic, semantic, procedural, emotional, reflective)
+}
+
+// --- Inner Life types ---
+
+type InnerState struct {
+	Mood         string    `json:"mood"`
+	Energy       float64   `json:"energy"`
+	SocialDesire float64   `json:"socialDesire"`
+	Thought      string    `json:"thought"`
+	UpdatedAt    time.Time `json:"-"`
+}
+
+type WorldSnapshot struct {
+	Players         []PlayerPresence `json:"players"`
+	MusicPlaying    string           `json:"musicPlaying"`
+	SilenceDuration int              `json:"silenceDuration"`
+	RecentChatCount int              `json:"recentChatCount"`
+	RecentMessages  []string         `json:"recentMessages,omitempty"`
+	TimeOfDay       string           `json:"timeOfDay"`
+}
+
+type PlayerPresence struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	LastChatAge int    `json:"lastChatAge"`
+	IsNew       bool   `json:"isNew"`
+}
+
+type HeartbeatResponse struct {
+	Action   string `json:"action"`
+	Text     string `json:"text,omitempty"`
+	Target   string `json:"target,omitempty"`
+	Behavior string `json:"behavior,omitempty"`
+}
+
+// --- Relationship types ---
+
+type RelationshipTier int
+
+const (
+	TierStranger     RelationshipTier = iota // Default
+	TierAcquaintance                         // ~3 conversations
+	TierRegular                              // ~8 conversations, affinity > 0.6
+	TierFriend                               // ~15 conversations, affinity > 0.8
+	TierConfidant                            // ~25 conversations, affinity > 0.9
+)
+
+type Relationship struct {
+	PlayerID      string           `json:"playerId"`
+	PersonalityID string           `json:"personalityId"`
+	Tier          RelationshipTier `json:"tier"`
+	Affinity      float64          `json:"affinity"`
+	Interactions  int              `json:"interactions"`
+	LastSeen      time.Time        `json:"lastSeen"`
+	Notes         string           `json:"notes"`
 }

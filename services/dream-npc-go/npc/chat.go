@@ -1,10 +1,8 @@
 package npc
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -16,10 +14,12 @@ import (
 )
 
 var (
-	cache       *LRUCache
-	rateLimiter *RateLimiter
-	client      *http.Client
-	dmEngine    *dualmem.Engine
+	cache        *LRUCache
+	rateLimiter  *RateLimiter
+	client       *http.Client
+	dmEngine     *dualmem.Engine
+	stateManager *StateManager
+	relStore     *RelationshipStore
 )
 
 func init() {
@@ -48,6 +48,16 @@ func init() {
 	} else {
 		log.Println("[dualmem] GEMINI_API_KEY not set — memory disabled")
 	}
+}
+
+// SetStateManager sets the package-level state manager for mood injection.
+func SetStateManager(sm *StateManager) {
+	stateManager = sm
+}
+
+// SetRelationshipStore sets the package-level relationship store.
+func SetRelationshipStore(rs *RelationshipStore) {
+	relStore = rs
 }
 
 func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
@@ -123,24 +133,53 @@ func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
 		}
 	}
 
+	// Inject inner state (mood context from heartbeat reflections)
+	if stateManager != nil {
+		if state := stateManager.GetState(req.PersonalityID); state != nil {
+			if moodBlock := FormatInnerStateForPrompt(state); moodBlock != "" {
+				contextParts = append(contextParts, moodBlock)
+			}
+		}
+	}
+
+	// Inject relationship context
+	var rel *Relationship
+	if relStore != nil && req.PlayerID != "" {
+		rel = relStore.GetRelationship(req.PlayerID, req.PersonalityID)
+		if rel != nil {
+			contextParts = append(contextParts, FormatRelationshipForPrompt(rel))
+		}
+	}
+
 	if len(contextParts) > 0 {
 		sysPrompt += "\n\nCONTEXT:\n" + strings.Join(contextParts, "\n")
 	}
 
 	// Call Gemini
-	rawResponse := callGemini(sysPrompt, req.History, req.Message)
+	rawResponse := CallGemini(DefaultChatConfig, sysPrompt, req.History, req.Message)
 
 	if rawResponse != "" {
-		parsedText, parsedBehavior := parseResponse(rawResponse)
-		if parsedText != "" {
-			cache.Set(cacheKey, parsedText, parsedBehavior)
+		parsed := parseResponse(rawResponse)
+		if parsed.Text != "" {
+			isCacheHit := false
+			cache.Set(cacheKey, parsed.Text, parsed.Behavior)
 
 			// Store conversation in memory (fire-and-forget)
 			if memUserID != "" && dmEngine != nil {
-				go dmEngine.Add(req.Message, parsedText, memUserID)
+				go dmEngine.Add(req.Message, parsed.Text, memUserID)
 			}
 
-			return 200, NpcChatResponse{Text: parsedText, Behavior: parsedBehavior}
+			// Update relationship (skip on cache hits)
+			if relStore != nil && req.PlayerID != "" && !isCacheHit {
+				go relStore.UpdateAfterChat(req.PlayerID, req.PersonalityID, parsed.AffinityDelta, parsed.Note)
+			}
+
+			return 200, NpcChatResponse{
+				Text:          parsed.Text,
+				Behavior:      parsed.Behavior,
+				AffinityDelta: parsed.AffinityDelta,
+				Note:          parsed.Note,
+			}
 		}
 	}
 
@@ -149,103 +188,48 @@ func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
 	return 200, NpcChatResponse{Text: fallback}
 }
 
-func callGemini(systemPrompt string, history []Message, message string) string {
-	apiKey := os.Getenv("GEMINI_API_KEY")
-	if apiKey == "" {
-		log.Println("[dreamNpc] No GEMINI_API_KEY set")
-		return ""
-	}
-
-	geminiModel := "gemini-2.5-flash-lite"
-	url := "https://generativelanguage.googleapis.com/v1beta/models/" + geminiModel + ":generateContent?key=" + apiKey
-
-	reqBody := GeminiRequest{
-		SystemInstruction: GeminiInstruction{Parts: []GeminiPart{{Text: systemPrompt}}},
-		Contents:          []GeminiContent{},
-		GenerationConfig: GeminiConfig{
-			MaxOutputTokens: 160,
-			Temperature:     0.9,
-			TopP:            0.95,
-		},
-	}
-
-	for _, msg := range history {
-		role := "model"
-		if msg.Role == "user" {
-			role = "user"
-		}
-		reqBody.Contents = append(reqBody.Contents, GeminiContent{
-			Role:  role,
-			Parts: []GeminiPart{{Text: msg.Content}},
-		})
-	}
-
-	reqBody.Contents = append(reqBody.Contents, GeminiContent{
-		Role:  "user",
-		Parts: []GeminiPart{{Text: message}},
-	})
-
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		return ""
-	}
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return ""
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Println("[dreamNpc] Gemini API call failed:", err)
-		return ""
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		log.Printf("[dreamNpc] Gemini API error: %d %s\n", resp.StatusCode, string(bodyBytes))
-		return ""
-	}
-
-	var geminiResp GeminiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&geminiResp); err != nil {
-		return ""
-	}
-
-	if len(geminiResp.Candidates) > 0 && len(geminiResp.Candidates[0].Content.Parts) > 0 {
-		return geminiResp.Candidates[0].Content.Parts[0].Text
-	}
-	return ""
+// ParsedResponse holds the full parsed result from an LLM response.
+type ParsedResponse struct {
+	Text          string
+	Behavior      string
+	AffinityDelta float64
+	Note          string
 }
 
-func parseResponse(raw string) (string, string) {
+func parseResponse(raw string) ParsedResponse {
 	// Tier 1: Direct JSON parse
 	var parsed struct {
-		Text     string `json:"text"`
-		Behavior string `json:"behavior"`
+		Text          string  `json:"text"`
+		Behavior      string  `json:"behavior"`
+		AffinityDelta float64 `json:"affinityDelta"`
+		Note          string  `json:"note"`
 	}
 	if err := json.Unmarshal([]byte(raw), &parsed); err == nil && parsed.Text != "" {
-		return parsed.Text, parsed.Behavior
+		return ParsedResponse{
+			Text: parsed.Text, Behavior: parsed.Behavior,
+			AffinityDelta: parsed.AffinityDelta, Note: parsed.Note,
+		}
 	}
 
 	// Tier 2: Extract JSON from surrounding text
 	re := regexp.MustCompile(`\{[^}]*"text"\s*:\s*"[^"]*"[^}]*\}`)
 	if match := re.FindString(raw); match != "" {
 		if err := json.Unmarshal([]byte(match), &parsed); err == nil && parsed.Text != "" {
-			return parsed.Text, parsed.Behavior
+			return ParsedResponse{
+				Text: parsed.Text, Behavior: parsed.Behavior,
+				AffinityDelta: parsed.AffinityDelta, Note: parsed.Note,
+			}
 		}
 	}
 
-	// Tier 3: Use raw text if short enough
+	// Tier 3: Use raw text if short enough (neutral affinity)
 	cleaned := strings.ReplaceAll(raw, "```json", "")
 	cleaned = strings.ReplaceAll(cleaned, "```", "")
 	cleaned = strings.TrimSpace(cleaned)
 
 	if len(cleaned) > 0 && len(cleaned) <= 150 {
-		return cleaned, ""
+		return ParsedResponse{Text: cleaned, AffinityDelta: 0.02}
 	}
 
-	return "", ""
+	return ParsedResponse{}
 }
