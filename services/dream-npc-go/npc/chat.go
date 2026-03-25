@@ -36,7 +36,7 @@ func init() {
 		engine, err := dualmem.New(dualmem.Config{
 			SQLitePath:        dbPath,
 			EmbeddingProvider: dualmem.NewGeminiEmbedder(apiKey, 768),
-			Classifier:        dualmem.NewGeminiClassifier(apiKey),
+			Classifier:        dualmem.NewGeminiClassifier(apiKey, nil),
 			Summarizer:        dualmem.NewGeminiSummarizer(apiKey, ""),
 		})
 		if err != nil {

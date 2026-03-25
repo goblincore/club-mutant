@@ -3,7 +3,7 @@ module github.com/club-mutant/dream-npc-go
 go 1.24.0
 
 require (
-	github.com/goblincore/geoffreyengram v0.1.1
+	github.com/goblincore/geoffreyengram v0.1.2-0.20260325223804-c7ca4e7d693c
 	github.com/gofiber/fiber/v2 v2.52.12
 	github.com/joho/godotenv v1.5.1
 )
