@@ -756,10 +756,14 @@ function renderPlaylistDetail(container) {
 }
 
 function showAddToPlaylist(videoId) {
-  // Find the video in search results
   var video = null;
+  // Check search results
   for (var i = 0; i < searchResults.length; i++) {
     if (searchResults[i].id === videoId) { video = searchResults[i]; break; }
+  }
+  // Check currently watching video (covers home→watch and search→watch)
+  if (!video && watchingVideo && watchingVideo.id === videoId) {
+    video = watchingVideo;
   }
   if (!video) return;
 
@@ -767,10 +771,10 @@ function showAddToPlaylist(videoId) {
     id: video.id,
     title: video.title,
     link: 'https://youtube.com/watch?v=' + video.id,
-    duration: 0
+    duration: 0,
+    thumbnail: 'https://i.ytimg.com/vi/' + video.id + '/mqdefault.jpg'
   };
 
-  // Load playlists for the modal
   bridge.getPlaylists().then(function (result) {
     playlists = result.playlists || [];
     showPlaylistModal();
