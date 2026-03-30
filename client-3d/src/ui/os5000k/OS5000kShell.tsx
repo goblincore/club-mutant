@@ -13,47 +13,48 @@ export function OS5000kShell() {
   const bootPhase = useOS5kStore((s) => s.bootPhase)
   const windows = useOS5kStore((s) => s.windows)
   const windowOrder = useOS5kStore((s) => s.windowOrder)
+  const shutdownRequested = useOS5kStore((s) => s.shutdownRequested)
   const bridgeRef = useRef<OS5000kBridgeHost | null>(null)
 
-  // Start boot when OS becomes active
   useEffect(() => {
     if (osActive && bootPhase === 'off') {
       useOS5kStore.getState().setBootPhase('booting')
     }
   }, [osActive, bootPhase])
 
-  // Create/destroy bridge host
   useEffect(() => {
     if (!osActive) return
-
     const bridge = new OS5000kBridgeHost()
     bridgeRef.current = bridge
-
-    return () => {
-      bridge.destroy()
-      bridgeRef.current = null
-    }
+    return () => { bridge.destroy(); bridgeRef.current = null }
   }, [osActive])
 
-  // Escape key to close OS
+  // Escape key → request shutdown (shows confirmation dialog)
   useEffect(() => {
     if (!osActive) return
-
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        useOS5kStore.getState().closeAllWindows()
-        useOS5kStore.getState().setBootPhase('off')
-        useOS5kStore.getState().setActiveVideo(null)
-        useUIStore.getState().setOsActive(false)
-      }
+      if (e.key === 'Escape') useOS5kStore.getState().requestShutdown()
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [osActive])
 
+  // When confirmShutdown resets bootPhase to 'off', also deactivate OS
+  useEffect(() => {
+    if (!osActive) return
+    if (bootPhase === 'off' && !shutdownRequested) {
+      useUIStore.getState().setOsActive(false)
+    }
+  }, [bootPhase, shutdownRequested, osActive])
+
   const handleBootComplete = useCallback(() => {
     useOS5kStore.getState().setBootPhase('desktop')
   }, [])
+
+  const handleConfirmShutdown = () => {
+    useOS5kStore.getState().confirmShutdown()
+    useUIStore.getState().setOsActive(false)
+  }
 
   if (!osActive) return null
 
@@ -64,11 +65,9 @@ export function OS5000kShell() {
   if (bootPhase !== 'desktop') return null
 
   return (
-    <div className="fixed inset-0 bg-black" style={{ zIndex: 40 }}>
-      {/* Desktop (background) */}
+    <div className="fixed inset-0" style={{ zIndex: 40, background: '#000' }}>
       <OS5000kDesktop />
 
-      {/* Windows */}
       {windowOrder.map((winId, i) => {
         const win = windows.get(winId)
         if (!win) return null
@@ -91,11 +90,75 @@ export function OS5000kShell() {
         )
       })}
 
-      {/* Native video player (above windows) */}
       <OS5000kNativePlayer />
-
-      {/* Taskbar (always on top) */}
       <OS5000kTaskbar />
+
+      {/* Win98-style shutdown confirmation dialog */}
+      {shutdownRequested && (
+        <div
+          className="fixed inset-0 flex items-center justify-center"
+          style={{ zIndex: 10000, background: 'rgba(0,0,0,0.3)' }}
+        >
+          <div style={{
+            background: '#c0c0c0',
+            border: '2px solid',
+            borderTopColor: '#dfdfdf',
+            borderLeftColor: '#dfdfdf',
+            borderBottomColor: '#808080',
+            borderRightColor: '#808080',
+            boxShadow: 'inset 1px 1px 0 #ffffff, inset -1px -1px 0 #404040, 4px 4px 0 #000',
+            minWidth: 280,
+            fontFamily: 'monospace',
+          }}>
+            {/* Title bar */}
+            <div style={{
+              background: 'linear-gradient(180deg, #000080 0%, #1084d0 100%)',
+              color: '#fff',
+              padding: '2px 4px',
+              fontSize: 11,
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              userSelect: 'none',
+            }}>
+              <span>💻</span>
+              <span>Shut Down OS5000k</span>
+            </div>
+            {/* Body */}
+            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ fontSize: 12, color: '#000', lineHeight: 1.4 }}>
+                Are you sure you want to shut down OS5000k?
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                {(['Yes', 'No'] as const).map((label) => (
+                  <button
+                    key={label}
+                    onClick={label === 'Yes' ? handleConfirmShutdown : () => useOS5kStore.getState().cancelShutdown()}
+                    style={{
+                      background: '#c0c0c0',
+                      border: '2px solid',
+                      borderTopColor: '#dfdfdf',
+                      borderLeftColor: '#dfdfdf',
+                      borderBottomColor: '#808080',
+                      borderRightColor: '#808080',
+                      boxShadow: 'inset 1px 1px 0 #ffffff, inset -1px -1px 0 #404040',
+                      padding: '3px 20px',
+                      cursor: 'pointer',
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      color: '#000',
+                      minWidth: 75,
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
