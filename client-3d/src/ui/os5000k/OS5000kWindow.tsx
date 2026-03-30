@@ -1,6 +1,7 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
+import React, { useRef, useState, useCallback, useEffect } from 'react'
 import { useOS5kStore } from '../../stores/os5000kStore'
 import type { OS5000kBridgeHost } from './OS5000kBridgeHost'
+import { win98, W98 } from './win98Styles'
 
 interface OS5kWindowProps {
   id: string
@@ -26,6 +27,9 @@ export function OS5000kWindow({
   const resizeRef = useRef<{ startX: number; startY: number; winW: number; winH: number } | null>(null)
   const [dragging, setDragging] = useState(false)
   const [resizing, setResizing] = useState(false)
+
+  const windowOrder = useOS5kStore((s) => s.windowOrder)
+  const isFocused = windowOrder[windowOrder.length - 1] === id
 
   // Local position during drag for smooth movement (committed to store on pointer up)
   const [localPos, setLocalPos] = useState({ x, y })
@@ -117,75 +121,84 @@ export function OS5000kWindow({
     ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: 36, zIndex }
     : { position: 'absolute', top: localPos.y, left: localPos.x, width: localSize.width, height: localSize.height + 32, zIndex }
 
+  const outerStyle: React.CSSProperties = {
+    ...style,
+    ...win98.raised,
+    display: 'flex',
+    flexDirection: 'column',
+    background: W98.gray,
+    borderRadius: 0,
+    overflow: 'hidden',
+  }
+
   return (
     <div
-      style={style}
+      style={outerStyle}
       onPointerDown={() => useOS5kStore.getState().focusWindow(id)}
-      className="flex flex-col rounded-lg overflow-hidden"
     >
-      {/* Pointer overlay during drag/resize to prevent iframe capturing events */}
       {(dragging || resizing) && <div className="absolute inset-0 z-50" />}
 
       {/* Title bar */}
       <div
-        className="flex items-center gap-2 px-2 py-1 select-none shrink-0 cursor-grab active:cursor-grabbing"
-        style={{ background: '#2a2a2e', height: 32 }}
+        style={{
+          ...(isFocused ? win98.titleActive : win98.titleInactive),
+          height: 20,
+          flexShrink: 0,
+          cursor: dragging ? 'grabbing' : 'grab',
+        }}
         onPointerDown={handleDragStart}
         onPointerMove={handleDragMove}
         onPointerUp={handleDragEnd}
       >
-        <span className="text-sm">{icon}</span>
-        <span className="flex-1 text-[11px] font-mono text-white/70 truncate">{title}</span>
-        <div className="flex items-center gap-1">
+        <span style={{ fontSize: 12 }}>{icon}</span>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+        <div style={{ display: 'flex', gap: 2, marginLeft: 4 }}>
           {/* Minimize */}
           <button
+            style={win98.titleButton}
             onClick={(e) => { e.stopPropagation(); useOS5kStore.getState().minimizeWindow(id) }}
-            className="w-5 h-5 flex items-center justify-center rounded text-white/40 hover:text-white hover:bg-white/10"
             onPointerDown={(e) => e.stopPropagation()}
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
+            title="Minimize"
+          >_</button>
           {/* Maximize */}
           <button
+            style={win98.titleButton}
             onClick={(e) => { e.stopPropagation(); maximized ? useOS5kStore.getState().unmaximizeWindow(id) : useOS5kStore.getState().maximizeWindow(id) }}
-            className="w-5 h-5 flex items-center justify-center rounded text-white/40 hover:text-white hover:bg-white/10"
             onPointerDown={(e) => e.stopPropagation()}
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
-          </button>
+            title={maximized ? 'Restore' : 'Maximize'}
+          >□</button>
           {/* Close */}
           <button
+            style={{ ...win98.titleButton, marginLeft: 2 }}
             onClick={(e) => { e.stopPropagation(); useOS5kStore.getState().closeWindow(id) }}
-            className="w-5 h-5 flex items-center justify-center rounded text-white/40 hover:text-red-400 hover:bg-white/10"
             onPointerDown={(e) => e.stopPropagation()}
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
+            title="Close"
+          >✕</button>
         </div>
       </div>
 
-      {/* Content — iframe */}
-      <div className="flex-1 bg-black relative">
+      {/* Content — sunken border + iframe */}
+      <div style={{ flex: 1, ...win98.sunken, margin: 2, position: 'relative', overflow: 'hidden' }}>
         <iframe
           ref={iframeRef}
           src={`/os5000k/apps/${appId}.html`}
           title={title}
-          sandbox="allow-scripts allow-same-origin allow-popups"
-          className="w-full h-full border-0"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
+          style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
           onLoad={handleIframeLoad}
         />
       </div>
 
-      {/* Resize handle (bottom-right corner) */}
+      {/* Resize handle */}
       {!maximized && (
         <div
-          className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-10"
+          style={{ position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, cursor: 'se-resize', zIndex: 10 }}
           onPointerDown={handleResizeStart}
           onPointerMove={handleResizeMove}
           onPointerUp={handleResizeEnd}
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" className="text-white/20">
-            <path d="M14 14L8 14M14 14L14 8M14 14L6 6" stroke="currentColor" strokeWidth="1.5"/>
+          <svg width="12" height="12" viewBox="0 0 12 12">
+            <path d="M10 10L4 10M10 10L10 4M10 10L2 2" stroke={W98.mid} strokeWidth="1.5"/>
           </svg>
         </div>
       )}
