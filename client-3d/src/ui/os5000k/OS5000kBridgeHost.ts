@@ -18,6 +18,8 @@ import {
   createWallPost,
   getWallPosts,
   deleteWallPost,
+  getUserSetting,
+  setUserSetting,
 } from '../../network/nakamaClient'
 import { getNetwork } from '../../network/NetworkManager'
 import { usePresenceStore } from '../../stores/presenceStore'
@@ -64,6 +66,9 @@ export class OS5000kBridgeHost {
       ['youtube.importPlaylist', this.handleYouTubeImportPlaylist],
       ['video.play', this.handleVideoPlay],
       ['video.stop', this.handleVideoStop],
+      ['settings.getWallpaper', this.handleSettingsGetWallpaper],
+      ['settings.setWallpaper', this.handleSettingsSetWallpaper],
+      ['settings.uploadWallpaper', this.handleSettingsUploadWallpaper],
     ])
 
     window.addEventListener('message', this.onMessage)
@@ -399,6 +404,36 @@ export class OS5000kBridgeHost {
 
   private handleVideoStop = async (): Promise<unknown> => {
     useOS5kStore.getState().setActiveVideo(null)
+    return { success: true }
+  }
+
+  // ── Settings ───────────────────────────────────────────────────────
+
+  private handleSettingsGetWallpaper = async (): Promise<unknown> => {
+    const wp = await getUserSetting<{ type: string; value: string }>('wallpaper')
+    return wp ?? null
+  }
+
+  private handleSettingsSetWallpaper = async (
+    payload: Record<string, unknown>,
+  ): Promise<unknown> => {
+    const type = payload.type as 'preset' | 'color' | 'image'
+    const value = payload.value as string
+    if (!type || !value) throw new Error('type and value required')
+    await setUserSetting('wallpaper', { type, value })
+    useOS5kStore.getState().setWallpaper({ type, value })
+    return { success: true }
+  }
+
+  private handleSettingsUploadWallpaper = async (
+    payload: Record<string, unknown>,
+  ): Promise<unknown> => {
+    const dataUrl = payload.dataUrl as string
+    if (!dataUrl || !dataUrl.startsWith('data:image/')) throw new Error('invalid image data')
+    const sizeKb = Math.round(dataUrl.length * 0.75 / 1024)
+    if (sizeKb > 512) throw new Error(`Image too large (${sizeKb}KB). Max 512KB.`)
+    await setUserSetting('wallpaper', { type: 'image', value: dataUrl })
+    useOS5kStore.getState().setWallpaper({ type: 'image', value: dataUrl })
     return { success: true }
   }
 }
