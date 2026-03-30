@@ -13,6 +13,7 @@ export interface PlaylistTrack {
   title: string
   link: string
   duration: number
+  thumbnail?: string
 }
 
 export interface MyPlaylist {

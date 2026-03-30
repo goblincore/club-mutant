@@ -297,7 +297,7 @@ export class OS5000kBridgeHost {
     payload: Record<string, unknown>,
   ): Promise<unknown> => {
     const playlistId = payload.playlistId as string
-    const video = payload.video as { id: string; title: string; link: string; duration: number }
+    const video = payload.video as { id: string; title: string; link: string; duration: number; thumbnail?: string }
     if (!playlistId || !video) throw new Error('playlistId and video required')
 
     const playlists = await listServerPlaylists()
