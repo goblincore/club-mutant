@@ -3,12 +3,28 @@ import { useOS5kStore } from '../../stores/os5000kStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useAuthStore } from '../../stores/authStore'
 import { win98, W98 } from './win98Styles'
+import { useNotificationStore } from '../../stores/notificationStore'
+import type { Notification } from '@heroiclabs/nakama-js'
 
 export function OS5000kTaskbar() {
   const windows = useOS5kStore((s) => s.windows)
   const windowOrder = useOS5kStore((s) => s.windowOrder)
   const [time, setTime] = useState('')
   const [startOpen, setStartOpen] = useState(false)
+
+  const notifications = useNotificationStore((s) => s.notifications)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const acceptFriend = useNotificationStore((s) => s.acceptFriend)
+  const declineFriend = useNotificationStore((s) => s.declineFriend)
+  const dismiss = useNotificationStore((s) => s.dismiss)
+
+  // Start polling when taskbar mounts (OS is active)
+  useEffect(() => {
+    useNotificationStore.getState().startPolling()
+    return () => useNotificationStore.getState().stopPolling()
+  }, [])
+
+  const unread = notifications.length
 
   useEffect(() => {
     const update = () => {
@@ -111,8 +127,88 @@ export function OS5000kTaskbar() {
       </div>
 
       {/* System tray */}
-      <div style={win98.systemTray}>
+      <div style={{ ...win98.systemTray, position: 'relative' }}>
+        {/* Notification bell */}
+        <button
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'default',
+            position: 'relative',
+            padding: '0 2px',
+            fontSize: 13,
+            lineHeight: 1,
+          }}
+          title="Notifications"
+          onClick={(e) => { e.stopPropagation(); setNotifOpen((o) => !o) }}
+        >
+          🔔
+          {unread > 0 && (
+            <span style={{
+              position: 'absolute',
+              top: -4,
+              right: -2,
+              background: '#ef4444',
+              color: '#fff',
+              borderRadius: '50%',
+              fontSize: 9,
+              width: 14,
+              height: 14,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: 'monospace',
+            }}>{unread > 9 ? '9+' : unread}</span>
+          )}
+        </button>
         <span style={{ fontSize: 11, fontFamily: 'monospace', color: W98.black }}>{time}</span>
+
+        {/* Notification panel — Win98 style popup above system tray */}
+        {notifOpen && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 26,
+              right: 0,
+              width: 260,
+              background: W98.gray,
+              ...win98.raised,
+              zIndex: 10001,
+              fontFamily: 'monospace',
+              maxHeight: 300,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Panel title */}
+            <div style={{ ...win98.titleActive, fontSize: 11, height: 18, flexShrink: 0 }}>
+              🔔 Notifications
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {notifications.length === 0 ? (
+                <div style={{ padding: '12px 8px', fontSize: 11, color: '#808080', textAlign: 'center' }}>
+                  No notifications
+                </div>
+              ) : (
+                notifications.map((notif: Notification) => (
+                  <div key={notif.id} style={{ padding: '6px 8px', borderBottom: '1px solid #b0b0b0' }}>
+                    <div style={{ fontSize: 11, marginBottom: 4 }}>{notif.subject}</div>
+                    {notif.code === 2 ? (
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button style={{ ...win98.button, fontSize: 10, padding: '1px 6px', flex: 1 }} onClick={() => acceptFriend(notif)}>Accept</button>
+                        <button style={{ ...win98.button, fontSize: 10, padding: '1px 6px', flex: 1 }} onClick={() => declineFriend(notif)}>Decline</button>
+                      </div>
+                    ) : (
+                      <button style={{ ...win98.button, fontSize: 10, padding: '1px 6px' }} onClick={() => dismiss(notif)}>Dismiss</button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
