@@ -7,9 +7,6 @@ import { useAuthStore } from './stores/authStore'
 import { usePlaylistStore } from './stores/playlistStore'
 import { useDreamStore } from './dream/dreamStore'
 import { AuthScreen } from './ui/AuthScreen'
-import { ProfileBadge } from './ui/ProfileBadge'
-import { NotificationBell } from './ui/NotificationBell'
-import { FriendsSidebar } from './ui/FriendsSidebar'
 import { UserProfilePage } from './ui/UserProfilePage'
 import { PlayerContextMenu } from './ui/PlayerContextMenu'
 import { useBoothStore } from './stores/boothStore'
@@ -152,15 +149,6 @@ function MainApp() {
     return <AuthScreen />
   }
 
-  // Badge/bell: fixed overlay, always on top regardless of lobby or game view
-  const socialBar = isAuthenticated && !isDreaming && (
-    <div className="fixed top-3 right-3 flex items-center gap-2" style={{ zIndex: 200 }}>
-      <NotificationBell />
-      <FriendsSidebar />
-      <ProfileBadge />
-    </div>
-  )
-
   // Never connected yet — show lobby
   const neverConnected = connectionStatus === 'disconnected' && !mySessionId
 
@@ -168,7 +156,6 @@ function MainApp() {
     return (
       <>
         <LobbyScreen />
-        {socialBar}
       </>
     )
   }
@@ -203,9 +190,6 @@ function MainApp() {
       <div className="absolute top-3 left-3" style={{ zIndex: 30 }}>
         <NowPlaying />
       </div>
-
-      {/* Profile badge + notification bell — rendered as fixed overlay in socialBar above */}
-      {socialBar}
 
       {/* Minimized booth bar — shown when DJ queue panel is open but minimized (booth only, not jukebox) */}
       {playlistOpen && playlistMinimized && isAtBooth && !isJukeboxMode && (
