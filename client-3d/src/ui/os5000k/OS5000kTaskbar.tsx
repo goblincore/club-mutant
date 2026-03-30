@@ -90,7 +90,7 @@ export function OS5000kTaskbar() {
               }}
               style={{
                 ...win98.button,
-                ...(focused ? win98.sunken : {}),
+                ...(focused ? win98.sunken : win98.raised),
                 height: 22,
                 maxWidth: 160,
                 overflow: 'hidden',
