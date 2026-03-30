@@ -1,5 +1,10 @@
 import { create } from 'zustand'
 
+export interface WallpaperSetting {
+  type: 'preset' | 'color' | 'image'
+  value: string  // CSS string for preset/color, data URL for image
+}
+
 interface OS5kWindowState {
   id: string
   appId: string
@@ -19,6 +24,7 @@ interface OS5kState {
   bootPhase: 'off' | 'booting' | 'desktop'
   activeVideo: { videoId: string; title: string } | null
   shutdownRequested: boolean
+  wallpaper: WallpaperSetting | null
 
   openApp: (appId: string, title: string, icon: string, width: number, height: number) => string
   closeWindow: (id: string) => void
@@ -35,6 +41,7 @@ interface OS5kState {
   requestShutdown: () => void
   cancelShutdown: () => void
   confirmShutdown: () => void
+  setWallpaper: (wp: WallpaperSetting | null) => void
 }
 
 const STAGGER_OFFSET = 30
@@ -45,6 +52,7 @@ export const useOS5kStore = create<OS5kState>((set, get) => ({
   bootPhase: 'off',
   activeVideo: null,
   shutdownRequested: false,
+  wallpaper: null,
 
   openApp: (appId, title, icon, width, height) => {
     const id = crypto.randomUUID()
@@ -159,4 +167,6 @@ export const useOS5kStore = create<OS5kState>((set, get) => ({
   confirmShutdown: () => {
     set({ shutdownRequested: false, windows: new Map(), windowOrder: [], bootPhase: 'off', activeVideo: null })
   },
+
+  setWallpaper: (wp) => set({ wallpaper: wp }),
 }))
