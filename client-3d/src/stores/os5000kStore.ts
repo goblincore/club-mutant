@@ -18,6 +18,7 @@ interface OS5kState {
   windowOrder: string[]  // z-order stack, last = top/focused
   bootPhase: 'off' | 'booting' | 'desktop'
   activeVideo: { videoId: string; title: string } | null
+  shutdownRequested: boolean
 
   openApp: (appId: string, title: string, icon: string, width: number, height: number) => string
   closeWindow: (id: string) => void
@@ -31,6 +32,9 @@ interface OS5kState {
   setBootPhase: (phase: 'off' | 'booting' | 'desktop') => void
   setActiveVideo: (video: { videoId: string; title: string } | null) => void
   closeAllWindows: () => void
+  requestShutdown: () => void
+  cancelShutdown: () => void
+  confirmShutdown: () => void
 }
 
 const STAGGER_OFFSET = 30
@@ -40,6 +44,7 @@ export const useOS5kStore = create<OS5kState>((set, get) => ({
   windowOrder: [],
   bootPhase: 'off',
   activeVideo: null,
+  shutdownRequested: false,
 
   openApp: (appId, title, icon, width, height) => {
     const id = crypto.randomUUID()
@@ -146,4 +151,12 @@ export const useOS5kStore = create<OS5kState>((set, get) => ({
   setActiveVideo: (video) => set({ activeVideo: video }),
 
   closeAllWindows: () => set({ windows: new Map(), windowOrder: [] }),
+
+  requestShutdown: () => set({ shutdownRequested: true }),
+
+  cancelShutdown: () => set({ shutdownRequested: false }),
+
+  confirmShutdown: () => {
+    set({ shutdownRequested: false, windows: new Map(), windowOrder: [], bootPhase: 'off', activeVideo: null })
+  },
 }))
