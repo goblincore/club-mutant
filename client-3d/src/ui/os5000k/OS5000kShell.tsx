@@ -90,6 +90,18 @@ export function OS5000kShell() {
         )
       })}
 
+      {/* CRT scanline overlay — pointer-events none, purely decorative */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 9998,
+          backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 3px)',
+          mixBlendMode: 'multiply',
+        }}
+      />
+
       <OS5000kNativePlayer />
       <OS5000kTaskbar />
 
