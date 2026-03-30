@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useOS5kStore } from '../../stores/os5000kStore'
 import { useUIStore } from '../../stores/uiStore'
+import { getUserSetting } from '../../network/nakamaClient'
 import { OS5000kBridgeHost } from './OS5000kBridgeHost'
 import { OS5000kBoot } from './OS5000kBoot'
 import { OS5000kDesktop } from './OS5000kDesktop'
@@ -47,8 +48,15 @@ export function OS5000kShell() {
     }
   }, [bootPhase, shutdownRequested, osActive])
 
-  const handleBootComplete = useCallback(() => {
+  const handleBootComplete = useCallback(async () => {
     useOS5kStore.getState().setBootPhase('desktop')
+    // Load saved wallpaper from Nakama
+    try {
+      const wp = await getUserSetting<{ type: 'preset' | 'color' | 'image'; value: string }>('wallpaper')
+      if (wp) useOS5kStore.getState().setWallpaper(wp)
+    } catch {
+      // Not authenticated or no setting saved — use default
+    }
   }, [])
 
   const handleConfirmShutdown = () => {
