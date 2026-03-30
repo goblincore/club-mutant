@@ -1,36 +1,56 @@
+import type { CSSProperties } from 'react'
 import { useOS5kStore } from '../../stores/os5000kStore'
 import { OS5K_APPS } from './os5kAppRegistry'
 
 export function OS5000kDesktop() {
   const openApp = useOS5kStore((s) => s.openApp)
+  const wallpaper = useOS5kStore((s) => (s as any).wallpaper)
 
   const handleOpenApp = (app: typeof OS5K_APPS[number]) => {
     openApp(app.id, app.name, app.icon, app.width, app.height)
   }
 
-  return (
-    <div className="absolute inset-0 select-none" style={{
-      background: 'linear-gradient(135deg, #0a0a2e 0%, #1a1a3e 30%, #0d0d28 70%, #050518 100%)',
-    }}>
-      {/* Subtle grid pattern overlay */}
-      <div className="absolute inset-0 opacity-5" style={{
-        backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
-        backgroundSize: '40px 40px',
-      }} />
+  const bgStyle: CSSProperties = wallpaper
+    ? wallpaper.type === 'image'
+      ? { backgroundImage: `url(${wallpaper.value})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+      : wallpaper.type === 'color'
+        ? { background: wallpaper.value }
+        : { background: wallpaper.value }  // preset — CSS string
+    : { background: '#008080' }  // Win98 default teal
 
+  return (
+    <div className="absolute inset-0 select-none" style={bgStyle}>
       {/* Icon grid */}
-      <div className="relative p-6 flex flex-wrap gap-4 content-start">
+      <div style={{ padding: 8, display: 'flex', flexWrap: 'wrap', gap: 4, alignContent: 'flex-start' }}>
         {OS5K_APPS.map((app) => (
           <button
             key={app.id}
             onDoubleClick={() => handleOpenApp(app)}
-            className="flex flex-col items-center gap-1 w-20 p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group"
             title={app.description}
+            style={{
+              width: 72,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 2,
+              padding: '6px 4px',
+              cursor: 'default',
+              background: 'transparent',
+              border: 'none',
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,128,0.4)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
           >
-            <span className="text-3xl group-hover:scale-110 transition-transform">{app.icon}</span>
-            <span className="text-[11px] text-white/80 font-mono text-center leading-tight truncate w-full">
-              {app.name}
-            </span>
+            <span style={{ fontSize: 28 }}>{app.icon}</span>
+            <span style={{
+              fontSize: 11,
+              fontFamily: 'monospace',
+              color: '#fff',
+              textShadow: '1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000',
+              textAlign: 'center',
+              lineHeight: 1.2,
+              wordBreak: 'break-word',
+            }}>{app.name}</span>
           </button>
         ))}
       </div>
