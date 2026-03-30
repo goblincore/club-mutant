@@ -209,6 +209,19 @@ class OS5000kBridge {
   stopVideo(): Promise<{ success: boolean }> {
     return this.request('video.stop', {})
   }
+
+  // ── Settings ──────────────────────────────────────────────────────
+  getWallpaper(): Promise<{ type: 'preset' | 'color' | 'image'; value: string } | null> {
+    return this.request('settings.getWallpaper')
+  }
+
+  setWallpaper(type: 'preset' | 'color' | 'image', value: string): Promise<{ success: boolean }> {
+    return this.request('settings.setWallpaper', { type, value })
+  }
+
+  uploadWallpaper(dataUrl: string): Promise<{ success: boolean }> {
+    return this.request('settings.uploadWallpaper', { dataUrl })
+  }
 }
 
 // Expose globally for OS5000k programs
