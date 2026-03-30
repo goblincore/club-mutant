@@ -390,6 +390,17 @@ function formatViewCount(n) {
   return (n / 1000000).toFixed(1) + 'M views';
 }
 
+function extractYouTubeId(item) {
+  // Use id directly if it looks like a YouTube ID (11 chars)
+  if (item.id && /^[a-zA-Z0-9_-]{11}$/.test(item.id)) return item.id;
+  // Fall back to parsing the link field
+  if (item.link) {
+    var m = item.link.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+    if (m) return m[1];
+  }
+  return item.id;
+}
+
 OS5kApp.init('mutanttube', function (b) {
   bridge = b;
   if (!bridge) {
@@ -720,10 +731,18 @@ function renderPlaylistDetail(container) {
   } else {
     for (var i = 0; i < items.length; i++) {
       var item = items[i];
-      var watchData = JSON.stringify({id: item.id, title: item.title, duration: item.duration ? OS5kApp.formatDuration(item.duration) : '', channelTitle: '', thumbnail: ''}).replace(/"/g, '&quot;');
+      var ytId = extractYouTubeId(item);
+      var thumbUrl = 'https://i.ytimg.com/vi/' + ytId + '/mqdefault.jpg';
+      var watchData = JSON.stringify({
+        id: ytId,
+        title: item.title,
+        duration: item.duration ? OS5kApp.formatDuration(item.duration) : '',
+        channelTitle: '',
+        thumbnail: thumbUrl
+      }).replace(/"/g, '&quot;');
       html += '<div class="mt-video-card" onclick="openWatch(' + watchData + ')">';
-      html += '<div class="mt-thumb" style="width:80px;height:45px;">';
-      html += '<div class="mt-thumb-play" style="font-size:16px;">&#9654;</div>';
+      html += '<div class="mt-thumb" style="width:80px;height:45px;overflow:hidden;">';
+      html += '<img src="' + thumbUrl + '" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display=\'none\'">';
       html += '</div>';
       html += '<div class="mt-video-info">';
       html += '<div class="mt-video-title">' + OS5kApp.esc(item.title) + '</div>';
