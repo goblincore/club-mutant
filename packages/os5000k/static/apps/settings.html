@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings</title>
+<script src="../bridge-sdk.js"></script>
+<script src="../os5k-components.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: monospace; font-size: 12px; background: #c0c0c0; color: #000; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  .toolbar { background: linear-gradient(180deg, #000080 0%, #1084d0 100%); color: #fff; padding: 4px 8px; font-weight: bold; font-size: 11px; }
+  .tabs { display: flex; border-bottom: 2px solid #808080; background: #c0c0c0; padding: 4px 4px 0; gap: 4px; }
+  .tab { padding: 2px 12px; border: 2px solid; border-bottom: none; cursor: default; font-family: monospace; font-size: 11px; }
+  .tab.active { background: #c0c0c0; border-top-color: #dfdfdf; border-left-color: #dfdfdf; border-right-color: #808080; position: relative; top: 2px; }
+  .tab.inactive { background: #b0b0b0; border-top-color: #dfdfdf; border-left-color: #dfdfdf; border-right-color: #808080; }
+  .content { flex: 1; padding: 12px; overflow-y: auto; }
+  .section-label { font-size: 11px; color: #000; margin-bottom: 8px; font-weight: bold; }
+  .presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+  .preset { border: 2px solid; border-top-color: #dfdfdf; border-left-color: #dfdfdf; border-bottom-color: #808080; border-right-color: #808080; padding: 2px; cursor: default; }
+  .preset:hover, .preset.selected { border-top-color: #000080; border-left-color: #000080; border-bottom-color: #000080; border-right-color: #000080; }
+  .preset-thumb { height: 50px; margin-bottom: 4px; }
+  .preset-label { font-size: 10px; text-align: center; }
+  .divider { height: 1px; background: #808080; margin: 12px 0; }
+  .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .btn { background: #c0c0c0; border: 2px solid; border-top-color: #dfdfdf; border-left-color: #dfdfdf; border-bottom-color: #808080; border-right-color: #808080; box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #404040; padding: 2px 12px; cursor: default; font-family: monospace; font-size: 11px; }
+  .btn:active { border-top-color: #808080; border-left-color: #808080; border-bottom-color: #dfdfdf; border-right-color: #dfdfdf; box-shadow: none; padding: 3px 11px 1px 13px; }
+  .status { font-size: 10px; color: #000080; min-height: 14px; }
+</style>
+</head>
+<body>
+<div class="toolbar">⚙ System Settings</div>
+<div class="tabs">
+  <div class="tab active">Display</div>
+</div>
+<div class="content">
+  <div class="section-label">Wallpaper</div>
+  <div class="presets" id="presets"></div>
+
+  <div class="divider"></div>
+  <div class="row">
+    <label for="colorPicker" style="font-size:11px;">Solid Color:</label>
+    <input type="color" id="colorPicker" value="#008080">
+    <button class="btn" onclick="applyColor()">Apply</button>
+  </div>
+
+  <div class="divider"></div>
+  <div class="row">
+    <label style="font-size:11px;">Custom Image:</label>
+    <input type="file" id="imgInput" accept="image/*" style="font-size:10px;flex:1;">
+    <button class="btn" onclick="applyImage()">Upload</button>
+  </div>
+  <div class="status" id="status"></div>
+</div>
+
+<script>
+var bridge = window.OS5000k;
+
+var PRESETS = [
+  { id: 'teal',     label: 'Teal',       css: '#008080' },
+  { id: 'space',    label: 'Dark Space', css: 'linear-gradient(135deg, #0a0a2e 0%, #1a1a3e 30%, #050518 100%)' },
+  { id: 'forest',   label: 'Forest',     css: 'linear-gradient(135deg, #013220 0%, #025930 50%, #013220 100%)' },
+  { id: 'sunset',   label: 'Sunset',     css: 'linear-gradient(135deg, #1a0533 0%, #6b0f1a 50%, #e87722 100%)' },
+  { id: 'midnight', label: 'Midnight',   css: 'linear-gradient(180deg, #000010 0%, #000830 100%)' },
+  { id: 'rose',     label: 'Rose',       css: 'linear-gradient(135deg, #1a0010 0%, #5a0030 100%)' },
+];
+
+var selectedPreset = null;
+
+function renderPresets() {
+  var container = document.getElementById('presets');
+  container.innerHTML = '';
+  PRESETS.forEach(function(p) {
+    var div = document.createElement('div');
+    div.className = 'preset' + (selectedPreset === p.id ? ' selected' : '');
+    div.innerHTML = '<div class="preset-thumb" style="background:' + p.css + '"></div><div class="preset-label">' + p.label + '</div>';
+    div.onclick = function() { applyPreset(p); };
+    container.appendChild(div);
+  });
+}
+
+function applyPreset(p) {
+  selectedPreset = p.id;
+  renderPresets();
+  setStatus('Applying...');
+  bridge.setWallpaper('preset', p.css).then(function() {
+    setStatus('Wallpaper set to ' + p.label + '.');
+  }).catch(function(e) { setStatus('Error: ' + e.message); });
+}
+
+function applyColor() {
+  var val = document.getElementById('colorPicker').value;
+  selectedPreset = null;
+  renderPresets();
+  setStatus('Applying...');
+  bridge.setWallpaper('color', val).then(function() {
+    setStatus('Color applied.');
+  }).catch(function(e) { setStatus('Error: ' + e.message); });
+}
+
+function applyImage() {
+  var file = document.getElementById('imgInput').files[0];
+  if (!file) return;
+  setStatus('Reading image...');
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var dataUrl = e.target.result;
+    setStatus('Uploading...');
+    bridge.uploadWallpaper(dataUrl).then(function() {
+      setStatus('Custom wallpaper applied.');
+      selectedPreset = null;
+      renderPresets();
+    }).catch(function(err) { setStatus('Error: ' + err.message); });
+  };
+  reader.readAsDataURL(file);
+}
+
+function setStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+// Load current wallpaper on init
+function init() {
+  renderPresets();
+  bridge.getWallpaper().then(function(wp) {
+    if (wp && wp.type === 'preset') {
+      var found = PRESETS.find(function(p) { return p.css === wp.value; });
+      if (found) { selectedPreset = found.id; renderPresets(); }
+    } else if (wp && wp.type === 'color') {
+      document.getElementById('colorPicker').value = wp.value;
+    }
+  }).catch(function() {});
+}
+
+if (bridge.connected) {
+  init();
+} else {
+  bridge.on('system.connected', init);
+}
+</script>
+</body>
+</html>
