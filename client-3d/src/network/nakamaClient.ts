@@ -537,3 +537,27 @@ export async function deleteWallPost(
     target_user_id: targetUserId,
   })
 }
+
+// ── User Settings (Nakama storage) ──────────────────────────────────────────
+
+export async function getUserSetting<T = unknown>(key: string): Promise<T | null> {
+  const session = await ensureSession()
+  const result = await getClient().readStorageObjects(session, {
+    object_ids: [{ collection: 'user_settings', key, user_id: session.user_id! }],
+  })
+  const obj = result.objects?.[0]
+  return obj ? (obj.value as T) : null
+}
+
+export async function setUserSetting(key: string, value: unknown): Promise<void> {
+  const session = await ensureSession()
+  await getClient().writeStorageObjects(session, [
+    {
+      collection: 'user_settings',
+      key,
+      permission_read: 1,
+      permission_write: 1,
+      value: value as object,
+    },
+  ])
+}
