@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useOS5kStore } from '../../stores/os5000kStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useAuthStore } from '../../stores/authStore'
+import { win98, W98 } from './win98Styles'
 
 export function OS5000kTaskbar() {
   const windows = useOS5kStore((s) => s.windows)
   const windowOrder = useOS5kStore((s) => s.windowOrder)
   const [time, setTime] = useState('')
+  const [startOpen, setStartOpen] = useState(false)
 
   useEffect(() => {
     const update = () => {
@@ -19,62 +22,98 @@ export function OS5000kTaskbar() {
 
   const focusedId = windowOrder.length > 0 ? windowOrder[windowOrder.length - 1] : null
 
-  const handleClose = () => {
-    useOS5kStore.getState().closeAllWindows()
-    useOS5kStore.getState().setBootPhase('off')
-    useOS5kStore.getState().setActiveVideo(null)
+  const handleShutDown = () => {
+    setStartOpen(false)
+    useOS5kStore.getState().requestShutdown()
+  }
+
+  const handleLogOut = () => {
+    setStartOpen(false)
+    useOS5kStore.getState().confirmShutdown()
     useUIStore.getState().setOsActive(false)
+    useAuthStore.getState().logout()
   }
 
   return (
     <div
-      className="absolute bottom-0 left-0 right-0 flex items-center gap-1 px-2 select-none"
-      style={{
-        height: 36,
-        background: 'linear-gradient(180deg, #3a3a4a 0%, #2a2a3a 100%)',
-        borderTop: '1px solid rgba(255,255,255,0.08)',
-        zIndex: 9999,
-      }}
+      style={{ ...win98.taskbar, position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 9999 }}
+      onClick={() => startOpen && setStartOpen(false)}
     >
-      {/* Power button */}
-      <button
-        onClick={handleClose}
-        className="w-7 h-7 flex items-center justify-center rounded text-red-400/70 hover:text-red-400 hover:bg-white/10 transition-colors"
-        title="Shut down OS5000k"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
-          <line x1="12" y1="2" x2="12" y2="12"/>
-        </svg>
-      </button>
-
-      <div className="w-px h-5 bg-white/10 mx-1" />
-
-      {/* Window buttons */}
-      <div className="flex-1 flex items-center gap-1 overflow-x-auto">
-        {Array.from(windows.values()).map((win) => (
-          <button
-            key={win.id}
-            onClick={() => {
-              if (win.minimized) {
-                useOS5kStore.getState().restoreWindow(win.id)
-              }
-              useOS5kStore.getState().focusWindow(win.id)
-            }}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-mono transition-colors truncate max-w-[160px] ${
-              win.id === focusedId && !win.minimized
-                ? 'bg-white/15 text-white'
-                : 'text-white/50 hover:bg-white/10 hover:text-white/70'
-            } ${win.minimized ? 'opacity-50' : ''}`}
-          >
-            <span className="text-sm">{win.icon}</span>
-            <span className="truncate">{win.title}</span>
-          </button>
-        ))}
+      {/* Start button */}
+      <div style={{ position: 'relative' }}>
+        <button
+          style={{ ...win98.button, fontWeight: 'bold', padding: '1px 8px', height: 22 }}
+          onClick={(e) => { e.stopPropagation(); setStartOpen((o) => !o) }}
+        >
+          ⊞ Start
+        </button>
+        {startOpen && (
+          <div style={{
+            position: 'absolute',
+            bottom: 26,
+            left: 0,
+            background: W98.gray,
+            ...win98.raised,
+            minWidth: 140,
+            zIndex: 10000,
+            fontFamily: 'monospace',
+            fontSize: 11,
+          }}>
+            {[
+              { label: '🔴 Shut Down…', action: handleShutDown },
+              { label: '🚪 Log Out', action: handleLogOut },
+            ].map(({ label, action }) => (
+              <div
+                key={label}
+                onClick={action}
+                style={{ padding: '6px 12px', cursor: 'default', color: W98.black }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#000080'; (e.currentTarget as HTMLDivElement).style.color = '#fff' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = ''; (e.currentTarget as HTMLDivElement).style.color = W98.black }}
+              >{label}</div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Clock */}
-      <span className="text-[11px] font-mono text-white/40 px-2">{time}</span>
+      <div style={{ width: 1, height: 18, background: W98.mid, margin: '0 2px' }} />
+
+      {/* Window buttons */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, overflow: 'hidden' }}>
+        {Array.from(windows.values()).map((win) => {
+          const focused = win.id === focusedId && !win.minimized
+          return (
+            <button
+              key={win.id}
+              onClick={() => {
+                if (win.minimized) useOS5kStore.getState().restoreWindow(win.id)
+                useOS5kStore.getState().focusWindow(win.id)
+              }}
+              style={{
+                ...win98.button,
+                ...(focused ? win98.sunken : {}),
+                height: 22,
+                maxWidth: 160,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                opacity: win.minimized ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '1px 6px',
+              }}
+            >
+              <span style={{ fontSize: 12 }}>{win.icon}</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{win.title}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* System tray */}
+      <div style={win98.systemTray}>
+        <span style={{ fontSize: 11, fontFamily: 'monospace', color: W98.black }}>{time}</span>
+      </div>
     </div>
   )
 }
