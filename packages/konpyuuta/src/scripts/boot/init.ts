@@ -28,9 +28,9 @@ type BootMessagesData = typeof bootMessagesData;
  */
 declare global {
   interface Window {
-    debianBoot: DebianRealBoot;
+    konpyuutaBoot: KonpyuuTABoot;
     initDesktop: () => void;
-    DebianRealBoot: typeof DebianRealBoot;
+    KonpyuuTABoot: typeof KonpyuuTABoot;
     initClock?: () => void; // Kept for backward compatibility
     styleManager?: StyleManager;
   }
@@ -39,9 +39,9 @@ declare global {
 let desktopInitialized = false;
 
 /**
- * Simulates a Debian system boot with CDE.
+ * Simulates a KonpyuuTA system boot with CDE.
  */
-class DebianRealBoot {
+class KonpyuuTABoot {
   private currentStep: number = 0;
   private logo: string;
   private bootSequence: Array<{ delay: number; text: string; type: string }> = [];
@@ -61,7 +61,7 @@ class DebianRealBoot {
     this.generateDynamicSequence();
 
     if (!this.container) {
-      console.error('[DebianRealBoot] Boot container #boot-log-container not found');
+      console.error('[KonpyuuTABoot] Boot container #boot-log-container not found');
     }
   }
 
@@ -112,7 +112,7 @@ class DebianRealBoot {
     // Add final success message
     const finalMessage = this.isUpdateMode
       ? '[    OK    ] System update completed successfully'
-      : '[    OK    ] CDE Desktop ready ....';
+      : '[    OK    ] KonpyuuTA Desktop ready ....';
 
     this.bootSequence.push({
       text: finalMessage,
@@ -142,8 +142,8 @@ class DebianRealBoot {
     logoDiv.textContent = this.logo;
 
     this.container.appendChild(logoDiv);
-    this.bootLog.push('[LOGO] Debian ASCII art');
-    logger.log('[DebianRealBoot] Logo inserted');
+    this.bootLog.push('[LOGO] KonpyuuTA ASCII art');
+    logger.log('[KonpyuuTABoot] Logo inserted');
   }
 
   /**
@@ -154,7 +154,7 @@ class DebianRealBoot {
     this.bootLog = [];
 
     if (!this.container) {
-      console.error('[DebianRealBoot] Cannot start boot sequence: container missing');
+      console.error('[KonpyuuTABoot] Cannot start boot sequence: container missing');
       this.completeBoot();
       return;
     }
@@ -165,7 +165,7 @@ class DebianRealBoot {
     this.insertLogo();
 
     const mode = this.isUpdateMode ? 'update' : 'boot';
-    logger.log(`[DebianRealBoot] ${mode} sequence started`);
+    logger.log(`[KonpyuuTABoot] ${mode} sequence started`);
     this.startBootSequence();
   }
 
@@ -232,12 +232,12 @@ class DebianRealBoot {
    * @private
    */
   private async completeBoot(): Promise<void> {
-    logger.log('[DebianRealBoot] Completing boot process');
+    logger.log('[KonpyuuTABoot] Completing boot process');
 
     // If this was an update sequence, clear the pending flag
     if (this.isUpdateMode) {
       VersionManager.clearPendingUpdate();
-      logger.log('[DebianRealBoot] Update sequence completed, flag cleared');
+      logger.log('[KonpyuuTABoot] Update sequence completed, flag cleared');
     }
 
     // 1. Reveal desktop behind the boot screen (it has lower z-index)
@@ -260,7 +260,7 @@ class DebianRealBoot {
 
         setTimeout(() => {
           this.bootScreen!.style.display = 'none';
-          logger.log('[DebianRealBoot] Boot screen removed');
+          logger.log('[KonpyuuTABoot] Boot screen removed');
         }, 800);
       }
     }, 400); // 400ms is enough for most XPM renders to start seeing content
@@ -395,8 +395,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   try {
-    window.debianBoot = new DebianRealBoot(isUpdateMode);
-    window.debianBoot.start();
+    window.konpyuutaBoot = new KonpyuuTABoot(isUpdateMode);
+    window.konpyuutaBoot.start();
     logger.log(`[Boot] ${isUpdateMode ? 'Update' : 'Boot'} sequence initiated`);
   } catch (error) {
     console.error('[Boot] Failed to start boot sequence:', error);

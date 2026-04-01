@@ -5,7 +5,7 @@ import type { VFS } from '../scripts/core/vfs';
 import type { AudioManager } from '../scripts/core/audiomanager';
 import type { StyleManager } from '../scripts/features/stylemanager';
 import type { WindowManager } from '../scripts/core/windowmanager';
-// import type { DebianRealBoot } from '../scripts/boot/init'; (Class is not exported)
+// import type { KonpyuuTABoot } from '../scripts/boot/init'; (Class is not exported)
 
 /**
  * Clipboard item structure for file operations
@@ -55,7 +55,7 @@ declare global {
     DesktopManager?: any; // To be imported or typed specifically
 
     // Boot System
-    debianBoot: any;
+    konpyuutaBoot: any;
     initDesktop: () => void;
     initClock?: () => void;
 
