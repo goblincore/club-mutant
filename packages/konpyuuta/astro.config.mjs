@@ -1,14 +1,16 @@
+// packages/konpyuuta/astro.config.mjs
 import { defineConfig } from 'astro/config';
 
-// Centralized default backdrop path - single source of truth
-const DEFAULT_BACKDROP = '/backdrops/SkyDarkTall.pm';
+const BASE = '/konpyuuta';
 
 export default defineConfig({
-  site: 'https://debian.com.mx',
+  base: BASE,
+  output: 'static',
   vite: {
     define: {
-      'import.meta.env.PUBLIC_APP_VERSION': JSON.stringify(process.env.npm_package_version),
-      'import.meta.env.DEFAULT_BACKDROP': JSON.stringify(DEFAULT_BACKDROP),
+      'import.meta.env.PUBLIC_APP_VERSION': JSON.stringify(process.env.npm_package_version ?? '1.0.0'),
+      // DEFAULT_BACKDROP uses absolute path — served by Vite plugin at /backdrops/*
+      'import.meta.env.DEFAULT_BACKDROP': JSON.stringify('/backdrops/SkyDarkTall.pm'),
     },
   },
 });
