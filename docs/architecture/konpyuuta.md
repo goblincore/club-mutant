@@ -1,30 +1,29 @@
-# OS5000k — In-World Operating System
+# KonpyuuTA — In-World Operating System
 
 ## Overview
 
-OS5000k is an in-world mini-OS that opens when players interact with computer terminals in Club Mutant. It uses a **React-based shell** (window manager, taskbar, desktop) with a DOS/BIOS-style boot sequence. Apps are vanilla JS HTML files loaded as single-level iframes. A **postMessage bridge** connects apps to the main Club Mutant app — giving them access to player profiles, friends, direct messaging, playlists, wall posts, and YouTube search.
+KonpyuuTA is an in-world mini-OS that opens when players interact with computer terminals in Club Mutant. It uses a **React-based shell** (window manager, taskbar, desktop) with a DOS/BIOS-style boot sequence. Apps are vanilla JS HTML files loaded as single-level iframes. A **postMessage bridge** connects apps to the main Club Mutant app — giving them access to player profiles, friends, direct messaging, playlists, wall posts, and YouTube search.
 
 ## Architecture
 
 ```
 ┌────────────────────── client-3d (React/R3F) ───────────────────────┐
 │                                                                     │
-│  OS5000kShell.tsx (replaces ComputerBrowser + OS13k)               │
-│    ├─ OS5000kBoot.tsx (DOS POST animation)                         │
-│    ├─ OS5000kDesktop.tsx (icon grid, wallpaper)                    │
-│    ├─ OS5000kWindow.tsx (draggable/resizable per app)              │
-│    │    └─ <iframe src="/os5000k/apps/X.html">  (single level)    │
+│  KonpyuuTAShell.tsx (main shell container)                         │
+│    ├─ KonpyuuTABoot.tsx (DOS POST animation)                       │
+│    ├─ KonpyuuTADesktop.tsx (icon grid, wallpaper)                  │
+│    ├─ KonpyuuTAWindow.tsx (draggable/resizable per app)            │
+│    │    └─ <iframe src="/konpyuuta/apps/X.html">  (single level)  │
 │    │         └─ bridge-sdk.ts → parent.postMessage                 │
-│    ├─ OS5000kTaskbar.tsx (window buttons, clock, power)            │
-│    └─ OS5000kNativePlayer.tsx (YouTube at shell level, unused)     │
+│    └─ KonpyuuTATaskbar.tsx (window buttons, clock, power)          │
 │                                                                     │
-│  OS5000kBridgeHost.ts ◄──── postMessage ────► bridge-sdk.ts        │
+│  KonpyuuTABridgeHost.ts ◄──── postMessage ────► bridge-sdk.ts     │
 │    ├─ Multi-iframe support (registerIframe/unregisterIframe)       │
 │    ├─ Routes responses by event.source per request ID              │
 │    ├─ Nakama client calls + YouTube Go service                     │
 │    └─ Rate limiting (10 req/s/method)                              │
 │                                                                     │
-│  os5000kStore.ts (Zustand)          os5000kEvents.ts (event bus)   │
+│  konpyuutaStore.ts (Zustand)        konpyuutaEvents.ts (event bus) │
 │    ├─ windows Map + z-order           └─ push events to apps       │
 │    ├─ bootPhase (off/booting/desktop)                              │
 │    └─ activeVideo                                                  │
@@ -32,12 +31,12 @@ OS5000k is an in-world mini-OS that opens when players interact with computer te
 │  GameScene.tsx: SceneContent returns null when osActive=true       │
 └─────────────────────────────────────────────────────────────────────┘
 
-┌─────── packages/os5000k ────────┐    ┌────── nakama/modules ──────────┐
+┌─────── packages/konpyuuta ──────┐    ┌────── nakama/modules ──────────┐
 │ static/                          │    │ index.js (ES5 only)            │
 │   ├─ apps/   profile, friends,   │    │   ├─ send_message RPC         │
 │   │          mail, mutantbook,   │    │   ├─ list_conversations RPC   │
 │   │          mutanttube          │    │   ├─ get/mark_read RPCs       │
-│   └─ os5k-components.js         │    │   ├─ create/get/delete         │
+│   └─ konpyuuta-components.js         │    │   ├─ create/get/delete         │
 │ src/                             │    │   │  wall_post RPCs            │
 │   ├─ bridge-sdk.ts → IIFE       │    │   └─ save/list/delete          │
 │   └─ types.ts                    │    │      playlist RPCs             │
@@ -55,7 +54,7 @@ OS5000k is an in-world mini-OS that opens when players interact with computer te
 
 When a player clicks a computer terminal:
 1. `uiStore.setOsActive(true)` → Canvas stops rendering (SceneContent returns null)
-2. `os5000kStore.setBootPhase('booting')` → `OS5000kBoot` renders DOS POST animation (~2.6s)
+2. `konpyuutaStore.setBootPhase('booting')` → `KonpyuuTABoot` renders DOS POST animation (~2.6s)
 3. Boot completes → `setBootPhase('desktop')` → Shell renders desktop + taskbar
 4. ESC or power button → `setBootPhase('off')`, `setOsActive(false)` → Canvas resumes
 
@@ -65,9 +64,9 @@ Three message types flow between the React host and app iframes:
 
 | Type | Direction | Purpose |
 |------|-----------|---------|
-| `os5k:request` | app iframe → host | Request with method + payload, expects response |
-| `os5k:response` | host → app iframe | Response with payload or error, routed by event.source |
-| `os5k:push` | host → all iframes | Unsolicited event (new mail, presence update, etc.) |
+| `konpyuuta:request` | app iframe → host | Request with method + payload, expects response |
+| `konpyuuta:response` | host → app iframe | Response with payload or error, routed by event.source |
+| `konpyuuta:push` | host → all iframes | Unsolicited event (new mail, presence update, etc.) |
 
 ### Request Methods
 
@@ -105,9 +104,9 @@ Three message types flow between the React host and app iframes:
 
 ## Bridge Injection
 
-The `build.mjs` script automatically injects `<script src="../os5000k-bridge.js"></script>` into every app HTML file in `dist/apps/`. The bridge-sdk creates `window.OS5000k` which sends `parent.postMessage(...)` to the React shell. Apps use `OS5kApp.init(theme, callback)` to wait for the bridge, with a polling fallback.
+The `build.mjs` script automatically injects `<script src="../konpyuuta-bridge.js"></script>` into every app HTML file in `dist/apps/`. The bridge-sdk creates `window.KonpyuuTA` which sends `parent.postMessage(...)` to the React shell. Apps use `KonpyuuTAApp.init(theme, callback)` to wait for the bridge, with a polling fallback.
 
-On iframe load, `OS5000kWindow.tsx` calls `bridge.registerIframe(iframe)` and after a short delay sends `system.connected` to that specific iframe via `bridge.sendConnectedTo(iframe)`.
+On iframe load, `KonpyuuTAWindow.tsx` calls `bridge.registerIframe(iframe)` and after a short delay sends `system.connected` to that specific iframe via `bridge.sendConnectedTo(iframe)`.
 
 ## Apps
 
@@ -139,28 +138,28 @@ The homepage generates 3 random search queries from word pools (e.g. "backyard f
 
 ## Build System
 
-- **Package**: `@club-mutant/os5000k` in `packages/os5000k/`
+- **Package**: `@club-mutant/konpyuuta` in `packages/konpyuuta/`
 - **Build**: `node build.mjs` — copies `static/` to `dist/`, compiles `bridge-sdk.ts` to IIFE with esbuild, injects bridge script into each `apps/*.html`
-- **Dev**: Vite plugin (`client-3d/vite.config.ts`) serves `dist/` at `/os5000k/` in dev, copies to `client-3d/dist/os5000k/` in production
-- **Deployment**: Cloudflare Pages `_redirects` has passthrough rule `/os5000k/* /os5000k/:splat 200`
+- **Dev**: Vite plugin (`client-3d/vite.config.ts`) serves `dist/` at `/konpyuuta/` in dev, copies to `client-3d/dist/konpyuuta/` in production
+- **Deployment**: Cloudflare Pages `_redirects` has passthrough rule `/konpyuuta/* /konpyuuta/:splat 200`
 
 ## Key Files
 
 | File | Role |
 |------|------|
-| `client-3d/src/stores/os5000kStore.ts` | Window state, boot phase, active video |
-| `client-3d/src/ui/os5000k/OS5000kShell.tsx` | Main shell container, bridge lifecycle |
-| `client-3d/src/ui/os5000k/OS5000kBoot.tsx` | DOS POST boot animation |
-| `client-3d/src/ui/os5000k/OS5000kDesktop.tsx` | Desktop icons + wallpaper |
-| `client-3d/src/ui/os5000k/OS5000kWindow.tsx` | Draggable/resizable window + iframe |
-| `client-3d/src/ui/os5000k/OS5000kTaskbar.tsx` | Bottom taskbar |
-| `client-3d/src/ui/os5000k/os5kAppRegistry.ts` | App definitions (5 apps) |
-| `client-3d/src/ui/os5000k/OS5000kBridgeHost.ts` | Host-side multi-iframe request handler |
-| `client-3d/src/events/os5000kEvents.ts` | Event bus for push notifications |
-| `packages/os5000k/build.mjs` | Build script |
-| `packages/os5000k/src/bridge-sdk.ts` | Client-side bridge SDK (`window.OS5000k`) |
-| `packages/os5000k/src/types.ts` | Shared TypeScript types |
-| `packages/os5000k/static/os5k-components.js` | Shared UI component library for apps |
-| `packages/os5000k/static/apps/*.html` | App HTML files (vanilla JS) |
+| `client-3d/src/stores/konpyuutaStore.ts` | Window state, boot phase, active video |
+| `client-3d/src/ui/konpyuuta/KonpyuuTAShell.tsx` | Main shell container, bridge lifecycle |
+| `client-3d/src/ui/konpyuuta/KonpyuuTABoot.tsx` | DOS POST boot animation |
+| `client-3d/src/ui/konpyuuta/KonpyuuTADesktop.tsx` | Desktop icons + wallpaper |
+| `client-3d/src/ui/konpyuuta/KonpyuuTAWindow.tsx` | Draggable/resizable window + iframe |
+| `client-3d/src/ui/konpyuuta/KonpyuuTATaskbar.tsx` | Bottom taskbar |
+| `client-3d/src/ui/konpyuuta/appRegistry.ts` | App definitions (5 apps) |
+| `client-3d/src/ui/konpyuuta/KonpyuuTABridgeHost.ts` | Host-side multi-iframe request handler |
+| `client-3d/src/events/konpyuutaEvents.ts` | Event bus for push notifications |
+| `packages/konpyuuta/build.mjs` | Build script |
+| `packages/konpyuuta/src/bridge-sdk.ts` | Client-side bridge SDK (`window.KonpyuuTA`) |
+| `packages/konpyuuta/src/types.ts` | Shared TypeScript types |
+| `packages/konpyuuta/static/konpyuuta-components.js` | Shared UI component library for apps |
+| `packages/konpyuuta/static/apps/*.html` | App HTML files (vanilla JS) |
 | `nakama/modules/index.js` | All RPCs (ES5) |
 | `services/youtube-api/main.go` | YouTube search/resolve/proxy Go service |

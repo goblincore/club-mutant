@@ -1,6 +1,6 @@
 # Club Mutant
 
-Multiplayer virtual world. Monorepo: `client-3d` (React/R3F/Vite), `server` (Colyseus 0.17), `client-dream`, Go microservices, Nakama auth sidecar, `packages/os5000k` (in-world OS).
+Multiplayer virtual world. Monorepo: `client-3d` (React/R3F/Vite), `server` (Colyseus 0.17), `client-dream`, Go microservices, Nakama auth sidecar, `packages/konpyuuta` (in-world OS).
 
 ## Architecture
 
@@ -8,7 +8,7 @@ Multiplayer virtual world. Monorepo: `client-3d` (React/R3F/Vite), `server` (Col
 - Auth: Nakama (email/guest) → JWT → `nakamaToken` in Colyseus join options → server verifies via `lib/verifyNakamaToken.ts`
 - Network: `client-3d/src/network/NetworkManager.ts` — singleton via `getNetwork()`
 - State: `server/rooms/schema/OfficeState.ts` (authoritative), types in `types/`
-- OS5000k: in-world mini-OS with postMessage bridge to main app — see `docs/architecture/os5000k.md`
+- KonpyuuTA: in-world mini-OS with postMessage bridge to main app — see `docs/architecture/konpyuuta.md`
 - Deployment: Cloudflare Pages (client-3d), Hetzner (server/Nakama)
 
 ## Dev Setup
@@ -16,7 +16,7 @@ Multiplayer virtual world. Monorepo: `client-3d` (React/R3F/Vite), `server` (Col
 ```bash
 docker compose -f docker-compose.dev.yml up -d  # Nakama + Postgres
 export NAKAMA_ENCRYPTION_KEY=clubmutant_dev_encryption_key_32ch
-pnpm --filter @club-mutant/os5000k build        # build OS5000k before client
+pnpm --filter @club-mutant/konpyuuta build       # build KonpyuuTA before client
 cd server && pnpm dev
 cd client-3d && pnpm dev
 ```
@@ -36,10 +36,10 @@ cd client-3d && pnpm dev
 2. Modify chat logic in `services/dream-npc-go/npc/chat.go`
 3. Server proxies NPC chat via HTTP from `server/src/rooms/ClubMutant.ts`
 
-### Adding an OS5000k app
-1. Create `packages/os5000k/static/apps/yourapp.html`
-2. Register in `client-3d/src/ui/os5000k/os5kAppRegistry.ts`
-3. Communication with main client via postMessage bridge (`packages/os5000k/src/bridge-sdk.ts`)
+### Adding a KonpyuuTA app
+1. Create `packages/konpyuuta/static/apps/yourapp.html`
+2. Register in `client-3d/src/ui/konpyuuta/appRegistry.ts`
+3. Communication with main client via postMessage bridge (`packages/konpyuuta/src/bridge-sdk.ts`)
 
 ### Adding a Nakama RPC
 1. Write handler in `nakama/modules/index.js` (**ES5 only!**)
@@ -63,7 +63,7 @@ cd client-3d && pnpm dev
 - **Forbidden:** const, let, arrow functions, template literals, destructuring, for...of, classes, async/await
 - Code silently fails with modern syntax. Test by restarting the Nakama container.
 
-### OS5000k (vanilla JS)
+### KonpyuuTA (vanilla JS)
 - Modern JS is fine (not ES5-restricted like Nakama)
 - Runs in iframes — communicates via postMessage bridge only
 
@@ -77,7 +77,7 @@ cd client-3d && pnpm dev
 - `client-3d` — React/R3F frontend
 - `server` — Colyseus game server
 - `client-dream` — Dream mode client
-- `packages/os5000k` — In-world OS (esbuild, postMessage bridge)
+- `packages/konpyuuta` — In-world OS (esbuild, postMessage bridge)
 - `packages/acs-web` — ACS character system (WASM)
 - `types` — Shared TypeScript types
 - `loadtest` — Load testing tools

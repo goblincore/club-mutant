@@ -1,46 +1,46 @@
-# OS5000K App Evolution — Shared Module + MutantBook + MutantTube
+# KonpyuuTA App Evolution — Shared Module + MutantBook + MutantTube
 
 ## Context
 
-OS5000K is the in-world mini-OS in Club Mutant, running inside an iframe with a postMessage bridge to the React host. It currently has 9 apps as single HTML files with inline CSS/JS. As the OS gains more complex apps (social profile, video browser), the current pattern of copy-pasting bridge setup, UI patterns, and utilities across every app doesn't scale. This design introduces a shared module for reusability and two new themed apps: MutantBook (early Facebook) and MutantTube (early YouTube).
+KonpyuuTA is the in-world mini-OS in Club Mutant, running inside an iframe with a postMessage bridge to the React host. It currently has 9 apps as single HTML files with inline CSS/JS. As the OS gains more complex apps (social profile, video browser), the current pattern of copy-pasting bridge setup, UI patterns, and utilities across every app doesn't scale. This design introduces a shared module for reusability and two new themed apps: MutantBook (early Facebook) and MutantTube (early YouTube).
 
 ## Architecture: Enhanced Vanilla JS + Shared Module
 
-**Approach:** Keep the single-HTML-file app pattern but add a shared `os5k-components.js` module loaded by every app. Vanilla JS by default; individual apps can upgrade to Preact via esbuild if reactivity becomes necessary.
+**Approach:** Keep the single-HTML-file app pattern but add a shared `konpyuuta-components.js` module loaded by every app. Vanilla JS by default; individual apps can upgrade to Preact via esbuild if reactivity becomes necessary.
 
 **Why vanilla JS:** Apps run in tiny iframes inside a retro OS. The aesthetic is intentionally lo-fi. Framework overhead isn't justified for apps this size. AI generates the code so DX isn't a concern. The shared module addresses the real pain point (reusability) without adding complexity.
 
-## Shared Module: `os5k-components.js`
+## Shared Module: `konpyuuta-components.js`
 
-Located at `packages/os5000k/static/os5k-components.js`. Loaded by apps via `<script src="../os5k-components.js">`.
+Located at `packages/konpyuuta/static/konpyuuta-components.js`. Loaded by apps via `<script src="../konpyuuta-components.js">`.
 
 ### Bridge Setup
 ```
-OS5kApp.init(themeName, callback)
+KonpyuuTAApp.init(themeName, callback)
 ```
 Replaces the duplicated `waitForBridge()` pattern in every app. Polls for bridge availability, calls back when ready. Accepts a theme name for app-specific CSS variable injection.
 
 ### UI Builders (return DOM elements)
-- `OS5kApp.toolbar(title, buttons[])` — standard toolbar with title + action buttons
-- `OS5kApp.list(items, renderFn)` — scrollable list with custom item rendering
-- `OS5kApp.feed(items, renderFn)` — timeline/feed layout (wall posts, video cards)
-- `OS5kApp.tabs(tabDefs[])` — tabbed navigation with content switching
-- `OS5kApp.pagination(loadMoreFn)` — infinite scroll or "Load More" button
-- `OS5kApp.loading()` / `OS5kApp.empty(message)` — loading spinner and empty state
-- `OS5kApp.avatar(userId, size)` — user avatar with fallback initial
-- `OS5kApp.timeAgo(timestamp)` — relative time formatting ("2 hours ago")
-- `OS5kApp.searchBar(placeholder, onSearch)` — debounced search input
+- `KonpyuuTAApp.toolbar(title, buttons[])` — standard toolbar with title + action buttons
+- `KonpyuuTAApp.list(items, renderFn)` — scrollable list with custom item rendering
+- `KonpyuuTAApp.feed(items, renderFn)` — timeline/feed layout (wall posts, video cards)
+- `KonpyuuTAApp.tabs(tabDefs[])` — tabbed navigation with content switching
+- `KonpyuuTAApp.pagination(loadMoreFn)` — infinite scroll or "Load More" button
+- `KonpyuuTAApp.loading()` / `KonpyuuTAApp.empty(message)` — loading spinner and empty state
+- `KonpyuuTAApp.avatar(userId, size)` — user avatar with fallback initial
+- `KonpyuuTAApp.timeAgo(timestamp)` — relative time formatting ("2 hours ago")
+- `KonpyuuTAApp.searchBar(placeholder, onSearch)` — debounced search input
 
 ### Utilities
-- `OS5kApp.esc(str)` — XSS-safe HTML escaping (currently duplicated in every app)
-- `OS5kApp.debounce(fn, ms)` — for search inputs
-- `OS5kApp.formatDuration(seconds)` — video duration formatting ("3:42")
+- `KonpyuuTAApp.esc(str)` — XSS-safe HTML escaping (currently duplicated in every app)
+- `KonpyuuTAApp.debounce(fn, ms)` — for search inputs
+- `KonpyuuTAApp.formatDuration(seconds)` — video duration formatting ("3:42")
 
 ### Theming
-Each app passes a theme name to `OS5kApp.init()` which injects CSS variables:
+Each app passes a theme name to `KonpyuuTAApp.init()` which injects CSS variables:
 - `mutantbook` — Facebook blue (#3b5998), Lucida Grande font
 - `mutanttube` — YouTube red (#cd201f), Arial, gray backgrounds
-- `default` — standard OS5000k gray gradient look
+- `default` — standard gray gradient look
 
 ## MutantBook (Profile + Wall)
 
@@ -68,7 +68,7 @@ Early Facebook (2005) aesthetic. Blue header, tabbed layout, wall posts.
 Guests can view profiles and wall posts but cannot post or add friends. Show auth-gated message: "Log in to post on walls."
 
 ### File
-`packages/os5000k/static/apps/mutantbook.html`
+`packages/konpyuuta/static/apps/mutantbook.html`
 
 ## MutantTube (YouTube Browser)
 
@@ -90,7 +90,7 @@ Guests can search and browse videos but cannot save playlists. Show auth-gated m
 When Google OAuth lands for Club Mutant auth (planned in auth security roadmap), extend with YouTube Data API scopes to auto-sync real YouTube playlists. The data model (playlists with video entries) is the same, so nothing gets thrown away.
 
 ### File
-`packages/os5000k/static/apps/mutanttube.html`
+`packages/konpyuuta/static/apps/mutanttube.html`
 
 ## Type Definitions
 
@@ -130,7 +130,7 @@ interface Playlist {
 
 ## Bridge Extensions
 
-### New Methods in `OS5000kBridgeHost.ts`
+### New Methods in `KonpyuuTABridgeHost.ts`
 
 The bridge host needs to import `getNetwork()` from `NetworkManager` for YouTube methods (currently only imports from `nakamaClient.ts`).
 
@@ -210,20 +210,20 @@ Resolves a YouTube playlist URL via `yt-dlp --flat-playlist` (metadata-only, no 
 ## Build Changes
 
 Minimal:
-- Copy `os5k-components.js` into `dist/` alongside existing static files (already handled by the existing copy step in `build.mjs`)
+- Copy `konpyuuta-components.js` into `dist/` alongside existing static files (already handled by the existing copy step in `build.mjs`)
 - No new build targets unless/until an app adopts Preact
 
 ## Key Files to Modify
 
 | File | Change |
 |------|--------|
-| `packages/os5000k/static/os5k-components.js` | **New** — shared module |
-| `packages/os5000k/static/apps/mutantbook.html` | **New** — MutantBook app |
-| `packages/os5000k/static/apps/mutanttube.html` | **New** — MutantTube app |
-| `packages/os5000k/static/programs.js` | Add MutantBook + MutantTube to app registry |
-| `packages/os5000k/src/bridge-sdk.ts` | Add wall, youtube, playlist convenience methods |
-| `packages/os5000k/src/types.ts` | Add WallPost, Video, Playlist interfaces |
-| `client-3d/src/ui/os5000k/OS5000kBridgeHost.ts` | Add wall, youtube, playlist request handlers; import `getNetwork()` |
+| `packages/konpyuuta/static/konpyuuta-components.js` | **New** — shared module |
+| `packages/konpyuuta/static/apps/mutantbook.html` | **New** — MutantBook app |
+| `packages/konpyuuta/static/apps/mutanttube.html` | **New** — MutantTube app |
+| `packages/konpyuuta/static/programs.js` | Add MutantBook + MutantTube to app registry |
+| `packages/konpyuuta/src/bridge-sdk.ts` | Add wall, youtube, playlist convenience methods |
+| `packages/konpyuuta/src/types.ts` | Add WallPost, Video, Playlist interfaces |
+| `client-3d/src/ui/konpyuuta/KonpyuuTABridgeHost.ts` | Add wall, youtube, playlist request handlers; import `getNetwork()` |
 | `client-3d/src/network/nakamaClient.ts` | Add wall post wrapper functions (createWallPost, getWallPosts, deleteWallPost) |
 | `client-3d/src/network/NetworkManager.ts` | Add `importYouTubePlaylist()` method |
 | `nakama/modules/index.js` | Add wall post RPCs (ES5) |
@@ -231,7 +231,7 @@ Minimal:
 
 ## Implementation Order
 
-1. **Shared module** (`os5k-components.js`) — foundation everything else depends on
+1. **Shared module** (`konpyuuta-components.js`) — foundation everything else depends on
 2. **Nakama RPCs** — wall post RPCs (ES5, backend first)
 3. **Bridge extensions** — new methods in host + SDK + nakamaClient wrappers
 4. **MutantBook** — profile + wall app
@@ -241,8 +241,8 @@ Minimal:
 
 ## Verification
 
-- `pnpm --filter @club-mutant/os5000k build` succeeds
-- OS5000K loads in client-3d with new apps in the programs menu
+- `pnpm --filter @club-mutant/konpyuuta build` succeeds
+- KonpyuuTA loads in client-3d with new apps in the programs menu
 - MutantBook: view own profile, post on wall (friend-only enforced), view others' walls, navigate via friends
 - MutantBook: guest users can view but not post (auth gate message shown)
 - MutantTube: homepage loads random curated videos, search works, add to playlist, create playlist
