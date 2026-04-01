@@ -2,7 +2,6 @@ import { Client, Session } from '@heroiclabs/nakama-js'
 import type { Socket, Presence } from '@heroiclabs/nakama-js'
 import { useAuthStore } from '../stores/authStore'
 import { usePresenceStore } from '../stores/presenceStore'
-import { pushToOS5k } from '../events/os5000kEvents'
 
 const NAKAMA_SERVER_KEY = import.meta.env.VITE_NAKAMA_SERVER_KEY || 'clubmutant_dev'
 const NAKAMA_HOST = import.meta.env.VITE_NAKAMA_HOST || 'localhost'
@@ -197,13 +196,10 @@ export async function connectSocket(): Promise<void> {
     if (event.joins?.length) {
       const ids = event.joins.map((p: Presence) => p.user_id)
       store.addOnline(ids)
-      // Push presence updates to OS5000k bridge
-      for (const id of ids) pushToOS5k('friends.presenceUpdate', { userId: id, online: true })
     }
     if (event.leaves?.length) {
       const ids = event.leaves.map((p: Presence) => p.user_id)
       store.removeOnline(ids)
-      for (const id of ids) pushToOS5k('friends.presenceUpdate', { userId: id, online: false })
     }
   }
 
@@ -217,12 +213,6 @@ export async function connectSocket(): Promise<void> {
         subject: string
         preview: string
       }
-      pushToOS5k('mail.newMessage', {
-        from: { userId: data.senderId, username: data.senderUsername },
-        subject: data.subject,
-        preview: data.preview,
-        messageId: data.messageId,
-      })
       console.log('[nakama] DM notification from %s', data.senderUsername)
     }
   }
