@@ -112,9 +112,6 @@ declare global {
     getPerformanceReport?: () => any;
     logPerformanceReport?: () => Promise<void>;
 
-    // Emacs / Editor
-    openEmacs?: (name: string, content: string, path?: string) => Promise<void>;
-
     // CONFIG (debugging)
     CONFIG?: import('../scripts/core/config').Config;
   }

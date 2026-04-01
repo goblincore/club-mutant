@@ -174,7 +174,7 @@ class PerformanceMonitor {
     await moduleLoader.preloadByPriority(LoadPriority.HIGH);
 
     // Idle load groups
-    moduleLoader.loadOnIdle(['filemanager', 'emacs', 'calendar', 'processmonitor']);
+    moduleLoader.loadOnIdle(['filemanager', 'calendar', 'processmonitor']);
 
     setTimeout(() => {
       moduleLoader.loadOnIdle(['netscape', 'lynx', 'manviewer', 'terminal']);

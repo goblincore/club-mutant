@@ -83,20 +83,6 @@ class AccessibilityManager {
       category: 'Applications',
     });
 
-    // XEmacs
-    this.registerShortcut({
-      key: 'e',
-      ctrl: true,
-      alt: true,
-      action: () => {
-        if (window.Emacs) {
-          window.Emacs.openSplash();
-        }
-      },
-      description: 'Open XEmacs',
-      category: 'Applications',
-    });
-
     // Vim
     this.registerShortcut({
       key: 'v',

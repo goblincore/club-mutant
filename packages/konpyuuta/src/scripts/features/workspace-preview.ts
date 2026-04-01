@@ -134,7 +134,6 @@ export class WorkspacePreview {
 
   private getWindowIcon(windowId: string): string {
     const iconMap: Record<string, string> = {
-      emacs: '/icons/apps/xemacs.png',
       'terminal-lab': '/icons/apps/konsole.png',
       fm: '/icons/apps/filemanager.png',
       netscape: '/icons/apps/netscape_classic.png',

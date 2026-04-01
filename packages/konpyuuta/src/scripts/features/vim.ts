@@ -68,10 +68,9 @@ class VimManager {
 
   private subscribeToEvents(): void {
     // Vim should NOT subscribe to FILE_OPENED events
-    // Let Emacs handle all file opening from file manager/desktop
     this.eventBus = container.has('eventBus') ? container.get<EventBus>('eventBus') : null;
     if (this.eventBus) {
-      logger.log('[Vim] EventBus available but not subscribing to FILE_OPENED (Emacs handles it)');
+      logger.log('[Vim] EventBus available but not subscribing to FILE_OPENED');
     }
   }
 

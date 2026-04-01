@@ -38,7 +38,6 @@ export interface CDENamespace {
   };
   apps: {
     fileManager?: () => void;
-    emacs?: (name?: string, content?: string) => Promise<void>;
     lynx?: () => void;
     manViewer?: () => void;
     netscape?: () => void;

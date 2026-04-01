@@ -135,7 +135,6 @@ export class VFSInitializer {
     const [
       readme,
       gettingStarted,
-      xemacsGuide,
       terminalLabGuide,
       fileManagerGuide,
       netscapeGuide,
@@ -147,7 +146,6 @@ export class VFSInitializer {
     ] = await Promise.all([
       import('../../../../README.md?raw'),
       import('../../../../docs/user-guide/getting-started.md?raw'),
-      import('../../../../docs/user-guide/xemacs.md?raw'),
       import('../../../../docs/user-guide/terminal-lab.md?raw'),
       import('../../../../docs/user-guide/file-manager.md?raw'),
       import('../../../../docs/user-guide/netscape.md?raw'),
@@ -167,7 +165,6 @@ export class VFSInitializer {
     const docsBasePath = CONFIG.FS.HOME + 'Documentation/';
     const docFiles = {
       'Getting-Started.md': gettingStarted.default,
-      'XEmacs-Guide.md': xemacsGuide.default,
       'Terminal-Lab.md': terminalLabGuide.default,
       'File-Manager.md': fileManagerGuide.default,
       'Netscape.md': netscapeGuide.default,

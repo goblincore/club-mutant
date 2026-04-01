@@ -9,7 +9,7 @@ import { logger } from '../utilities/logger';
  * The 5-tier system provides fine-grained control over module loading timing:
  * - CRITICAL (0): Core systems loaded synchronously during boot (VFS, WindowManager)
  * - HIGH (1): Essential UI loaded synchronously (Desktop, StyleManager)
- * - MEDIUM (2): Features loaded on idle with no delay (FileManager, Emacs, Calendar, ProcessMonitor)
+ * - MEDIUM (2): Features loaded on idle with no delay (FileManager, Calendar, ProcessMonitor)
  * - LOW (3): Secondary features loaded on idle after 2s (Netscape, Lynx, ManViewer, Terminal)
  * - IDLE (4): Optional features loaded on idle after 5s (AppManager)
  *
@@ -19,7 +19,7 @@ import { logger } from '../utilities/logger';
 export enum LoadPriority {
   CRITICAL = 0, // Must load immediately (VFS, WindowManager)
   HIGH = 1, // Load early (Desktop, StyleManager)
-  MEDIUM = 2, // Load when needed (FileManager, Emacs)
+  MEDIUM = 2, // Load when needed (FileManager)
   LOW = 3, // Load on demand (Netscape, Lynx)
   IDLE = 4, // Load when browser is idle
 }
@@ -276,11 +276,6 @@ export function registerModules(): void {
 
   // MEDIUM - Load when needed
   moduleLoader.register('filemanager', () => import('../features/filemanager'), {
-    priority: LoadPriority.MEDIUM,
-    dependencies: ['vfs', 'windowmanager'],
-  });
-
-  moduleLoader.register('emacs', () => import('../features/emacs'), {
     priority: LoadPriority.MEDIUM,
     dependencies: ['vfs', 'windowmanager'],
   });

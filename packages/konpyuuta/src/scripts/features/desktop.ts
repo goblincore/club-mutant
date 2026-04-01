@@ -23,14 +23,6 @@ interface IconPositions {
  */
 const SYSTEM_ICONS: any[] = [
   {
-    id: 'emacs-icon',
-    name: 'XEmacs',
-    icon: '/icons/apps/xemacs.png',
-    action: () => {
-      if ((window as any).Emacs?.openSplash) (window as any).Emacs.openSplash();
-    },
-  },
-  {
     id: 'vim-icon',
     name: 'Vim',
     icon: '/icons/apps/vim.png',
@@ -190,10 +182,6 @@ export const DesktopManager = (() => {
       customIcon ||
       (type === 'folder' ? ICON_PATHS.FOLDER : getFileIconByPath(CONFIG.FS.DESKTOP + name));
     img.alt = name;
-    if (name === 'Emacs') {
-      img.classList.add('emacs-pixelated');
-    }
-
     const span = document.createElement('span');
     span.textContent = name;
 
@@ -576,8 +564,7 @@ export const DesktopManager = (() => {
               if (isSystem) {
                 const sysId = targetIcon.dataset.id;
                 let path = '/usr/bin/unknown';
-                if (sysId === 'emacs-icon') path = '/usr/bin/emacs';
-                else if (sysId === 'share-theme-icon') path = '/usr/bin/share-theme';
+                if (sysId === 'share-theme-icon') path = '/usr/bin/share-theme';
                 else if (sysId === 'netscape-icon') path = '/usr/bin/netscape';
                 else if (sysId === 'lynx-icon') path = '/usr/bin/lynx';
 
@@ -620,13 +607,6 @@ export const DesktopManager = (() => {
             icon: '/icons/apps/filemanager.png',
             action: async () => {
               if (window.toggleFileManager) window.toggleFileManager();
-            },
-          },
-          {
-            label: 'XEmacs',
-            icon: '/icons/apps/xemacs.png',
-            action: async () => {
-              if (window.Emacs?.open) window.Emacs.open();
             },
           },
           {
