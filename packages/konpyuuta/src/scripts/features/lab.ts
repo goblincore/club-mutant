@@ -1,7 +1,6 @@
-import tutorialData from '../../data/tutorial.json';
 import { VFS } from '../core/vfs';
 import { WindowManager } from '../core/windowmanager';
-import type { LabTutorialData, LabElements, LabState } from './lab/lab-types';
+import type { LabElements, LabState } from './lab/lab-types';
 import { LabShellEngine } from './lab/lab-shell-engine';
 import { LabTutorialManager } from './lab/lab-tutorial-manager';
 import { LabTerminalUI } from './lab/lab-terminal-ui';
@@ -18,7 +17,7 @@ class TerminalLabManager {
   private state: LabState = {
     lessonIndex: 0,
     stepIndex: 0,
-    freeMode: false,
+    freeMode: true,
     history: [],
     historyPos: -1,
     cwd: '/home/victxrlarixs/',
@@ -26,7 +25,7 @@ class TerminalLabManager {
   };
 
   constructor() {
-    this.tutorial = new LabTutorialManager((tutorialData as LabTutorialData).lessons);
+    this.tutorial = new LabTutorialManager([]);
     this.shell = new LabShellEngine(
       () => this.state.cwd,
       (path) => {
