@@ -1,0 +1,268 @@
+/* ============================================================================
+   CDE Accessibility Styles
+   High contrast mode and focus indicators
+   ============================================================================ */
+
+/* ── Focus Indicators ────────────────────────────────────────────────────── */
+
+/* Enhanced focus outline for keyboard navigation */
+*:focus {
+  outline: 2px solid var(--focus-color, #faad49);
+  outline-offset: 2px;
+}
+
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 3px solid var(--focus-color, #faad49);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px rgba(250, 173, 73, 0.3);
+}
+
+/* Focus for interactive elements */
+.cde-icon:focus-visible,
+.menu-item:focus-visible,
+.cde-btn:focus-visible,
+.titlebar-btn:focus-visible {
+  outline: 3px solid var(--focus-color, #faad49);
+  outline-offset: 2px;
+  background-color: var(--button-active, #354662);
+}
+
+/* Focus for windows */
+.window:focus-within {
+  box-shadow: 0 0 0 3px var(--focus-color, #faad49);
+}
+
+/* ── High Contrast Mode ──────────────────────────────────────────────────── */
+
+.high-contrast {
+  /* Override colors with high contrast values */
+  --window-color: #000000;
+  --topbar-color: #000000;
+  --titlebar-color: #ffff00;
+  --titlebar-text-color: #000000;
+  --terminal-bg-color: #000000;
+  --terminal-text-color: #00ff00;
+  --dock-color: #000000;
+  --menu-color: #000000;
+  --dock-icon-bg: #1a1a1a;
+  --dock-icon-hover: #333333;
+  --dock-icon-active: #ffff00;
+  --button-bg: #000000;
+  --button-active: #ffff00;
+  --separator-color: #ffffff;
+  --modal-bg: #000000;
+  --scrollbar-color: #ffff00;
+  --text-color: #ffffff;
+  --border-light: #ffffff;
+  --border-dark: #ffffff;
+  --border-inset-light: #ffffff;
+  --border-inset-dark: #ffffff;
+  --shadow-color: rgba(255, 255, 255, 0.5);
+  --focus-color: #00ffff;
+}
+
+.high-contrast * {
+  /* Force high contrast borders */
+  border-color: #ffffff !important;
+}
+
+.high-contrast .window,
+.high-contrast .cde-retro-modal {
+  border: 3px solid #ffffff !important;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5) !important;
+}
+
+.high-contrast .titlebar {
+  background: #ffff00 !important;
+  color: #000000 !important;
+  border-bottom: 3px solid #ffffff !important;
+}
+
+.high-contrast .cde-icon:hover,
+.high-contrast .menu-item:hover,
+.high-contrast .cde-btn:hover {
+  background: #ffff00 !important;
+  color: #000000 !important;
+}
+
+.high-contrast img {
+  /* Increase contrast for images */
+  filter: contrast(1.5) brightness(1.2);
+}
+
+.high-contrast .backdrop {
+  /* Remove background patterns in high contrast */
+  background-image: none !important;
+  background-color: #000000 !important;
+}
+
+/* ── Keyboard Shortcuts Help Modal ───────────────────────────────────────── */
+
+.shortcuts-help {
+  font-family: var(--font-family-base, monospace);
+  color: var(--text-color, #ffffff);
+  max-width: 600px;
+}
+
+.shortcuts-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--border-dark, #354662);
+  padding-bottom: 15px;
+}
+
+.shortcuts-header img {
+  width: 48px;
+  height: 48px;
+  margin-right: 20px;
+  image-rendering: pixelated;
+}
+
+.shortcuts-header-text h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.shortcuts-header-text p {
+  margin: 5px 0 0 0;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.shortcuts-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+.shortcuts-category {
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--titlebar-color, #faad49);
+  border-bottom: 1px solid var(--border-inset-dark, #3d4f70);
+  margin: 20px 0 10px 0;
+  padding-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.shortcuts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+
+.shortcuts-table tr {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.shortcuts-table td {
+  padding: 8px 0;
+  vertical-align: middle;
+}
+
+.shortcuts-table td:first-child {
+  width: 45%;
+}
+
+.shortcuts-help kbd {
+  display: inline-block;
+  padding: 3px 8px;
+  font-family: var(--font-family-mono, monospace);
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--titlebar-text-color, #000000);
+  background-color: var(--button-bg, #4d648d);
+  border: 1px solid var(--border-dark, #354662);
+  border-radius: 3px;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.2),
+    0 1px 0 var(--border-dark, #354662);
+  margin: 0 2px;
+}
+
+/* ── Reduced Motion ──────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Touch Target Size (Mobile) ──────────────────────────────────────────── */
+
+@media (pointer: coarse) {
+  .cde-icon,
+  .menu-item,
+  .cde-btn,
+  .titlebar-btn,
+  button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Exception for panel icons on mobile - they need to stay compact */
+  #cde-panel .cde-icon {
+    min-width: 28px;
+    min-height: 30px;
+  }
+
+  #cde-panel .cde-icon-btn {
+    min-width: 28px;
+    min-height: 16px;
+  }
+
+  .fm-btn {
+    min-width: 24px;
+    min-height: 22px;
+  }
+}
+
+/* ── Improved Button States ──────────────────────────────────────────────── */
+
+button:disabled,
+.cde-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(50%);
+}
+
+button:disabled:hover,
+.cde-btn:disabled:hover {
+  background-color: var(--button-bg, #4d648d) !important;
+}
+
+/* ── Print Styles ────────────────────────────────────────────────────────── */
+
+@media print {
+  .no-print,
+  #topbar,
+  #cde-panel,
+  .titlebar-controls {
+    display: none !important;
+  }
+
+  .window,
+  .cde-retro-modal {
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+}

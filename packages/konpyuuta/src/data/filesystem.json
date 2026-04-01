@@ -1,0 +1,101 @@
+{
+  "/home/victxrlarixs/": {
+    "type": "folder",
+    "children": {
+      "README.md": {
+        "type": "file",
+        "content": "[Dinamic content: docs/user-guide/README.md]"
+      },
+      "Desktop": {
+        "type": "folder",
+        "children": {}
+      },
+      "Documentation": {
+        "type": "folder",
+        "children": {
+          "Getting-Started.md": {
+            "type": "file",
+            "content": "[Dinamic content: docs/user-guide/getting-started.md]"
+          },
+          "XEmacs-Guide.md": {
+            "type": "file",
+            "content": "[Dinamic content: docs/user-guide/xemacs.md]"
+          },
+          "Vim-Guide.md": {
+            "type": "file",
+            "content": "[Dinamic content: docs/user-guide/vim.md]"
+          },
+          "Terminal-Lab.md": {
+            "type": "file",
+            "content": "[Dinamic content: docs/user-guide/terminal-lab.md]"
+          },
+          "File-Manager.md": {
+            "type": "file",
+            "content": "[Dinamic content: docs/user-guide/file-manager.md]"
+          },
+          "Netscape.md": {
+            "type": "file",
+            "content": "[Dinamic content: docs/user-guide/netscape.md]"
+          },
+          "Lynx.md": {
+            "type": "file",
+            "content": "[Dinamic content: docs/user-guide/lynx.md]"
+          },
+          "Man-Viewer.md": {
+            "type": "file",
+            "content": "[Dinamic content: docs/user-guide/man-viewer.md]"
+          },
+          "PWA-Installation.md": {
+            "type": "file",
+            "content": "[Dinamic content: docs/user-guide/pwa-installation.md]"
+          },
+          "Style-Manager.md": {
+            "type": "file",
+            "content": "[Dinamic content: docs/user-guide/style-manager.md]"
+          },
+          "Workspaces.md": {
+            "type": "file",
+            "content": "[Dinamic content: docs/user-guide/workspaces.md]"
+          },
+          "Keyboard-Shortcuts.md": {
+            "type": "file",
+            "content": "[Dinamic content: docs/user-guide/keyboard-shortcuts.md]"
+          },
+          "Tips-and-Tricks.md": {
+            "type": "file",
+            "content": "[Dinamic content: docs/user-guide/tips-and-tricks.md]"
+          }
+        }
+      },
+      "settings": {
+        "type": "folder",
+        "children": {
+          "fonts.json": {
+            "type": "file",
+            "content": "[Dinamic content: fonts.json]"
+          },
+          "cde_palettes.json": {
+            "type": "file",
+            "content": "[Dinamic content: cde_palettes.json]"
+          },
+          "boot-messages.json": {
+            "type": "file",
+            "content": "[Dinamic content: boot-messages.json]"
+          },
+          "update-messages.json": {
+            "type": "file",
+            "content": "[Dinamic content: update-messages.json]"
+          },
+          "backdrops.json": {
+            "type": "file",
+            "content": "[Dinamic content: backdrops.json]"
+          },
+          "tutorial.json": {
+            "type": "file",
+            "content": "[Dinamic content: tutorial.json]"
+          }
+        }
+      }
+    }
+  }
+}

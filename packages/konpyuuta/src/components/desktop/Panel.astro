@@ -1,0 +1,379 @@
+---
+// src/components/desktop/Panel.astro
+import { CONFIG } from '../../scripts/core/config';
+---
+
+<div id="cde-panel" role="navigation" aria-label="Front Panel">
+  <div class="cde-handle" role="button" tabindex="0" aria-label="Move Panel">
+    <div class="handle-grip"></div>
+  </div>
+
+  <div class="cde-control-wrapper">
+    <div class="subpanel-arrow-spacer"></div>
+    <div
+      class="cde-control"
+      role="button"
+      tabindex="0"
+      aria-label="Applications"
+      onclick="appManager.open()"
+    >
+      <div class="control-content">
+        <div class="control-icon">
+          <img src="/icons/apps/linux_penguin.png" alt="Applications" />
+        </div>
+        <div class="control-label">Apps</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cde-control-wrapper">
+    <div
+      class="subpanel-arrow dropdown-btn"
+      role="button"
+      tabindex="0"
+      aria-label="Utilities Menu"
+      id="utilitiesBtn"
+      aria-haspopup="true"
+      aria-expanded="false"
+    >
+      <img src="/icons/actions/go-up.png" alt="" />
+    </div>
+    <div class="cde-control" role="button" tabindex="0" aria-label="Utilities">
+      <div class="control-content">
+        <div class="control-icon">
+          <img src="/icons/system/applications-other.png" alt="Utilities" />
+        </div>
+        <div class="control-label">Utilities</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cde-control-wrapper">
+    <div
+      class="subpanel-arrow dropdown-btn"
+      role="button"
+      tabindex="0"
+      aria-label="Style Manager Menu"
+      id="styleManagerBtn"
+      aria-haspopup="true"
+      aria-expanded="false"
+    >
+      <img src="/icons/actions/go-up.png" alt="" />
+    </div>
+    <div
+      class="cde-control"
+      role="button"
+      tabindex="0"
+      aria-label="Style Manager"
+      onclick="styleManager.openMain()"
+      data-keyboard-hint="Ctrl+Alt+S"
+    >
+      <div class="control-content">
+        <div class="control-icon">
+          <img src="/icons/apps/org.xfce.settings.manager.png" alt="Style Manager" />
+        </div>
+        <div class="control-label">Style<br />Manager</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cde-control-wrapper">
+    <div
+      class="subpanel-arrow dropdown-btn"
+      role="button"
+      tabindex="0"
+      aria-label="Browser Menu"
+      id="browserBtn"
+      aria-haspopup="true"
+      aria-expanded="false"
+    >
+      <img src="/icons/actions/go-up.png" alt="" />
+    </div>
+    <div
+      class="cde-control"
+      role="button"
+      tabindex="0"
+      aria-label="Github Repository"
+      onclick="confirmExternalLink(CONFIG.META.GITHUB_REPO)"
+    >
+      <div class="control-content">
+        <div class="control-icon">
+          <img src="/icons/apps/konqueror.png" alt="Github Repository" />
+        </div>
+        <div class="control-label">Browser</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cde-control-wrapper">
+    <div
+      class="subpanel-arrow dropdown-btn"
+      role="button"
+      tabindex="0"
+      aria-label="Terminal Menu"
+      id="terminalBtn"
+      aria-haspopup="true"
+      aria-expanded="false"
+    >
+      <img src="/icons/actions/go-up.png" alt="" />
+    </div>
+    <div
+      class="cde-control"
+      role="button"
+      tabindex="0"
+      aria-label="Terminal"
+      onclick="TerminalLab.open()"
+      data-keyboard-hint="Ctrl+Alt+T"
+    >
+      <div class="control-content">
+        <div class="control-icon">
+          <img src="/icons/apps/konsole.png" alt="Terminal" />
+        </div>
+        <div class="control-label">Terminal</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cde-workspace-area">
+    <div class="cde-side-controls">
+      <div
+        class="cde-small-btn"
+        role="button"
+        tabindex="0"
+        aria-label="Lock"
+        onclick="CDEModal.alert('Feature not yet implemented')"
+      >
+        <img src="/icons/actions/lock.png" alt="Lock" />
+      </div>
+    </div>
+
+    <div class="cde-workspace-switch" role="tablist" aria-label="Workspaces">
+      <div
+        class="workspace-btn pager-workspace active"
+        data-workspace="1"
+        role="tab"
+        tabindex="0"
+        aria-label="Workspace One"
+        aria-selected="true"
+      >
+        One
+      </div>
+      <div
+        class="workspace-btn pager-workspace"
+        data-workspace="2"
+        role="tab"
+        tabindex="0"
+        aria-label="Workspace Two"
+        aria-selected="false"
+      >
+        Two
+      </div>
+      <div
+        class="workspace-btn pager-workspace"
+        data-workspace="3"
+        role="tab"
+        tabindex="0"
+        aria-label="Workspace Three"
+        aria-selected="false"
+      >
+        Three
+      </div>
+      <div
+        class="workspace-btn pager-workspace"
+        data-workspace="4"
+        role="tab"
+        tabindex="0"
+        aria-label="Workspace Four"
+        aria-selected="false"
+      >
+        Four
+      </div>
+    </div>
+
+    <div class="cde-side-controls">
+      <div
+        class="cde-small-btn"
+        role="button"
+        tabindex="0"
+        aria-label="Exit"
+        onclick="window.parent.postMessage({ type: 'shutdown' }, '*')"
+      >
+        <img src="/icons/actions/exit.png" alt="Exit" />
+      </div>
+    </div>
+  </div>
+
+  <div class="cde-control-wrapper">
+    <div class="subpanel-arrow-spacer"></div>
+    <div
+      class="cde-control"
+      role="button"
+      tabindex="0"
+      aria-label="File Manager"
+      id="fileManagerBtn"
+      onclick="toggleFileManager()"
+      data-keyboard-hint="Ctrl+Alt+F"
+    >
+      <div class="control-content">
+        <div class="control-icon">
+          <img src="/icons/apps/filemanager.png" alt="File Manager" />
+        </div>
+        <div class="control-label">File<br />Manager</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cde-control-wrapper">
+    <div class="subpanel-arrow-spacer"></div>
+    <div
+      class="cde-control"
+      role="button"
+      tabindex="0"
+      aria-label="Vim"
+      onclick="(async () => { await window.moduleLoader?.load('vim'); window.Vim?.open(); })()"
+      data-keyboard-hint="Ctrl+Alt+V"
+    >
+      <div class="control-content">
+        <div class="control-icon">
+          <img src="/icons/apps/vim.png" alt="Vim" />
+        </div>
+        <div class="control-label">Vim</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cde-control-wrapper">
+    <div class="subpanel-arrow-spacer"></div>
+    <div
+      class="cde-control"
+      role="button"
+      tabindex="0"
+      aria-label="Screenshot"
+      onclick="captureFullPageScreenshot()"
+    >
+      <div class="control-content">
+        <div class="control-icon">
+          <img src="/icons/apps/org.xfce.screenshooter.png" alt="Screenshot" />
+        </div>
+        <div class="control-label">Screenshot</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cde-control-wrapper">
+    <div class="subpanel-arrow-spacer"></div>
+    <div
+      class="cde-control"
+      role="button"
+      tabindex="0"
+      aria-label="Process Monitor"
+      onclick="openTaskManagerInTerminal()"
+    >
+      <div class="control-content">
+        <div class="control-icon">
+          <img src="/icons/apps/org.xfce.taskmanager.png" alt="Process Monitor" />
+        </div>
+        <div class="control-label">Process Monitor</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cde-handle" role="button" tabindex="0" aria-label="Move Panel">
+    <div class="handle-grip"></div>
+  </div>
+</div>
+
+<div class="dropdown-menu" id="utilitiesDropdown" role="menu" aria-label="Utilities menu">
+  <div class="menu-item" onclick="captureFullPageScreenshot()" role="menuitem" tabindex="0">
+    <img src="/icons/apps/org.xfce.screenshooter.png" alt="" /> Screenshot
+  </div>
+  <div
+    class="menu-item"
+    onclick="(async () => { await window.moduleLoader?.load('vim'); window.Vim?.open(); })()"
+    role="menuitem"
+    tabindex="0"
+  >
+    <img src="/icons/apps/vim.png" alt="" /> Vim
+  </div>
+  <div class="menu-item" onclick="openCalendar()" role="menuitem" tabindex="0">
+    <img src="/icons/system/calendar.png" alt="" /> Calendar
+  </div>
+  <div class="menu-separator" role="separator"></div>
+  <div
+    class="menu-item"
+    onclick="AccessibilityManager.showShortcutsHelp()"
+    role="menuitem"
+    tabindex="0"
+    data-keyboard-hint="Ctrl+Shift+?"
+  >
+    <img src="/icons/apps/preferences-desktop-keyboard-shortcuts.png" alt="" /> Shortcuts
+  </div>
+</div><div
+  class="dropdown-menu"
+  id="styleManagerDropdown"
+  role="menu"
+  aria-label="Style Manager menu"
+>
+  <div class="menu-item" onclick="styleManager.openColor()" role="menuitem" tabindex="0">
+    <img src="/icons/apps/org.xfce.settings.appearance.png" alt="" /> Color
+  </div>
+  <div class="menu-item" onclick="styleManager.openFont()" role="menuitem" tabindex="0">
+    <img src="/icons/mimetypes/font-x-generic.png" alt="" /> Font
+  </div>
+  <div class="menu-item" onclick="styleManager.openBackdrop()" role="menuitem" tabindex="0">
+    <img src="/icons/apps/org.xfce.PanelProfiles.png" alt="" /> Backdrop
+  </div>
+  <div class="menu-item" onclick="styleManager.openKeyboard()" role="menuitem" tabindex="0">
+    <img src="/icons/apps/org.xfce.settings.keyboard.png" alt="" /> Keyboard
+  </div>
+  <div class="menu-item" onclick="styleManager.openMouse()" role="menuitem" tabindex="0">
+    <img src="/icons/apps/org.xfce.settings.mouse.png" alt="" /> Mouse
+  </div>
+  <div class="menu-item" onclick="styleManager.openBeep()" role="menuitem" tabindex="0">
+    <img src="/icons/devices/multimedia-volume-control.png" alt="" /> Audio
+  </div>
+  <div class="menu-item" onclick="styleManager.openWindow()" role="menuitem" tabindex="0">
+    <img src="/icons/apps/org.xfce.xfwm4.png" alt="" /> Window
+  </div>
+  <div class="menu-item" onclick="styleManager.openScreen()" role="menuitem" tabindex="0">
+    <img src="/icons/devices/display.png" alt="" /> Screen
+  </div>
+  <div class="menu-item" onclick="styleManager.openStartup()" role="menuitem" tabindex="0">
+    <img src="/icons/system/gcr-key.png" alt="" /> Startup
+  </div>
+</div>
+
+<div class="dropdown-menu" id="terminalDropdown" role="menu" aria-label="Terminal menu">
+  <div class="menu-item" onclick="openTaskManagerInTerminal()" role="menuitem" tabindex="0">
+    <img src="/icons/apps/org.xfce.taskmanager.png" alt="" /> Process Monitor
+  </div>
+  <div class="menu-separator" role="separator"></div>
+  <div class="menu-item" onclick="TerminalLab.open()" role="menuitem" tabindex="0">
+    <img src="/icons/devices/computer.png" alt="" /> Terminal Laboratory
+  </div>
+</div>
+
+<div class="dropdown-menu" id="browserDropdown" role="menu" aria-label="Browser menu">
+  <div
+    class="menu-item"
+    onclick="window.Netscape?.open()"
+    role="menuitem"
+    tabindex="0"
+    data-keyboard-hint="Ctrl+Alt+N"
+  >
+    <img src="/icons/apps/netscape_classic.png" alt="" /> Netscape Navigator
+  </div>
+  <div
+    class="menu-item"
+    onclick="window.Lynx?.open()"
+    role="menuitem"
+    tabindex="0"
+    data-keyboard-hint="Ctrl+Alt+L"
+  >
+    <img src="/icons/apps/Lynx.svg" alt="" /> Lynx Browser
+  </div>
+  <div class="menu-separator" role="separator"></div>
+  <div class="menu-item" onclick="shareThemeToDiscussions()" role="menuitem" tabindex="0">
+    <img src="/icons/apps/org.xfce.PanelProfiles.png" alt="" /> Share Theme
+  </div>
+</div>

@@ -53,7 +53,7 @@ Root
 types ──→ server        (imports @club-mutant/types)
 types ──→ client-3d     (imports @club-mutant/types)
 types ──→ client-dream  (imports @club-mutant/types)
-os5000k → client-3d     (iframe embed, must build os5000k first)
+konpyuuta → client-3d   (iframe embed, must build konpyuuta first)
 acs-web → client-3d     (WASM import)
 ```
 
@@ -69,8 +69,8 @@ youtube-api ──HTTP───→ pot-provider     (YouTube PO tokens)
 
 ### Build order
 1. `types` (no deps)
-2. `packages/os5000k` + `packages/acs-web` (no deps on workspace packages)
-3. `server`, `client-3d`, `client-dream` (depend on types, os5000k)
+2. `packages/konpyuuta` + `packages/acs-web` (no deps on workspace packages)
+3. `server`, `client-3d`, `client-dream` (depend on types, konpyuuta)
 
 ## Services
 

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef } from 'react'
+import { KonpyuuTAShell } from './ui/konpyuuta/KonpyuuTAShell'
 import { Routes, Route } from 'react-router-dom'
 import { getNetwork } from './network/NetworkManager'
 import { useGameStore } from './stores/gameStore'
@@ -28,7 +29,6 @@ import { WakePrompt } from './ui/WakePrompt'
 // Lazy-loaded: dream scene (heavy — R3F Canvas, shaders, audio player)
 const DreamIframe = lazy(() => import('./ui/DreamIframe').then((m) => ({ default: m.DreamIframe })))
 // Lazy-loaded: rarely-used interactive overlays
-const OS5000kShell = lazy(() => import('./ui/os5000k/OS5000kShell').then((m) => ({ default: m.OS5000kShell })))
 const MagazineReader = lazy(() => import('./ui/MagazineReader').then((m) => ({ default: m.MagazineReader })))
 
 const PLAYLIST_WIDTH = 360
@@ -223,9 +223,11 @@ function MainApp() {
       {/* Booth prompt popup */}
       <BoothPrompt />
 
+      {/* KonpyuuTA desktop OS (full-screen iframe, renders null when inactive) */}
+      <KonpyuuTAShell />
+
       {/* Lazy-loaded overlays */}
       <Suspense>
-        <OS5000kShell />
         <MagazineReader />
         <DreamIframe />
       </Suspense>

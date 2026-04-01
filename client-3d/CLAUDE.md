@@ -6,9 +6,9 @@ React + Three.js (R3F) frontend. Main 3D multiplayer client.
 
 - `src/scene/` — Three.js scene components (rooms, player entities, environment)
 - `src/network/` — Colyseus multiplayer layer. `NetworkManager.ts` is the singleton (`getNetwork()`)
-- `src/stores/` — Zustand state stores (gameStore, musicStore, chatStore, uiStore, boothStore, jukeboxStore, os5000kStore, etc.)
+- `src/stores/` — Zustand state stores (gameStore, musicStore, chatStore, uiStore, boothStore, jukeboxStore, konpyuutaStore, etc.)
 - `src/ui/` — React UI panels and overlays (chat, DJ queue, settings, auth, playlists, profiles)
-- `src/ui/os5000k/` — OS5000k integration (shell, bridge host, app registry)
+- `src/ui/konpyuuta/` — KonpyuuTA integration (shell, bridge host, app registry)
 - `src/ui/components/` — Shared UI components
 - `src/character/` — Avatar/NPC character rendering and animation
 - `src/audio/` — Audio system (music playback, NPC TTS)
@@ -42,4 +42,4 @@ pnpm dev    # Vite dev server (port 5173)
 pnpm build  # Production build
 ```
 
-Requires `packages/os5000k` to be built first (`pnpm --filter @club-mutant/os5000k build`).
+Requires `packages/konpyuuta` to be built first (`pnpm --filter @club-mutant/konpyuuta build`).

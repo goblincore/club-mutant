@@ -1,7 +1,7 @@
 # Docs Index
 
 ## Authoritative (always current)
-- `architecture/` — System design, DJ queue, dream mode, OS5000k, performance, voice chat
+- `architecture/` — System design, DJ queue, dream mode, KonpyuuTA, performance, voice chat
 - `guides/` — Deployment, load testing, YouTube API, spritesheet extraction, debugging
 
 ## In-Progress
