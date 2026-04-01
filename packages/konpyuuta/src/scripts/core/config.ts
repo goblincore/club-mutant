@@ -344,7 +344,7 @@ export const CONFIG: Config = {
     FINAL_DELAY: 443,
   },
   BACKDROP: {
-    DEFAULT_BACKDROP: import.meta.env.DEFAULT_BACKDROP || '/backdrops/SkyDarkTall.pm',
+    DEFAULT_BACKDROP: import.meta.env.DEFAULT_BACKDROP || '/backdrops/CircuitBoards.pm',
   },
   TASK_MANAGER: {
     BUTTON_ID: 'taskmanager-btn',

@@ -64,9 +64,9 @@ export class StyleManager {
   public init(): void {
     const themeSettings = this.settingsManager.getSection('theme');
 
-    // If no saved colors, apply LateSummer as the system default
+    // If no saved colors, apply Dalla as the system default
     if (!themeSettings.colors || Object.keys(themeSettings.colors).length === 0) {
-      this.theme.applyCdePalette('latesummer');
+      this.theme.applyCdePalette('dalla');
     } else {
       this.theme.loadSavedColors(themeSettings.colors);
       // Restore the palette ID if it was saved
