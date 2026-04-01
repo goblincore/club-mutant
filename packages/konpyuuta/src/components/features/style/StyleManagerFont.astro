@@ -1,0 +1,130 @@
+---
+import WindowControls from '../../common/WindowControls.astro';
+import WindowMinimize from '../../common/WindowMinimize.astro';
+import { CONFIG } from '../../../scripts/core/config';
+---
+
+<div class="cde-retro-modal style-manager-font" id="styleManagerFont">
+  <div
+    class="titlebar"
+    id="styleManagerFontTitlebar"
+    onmousedown="window.drag(event, 'styleManagerFont')"
+  >
+    <WindowMinimize windowId="styleManagerFont" />
+    <span class="titlebar-text">Style Manager - Font</span>
+    <WindowControls
+      windowId="styleManagerFont"
+      closeFunction="styleManager.closeFont"
+      disableMaximize={true}
+    />
+  </div>
+
+  <div class="modal-body">
+    <!-- Icono de fuente arriba de todo -->
+    <div class="font-icon-container">
+      <img src="/icons/mimetypes/font-x-generic.png" alt="Font" width="48" height="48" />
+    </div>
+
+    <!-- Font Presets - Classic presets only -->
+    <div class="font-preset-row">
+      <button class="cde-preset" data-preset="classic-cde">Classic CDE</button>
+      <button class="cde-preset" data-preset="modern">Modern</button>
+      <button class="cde-preset" data-preset="retro">Retro</button>
+      <button class="cde-preset" data-preset="terminal">Terminal</button>
+    </div>
+
+    <div class="cde-controlrow">
+      <label class="cde-label">UI Font Family:</label>
+      <select class="cde-select" id="font-family-base" data-var="--font-family-base">
+        <!-- Options will be populated by JavaScript from fonts.json -->
+      </select>
+    </div>
+
+    <div class="cde-controlrow">
+      <label class="cde-label">Terminal Font:</label>
+      <select class="cde-select" id="font-family-terminal" data-var="--font-family-terminal">
+        <!-- Options will be populated by JavaScript from fonts.json -->
+      </select>
+    </div>
+
+    <div class="cde-controlrow">
+      <label class="cde-label">Base Font Size:</label>
+      <input
+        type="range"
+        class="cde-slider"
+        id="font-size-base"
+        data-var="--font-size-base"
+        data-unit="px"
+        min="10"
+        max="18"
+        value="12"
+        step="1"
+      />
+      <span class="cde-slidervalue" id="font-size-value">12px</span>
+    </div>
+
+    <div class="cde-controlrow">
+      <label class="cde-label">Title Font Size:</label>
+      <input
+        type="range"
+        class="cde-slider"
+        id="font-size-title"
+        data-var="--font-size-title"
+        data-unit="px"
+        min="11"
+        max="20"
+        value="13"
+        step="1"
+      />
+      <span class="cde-slidervalue" id="font-size-title-value">13px</span>
+    </div>
+
+    <div class="cde-controlrow">
+      <label class="cde-label">Line Height:</label>
+      <input
+        type="range"
+        class="cde-slider"
+        id="line-height-base"
+        data-var="--line-height-base"
+        min="1.0"
+        max="2.0"
+        value="1.45"
+        step="0.05"
+      />
+      <span class="cde-slidervalue" id="line-height-value">1.45</span>
+    </div>
+
+    <div class="cde-controlrow">
+      <label class="cde-label">Font Weight:</label>
+      <select class="cde-select" id="font-weight" data-var="--font-weight-normal">
+        <option value="300">Light (300)</option>
+        <option value="400" selected>Normal (400)</option>
+        <option value="600">Semibold (600)</option>
+        <option value="700">Bold (700)</option>
+      </select>
+    </div>
+
+    <div class="cde-font-preview" id="font-preview">
+      <div class="font-preview-title">Title Bar Example</div>
+      <div class="font-preview-text">Regular text in selected font.</div>
+      <div class="font-preview-terminal">Terminal: $ ls -la</div>
+      <div class="font-preview-small">Small text for status bars</div>
+    </div>
+  </div>
+
+  <div class="cde-statusbar">
+    <div class="cde-statusleft">Font</div>
+    <div class="cde-statusright" id="fontStatus">Ready</div>
+  </div>
+
+  <div class="cde-actionbar">
+    <button
+      class="cde-btn cde-btn-default"
+      onclick="styleManager.applyFont(); styleManager.closeFont()">OK</button
+    >
+    <button class="cde-btn" onclick="styleManager.closeFont()">Cancel</button>
+    <a href={CONFIG.META.ISSUES_URL} target="_blank" class="cde-btn-link">
+      <button class="cde-btn">Help</button>
+    </a>
+  </div>
+</div>

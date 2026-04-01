@@ -1,0 +1,73 @@
+{
+  "about:lynx": {
+    "title": "About Lynx",
+    "url": "about:lynx",
+    "content": "\n  About Lynx - Who, What, and When - Where it is now (p1 of 2)\n\n  About Lynx\n\n  Lynx is a fully-featured World Wide Web (WWW) browser for users on Unix, VMS, \n  and other platforms running cursor-addressable, character-cell terminals \n  or emulators. That includes vt100 terminals, other character-cell displays, \n  and vt100 emulators such as Kermit or Procomm running on PCs or Macs.\n\n  For information on how to use [1]Lynx see the [2]Lynx User's Guide, or \n  the [3]Lynx help files.\n\n  Credits and Copyright\n\n  Lynx was a product of the Distributed Computing Group within Academic \n  Computing Services of [4]The University of Kansas.\n\n  Lynx was originally developed by Lou Montulli, Michael Grobe, and \n  Charles Rezac. Garrett Blythe created DosLynx and later joined the \n  Lynx effort as well. Following the departures of Lou and Garrett for \n  positions at Netscape in the summer of 1994, Craig Lavender provided \n  support services for Lynx, and Ravikumar Kolli for DosLynx.\n\n  Lynx is maintained and supported by members of the Internet community \n  coordinated via the [5]lynx-dev mailing list.\n\n  Lynx is derived from material copyrighted by the University of Kansas. \n  However most of the release (and corresponding copyright) is the work of \n  developers on the [6]lynx-dev mailing list. It is distributed without \n  restrictions on usage or redistribution under the [7]GNU General Public \n  License (Version 2).\n\n  Lynx was built over an early version of the Common Code Library developed \n  by the CERN WWW Project. That code is copyrighted by CERN. Lynx contains \n  other sections of code that are copyrighted by other institutions or \n  individuals. The Lynx copyright does not override or invalidate those \n  copyrights.\n\n  [8]Back to Start Page\n",
+    "links": [
+      {
+        "num": 1,
+        "text": "Lynx",
+        "url": "https://lynx.invisible-island.net/"
+      },
+      {
+        "num": 2,
+        "text": "Lynx User's Guide",
+        "url": "https://lynx.invisible-island.net/lynx_help/Lynx_users_guide.html"
+      },
+      {
+        "num": 3,
+        "text": "Lynx help files",
+        "url": "https://lynx.invisible-island.net/lynx_help/lynx_help_main.html"
+      },
+      {
+        "num": 4,
+        "text": "The University of Kansas",
+        "url": "https://www.ku.edu/"
+      },
+      {
+        "num": 5,
+        "text": "lynx-dev mailing list",
+        "url": "https://lists.nongnu.org/mailman/listinfo/lynx-dev"
+      },
+      {
+        "num": 6,
+        "text": "lynx-dev mailing list",
+        "url": "https://lists.nongnu.org/mailman/listinfo/lynx-dev"
+      },
+      {
+        "num": 7,
+        "text": "GNU General Public License",
+        "url": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.html"
+      },
+      {
+        "num": 8,
+        "text": "Back to Start Page",
+        "url": "about:lynx"
+      }
+    ]
+  },
+  "lynx://help": {
+    "title": "Lynx Help",
+    "url": "lynx://help",
+    "content": "\n  LYNX KEYBOARD COMMANDS\n\n  Navigation:\n  ↑, k         - Move to previous link\n  ↓, j         - Move to next link\n  →, Enter     - Follow current link\n  ←            - Go back to previous page\n  0-9          - Jump to link number\n\n  Commands:\n  G            - Go to a URL\n  O            - Show options menu\n  P            - Print to file\n  M            - Return to main screen (home)\n  H, ?         - Show this help\n  Q            - Quit Lynx\n  /            - Search for text in page\n  Delete       - View history list\n  Backspace    - Go back to previous page\n  V            - View bookmarks\n\n  [1]Back to where you were\n",
+    "links": [
+      {
+        "num": 1,
+        "text": "Back",
+        "url": "history:back"
+      }
+    ]
+  },
+  "lynx://options": {
+    "title": "Lynx Options",
+    "url": "lynx://options",
+    "content": "\n  LYNX OPTIONS MENU\n\n  Available settings:\n  - Display: Text-only mode (fixed)\n  - Colors: Enabled (fixed)\n  - Character set: UTF-8 (fixed)\n\n  [1]Back to where you were\n",
+    "links": [
+      {
+        "num": 1,
+        "text": "Back",
+        "url": "history:back"
+      }
+    ]
+  }
+}

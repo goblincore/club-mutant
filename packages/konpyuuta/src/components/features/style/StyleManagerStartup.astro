@@ -1,0 +1,74 @@
+---
+import WindowControls from '../../common/WindowControls.astro';
+import WindowMinimize from '../../common/WindowMinimize.astro';
+import { CONFIG } from '../../../scripts/core/config';
+---
+
+<div class="cde-retro-modal" id="styleManagerStartup">
+  <div
+    class="titlebar"
+    id="styleManagerStartupTitlebar"
+    onmousedown="window.drag(event, 'styleManagerStartup')"
+  >
+    <WindowMinimize windowId="styleManagerStartup" />
+    <span class="titlebar-text">Style Manager - Startup</span>
+    <WindowControls
+      windowId="styleManagerStartup"
+      closeFunction="styleManager.closeStartup"
+      disableMaximize={true}
+    />
+  </div>
+
+  <div class="modal-body">
+    <div class="cde-modal-row u-margin-bottom-md">
+      <input
+        type="checkbox"
+        id="restore-check"
+        data-key="restoreSession"
+        onclick="styleManager.startup.update('restoreSession', this.checked); styleManager.startup.syncUI()"
+      />
+      <label for="restore-check">Restore Session on Login</label>
+    </div>
+
+    <div class="window-section-title">At Startup:</div>
+    <div class="u-margin-bottom-sm">
+      <label
+        ><input
+          type="radio"
+          name="startup-mode"
+          value="home"
+          onclick="styleManager.startup.update('onStartup', 'home')"
+        /> Show Home Directory</label
+      >
+    </div>
+    <div class="cde-modal-field">
+      <label
+        ><input
+          type="radio"
+          name="startup-mode"
+          value="session"
+          onclick="styleManager.startup.update('onStartup', 'session')"
+        /> Resume Current Session</label
+      >
+    </div>
+
+    <div class="u-text-center">
+      <button class="cde-btn" onclick="styleManager.startup.clearSession()"
+        >Clear Current Session Now</button
+      >
+    </div>
+  </div>
+
+  <div class="cde-statusbar">
+    <div class="cde-statusleft">Startup</div>
+    <div class="cde-statusright" id="startupStatus">Ready</div>
+  </div>
+
+  <div class="cde-actionbar">
+    <button class="cde-btn cde-btn-default" onclick="styleManager.closeStartup()">OK</button>
+    <button class="cde-btn" onclick="styleManager.closeStartup()">Cancel</button>
+    <a href={CONFIG.META.ISSUES_URL} target="_blank" class="cde-btn-link">
+      <button class="cde-btn">Help</button>
+    </a>
+  </div>
+</div>

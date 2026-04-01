@@ -1,0 +1,589 @@
+{
+  "lessons": [
+    {
+      "title": "Navigation Basics",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "whoami",
+          "output": "victxrlarixs\nShows current user"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "pwd",
+          "output": "/home/victxrlarixs\nShows current directory"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "ls",
+          "output": "Desktop  Documents  Downloads  Music  Pictures  Videos\nLists files and directories"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "ls -la",
+          "output": "total 48\ndrwxr-xr-x 18 victxrlarixs victxrlarixs 4096 Feb 11 10:00 .\ndrwxr-xr-x  3 root        root        4096 Feb 10 08:00 ..\n-rw-------  1 victxrlarixs victxrlarixs  567 Feb 11 09:30 .bash_history\n-rw-r--r--  1 victxrlarixs victxrlarixs  220 Feb 11 08:00 .bash_logout\n-rw-r--r--  1 victxrlarixs victxrlarixs 3526 Feb 11 08:00 .bashrc\n-rw-r--r--  1 victxrlarixs victxrlarixs  807 Feb 11 08:00 .profile\ndrwxr-xr-x  2 victxrlarixs victxrlarixs 4096 Feb 11 09:00 Desktop\ndrwxr-xr-x  2 victxrlarixs victxrlarixs 4096 Feb 11 09:00 Documents\n...\nLists all files with details, including hidden ones"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "date",
+          "output": "Sat Feb 11 14:30:00 CST 2023\nShows system date and time"
+        }
+      ]
+    },
+    {
+      "title": "Working with Directories",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "cd Documents",
+          "output": "Changes to Documents directory"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "pwd",
+          "output": "/home/victxrlarixs/Documents\nConfirms location"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "mkdir project_web",
+          "output": "Creates new directory"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "cd project_web",
+          "output": "Enters the new project folder"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "touch index.html style.css script.js",
+          "output": "Creates empty files"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "ls",
+          "output": "index.html  script.js  style.css\nVerifies creation"
+        }
+      ]
+    },
+    {
+      "title": "File Operations",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "echo '<h1>Hello World</h1>' > index.html",
+          "output": "Writes content to file"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "cat index.html",
+          "output": "<h1>Hello World</h1>\nDisplays file content"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "cp index.html index_backup.html",
+          "output": "Copies file"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "mv style.css styles.css",
+          "output": "Renames file"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "rm index_backup.html",
+          "output": "Deletes file"
+        }
+      ]
+    },
+    {
+      "title": "Permissions & Search",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "chmod 755 index.html",
+          "output": "Changes file permissions"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "ls -l index.html",
+          "output": "-rwxr-xr-x 1 victxrlarixs victxrlarixs 20 Feb 11 14:35 index.html\nVerifies permissions"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "find . -name '*.html'",
+          "output": "./index.html\nFinds files by extension"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "grep 'Hello' index.html",
+          "output": "<h1>Hello World</h1>\nSearches text inside files"
+        }
+      ]
+    },
+    {
+      "title": "Processes & Resources",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "ps aux | head -5",
+          "output": "USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\nroot         1  0.0  0.1 169668 13028 ?        Ss   Feb10   0:03 /sbin/init\nroot         2  0.0  0.0      0     0 ?        S    Feb10   0:00 [kthreadd]\nroot         3  0.0  0.0      0     0 ?        I<   Feb10   0:00 [rcu_gp]\nroot         4  0.0  0.0      0     0 ?        I<   Feb10   0:00 [rcu_par_gp]\nShows active processes (first 5)"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "top -b -n 1 | head -5",
+          "output": "top - 14:40:00 up 1 day,  5:48,  1 user,  load average: 0.05, 0.10, 0.15\nTasks: 120 total,   1 running, 119 sleeping,   0 stopped,   0 zombie\n%Cpu(s):  2.5 us,  1.2 sy,  0.0 ni, 96.0 id,  0.2 wa,  0.0 hi,  0.1 si,  0.0 st\nMiB Mem :   7980.3 total,   4500.2 free,   1800.1 used,   1680.0 buff/cache\nMiB Swap:   2048.0 total,   2048.0 free,      0.0 used.   5780.2 avail Mem\nSystem monitor snapshot"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "free -h",
+          "output": "              total        used        free      shared  buff/cache   available\nMem:           7.8G        2.0G        4.8G        0.2G        1.0G        5.2G\nSwap:          2.0G        0.0G        2.0G\nMemory usage"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "df -h",
+          "output": "Filesystem      Size  Used Avail Use% Mounted on\nudev            3.9G     0  3.9G   0% /dev\ntmpfs           798M  1.3M  797M   1% /run\n/dev/sda1        50G   10G   37G  22% /\nDisk space usage"
+        }
+      ]
+    },
+    {
+      "title": "Package Management & Networking",
+      "steps": [
+        {
+          "user": "root",
+          "command": "apt update",
+          "output": "Hit:1 http://deb.debian.org/debian bullseye InRelease\nGet:2 http://security.debian.org/debian-security bullseye-security InRelease [48.4 kB]\nGet:3 http://deb.debian.org/debian bullseye-updates InRelease [44.1 kB]\nFetched 92.5 kB in 1s (92.5 kB/s)\nReading package lists... Done\nUpdates package list from repositories"
+        },
+        {
+          "user": "root",
+          "command": "apt upgrade -y",
+          "output": "Reading package lists... Done\nBuilding dependency tree... Done\nReading state information... Done\nCalculating upgrade... Done\nThe following packages will be upgraded:\n  linux-image-amd64 openssh-server ...\n15 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.\nNeed to get 25.3 MB of archives.\nAfter this operation, 12.5 MB of additional disk space will be used.\nGet:1 http://deb.debian.org/debian bullseye/main amd64 linux-image-amd64 amd64 5.10.0-20-amd64 [1,600 B]\n...\nUpgrades installed packages"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "ping -c 3 google.com",
+          "output": "PING google.com (142.250.190.14): 56 data bytes\n64 bytes from 142.250.190.14: icmp_seq=0 ttl=117 time=15.3 ms\n64 bytes from 142.250.190.14: icmp_seq=1 ttl=117 time=14.8 ms\n64 bytes from 142.250.190.14: icmp_seq=2 ttl=117 time=15.1 ms\n\n--- google.com ping statistics ---\n3 packets transmitted, 3 packets received, 0% packet loss\nround-trip min/avg/max/stddev = 14.8/15.1/15.3/0.2 ms\nTests network connectivity"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "curl -I https://debian.org",
+          "output": "HTTP/1.1 200 OK\nConnection: keep-alive\nContent-Length: 38681\nServer: nginx\nContent-Type: text/html\nDate: Sat, 11 Feb 2023 20:45:12 GMT\nFetches HTTP headers"
+        }
+      ]
+    },
+    {
+      "title": "Shell Tricks & History",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "history | tail -5",
+          "output": " 1010  ls -la\n 1011  cd Documents/project_web/\n 1012  git status\n 1013  docker ps\n 1014  history | tail -5\nShows last 5 commands"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "alias ll='ls -la'",
+          "output": "Creates alias for long listing"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "cd ~",
+          "output": "Returns to home directory"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "clear",
+          "output": "Clears the terminal screen"
+        }
+      ]
+    },
+    {
+      "title": "System Information",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "uname -a",
+          "output": "Linux debian 5.10.0-20-amd64 #1 SMP Debian 5.10.158-2 (2023-01-21) x86_64 GNU/Linux\nShows system kernel and architecture"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "hostname",
+          "output": "debian\nShows system hostname"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "uptime",
+          "output": " 14:55:00 up 1 day,  6:03,  1 user,  load average: 0.08, 0.12, 0.15\nShows system uptime and load"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "who",
+          "output": "victxrlarixs tty7         2023-02-11 08:00 (:0)\nShows logged-in users"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "last -5",
+          "output": "victxrlarixs tty7         :0               Sat Feb 11 08:00   still logged in\nreboot   system boot  5.10.0-20-amd64  Sat Feb 11 08:00   still running\nvictxrlarixs tty7         :0               Fri Feb 10 18:00 - crash (14:00)\nreboot   system boot  5.10.0-20-amd64  Fri Feb 10 08:00 - 08:00 (1+00:00)\nwtmp begins Fri Feb 10 08:00:00 2023\nShows last user logins"
+        }
+      ]
+    },
+    {
+      "title": "User Management (Part 1)",
+      "steps": [
+        {
+          "user": "root",
+          "command": "useradd -m -s /bin/bash alice",
+          "output": "Creates new user alice with home directory and bash shell"
+        },
+        {
+          "user": "root",
+          "command": "passwd alice",
+          "output": "New password: \nRetype new password: \npasswd: password updated successfully\nSets password for alice"
+        },
+        {
+          "user": "root",
+          "command": "groupadd developers",
+          "output": "Creates new group developers"
+        },
+        {
+          "user": "root",
+          "command": "usermod -aG developers alice",
+          "output": "Adds alice to developers group"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "id alice",
+          "output": "uid=1001(alice) gid=1001(alice) groups=1001(alice),1002(developers)\nShows user and group IDs"
+        }
+      ]
+    },
+    {
+      "title": "User Management (Part 2)",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "cat /etc/passwd | grep alice",
+          "output": "alice:x:1001:1001:,,,:/home/alice:/bin/bash\nShows user entry in passwd"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "grep '^developers' /etc/group",
+          "output": "developers:x:1002:alice\nShows group entry"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "sudo -l",
+          "output": "Matching Defaults entries for victxrlarixs on debian:\n    env_reset, mail_badpass, secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n\nUser victxrlarixs may run the following commands on debian:\n    (ALL : ALL) ALL\nLists sudo privileges"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "su - alice",
+          "output": "Switches to user alice (prompts for password)"
+        }
+      ]
+    },
+    {
+      "title": "Getting Help",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "man ls",
+          "output": "LS(1)                            User Commands                           LS(1)\n\nNAME\n       ls - list directory contents\n\nSYNOPSIS\n       ls [OPTION]... [FILE]...\n\nDESCRIPTION\n       List  information  about  the FILEs (the current directory by default).\n       Sort entries alphabetically if none of -cftuvSUX nor --sort  is  speci‐\n       fied.\n\n       Mandatory  arguments  to  long  options are mandatory for short options\n       too.\n\n       -a, --all\n              do not ignore entries starting with .\n\n... (press q to quit)\nDisplays manual page for ls (truncated)"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "whereis bash",
+          "output": "bash: /bin/bash /etc/bash.bashrc /usr/share/man/man1/bash.1.gz\nLocates binary, source, and manual for bash"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "locate crontab",
+          "output": "/etc/crontab\n/usr/bin/crontab\n/usr/share/man/man1/crontab.1.gz\n/usr/share/man/man5/crontab.5.gz\nFinds files named crontab"
+        }
+      ]
+    },
+    {
+      "title": "Archiving Files",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "tar -czf archive.tar.gz Documents/",
+          "output": "Creates compressed tarball of Documents folder"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "tar -tzf archive.tar.gz | head -3",
+          "output": "Documents/\nDocuments/project_web/\nDocuments/project_web/index.html\nLists contents of tarball (first 3)"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "gzip -l archive.tar.gz",
+          "output": "         compressed        uncompressed  ratio uncompressed_name\n              10240               20480  50.0% archive.tar\nShows compression info"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "zip -r project.zip Documents/",
+          "output": "  adding: Documents/ (stored 0%)\n  adding: Documents/project_web/ (stored 0%)\n  adding: Documents/project_web/index.html (deflated 45%)\n  ...\nCreates zip archive"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "unzip -l project.zip | head -5",
+          "output": "Archive:  project.zip\n  Length      Date    Time    Name\n---------  ---------- -----   ----\n        0  2023-02-11 14:30   Documents/\n        0  2023-02-11 14:35   Documents/project_web/\n       20  2023-02-11 14:35   Documents/project_web/index.html\nLists zip contents (first 5)"
+        }
+      ]
+    },
+    {
+      "title": "Process Signals",
+      "steps": [
+        {
+          "user": "root",
+          "command": "systemctl status ssh",
+          "output": "● ssh.service - OpenBSD Secure Shell server\n     Loaded: loaded (/lib/systemd/system/ssh.service; enabled; vendor preset: enabled)\n     Active: active (running) since Sat 2023-02-11 08:01:23 CST; 7h ago\n       Docs: man:sshd(8)\n             man:sshd_config(5)\n   Main PID: 1234 (sshd)\n      Tasks: 1 (limit: 2281)\n     Memory: 5.2M\n        CPU: 123ms\n     CGroup: /system.slice/ssh.service\n             └─1234 sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups\n\nFeb 11 08:01:22 debian systemd[1]: Starting OpenBSD Secure Shell server...\nFeb 11 08:01:23 debian sshd[1234]: Server listening on 0.0.0.0 port 22.\nFeb 11 08:01:23 debian sshd[1234]: Server listening on :: port 22.\nFeb 11 08:01:23 debian systemd[1]: Started OpenBSD Secure Shell server.\nShows SSH service status"
+        },
+        {
+          "user": "root",
+          "command": "journalctl -n 5",
+          "output": "-- Logs begin at Fri 2023-02-10 08:00:00 CST, end at Sat 2023-02-11 15:20:00 CST. --\nFeb 11 15:18:22 debian kernel: [UFW BLOCK] IN=eth0 OUT=...\nFeb 11 15:19:01 debian CRON[5678]: (root) CMD (   cd / && run-parts --report /etc/cron.hourly)\nFeb 11 15:19:22 debian sshd[1234]: Accepted password for alice from 192.168.1.10 port 54321 ssh2\nFeb 11 15:20:00 debian systemd[1]: Starting system activity accounting tool...\nFeb 11 15:20:01 debian systemd[1]: Started system activity accounting tool.\nShows last 5 journal entries"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "crontab -l",
+          "output": "no crontab for victxrlarixs\nLists cron jobs for user (none)"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "echo '* * * * * echo hello' | crontab -",
+          "output": "Installs a cron job that runs every minute"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "crontab -l",
+          "output": "* * * * * echo hello\nVerifies cron job"
+        }
+      ]
+    },
+    {
+      "title": "Network Interfaces",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "ps aux | grep ssh",
+          "output": "root      1234  0.0  0.1  16432  7892 ?        Ss   08:01   0:00 sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups\nvictx+    7890  0.0  0.0   6432   720 pts/0    S+   15:25   0:00 grep ssh\nFinds SSH-related processes"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "kill -9 1234",
+          "output": "Kills process with SIGKILL (requires appropriate permissions)"
+        },
+        {
+          "user": "root",
+          "command": "pkill -f sshd",
+          "output": "Kills all processes matching name sshd"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "top -b -n 1 | grep 'Cpu(s)'",
+          "output": "%Cpu(s):  3.2 us,  1.5 sy,  0.0 ni, 94.8 id,  0.5 wa,  0.0 hi,  0.0 si,  0.0 st\nCPU usage line from top"
+        }
+      ]
+    },
+    {
+      "title": "DNS & Remote Files",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "ifconfig",
+          "output": "eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500\n        inet 192.168.1.100  netmask 255.255.255.0  broadcast 192.168.1.255\n        inet6 fe80::cafe:1234:5678:9abc  prefixlen 64  scopeid 0x20<link>\n        ether 08:00:27:ab:cd:ef  txqueuelen 1000  (Ethernet)\n        RX packets 12345  bytes 15000000 (14.3 MiB)\n        RX errors 0  dropped 0  overruns 0  frame 0\n        TX packets 6789  bytes 800000 (781.2 KiB)\n        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0\n\nlo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536\n        inet 127.0.0.1  netmask 255.0.0.0\n        inet6 ::1  prefixlen 128  scopeid 0x10<host>\n        loop  txqueuelen 1000  (Local Loopback)\n        RX packets 100  bytes 5000 (4.8 KiB)\n        RX errors 0  dropped 0  overruns 0  frame 0\n        TX packets 100  bytes 5000 (4.8 KiB)\n        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0\nShows network interfaces"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "ip addr show",
+          "output": "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000\n    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00\n    inet 127.0.0.1/8 scope host lo\n       valid_lft forever preferred_lft forever\n    inet6 ::1/128 scope host \n       valid_lft forever preferred_lft forever\n2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000\n    link/ether 08:00:27:ab:cd:ef brd ff:ff:ff:ff:ff:ff\n    inet 192.168.1.100/24 brd 192.168.1.255 scope global dynamic eth0\n       valid_lft 86399sec preferred_lft 86399sec\n    inet6 fe80::cafe:1234:5678:9abc/64 scope link \n       valid_lft forever preferred_lft forever\nAlternative network info"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "ss -tuln",
+          "output": "Netid  State   Recv-Q  Send-Q  Local Address:Port   Peer Address:Port\ntcp    LISTEN  0       128         0.0.0.0:22          0.0.0.0:*\ntcp    LISTEN  0       128            [::]:22             [::]:*\nudp    UNCONN  0       0           0.0.0.0:68          0.0.0.0:*\nShows listening ports"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "traceroute -m 3 google.com",
+          "output": "traceroute to google.com (142.250.190.14), 3 hops max, 60 byte packets\n 1  192.168.1.1 (192.168.1.1)  1.234 ms  1.123 ms  1.045 ms\n 2  10.0.0.1 (10.0.0.1)  10.234 ms  10.123 ms  10.045 ms\n 3  72.14.215.85 (72.14.215.85)  15.123 ms  15.045 ms  15.067 ms\nTraces route to host (max 3 hops)"
+        }
+      ]
+    },
+    {
+      "title": "Disk & Filesystem",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "nslookup debian.org",
+          "output": "Server:         8.8.8.8\nAddress:        8.8.8.8#53\n\nNon-authoritative answer:\nName:   debian.org\nAddress: 140.211.15.34\nName:   debian.org\nAddress: 2001:41c8:10:1e::34\nDNS lookup for debian.org"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "dig debian.org",
+          "output": "; <<>> DiG 9.16.33-Debian <<>> debian.org\n;; global options: +cmd\n;; Got answer:\n;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 12345\n;; flags: qr rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1\n\n;; OPT PSEUDOSECTION:\n; EDNS: version: 0, flags:; udp: 512\n;; QUESTION SECTION:\n;debian.org.                    IN      A\n\n;; ANSWER SECTION:\ndebian.org.             300     IN      A       140.211.15.34\n\n;; Query time: 23 msec\n;; SERVER: 8.8.8.8#53(8.8.8.8)\n;; WHEN: Sat Feb 11 15:30:00 CST 2023\n;; MSG SIZE  rcvd: 55\nDetailed DNS query"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "wget -O- https://httpbin.org/ip | head -3",
+          "output": "--2023-02-11 15:31:00--  https://httpbin.org/ip\nResolving httpbin.org (httpbin.org)... 3.223.115.185\nConnecting to httpbin.org (httpbin.org)|3.223.115.185|:443... connected.\nHTTP request sent, awaiting response... 200 OK\nLength: 34 [application/json]\nSaving to: ‘STDOUT’\n\n-                   100%[===================>]      34  --.-KB/s    in 0s      \n\n{\n  \"origin\": \"192.168.1.100\"\n}\nDownloads and prints first 3 lines of JSON"
+        }
+      ]
+    },
+    {
+      "title": "Text Processing (Part 1)",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "df -i",
+          "output": "Filesystem      Inodes  IUsed   IFree IUse% Mounted on\nudev             998352    405  997947    1% /dev\ntmpfs            1000000    612  999388    1% /run\n/dev/sda1       3276800 123456 3153344    4% /\nShows inode usage"
+        },
+        {
+          "user": "root",
+          "command": "fdisk -l /dev/sda",
+          "output": "Disk /dev/sda: 50 GiB, 53687091200 bytes, 104857600 sectors\nDisk model: VBOX HARDDISK\nUnits: sectors of 1 * 512 = 512 bytes\nSector size (logical/physical): 512 bytes / 512 bytes\nI/O size (minimum/optimal): 512 bytes / 512 bytes\nDisklabel type: dos\nDisk identifier: 0x1234abcd\n\nDevice     Boot Start       End   Sectors Size Id Type\n/dev/sda1  *     2048 104857599 104855552  50G 83 Linux\nShows disk partition info"
+        },
+        {
+          "user": "root",
+          "command": "mount | head -3",
+          "output": "sysfs on /sys type sysfs (rw,nosuid,nodev,noexec,relatime)\nproc on /proc type proc (rw,nosuid,nodev,noexec,relatime)\nudev on /dev type devtmpfs (rw,nosuid,relatime,size=4078324k,nr_inodes=1019581,mode=755)\nShows mounted filesystems (first 3)"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "du -sh ~",
+          "output": "2.5G    /home/victxrlarixs\nShows total disk usage of home directory"
+        }
+      ]
+    },
+    {
+      "title": "Text Processing (Part 2)",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "head -3 index.html",
+          "output": "<h1>Hello World</h1>\nShows first 3 lines of file"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "tail -2 script.js",
+          "output": "// TODO: add functionality\nconsole.log('Hello');\nShows last 2 lines of file"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "wc -l index.html",
+          "output": "1 index.html\nCounts lines in file"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "sort names.txt | uniq -c",
+          "output": "      3 Alice\n      2 Bob\n      1 Charlie\nCounts unique sorted lines"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "cut -d: -f1 /etc/passwd | head -3",
+          "output": "root\ndaemon\nbin\nExtracts first field from passwd (usernames), first 3"
+        }
+      ]
+    },
+    {
+      "title": "Environment Variables",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "sed 's/Hello/Hi/' index.html",
+          "output": "<h1>Hi World</h1>\nReplaces text using sed"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "awk '{print $1}' /etc/passwd | head -3",
+          "output": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nbin:x:2:2:bin:/bin:/usr/sbin/nologin\nPrints first field (but with awk default field separator is whitespace, so better to use -F:) – we'll adjust to realistic output:"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "awk -F: '{print $1}' /etc/passwd | head -3",
+          "output": "root\ndaemon\nbin\nPrints usernames using awk"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "tr '[:lower:]' '[:upper:]' < index.html",
+          "output": "<H1>HELLO WORLD</H1>\nConverts text to uppercase"
+        }
+      ]
+    },
+    {
+      "title": "Symbolic Links & File Info",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "env | head -3",
+          "output": "SHELL=/bin/bash\nUSER=victxrlarixs\nPATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games\nShows environment variables (first 3)"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "export MY_VAR='Hello'",
+          "output": "Sets an environment variable"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "echo $MY_VAR",
+          "output": "Hello\nPrints variable"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "set | head -3",
+          "output": "BASH=/bin/bash\nBASHOPTS=cmdhist:complete_fullquote:extquote:force_fignore:hostcomplete:interactive_comments:progcomp:promptvars:sourcepath\nBASH_ALIASES=()\nShows all shell variables (first 3)"
+        }
+      ]
+    },
+    {
+      "title": "Advanced Permissions (ACL)",
+      "steps": [
+        {
+          "user": "victxrlarixs",
+          "command": "ln -s /home/victxrlarixs/Documents/project_web/index.html link_to_index",
+          "output": "Creates a symbolic link"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "ls -l link_to_index",
+          "output": "lrwxrwxrwx 1 victxrlarixs victxrlarixs 49 Feb 11 15:45 link_to_index -> /home/victxrlarixs/Documents/project_web/index.html\nShows symlink details"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "readlink link_to_index",
+          "output": "/home/victxrlarixs/Documents/project_web/index.html\nPrints target of symlink"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "file index.html",
+          "output": "index.html: HTML document, ASCII text\nDetermines file type"
+        }
+      ]
+    },
+    {
+      "title": "Utilities & Job Control",
+      "steps": [
+        {
+          "user": "root",
+          "command": "chown alice:developers /home/victxrlarixs/Documents/project_web/index.html",
+          "output": "Changes file owner and group"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "ls -l /home/victxrlarixs/Documents/project_web/index.html",
+          "output": "-rwxr-xr-x 1 alice developers 20 Feb 11 14:35 /home/victxrlarixs/Documents/project_web/index.html\nVerifies ownership change"
+        },
+        {
+          "user": "root",
+          "command": "setfacl -m u:victxrlarixs:rw /home/victxrlarixs/Documents/project_web/index.html",
+          "output": "Sets ACL to give victxrlarixs read/write access"
+        },
+        {
+          "user": "victxrlarixs",
+          "command": "getfacl index.html",
+          "output": "# file: index.html\n# owner: alice\n# group: developers\nuser::rwx\nuser:victxrlarixs:rw-\ngroup::r-x\nmask::rwx\nother::r-x\nShows ACL entries"
+        }
+      ]
+    }
+  ]
+}

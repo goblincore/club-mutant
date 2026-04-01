@@ -1,0 +1,275 @@
+---
+// src/components/features/Emacs.astro
+import WindowControls from '../common/WindowControls.astro';
+import WindowMinimize from '../common/WindowMinimize.astro';
+---
+
+<div class="window" id="emacs">
+  <div class="titlebar emacs-titlebar" id="emacsTitlebar" onmousedown="drag(event, 'emacs')">
+    <WindowMinimize windowId="emacs" />
+    <span class="titlebar-text" id="emacs-title">XEmacs</span>
+    <WindowControls windowId="emacs" closeFunction="window.closeEmacs" />
+  </div>
+
+  <!-- ── XEmacs Menubar ─────────────────────────────────────────────────── -->
+  <div class="te-menubar emacs-menubar">
+    <div class="te-menu">
+      <span class="te-menu-label">File</span>
+      <div class="te-dropdown">
+        <div class="te-item" onclick="window.Emacs.openFile()">
+          Open File…<span class="te-accel">C-x C-f</span>
+        </div>
+        <div class="te-item" onclick="window.openFileManager && window.openFileManager()">
+          Open Home Directory
+        </div>
+        <div class="te-separator"></div>
+        <div class="te-item" onclick="window.Emacs.save()">
+          Save<span class="te-accel">C-x C-s</span>
+        </div>
+        <div class="te-item" onclick="window.Emacs.saveAs()">
+          Save As…<span class="te-accel">C-x C-w</span>
+        </div>
+        <div class="te-separator"></div>
+        <div class="te-item" onclick="window.Emacs.newFile()">New File</div>
+        <div class="te-separator"></div>
+        <div class="te-item" onclick="window.closeEmacs()">
+          Quit<span class="te-accel">C-x C-c</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="te-menu">
+      <span class="te-menu-label">Edit</span>
+      <div class="te-dropdown">
+        <div class="te-item" onclick="window.Emacs.undo()">
+          Undo<span class="te-accel">C-_</span>
+        </div>
+        <div class="te-separator"></div>
+        <div class="te-item" onclick="window.Emacs.cut()">
+          Cut Region<span class="te-accel">C-w</span>
+        </div>
+        <div class="te-item" onclick="window.Emacs.copy()">
+          Copy Region<span class="te-accel">M-w</span>
+        </div>
+        <div class="te-item" onclick="window.Emacs.paste()">
+          Paste (Yank)<span class="te-accel">C-y</span>
+        </div>
+        <div class="te-separator"></div>
+        <div class="te-item" onclick="window.Emacs.selectAll()">
+          Select All<span class="te-accel">C-x h</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="te-menu">
+      <span class="te-menu-label">View</span>
+      <div class="te-dropdown">
+        <div class="te-item" onclick="window.Emacs.wrapToggle()">Toggle Word Wrap</div>
+      </div>
+    </div>
+
+    <div class="te-menu">
+      <span class="te-menu-label">Cmds</span>
+      <div class="te-dropdown">
+        <div class="te-item" onclick="window.Emacs.executeCommand()">
+          Execute Command<span class="te-accel">M-x</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="te-menu">
+      <span class="te-menu-label">Tools</span>
+      <div class="te-dropdown">
+        <div class="te-item" onclick="window.Emacs.findDialog()">
+          Search Files<span class="te-accel">C-f</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="te-menu">
+      <span class="te-menu-label">Options</span>
+      <div class="te-dropdown">
+        <div class="te-item" onclick="window.Emacs.setFont('14px')">Font Size: 14</div>
+        <div class="te-item" onclick="window.Emacs.setFont('13px')">Font Size: 13</div>
+        <div class="te-item" onclick="window.Emacs.setFont('11px')">Font Size: 11</div>
+      </div>
+    </div>
+
+    <div class="te-menu">
+      <span class="te-menu-label">Buffers</span>
+      <div class="te-dropdown">
+        <div class="te-item te-disabled" id="emacs-active-buffer">XEmacs</div>
+        <div class="te-separator"></div>
+        <div class="te-item" onclick="window.Emacs.clearBuffer()">Clear Buffer</div>
+      </div>
+    </div>
+
+    <div class="te-menu">
+      <span class="te-menu-label">Recent Files</span>
+      <div class="te-dropdown">
+        <div class="te-item te-disabled">No recent files</div>
+      </div>
+    </div>
+
+    <div class="te-menu" style="margin-left: auto;">
+      <span class="te-menu-label">Help</span>
+      <div class="te-dropdown" style="left: auto; right: 0;">
+        <div class="te-item" onclick="window.Emacs.showHelp()">Describe Bindings</div>
+        <div class="te-separator"></div>
+        <div class="te-item" onclick="window.Emacs.openSplash()">About XEmacs</div>
+      </div>
+    </div>
+  </div><!-- /menubar -->
+
+  <!-- ── XEmacs Toolbar ────────────────────────────────────────────────── -->
+  <div class="xemacs-toolbar">
+    <div class="xe-tool-btn" onclick="window.Emacs.openFile()" title="Open File">
+      <img src="/icons/apps/filemanager.png" alt="Open" />
+      <span>Open</span>
+    </div>
+    <div
+      class="xe-tool-btn"
+      onclick="window.openFileManager && window.openFileManager()"
+      title="Dired"
+    >
+      <img
+        src="/icons/apps/filemanager.png"
+        alt="Dired"
+        onerror="this.src='/icons/apps/filemanager.png'"
+      />
+      <span>Dired</span>
+    </div>
+    <div class="xe-tool-btn" onclick="window.Emacs.save()" title="Save">
+      <img src="/icons/devices/floppy.png" alt="Save" />
+      <span>Save</span>
+    </div>
+    <div class="xe-tool-btn" onclick="window.Emacs.printPage()" title="Print">
+      <img src="/icons/devices/printer.png" alt="Print" />
+      <span>Print</span>
+    </div>
+    <div class="te-separator" style="width:1px; height:30px; margin: 4px 8px;"></div>
+    <div class="xe-tool-btn" onclick="window.Emacs.cut()" title="Cut">
+      <img src="/icons/actions/edit-cut.png" alt="Cut" onerror="this.style.display='none'" />
+      <span>Cut</span>
+    </div>
+    <div class="xe-tool-btn" onclick="window.Emacs.copy()" title="Copy">
+      <img src="/icons/actions/edit-copy.png" alt="Copy" onerror="this.style.display='none'" />
+      <span>Copy</span>
+    </div>
+    <div class="xe-tool-btn" onclick="window.Emacs.paste()" title="Paste">
+      <img src="/icons/actions/edit-paste.png" alt="Paste" onerror="this.style.display='none'" />
+      <span>Paste</span>
+    </div>
+    <div class="xe-tool-btn" onclick="window.Emacs.undo()" title="Undo">
+      <img
+        src="/icons/actions/edit-undo.png"
+        alt="Undo"
+        onerror="this.src='/icons/actions/previous.png'"
+      />
+      <span>Undo</span>
+    </div>
+    <div class="te-separator" style="width:1px; height:30px; margin: 4px 8px;"></div>
+    <div class="xe-tool-btn" onclick="window.Emacs.findDialog()" title="Search">
+      <img src="/icons/system/system-search.png" alt="Search" />
+      <span>Search</span>
+    </div>
+    <div class="xe-tool-btn" onclick="window.Emacs.showHelp()" title="Info">
+      <img src="/icons/system/help.png" alt="Info" />
+      <span>Info</span>
+    </div>
+  </div>
+
+  <!-- ── XEmacs Tabs ───────────────────────────────────────────────────── -->
+  <div class="xemacs-tabs">
+    <div class="xe-tab active" onclick="window.Emacs.openSplash()">*scratch*</div>
+  </div>
+
+  <!-- ── Find Bar ──────────────────────────────────────────────────────── -->
+  <div id="te-find-bar" class="te-find-bar te-find-hidden">
+    <label>I-search:</label>
+    <input id="te-find-input" type="text" autocomplete="off" spellcheck="false" />
+    <button onclick="window.Emacs.findNext()">↓</button>
+    <button onclick="window.Emacs.findPrev()">↑</button>
+    <button onclick="window.Emacs.closeFindBar()">✕</button>
+  </div>
+
+  <!-- ── XEmacs Splash Screen ───────────────────────────────────────────── -->
+  <div id="emacs-splash" class="emacs-splash">
+    <div class="emacs-splash-logo" style="margin-top: -20px;">
+      <img src="/images/XEmacs/Logo.png" alt="XEmacs" style="height: 140px; width: auto;" />
+    </div>
+
+    <div class="emacs-splash-version" style="margin-bottom: 30px;">
+      XEmacs 21.5 (beta22) "cucumber" (+CVS-20050913) (linux, Mule) of Tue Sep 20 2005
+    </div>
+
+    <div class="emacs-splash-welcome">Useful Help-menu entries:</div>
+
+    <div class="emacs-splash-links">
+      <table>
+        <tr>
+          <td>Beta Info:</td>
+          <td><span class="xe-experimental">This is an Experimental version of XEmacs.</span></td>
+        </tr>
+        <tr>
+          <td>XEmacs FAQ:</td>
+          <td>Read the XEmacs FAQ.</td>
+        </tr>
+        <tr>
+          <td>Info (Online Docs):</td>
+          <td>Read the on-line documentation.</td>
+        </tr>
+        <tr>
+          <td>Tutorial:</td>
+          <td>XEmacs tutorial.</td>
+        </tr>
+        <tr>
+          <td>Samples-&gt;View Sample init.el:</td>
+          <td>A useful initialization file.</td>
+        </tr>
+        <tr>
+          <td>About XEmacs:</td>
+          <td>See who's developing XEmacs.</td>
+        </tr>
+        <tr><td colspan="2">&nbsp;</td></tr>
+        <tr>
+          <td
+            ><a class="emacs-link" href="http://www.xemacs.org/" target="_blank">XEmacs website:</a
+            ></td
+          >
+          <td>http://www.xemacs.org/</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="emacs-splash-version" style="font-size: 11px; margin-top: 40px; opacity: 0.8;">
+      Copyright (C) 1985-1999 Free Software Foundation, Inc.<br />
+      Copyright (C) 1990-1994 Lucid, Inc.<br />
+      Copyright (C) 1993-1997 Sun Microsystems, Inc. All Rights Reserved.<br />
+      Copyright (C) 1994-1996 Board of Trustees, University of Illinois.<br />
+      Copyright (C) 1995-2005 Ben Wing.
+    </div>
+  </div><!-- /splash -->
+
+  <!-- ── Editing Area (hidden until file is opened) ────────────────────── -->
+  <div id="emacs-editor-area" class="emacs-editor emacs-hidden">
+    <textarea id="emacs-textarea" spellcheck="false" autocomplete="off"></textarea>
+  </div>
+
+  <!-- ── Mode Line ─────────────────────────────────────────────────────── -->
+  <div id="emacs-mode-line" class="emacs-modeline">
+    UTF8<span class="xe-modeline-sep">──</span>L<span id="emacs-line">1</span> C<span id="emacs-col"
+      >0</span
+    > All <span class="xe-modeline-sep">──</span>
+    <span id="emacs-file-name">*scratch*</span> (Text Fill)<span class="xe-modeline-sep">──</span>
+  </div>
+
+  <!-- ── Minibuffer ────────────────────────────────────────────────────── -->
+  <div id="emacs-minibuffer" class="emacs-minibuffer">
+    <div id="emacs-minibuffer-content">
+      <span id="emacs-minibuffer-label"></span>
+      <input id="emacs-minibuffer-input" type="text" autocomplete="off" spellcheck="false" />
+    </div>
+    <span id="emacs-minibuffer-msg">Loading font...done</span>
+  </div>
+</div>

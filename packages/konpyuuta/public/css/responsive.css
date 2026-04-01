@@ -1,0 +1,760 @@
+/* Responsive.css - Media Queries for CDE Simulation
+   Responsive adjustments for all components */
+
+/* Prevent any scrolling on mobile */
+@media (max-width: 767px) {
+  html,
+  body {
+    overflow: hidden !important;
+    position: fixed !important;
+    width: 100% !important;
+    height: 100% !important;
+    overscroll-behavior: none !important;
+  }
+
+  /* Prevent window overflow */
+  .window,
+  .cde-retro-modal {
+    position: absolute !important;
+    overflow: hidden !important;
+  }
+}
+
+/* Extra small screens (mobile, less than 480px) */
+@media (max-width: 479px) {
+  /* Netscape Navigator Responsive */
+  #netscape {
+    width: 95vw !important;
+    height: 80vh !important;
+    min-width: 0 !important;
+  }
+
+  .ns-menubar {
+    flex-wrap: wrap;
+    font-size: 10px;
+  }
+
+  .ns-menu-label {
+    padding: 2px 4px;
+  }
+
+  .ns-toolbar {
+    padding: 2px;
+    overflow-x: auto;
+    /* Allow horizontal scroll if buttons still overflow */
+    justify-content: flex-start;
+  }
+
+  .ns-tool-btn {
+    width: 44px;
+    height: 44px;
+    padding: 2px;
+  }
+
+  .ns-tool-btn img,
+  .ns-btn-img {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  .ns-tool-btn span {
+    display: none;
+    /* Hide labels on mobile to save space */
+  }
+
+  .ns-n-logo {
+    width: 44px;
+    height: 44px;
+  }
+
+  .ns-logo-img {
+    max-width: 38px;
+    max-height: 38px;
+  }
+
+  .ns-location-bar {
+    padding: 2px;
+    gap: 2px;
+  }
+
+  .ns-location-label {
+    display: none;
+    /* Hide 'Location:' label on tiny screens */
+  }
+
+  .ns-dir-bar {
+    padding: 2px;
+    gap: 2px;
+  }
+
+  .ns-dir-btn {
+    padding: 1px 4px;
+    font-size: 9px;
+  }
+
+  .ns-statusbar {
+    font-size: 9px;
+    height: auto;
+    padding: 2px;
+  }
+
+  /* Topbar */
+  #topbar {
+    padding: 0 4px;
+    font-size: 10px;
+  }
+
+  .top-left,
+  .top-right {
+    gap: 4px;
+  }
+
+  .top-center {
+    font-size: 10px;
+  }
+
+  .sys-item {
+    padding: 1px 2px;
+    font-size: 9px;
+  }
+
+  .sys-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Panel inferior (dock) */
+  #cde-panel {
+    height: 95px;
+    padding: 2px 2px;
+    font-size: 9px;
+    gap: 1px;
+    max-width: 86%;
+  }
+
+  .cde-sep {
+    height: 48px;
+  }
+
+  .cde-menu-btn {
+    width: 32px;
+    height: 40px;
+  }
+
+  .cde-menu-btn img {
+    width: 22px;
+    height: 22px;
+  }
+
+  .cde-pager {
+    width: 70px;
+    grid-template-columns: 32px 32px;
+    grid-template-rows: 18px 18px;
+  }
+
+  .pager-workspace {
+    font-size: 9px;
+    line-height: 18px;
+  }
+
+  .cde-scroll {
+    height: 38px;
+  }
+
+  .scroll-btn {
+    width: 16px;
+    height: 18px;
+    font-size: 7px;
+  }
+
+  .cde-icon-block {
+    height: 50px;
+  }
+
+  .cde-icon-buttons {
+    display: grid;
+    height: 16px;
+    grid-template-columns: repeat(5, 28px);
+  }
+
+  .cde-icon-btn {
+    width: 28px;
+    height: 16px;
+    font-size: 8px;
+  }
+
+  .cde-icons {
+    grid-template-columns: repeat(5, 28px);
+    height: 30px;
+  }
+
+  .cde-icon {
+    width: 28px;
+    height: 30px;
+    padding: 0;
+    min-width: 28px;
+    min-height: 30px;
+  }
+
+  .cde-icon img {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Ensure nested divs don't break layout */
+  .cde-icon > div {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .tray-icon {
+    display: none;
+  }
+
+  #cde-panel .cde-sep:last-of-type {
+    display: none;
+  }
+
+  .cde-exit-btn {
+    padding: 0 4px;
+    height: 40px;
+    line-height: 38px;
+    font-size: 9px;
+  }
+
+  /* Ventanas en general */
+  .window,
+  .cde-retro-modal {
+    max-width: 95vw !important;
+    max-height: calc(100vh - 95px) !important;
+    width: auto !important;
+    box-sizing: border-box !important;
+    position: absolute !important;
+    overflow: auto !important;
+  }
+
+  /* Ensure window bodies don't cause overflow */
+  .window-body,
+  .modal-body {
+    overflow: auto !important;
+    max-height: 100% !important;
+  }
+
+  /* Terminal */
+  #terminal {
+    width: 300px !important;
+  }
+
+  .terminal-body {
+    height: 180px;
+    padding: 6px;
+    font-size: 11px;
+  }
+
+  .terminal-line {
+    padding: 0 6px 6px 6px;
+  }
+
+  /* Terminal Lab & XEmacs Menubar - Make scrollable on mobile */
+  .te-menubar,
+  .emacs-menubar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+
+  /* File Manager */
+  #fm:not(.maximized) {
+    width: 300px !important;
+    height: 280px !important;
+  }
+
+  .fm-menubar {
+    font-size: 10px;
+    gap: 6px;
+  }
+
+  .fm-toolbar {
+    padding: 3px;
+    gap: 3px;
+  }
+
+  .fm-btn {
+    width: 24px;
+    height: 22px;
+    padding: 2px;
+  }
+
+  .fm-btn img {
+    width: 16px;
+    height: 16px;
+  }
+
+  .fm-path {
+    height: 22px;
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+
+  .fm-path-container {
+    height: 26px;
+  }
+
+  .fm-search-container {
+    height: 26px;
+    width: 130px;
+  }
+
+  .fm-sidebar {
+    width: 100px;
+    padding: 4px;
+    font-size: 10px;
+  }
+
+  .fm-files {
+    grid-template-columns: repeat(auto-fill, 70px);
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .fm-file img {
+    width: 32px;
+    height: 32px;
+  }
+
+  .fm-file {
+    font-size: 10px;
+  }
+
+  /* Style Manager principal */
+  .style-manager-main {
+    min-width: 90vw !important;
+  }
+
+  .cde-menubar {
+    font-size: 10px;
+  }
+
+  .cde-menu-item {
+    padding: 2px 4px;
+  }
+
+  .style-manager-body {
+    padding: 10px;
+  }
+
+  .style-manager-categories {
+    gap: 6px;
+  }
+
+  .cde-category-icon-btn {
+    min-width: 60px;
+    padding: 4px 6px;
+  }
+
+  .cde-category-icon-btn img {
+    width: 28px;
+    height: 28px;
+  }
+
+  /* Style Manager panels */
+  #styleManagerFont.style-manager-font {
+    width: 300px !important;
+    height: 480px !important;
+  }
+
+  #styleManagerFont .cde-label {
+    width: 80px;
+    font-size: 10px;
+  }
+
+  #styleManagerFont .cde-select {
+    width: 140px;
+    font-size: 10px;
+  }
+
+  #styleManagerFont .cde-slider {
+    width: 100px;
+  }
+
+  #styleManagerFont .cde-font-preview {
+    max-width: 100%;
+  }
+
+  #styleManagerColor.style-manager-color {
+    width: 300px !important;
+  }
+
+  #styleManagerColor .color-palette-item {
+    font-size: 9px;
+    padding: 3px 6px;
+  }
+
+  #styleManagerColor .color-swatch-btn {
+    width: 24px;
+    height: 24px;
+  }
+
+  #styleManagerKeyboard.style-manager-keyboard {
+    width: 280px !important;
+  }
+
+  #styleManagerKeyboard .keyboard-icon img {
+    width: 40px;
+    height: 40px;
+  }
+
+  #styleManagerKeyboard .keyboard-row label {
+    min-width: 60px;
+    font-size: 10px;
+  }
+
+  #styleManagerKeyboard .keyboard-row input[type='range'] {
+    width: 80px;
+  }
+
+  #styleManagerWindow.style-manager-window {
+    width: 280px !important;
+  }
+
+  #styleManagerWindow .window-icon img {
+    width: 40px;
+    height: 40px;
+  }
+
+  #styleManagerWindow .window-row {
+    font-size: 10px;
+  }
+
+  #styleManagerMouse.style-manager-mouse {
+    width: 320px !important;
+  }
+
+  #styleManagerMouse .mouse-icon-btn {
+    width: 90px;
+    height: 120px;
+  }
+
+  #styleManagerMouse .mouse-icon-btn img {
+    width: 70px;
+    height: 90px;
+  }
+
+  #styleManagerMouse .mouse-controls-group {
+    gap: 12px;
+  }
+
+  #styleManagerMouse .mouse-slider-row span:first-child {
+    width: 65px;
+    font-size: 10px;
+  }
+
+  #styleManagerMouse .mouse-slider-row input[type='range'] {
+    width: 120px;
+  }
+
+  /* Process Monitor */
+  #process-monitor {
+    width: 95vw !important;
+  }
+
+  #process-monitor .terminal-body {
+    font-size: 11px;
+  }
+
+  #process-monitor-content {
+    font-size: 11px;
+  }
+
+  #process-monitor .cpu-bar-container,
+  #process-monitor .mem-bar-container,
+  #process-monitor .swap-bar-container {
+    width: 60px;
+  }
+
+  /* Dropdown menus */
+  .fm-dropdown,
+  .fm-contextmenu,
+  #utilitiesDropdown {
+    min-width: 140px;
+    font-size: 10px;
+  }
+
+  .fm-dropdown-item,
+  .fm-context-item,
+  #utilitiesDropdown .menu-item {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+
+  /* Modales globales */
+  #cde-modal-global,
+  .cde-retro-modal.cde-modal-global {
+    width: 90vw !important;
+  }
+
+  #cde-modal-global .modal-body {
+    padding: 12px;
+  }
+
+  #cde-prompt-input {
+    font-size: 11px;
+  }
+
+  .cde-actionbar {
+    padding: 6px;
+    gap: 4px;
+  }
+
+  .cde-btn {
+    padding: 2px 10px;
+    min-width: 60px;
+    font-size: 10px;
+  }
+}
+
+/* Small screens (large mobile, 480px - 767px) */
+@media (min-width: 480px) and (max-width: 767px) {
+  /* Topbar */
+  #topbar {
+    padding: 0 6px;
+  }
+
+  .top-left,
+  .top-right {
+    gap: 6px;
+  }
+
+  /* Panel inferior */
+  #cde-panel {
+    height: 70px;
+    padding: 2px 3px;
+  }
+
+  .cde-sep {
+    height: 54px;
+  }
+
+  .cde-menu-btn {
+    width: 36px;
+    height: 45px;
+  }
+
+  .cde-pager {
+    width: 80px;
+    grid-template-columns: 38px 38px;
+  }
+
+  .pager-workspace {
+    line-height: 20px;
+  }
+
+  .cde-icon-block {
+    height: 56px;
+  }
+
+  .cde-icon {
+    width: 32px;
+    height: 34px;
+  }
+
+  .cde-icon img {
+    width: 22px;
+    height: 22px;
+  }
+
+  .tray-icon {
+    display: none;
+  }
+
+  #cde-panel .cde-sep:last-of-type {
+    display: none;
+  }
+
+  /* Ventanas */
+  .window,
+  .cde-retro-modal {
+    max-width: 90vw !important;
+  }
+
+  /* Terminal */
+  #terminal {
+    width: 340px !important;
+  }
+
+  /* Terminal Lab & XEmacs Menubar - Make scrollable on mobile */
+  .te-menubar,
+  .emacs-menubar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+
+  /* File Manager */
+  #fm:not(.maximized) {
+    width: 380px !important;
+  }
+
+  /* Style Manager */
+  .style-manager-main {
+    min-width: 80vw !important;
+  }
+
+  #styleManagerFont.style-manager-font {
+    width: 320px !important;
+  }
+
+  #styleManagerColor.style-manager-color {
+    width: 320px !important;
+  }
+
+  #styleManagerKeyboard.style-manager-keyboard {
+    width: 300px !important;
+  }
+
+  #styleManagerWindow.style-manager-window {
+    width: 300px !important;
+  }
+
+  #styleManagerMouse.style-manager-mouse {
+    width: 360px !important;
+  }
+
+  /* Process Monitor */
+  #process-monitor {
+    width: 85vw !important;
+  }
+}
+
+/* Medium screens (tablets, 768px - 1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Minor adjustments for tablets */
+  .style-manager-main {
+    min-width: 60vw !important;
+  }
+
+  #process-monitor {
+    width: 80vw !important;
+  }
+}
+
+/* Large screens (desktop, more than 1024px) - no changes, maintains original design */
+
+/* Landscape orientation on mobile */
+@media (max-height: 480px) and (orientation: landscape) {
+  .window,
+  .cde-retro-modal {
+    max-height: 85vh !important;
+  }
+
+  #terminal:not(.maximized) {
+    height: 200px !important;
+  }
+
+  /* Terminal Lab & XEmacs Menubar - Make scrollable on mobile landscape */
+  .te-menubar,
+  .emacs-menubar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+
+  #fm:not(.maximized) {
+    height: 200px !important;
+  }
+
+  #process-monitor:not(.maximized) {
+    height: 300px !important;
+  }
+
+  .style-manager-main {
+    max-height: 85vh !important;
+  }
+
+  #styleManagerFont.style-manager-font {
+    height: 400px !important;
+  }
+}
+
+/* Boot Screen - Responsive adjustments */
+
+/* Extra small screens (max-width: 479px) */
+@media (max-width: 479px) {
+  #debian-boot-screen {
+    font-size: 10px;
+    padding: 6px;
+  }
+
+  #debian-boot-screen .header {
+    font-size: 11px;
+    padding-bottom: 3px;
+    margin-bottom: 6px;
+  }
+
+  #boot-log-container {
+    height: calc(100% - 40px);
+    /* More space for header */
+  }
+
+  .boot-logo {
+    font-size: 8px;
+    /* Scale down ASCII art */
+    line-height: 1.1;
+    margin-bottom: 10px;
+    white-space: pre-wrap;
+    /* Allow wrapping if too wide */
+    word-break: break-all;
+    /* Prevent horizontal overflow */
+  }
+
+  /* Boot message lines */
+  #boot-log-container > div {
+    font-size: 9px;
+    line-height: 1.2;
+  }
+}
+
+/* Small screens (480px - 767px) */
+@media (min-width: 480px) and (max-width: 767px) {
+  #debian-boot-screen {
+    font-size: 11px;
+    padding: 8px;
+  }
+
+  #debian-boot-screen .header {
+    font-size: 12px;
+  }
+
+  .boot-logo {
+    font-size: 9px;
+    line-height: 1.15;
+    margin-bottom: 15px;
+  }
+
+  #boot-log-container > div {
+    font-size: 10px;
+  }
+}
+
+/* Medium screens (tablets) – minimal adjustments */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .boot-logo {
+    font-size: 11px;
+    /* Slightly smaller than desktop 12px */
+  }
+}
+
+/* Landscape orientation on small devices */
+@media (max-height: 480px) and (orientation: landscape) {
+  #debian-boot-screen {
+    padding: 5px;
+  }
+
+  .boot-logo {
+    margin-bottom: 8px;
+  }
+
+  #boot-log-container {
+    height: calc(100% - 35px);
+  }
+}
