@@ -196,7 +196,7 @@ import { CONFIG } from '../../scripts/core/config';
         role="button"
         tabindex="0"
         aria-label="Exit"
-        onclick="CDEModal.alert('Feature not yet implemented')"
+        onclick="window.parent.postMessage({ type: 'shutdown' }, '*')"
       >
         <img src="/icons/actions/exit.png" alt="Exit" />
       </div>
