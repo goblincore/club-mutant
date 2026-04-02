@@ -278,10 +278,11 @@
     async function mtLoadPlaylists() {
       setStatus('Loading playlists...');
       try {
-        var lists = await rpc('list_playlists', {});
+        var result = await rpc('list_playlists', {});
+        var lists = result.playlists || [];
         var html = '<h2 style="font-size:13px;margin-bottom:8px">My Playlists</h2>'
           + '<button class="mt-btn-new" onclick="mtCreatePlaylist()">+ New Playlist</button>';
-        if (!lists || lists.length === 0) {
+        if (lists.length === 0) {
           html += '<div style="color:#666;font-size:12px">No playlists yet. Create one above!</div>';
         } else {
           lists.forEach(function(pl) {
@@ -331,7 +332,7 @@
         html += '<div style="color:#666;font-size:12px">No videos in this playlist. Watch a video and add it here.</div>';
       } else {
         items.forEach(function(v) {
-          var title = (v.title || v.videoId || 'Unknown').replace(/</g, '&lt;');
+          var title = (v.title || v.id || 'Unknown').replace(/</g, '&lt;');
           html += '<div class="mt-track-item" onclick="mtWatchVideo(' + JSON.stringify({id: v.id, title: title}) + ')">'
             + '<span class="mt-track-title">▶ ' + title + '</span>'
             + '<button class="mt-btn-delete" onclick="event.stopPropagation();mtRemoveFromPlaylist(\'' + pl.id + '\',\'' + v.id + '\')">✕</button>'
@@ -343,7 +344,8 @@
 
     async function mtRemoveFromPlaylist(playlistId, videoId) {
       try {
-        var lists = await rpc('list_playlists', {});
+        var result = await rpc('list_playlists', {});
+        var lists = result.playlists || [];
         var pl = lists.find(function(p) { return p.id === playlistId; });
         if (!pl) return;
         pl.items = (pl.items || []).filter(function(v) { return v.id !== videoId; });
@@ -380,8 +382,9 @@
     async function mtAddCurrentToPlaylist() {
       if (!currentVideo) return;
       try {
-        var lists = await rpc('list_playlists', {});
-        if (!lists || lists.length === 0) {
+        var result = await rpc('list_playlists', {});
+        var lists = result.playlists || [];
+        if (lists.length === 0) {
           var createNew = window.confirm('No playlists yet. Create one now?');
           if (!createNew) return;
           var name = window.prompt('Playlist name:');
