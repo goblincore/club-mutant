@@ -7,3 +7,16 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+interface NakamaSession {
+  token: string;
+  refreshToken: string;
+  host: string;
+  port: string;
+  ssl: boolean;
+  youtubeApiUrl: string;
+}
+
+interface Window {
+  nakamaSession?: NakamaSession;
+}
