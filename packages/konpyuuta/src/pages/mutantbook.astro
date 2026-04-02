@@ -176,19 +176,20 @@
       var wallEl = document.getElementById('mb-wall-content');
       wallEl.innerHTML = '<div class="mb-status">Loading wall...</div>';
       try {
-        var posts = await rpc('get_wall_posts', { target_user_id: myUserId });
-        if (!posts || posts.length === 0) {
+        var result = await rpc('get_wall_posts', { target_user_id: myUserId });
+        var posts = result.posts || [];
+        if (posts.length === 0) {
           wallEl.innerHTML = '<div class="mb-status">No posts yet. Be the first to write on your wall!</div>';
           return;
         }
         var html = '';
         posts.forEach(function(post) {
           var content = (post.content || '').replace(/</g, '&lt;');
-          var author = (post.authorDisplayName || post.authorId || 'Someone').replace(/</g, '&lt;');
+          var author = (post.authorUsername || post.authorId || 'Someone').replace(/</g, '&lt;');
           var ts = formatTimestamp(post.createdAt);
           var isOwn = post.authorId === myUserId;
           html += '<div class="mb-post">'
-            + (isOwn ? '<button class="mb-post-delete" onclick="mbDeletePost(\'' + post.post_id + '\')">✕ Delete</button>' : '')
+            + (isOwn ? '<button class="mb-post-delete" onclick="mbDeletePost(\'' + post.postId + '\')">✕ Delete</button>' : '')
             + '<div class="mb-post-author">' + author + '</div>'
             + '<div class="mb-post-content">' + content + '</div>'
             + '<div class="mb-post-timestamp">' + ts + '</div>'
@@ -216,7 +217,7 @@
     async function mbDeletePost(postId) {
       if (!window.confirm('Delete this post?')) return;
       try {
-        await rpc('delete_wall_post', { post_id: postId });
+        await rpc('delete_wall_post', { post_id: postId, target_user_id: myUserId });
         mbLoadWall();
       } catch(e) {
         alert('Failed to delete post: ' + e.message);
