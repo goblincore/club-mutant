@@ -332,9 +332,9 @@
       } else {
         items.forEach(function(v) {
           var title = (v.title || v.videoId || 'Unknown').replace(/</g, '&lt;');
-          html += '<div class="mt-track-item" onclick="mtWatchVideo(' + JSON.stringify({id: v.videoId, title: title}) + ')">'
+          html += '<div class="mt-track-item" onclick="mtWatchVideo(' + JSON.stringify({id: v.id, title: title}) + ')">'
             + '<span class="mt-track-title">▶ ' + title + '</span>'
-            + '<button class="mt-btn-delete" onclick="event.stopPropagation();mtRemoveFromPlaylist(\'' + pl.id + '\',\'' + v.videoId + '\')">✕</button>'
+            + '<button class="mt-btn-delete" onclick="event.stopPropagation();mtRemoveFromPlaylist(\'' + pl.id + '\',\'' + v.id + '\')">✕</button>'
             + '</div>';
         });
       }
@@ -346,7 +346,7 @@
         var lists = await rpc('list_playlists', {});
         var pl = lists.find(function(p) { return p.id === playlistId; });
         if (!pl) return;
-        pl.items = (pl.items || []).filter(function(v) { return v.videoId !== videoId; });
+        pl.items = (pl.items || []).filter(function(v) { return v.id !== videoId; });
         await rpc('save_playlist', pl);
         currentPlaylist = pl;
         mtOpenPlaylist(pl);
@@ -386,7 +386,7 @@
           if (!createNew) return;
           var name = window.prompt('Playlist name:');
           if (!name || !name.trim()) return;
-          var newPl = { id: crypto.randomUUID(), name: name.trim(), items: [{ videoId: currentVideo.id, title: currentVideo.title }] };
+          var newPl = { id: crypto.randomUUID(), name: name.trim(), items: [{ id: currentVideo.id, title: currentVideo.title, link: 'https://www.youtube.com/watch?v=' + currentVideo.id, duration: 0 }] };
           await rpc('save_playlist', newPl);
           alert('Added to "' + name.trim() + '"');
           return;
@@ -398,7 +398,7 @@
         if (isNaN(idx) || idx < 0 || idx >= lists.length) { alert('Invalid choice.'); return; }
         var pl = lists[idx];
         pl.items = pl.items || [];
-        pl.items.push({ videoId: currentVideo.id, title: currentVideo.title });
+        pl.items.push({ id: currentVideo.id, title: currentVideo.title, link: 'https://www.youtube.com/watch?v=' + currentVideo.id, duration: 0 });
         await rpc('save_playlist', pl);
         alert('Added to "' + pl.name + '"');
       } catch(e) {
