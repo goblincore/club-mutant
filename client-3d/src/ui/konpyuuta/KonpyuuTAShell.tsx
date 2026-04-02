@@ -30,6 +30,7 @@ export function KonpyuuTAShell() {
       nakamaHost: import.meta.env.VITE_NAKAMA_HOST ?? 'localhost',
       nakamaPort: import.meta.env.VITE_NAKAMA_PORT ?? '7350',
       useSSL: import.meta.env.VITE_NAKAMA_USE_SSL === 'true',
+      youtubeApiUrl: import.meta.env.VITE_YOUTUBE_API_URL ?? 'http://localhost:8081',
     }, '*')
   }
 
