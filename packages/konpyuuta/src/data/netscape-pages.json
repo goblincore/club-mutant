@@ -37,11 +37,15 @@
   "mutanttube": {
     "title": "MutantTube - Club Mutant",
     "url": "http://mutanttube.clubmutant.net/",
-    "content": "<div class=\"ns-page\">\n  <div class=\"ns-welcome-header\"><span class=\"ns-welcome-logo\">MUTANTTUBE</span></div>\n  <h1>MutantTube</h1>\n  <p>The in-world video experience for Club Mutant residents. Browse the jukebox, discover new tracks, and build your playlist.</p>\n  <p><em>MutantTube is coming soon. Check back after the next system update.</em></p>\n  <h2>Coming Features</h2>\n  <ul class=\"ns-links\">\n    <li>Browse and search the video library</li>\n    <li>Create and manage playlists</li>\n    <li>Import YouTube videos</li>\n    <li>See what's playing in the club right now</li>\n  </ul>\n</div>"
+    "type": "local-iframe",
+    "localPath": "/konpyuuta/mutanttube/",
+    "content": ""
   },
   "mutantbook": {
     "title": "MutantBook - Club Mutant",
     "url": "http://mutantbook.clubmutant.net/",
-    "content": "<div class=\"ns-page\">\n  <div class=\"ns-welcome-header\"><span class=\"ns-welcome-logo\">MUTANTBOOK</span></div>\n  <h1>MutantBook</h1>\n  <p>The social network for Club Mutant residents. View profiles, post to walls, and connect with other mutants.</p>\n  <p><em>MutantBook is coming soon. Check back after the next system update.</em></p>\n  <h2>Coming Features</h2>\n  <ul class=\"ns-links\">\n    <li>View your profile and friends list</li>\n    <li>Post to friends' walls</li>\n    <li>Get notified of new activity</li>\n    <li>Browse the mutant directory</li>\n  </ul>\n</div>"
+    "type": "local-iframe",
+    "localPath": "/konpyuuta/mutantbook/",
+    "content": ""
   }
 }
