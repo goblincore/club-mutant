@@ -104,7 +104,7 @@
     </div>
   </div>
 
-  <script>
+  <script is:inline>
     // ── Session ──────────────────────────────────────────────────────────────
 
     function getSession() {
@@ -132,7 +132,7 @@
           'Authorization': 'Bearer ' + session.token,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ payload: JSON.stringify(payload) }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('RPC ' + id + ' failed: ' + res.status);
       const json = await res.json();
@@ -147,11 +147,18 @@
       return res.json();
     }
 
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    function escAttr(s) {
+      return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    }
+
     // ── State ────────────────────────────────────────────────────────────────
 
     var currentView = 'homepage';
     var currentVideo = null;
     var currentPlaylist = null;
+    var playlistMap = {};
 
     var WEIRD_TERMS = [
       '1996 local TV commercial',
@@ -202,11 +209,24 @@
       var thumbHTML = thumb
         ? '<img class="mt-thumb" src="' + thumb + '" alt="" />'
         : '<div class="mt-thumb-placeholder">▶</div>';
-      return '<div class="mt-video-card" onclick="mtWatchVideo(' + JSON.stringify({id: id, title: title}) + ')">'
+      return '<div class="mt-video-card" data-vid-id="' + escAttr(id) + '" data-vid-title="' + escAttr(title) + '" onclick="mtWatchVideoCard(this)">'
         + thumbHTML
         + '<div class="mt-video-title">' + title + '</div>'
         + '<div class="mt-video-meta">' + views + '</div>'
         + '</div>';
+    }
+
+    function mtWatchVideoCard(el) {
+      mtWatchVideo({ id: el.dataset.vidId, title: el.dataset.vidTitle });
+    }
+
+    function mtWatchTrack(el) {
+      mtWatchVideo({ id: el.dataset.vidId, title: el.dataset.vidTitle });
+    }
+
+    function mtOpenPlaylistById(id) {
+      var pl = playlistMap[id];
+      if (pl) mtOpenPlaylist(pl);
     }
 
     // ── Views ────────────────────────────────────────────────────────────────
@@ -286,9 +306,10 @@
           html += '<div style="color:#666;font-size:12px">No playlists yet. Create one above!</div>';
         } else {
           lists.forEach(function(pl) {
+            playlistMap[pl.id] = pl;
             var name = (pl.name || 'Untitled').replace(/</g, '&lt;');
             var count = (pl.items || []).length;
-            html += '<div class="mt-playlist-item" onclick="mtOpenPlaylist(' + JSON.stringify(pl) + ')">'
+            html += '<div class="mt-playlist-item" data-pl-id="' + escAttr(pl.id) + '" onclick="mtOpenPlaylistById(this.dataset.plId)">'
               + '<div><div class="mt-playlist-name">' + name + '</div>'
               + '<div class="mt-playlist-count">' + count + ' video' + (count !== 1 ? 's' : '') + '</div></div>'
               + '<button class="mt-btn-delete" onclick="event.stopPropagation();mtDeletePlaylist(\'' + pl.id + '\')">✕ Delete</button>'
@@ -333,7 +354,7 @@
       } else {
         items.forEach(function(v) {
           var title = (v.title || v.id || 'Unknown').replace(/</g, '&lt;');
-          html += '<div class="mt-track-item" onclick="mtWatchVideo(' + JSON.stringify({id: v.id, title: title}) + ')">'
+          html += '<div class="mt-track-item" data-vid-id="' + escAttr(v.id) + '" data-vid-title="' + escAttr(title) + '" onclick="mtWatchTrack(this)">'
             + '<span class="mt-track-title">▶ ' + title + '</span>'
             + '<button class="mt-btn-delete" onclick="event.stopPropagation();mtRemoveFromPlaylist(\'' + pl.id + '\',\'' + v.id + '\')">✕</button>'
             + '</div>';

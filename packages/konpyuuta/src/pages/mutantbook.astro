@@ -90,7 +90,7 @@
     </div>
   </div>
 
-  <script>
+  <script is:inline>
     // ── Session ──────────────────────────────────────────────────────────────
 
     function getSession() {
@@ -118,7 +118,7 @@
           'Authorization': 'Bearer ' + session.token,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ payload: JSON.stringify(payload) }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('RPC ' + id + ' failed: ' + res.status);
       var json = await res.json();
