@@ -111,7 +111,7 @@
       return window.parent.nakamaSession || null;
     }
 
-    function nakamBase(session) {
+    function nakamaBase(session) {
       return (session.ssl ? 'https' : 'http') + '://' + session.host + ':' + session.port;
     }
 
@@ -126,7 +126,7 @@
     async function rpc(id, payload) {
       const session = getSession();
       if (!session) throw new Error('No session');
-      const res = await fetch(nakamBase(session) + '/v2/rpc/' + id, {
+      const res = await fetch(nakamaBase(session) + '/v2/rpc/' + id, {
         method: 'POST',
         headers: {
           'Authorization': 'Bearer ' + session.token,
