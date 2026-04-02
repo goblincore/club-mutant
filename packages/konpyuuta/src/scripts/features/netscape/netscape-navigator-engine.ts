@@ -25,4 +25,16 @@ export class NetscapeNavigatorEngine {
   public isInternalPage(target: string): string | undefined {
     return Object.keys(this.nsPages).find((k) => k === target || this.nsPages[k].url === target);
   }
+
+  public isLocalPage(target: string): string | undefined {
+    const key = Object.keys(this.nsPages).find(
+      (k) => k === target || this.nsPages[k].url === target
+    );
+    if (key && this.nsPages[key].type === 'local-iframe') return key;
+    return undefined;
+  }
+
+  public getLocalPath(key: string): string {
+    return this.nsPages[key].localPath ?? `/konpyuuta/${key}/`;
+  }
 }
