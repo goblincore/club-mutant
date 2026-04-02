@@ -137,23 +137,23 @@
         return;
       }
       try {
-        var profile = await rpc('get_profile', { userId: myUserId });
+        var profile = await rpc('get_profile', { user_id: myUserId });
         var nameEl = document.getElementById('mb-display-name');
         var userEl = document.getElementById('mb-username');
         var metaEl = document.getElementById('mb-profile-meta');
         var avatarSlot = document.getElementById('mb-avatar-placeholder');
 
-        nameEl.textContent = profile.displayName || profile.username || 'Mutant';
+        nameEl.textContent = profile.display_name || profile.username || 'Mutant';
         userEl.textContent = profile.username ? '@' + profile.username : '';
 
-        if (profile.avatarUrl) {
+        if (profile.avatar_url) {
           var img = document.createElement('img');
           img.id = 'mb-avatar';
-          img.src = profile.avatarUrl;
+          img.src = profile.avatar_url;
           img.alt = 'Avatar';
           avatarSlot.parentNode.replaceChild(img, avatarSlot);
         } else {
-          var initial = (profile.displayName || profile.username || '?')[0].toUpperCase();
+          var initial = (profile.display_name || profile.username || '?')[0].toUpperCase();
           avatarSlot.textContent = initial;
         }
 
