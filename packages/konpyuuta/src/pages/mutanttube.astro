@@ -1,0 +1,427 @@
+---
+// packages/konpyuuta/src/pages/mutanttube.astro
+// Served at /konpyuuta/mutanttube/
+// Auth comes from window.parent.nakamaSession (same-origin, set by bridge.ts)
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MutantTube - Club Mutant</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; background: #fff; color: #000; }
+
+    /* Header */
+    #mt-header { background: #cc0000; padding: 6px 12px; display: flex; align-items: center; gap: 12px; }
+    #mt-header .logo { color: #fff; font-size: 20px; font-weight: bold; letter-spacing: -1px; }
+    #mt-header .logo span { color: #ffcc00; }
+    #mt-search-form { display: flex; gap: 4px; flex: 1; max-width: 400px; }
+    #mt-search-input { flex: 1; padding: 3px 6px; border: 1px solid #999; font-size: 12px; }
+    #mt-search-btn { padding: 3px 10px; background: #e8e8e8; border: 1px solid #999; cursor: pointer; font-size: 12px; }
+    #mt-search-btn:hover { background: #d0d0d0; }
+
+    /* Nav tabs */
+    #mt-tabs { background: #f0f0f0; border-bottom: 1px solid #ccc; padding: 0 12px; display: flex; gap: 0; }
+    .mt-tab { padding: 5px 14px; cursor: pointer; border: 1px solid transparent; border-bottom: none; font-size: 12px; margin-bottom: -1px; background: transparent; }
+    .mt-tab:hover { background: #e0e0e0; }
+    .mt-tab.active { background: #fff; border-color: #ccc; color: #cc0000; font-weight: bold; }
+
+    /* Main layout */
+    #mt-main { display: flex; min-height: calc(100vh - 80px); }
+    #mt-sidebar { width: 160px; background: #e8e8e8; padding: 8px; border-right: 1px solid #ccc; flex-shrink: 0; }
+    #mt-sidebar h3 { font-size: 11px; text-transform: uppercase; color: #666; margin-bottom: 6px; }
+    #mt-content { flex: 1; padding: 10px; }
+
+    /* Video grid */
+    .mt-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .mt-video-card { cursor: pointer; }
+    .mt-video-card:hover .mt-thumb { opacity: 0.85; }
+    .mt-thumb { width: 100%; aspect-ratio: 16/9; background: #ccc; object-fit: cover; display: block; }
+    .mt-thumb-placeholder { width: 100%; aspect-ratio: 16/9; background: #222; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 24px; }
+    .mt-video-title { font-size: 12px; font-weight: bold; margin-top: 4px; color: #000; }
+    .mt-video-title:hover { color: #cc0000; }
+    .mt-video-meta { font-size: 11px; color: #666; }
+
+    /* Watch view */
+    #mt-watch { padding: 8px; }
+    #mt-watch-frame { width: 100%; aspect-ratio: 16/9; border: none; background: #000; }
+    #mt-watch-title { font-size: 16px; font-weight: bold; margin: 8px 0 4px; }
+    #mt-watch-actions { display: flex; gap: 8px; margin-bottom: 8px; }
+    #mt-watch-actions button { padding: 3px 10px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: #f0f0f0; }
+    #mt-watch-actions button:hover { background: #e0e0e0; }
+
+    /* Playlist list */
+    .mt-playlist-item { padding: 6px 8px; border: 1px solid #ddd; margin-bottom: 6px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    .mt-playlist-item:hover { background: #f5f5f5; }
+    .mt-playlist-name { font-weight: bold; font-size: 13px; }
+    .mt-playlist-count { font-size: 11px; color: #666; }
+    .mt-btn-delete { color: #cc0000; font-size: 11px; cursor: pointer; background: none; border: none; padding: 0; }
+    .mt-btn-new { padding: 4px 12px; background: #cc0000; color: #fff; border: none; cursor: pointer; font-size: 12px; margin-bottom: 10px; }
+    .mt-btn-new:hover { background: #aa0000; }
+
+    /* Playlist detail */
+    .mt-track-item { padding: 5px 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .mt-track-item:hover { background: #f9f9f9; }
+    .mt-track-title { font-size: 12px; }
+    .mt-btn-back { padding: 3px 10px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: #f0f0f0; margin-bottom: 10px; }
+    .mt-btn-back:hover { background: #e0e0e0; }
+
+    /* Status / loading */
+    #mt-status { color: #666; font-size: 12px; padding: 20px; text-align: center; }
+    #mt-error { color: #cc0000; font-size: 12px; padding: 20px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div id="mt-header">
+    <div class="logo">Mutant<span>Tube</span></div>
+    <form id="mt-search-form" onsubmit="mtSearch(event)">
+      <input id="mt-search-input" type="text" placeholder="Search videos..." />
+      <button type="submit" id="mt-search-btn">Search</button>
+    </form>
+  </div>
+  <div id="mt-tabs">
+    <div class="mt-tab active" id="tab-home" onclick="mtShowView('homepage')">Home</div>
+    <div class="mt-tab" id="tab-playlists" onclick="mtShowView('playlists')">My Playlists</div>
+  </div>
+  <div id="mt-main">
+    <div id="mt-sidebar">
+      <h3>Categories</h3>
+      <div style="color:#666;font-size:11px;line-height:1.8">
+        <div>Home Videos</div>
+        <div>Music</div>
+        <div>Comedy</div>
+        <div>TV Shows</div>
+        <div>Weird &amp; Strange</div>
+        <div>Vintage</div>
+        <div>Public Access</div>
+      </div>
+    </div>
+    <div id="mt-content">
+      <div id="mt-status">Loading...</div>
+    </div>
+  </div>
+
+  <script>
+    // ── Session ──────────────────────────────────────────────────────────────
+
+    function getSession() {
+      return window.parent.nakamaSession || null;
+    }
+
+    function nakamBase(session) {
+      return (session.ssl ? 'https' : 'http') + '://' + session.host + ':' + session.port;
+    }
+
+    function getUserId(session) {
+      try {
+        return JSON.parse(atob(session.token.split('.')[1])).sub;
+      } catch(e) {
+        return null;
+      }
+    }
+
+    async function rpc(id, payload) {
+      const session = getSession();
+      if (!session) throw new Error('No session');
+      const res = await fetch(nakamBase(session) + '/v2/rpc/' + id, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + session.token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ payload: JSON.stringify(payload) }),
+      });
+      if (!res.ok) throw new Error('RPC ' + id + ' failed: ' + res.status);
+      const json = await res.json();
+      return JSON.parse(json.payload);
+    }
+
+    async function ytSearch(q, limit) {
+      const session = getSession();
+      if (!session) throw new Error('No session');
+      const res = await fetch(session.youtubeApiUrl + '/search?q=' + encodeURIComponent(q) + '&limit=' + (limit || 20));
+      if (!res.ok) throw new Error('YouTube search failed: ' + res.status);
+      return res.json();
+    }
+
+    // ── State ────────────────────────────────────────────────────────────────
+
+    var currentView = 'homepage';
+    var currentVideo = null;
+    var currentPlaylist = null;
+
+    var WEIRD_TERMS = [
+      '1996 local TV commercial',
+      'forgotten VHS home video 1993',
+      'obscure public access show 1998',
+      'weird internet video 2002',
+      'rare 90s cartoon pilot',
+      'lost TV special 1995',
+      'public access cable 1997',
+      'strange music video 1994',
+    ];
+
+    function pickRandom(arr, n) {
+      var copy = arr.slice();
+      var result = [];
+      for (var i = 0; i < n && copy.length > 0; i++) {
+        var idx = Math.floor(Math.random() * copy.length);
+        result.push(copy.splice(idx, 1)[0]);
+      }
+      return result;
+    }
+
+    // ── Rendering helpers ────────────────────────────────────────────────────
+
+    function setContent(html) {
+      document.getElementById('mt-content').innerHTML = html;
+    }
+
+    function setStatus(msg) {
+      setContent('<div id="mt-status">' + msg + '</div>');
+    }
+
+    function setError(msg) {
+      setContent('<div id="mt-error">Error: ' + msg + '</div>');
+    }
+
+    function setTabActive(tab) {
+      document.querySelectorAll('.mt-tab').forEach(function(el) { el.classList.remove('active'); });
+      var el = document.getElementById('tab-' + tab);
+      if (el) el.classList.add('active');
+    }
+
+    function videoCardHTML(video) {
+      var id = video.videoId || video.id || '';
+      var title = (video.title || 'Unknown').replace(/</g, '&lt;');
+      var thumb = video.thumbnail || '';
+      var views = video.viewCount != null ? Number(video.viewCount).toLocaleString() + ' views' : '';
+      var thumbHTML = thumb
+        ? '<img class="mt-thumb" src="' + thumb + '" alt="" />'
+        : '<div class="mt-thumb-placeholder">▶</div>';
+      return '<div class="mt-video-card" onclick="mtWatchVideo(' + JSON.stringify({id: id, title: title}) + ')">'
+        + thumbHTML
+        + '<div class="mt-video-title">' + title + '</div>'
+        + '<div class="mt-video-meta">' + views + '</div>'
+        + '</div>';
+    }
+
+    // ── Views ────────────────────────────────────────────────────────────────
+
+    function mtShowView(view) {
+      currentView = view;
+      if (view === 'homepage') {
+        setTabActive('home');
+        mtLoadHomepage();
+      } else if (view === 'playlists') {
+        setTabActive('playlists');
+        mtLoadPlaylists();
+      }
+    }
+
+    async function mtLoadHomepage() {
+      setStatus('Loading weird videos...');
+      try {
+        var terms = pickRandom(WEIRD_TERMS, 3);
+        var results = await Promise.all(terms.map(function(t) { return ytSearch(t, 8); }));
+        var seen = {};
+        var all = [];
+        results.forEach(function(r) {
+          (r.items || []).forEach(function(v) {
+            var id = v.videoId || v.id;
+            if (id && !seen[id]) {
+              seen[id] = true;
+              all.push(v);
+            }
+          });
+        });
+        all.sort(function(a, b) { return (a.viewCount || 0) - (b.viewCount || 0); });
+        all = all.slice(0, 12);
+
+        if (all.length === 0) {
+          setContent('<div id="mt-status">No videos found. Try searching for something!</div>');
+          return;
+        }
+        var html = '<h2 style="font-size:13px;margin-bottom:10px;color:#cc0000">Today\'s Weird Picks</h2>'
+          + '<div class="mt-grid">';
+        all.forEach(function(v) { html += videoCardHTML(v); });
+        html += '</div>';
+        setContent(html);
+      } catch(e) {
+        setError(e.message);
+      }
+    }
+
+    function mtSearch(event) {
+      event.preventDefault();
+      var q = document.getElementById('mt-search-input').value.trim();
+      if (!q) return;
+      setTabActive('home');
+      setStatus('Searching for "' + q.replace(/</g, '&lt;') + '"...');
+      ytSearch(q, 20).then(function(r) {
+        var items = r.items || [];
+        if (items.length === 0) {
+          setContent('<div id="mt-status">No results for "' + q.replace(/</g, '&lt;') + '".</div>');
+          return;
+        }
+        var html = '<h2 style="font-size:13px;margin-bottom:10px">Search: ' + q.replace(/</g, '&lt;') + '</h2>'
+          + '<div class="mt-grid">';
+        items.forEach(function(v) { html += videoCardHTML(v); });
+        html += '</div>';
+        setContent(html);
+      }).catch(function(e) { setError(e.message); });
+    }
+
+    async function mtLoadPlaylists() {
+      setStatus('Loading playlists...');
+      try {
+        var lists = await rpc('list_playlists', {});
+        var html = '<h2 style="font-size:13px;margin-bottom:8px">My Playlists</h2>'
+          + '<button class="mt-btn-new" onclick="mtCreatePlaylist()">+ New Playlist</button>';
+        if (!lists || lists.length === 0) {
+          html += '<div style="color:#666;font-size:12px">No playlists yet. Create one above!</div>';
+        } else {
+          lists.forEach(function(pl) {
+            var name = (pl.name || 'Untitled').replace(/</g, '&lt;');
+            var count = (pl.items || []).length;
+            html += '<div class="mt-playlist-item" onclick="mtOpenPlaylist(' + JSON.stringify(pl) + ')">'
+              + '<div><div class="mt-playlist-name">' + name + '</div>'
+              + '<div class="mt-playlist-count">' + count + ' video' + (count !== 1 ? 's' : '') + '</div></div>'
+              + '<button class="mt-btn-delete" onclick="event.stopPropagation();mtDeletePlaylist(\'' + pl.id + '\')">✕ Delete</button>'
+              + '</div>';
+          });
+        }
+        setContent(html);
+      } catch(e) {
+        setError(e.message);
+      }
+    }
+
+    async function mtCreatePlaylist() {
+      var name = window.prompt('Playlist name:');
+      if (!name || !name.trim()) return;
+      try {
+        await rpc('save_playlist', { id: crypto.randomUUID(), name: name.trim(), items: [] });
+        mtLoadPlaylists();
+      } catch(e) {
+        alert('Failed to create playlist: ' + e.message);
+      }
+    }
+
+    async function mtDeletePlaylist(id) {
+      if (!window.confirm('Delete this playlist?')) return;
+      try {
+        await rpc('delete_playlist', { id: id });
+        mtLoadPlaylists();
+      } catch(e) {
+        alert('Failed to delete playlist: ' + e.message);
+      }
+    }
+
+    function mtOpenPlaylist(pl) {
+      currentPlaylist = pl;
+      var name = (pl.name || 'Untitled').replace(/</g, '&lt;');
+      var items = pl.items || [];
+      var html = '<button class="mt-btn-back" onclick="mtShowView(\'playlists\')">← Back to Playlists</button>'
+        + '<h2 style="font-size:13px;margin-bottom:8px">' + name + '</h2>';
+      if (items.length === 0) {
+        html += '<div style="color:#666;font-size:12px">No videos in this playlist. Watch a video and add it here.</div>';
+      } else {
+        items.forEach(function(v) {
+          var title = (v.title || v.videoId || 'Unknown').replace(/</g, '&lt;');
+          html += '<div class="mt-track-item" onclick="mtWatchVideo(' + JSON.stringify({id: v.videoId, title: title}) + ')">'
+            + '<span class="mt-track-title">▶ ' + title + '</span>'
+            + '<button class="mt-btn-delete" onclick="event.stopPropagation();mtRemoveFromPlaylist(\'' + pl.id + '\',\'' + v.videoId + '\')">✕</button>'
+            + '</div>';
+        });
+      }
+      setContent(html);
+    }
+
+    async function mtRemoveFromPlaylist(playlistId, videoId) {
+      try {
+        var lists = await rpc('list_playlists', {});
+        var pl = lists.find(function(p) { return p.id === playlistId; });
+        if (!pl) return;
+        pl.items = (pl.items || []).filter(function(v) { return v.videoId !== videoId; });
+        await rpc('save_playlist', pl);
+        currentPlaylist = pl;
+        mtOpenPlaylist(pl);
+      } catch(e) {
+        alert('Failed to remove video: ' + e.message);
+      }
+    }
+
+    function mtWatchVideo(video) {
+      currentVideo = video;
+      var title = (video.title || video.id || 'Video').replace(/</g, '&lt;');
+      var html = '<div id="mt-watch">'
+        + '<button class="mt-btn-back" onclick="mtGoBackFromWatch()">← Back</button>'
+        + '<iframe id="mt-watch-frame" src="https://www.youtube-nocookie.com/embed/' + video.id + '?autoplay=1" allowfullscreen></iframe>'
+        + '<div id="mt-watch-title">' + title + '</div>'
+        + '<div id="mt-watch-actions">'
+        + '<button onclick="mtAddCurrentToPlaylist()">+ Add to Playlist</button>'
+        + '</div>'
+        + '</div>';
+      setContent(html);
+    }
+
+    function mtGoBackFromWatch() {
+      if (currentView === 'playlists' && currentPlaylist) {
+        mtOpenPlaylist(currentPlaylist);
+      } else {
+        mtShowView(currentView === 'playlists' ? 'playlists' : 'homepage');
+      }
+    }
+
+    async function mtAddCurrentToPlaylist() {
+      if (!currentVideo) return;
+      try {
+        var lists = await rpc('list_playlists', {});
+        if (!lists || lists.length === 0) {
+          var createNew = window.confirm('No playlists yet. Create one now?');
+          if (!createNew) return;
+          var name = window.prompt('Playlist name:');
+          if (!name || !name.trim()) return;
+          var newPl = { id: crypto.randomUUID(), name: name.trim(), items: [{ videoId: currentVideo.id, title: currentVideo.title }] };
+          await rpc('save_playlist', newPl);
+          alert('Added to "' + name.trim() + '"');
+          return;
+        }
+        var options = lists.map(function(pl, i) { return (i + 1) + '. ' + pl.name; }).join('\n');
+        var choice = window.prompt('Add to playlist:\n' + options + '\n\nEnter number:');
+        if (!choice) return;
+        var idx = parseInt(choice, 10) - 1;
+        if (isNaN(idx) || idx < 0 || idx >= lists.length) { alert('Invalid choice.'); return; }
+        var pl = lists[idx];
+        pl.items = pl.items || [];
+        pl.items.push({ videoId: currentVideo.id, title: currentVideo.title });
+        await rpc('save_playlist', pl);
+        alert('Added to "' + pl.name + '"');
+      } catch(e) {
+        alert('Failed to add to playlist: ' + e.message);
+      }
+    }
+
+    // ── Init ─────────────────────────────────────────────────────────────────
+
+    // Wait for nakamaSession to be populated (bridge.ts fires on message)
+    function waitForSession(retries) {
+      if (getSession()) {
+        mtShowView('homepage');
+        return;
+      }
+      if (retries <= 0) {
+        setError('Could not get auth session. Is the KonpyuuTA shell running?');
+        return;
+      }
+      setTimeout(function() { waitForSession(retries - 1); }, 200);
+    }
+
+    waitForSession(25); // up to 5 seconds
+  </script>
+</body>
+</html>
