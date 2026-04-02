@@ -1,0 +1,257 @@
+---
+// packages/konpyuuta/src/pages/mutantbook.astro
+// Served at /konpyuuta/mutantbook/
+// Auth comes from window.parent.nakamaSession (same-origin, set by bridge.ts)
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MutantBook - Club Mutant</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; background: #fff; color: #333; }
+
+    /* Header */
+    #mb-header { background: #3b5998; padding: 4px 12px; display: flex; align-items: center; justify-content: space-between; }
+    #mb-header .logo { color: #fff; font-size: 18px; font-weight: bold; font-style: italic; letter-spacing: -1px; }
+    #mb-header .tagline { color: #ccd5e7; font-size: 11px; }
+
+    /* Nav bar */
+    #mb-nav { background: #6d84b4; padding: 3px 12px; display: flex; gap: 16px; }
+    .mb-nav-link { color: #fff; font-size: 12px; text-decoration: none; cursor: pointer; }
+    .mb-nav-link:hover { text-decoration: underline; }
+
+    /* Layout */
+    #mb-main { display: flex; max-width: 860px; margin: 10px auto; gap: 12px; padding: 0 8px; }
+    #mb-left { width: 200px; flex-shrink: 0; }
+    #mb-right { flex: 1; }
+
+    /* Profile card */
+    #mb-profile-card { background: #f7f7f7; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+    #mb-avatar { width: 80px; height: 80px; border: 2px solid #3b5998; object-fit: cover; display: block; margin: 0 auto 8px; }
+    #mb-avatar-placeholder { width: 80px; height: 80px; border: 2px solid #3b5998; background: #3b5998; color: #fff; font-size: 36px; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; }
+    #mb-display-name { color: #3b5998; font-weight: bold; font-size: 15px; text-align: center; }
+    #mb-username { color: #666; font-size: 11px; text-align: center; margin-top: 2px; }
+    #mb-profile-meta { font-size: 11px; color: #555; margin-top: 8px; line-height: 1.6; }
+
+    /* Wall */
+    #mb-wall-header { font-size: 14px; font-weight: bold; color: #3b5998; border-bottom: 2px solid #3b5998; padding-bottom: 4px; margin-bottom: 10px; }
+
+    /* Post form */
+    #mb-post-form { background: #f7f7f7; border: 1px solid #ccc; padding: 8px; margin-bottom: 12px; }
+    #mb-post-form textarea { width: 100%; height: 60px; padding: 4px 6px; border: 1px solid #ccc; font-family: inherit; font-size: 13px; resize: vertical; }
+    #mb-post-btn { margin-top: 5px; padding: 4px 14px; background: #3b5998; color: #fff; border: none; cursor: pointer; font-size: 12px; }
+    #mb-post-btn:hover { background: #2d4373; }
+
+    /* Wall posts */
+    .mb-post { border-left: 3px solid #3b5998; padding: 6px 10px; margin-bottom: 10px; background: #f9f9f9; border-bottom: 1px solid #e0e0e0; }
+    .mb-post-author { font-weight: bold; color: #3b5998; font-size: 12px; }
+    .mb-post-content { margin: 4px 0; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+    .mb-post-timestamp { font-size: 11px; color: #999; }
+    .mb-post-delete { float: right; color: #cc0000; font-size: 11px; cursor: pointer; background: none; border: none; padding: 0; }
+
+    /* Status messages */
+    .mb-status { color: #666; font-size: 12px; padding: 10px 0; }
+    .mb-error { color: #cc0000; font-size: 12px; padding: 10px 0; }
+  </style>
+</head>
+<body>
+  <div id="mb-header">
+    <div class="logo">mutantbook</div>
+    <div class="tagline">Club Mutant Social Network</div>
+  </div>
+  <div id="mb-nav">
+    <span class="mb-nav-link">Profile</span>
+    <span class="mb-nav-link">Friends</span>
+    <span class="mb-nav-link">Messages</span>
+    <span class="mb-nav-link">Settings</span>
+  </div>
+  <div id="mb-main">
+    <div id="mb-left">
+      <div id="mb-profile-card">
+        <div id="mb-avatar-placeholder">?</div>
+        <div id="mb-display-name">Loading...</div>
+        <div id="mb-username"></div>
+        <div id="mb-profile-meta"></div>
+      </div>
+    </div>
+    <div id="mb-right">
+      <div id="mb-wall-header">Wall</div>
+      <div id="mb-post-form">
+        <textarea id="mb-post-input" placeholder="Write something on your wall..."></textarea>
+        <button id="mb-post-btn" onclick="mbPostToWall()">Post</button>
+      </div>
+      <div id="mb-wall-content">
+        <div class="mb-status">Loading wall...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Session ──────────────────────────────────────────────────────────────
+
+    function getSession() {
+      return window.parent.nakamaSession || null;
+    }
+
+    function nakamaBase(session) {
+      return (session.ssl ? 'https' : 'http') + '://' + session.host + ':' + session.port;
+    }
+
+    function getUserId(session) {
+      try {
+        return JSON.parse(atob(session.token.split('.')[1])).sub;
+      } catch(e) {
+        return null;
+      }
+    }
+
+    async function rpc(id, payload) {
+      var session = getSession();
+      if (!session) throw new Error('No session');
+      var res = await fetch(nakamaBase(session) + '/v2/rpc/' + id, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + session.token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ payload: JSON.stringify(payload) }),
+      });
+      if (!res.ok) throw new Error('RPC ' + id + ' failed: ' + res.status);
+      var json = await res.json();
+      return JSON.parse(json.payload);
+    }
+
+    // ── Profile ──────────────────────────────────────────────────────────────
+
+    var myUserId = null;
+
+    async function mbLoadProfile() {
+      var session = getSession();
+      myUserId = getUserId(session);
+      if (!myUserId) {
+        document.getElementById('mb-display-name').textContent = 'Unknown';
+        return;
+      }
+      try {
+        var profile = await rpc('get_profile', { userId: myUserId });
+        var nameEl = document.getElementById('mb-display-name');
+        var userEl = document.getElementById('mb-username');
+        var metaEl = document.getElementById('mb-profile-meta');
+        var avatarSlot = document.getElementById('mb-avatar-placeholder');
+
+        nameEl.textContent = profile.displayName || profile.username || 'Mutant';
+        userEl.textContent = profile.username ? '@' + profile.username : '';
+
+        if (profile.avatarUrl) {
+          var img = document.createElement('img');
+          img.id = 'mb-avatar';
+          img.src = profile.avatarUrl;
+          img.alt = 'Avatar';
+          avatarSlot.parentNode.replaceChild(img, avatarSlot);
+        } else {
+          var initial = (profile.displayName || profile.username || '?')[0].toUpperCase();
+          avatarSlot.textContent = initial;
+        }
+
+        var metaParts = [];
+        if (profile.metadata) {
+          if (profile.metadata.location) metaParts.push('📍 ' + profile.metadata.location);
+          if (profile.metadata.bio) metaParts.push(profile.metadata.bio);
+        }
+        metaEl.textContent = metaParts.join('\n');
+      } catch(e) {
+        document.getElementById('mb-display-name').textContent = 'Profile unavailable';
+        console.error('get_profile failed:', e);
+      }
+    }
+
+    // ── Wall ─────────────────────────────────────────────────────────────────
+
+    async function mbLoadWall() {
+      if (!myUserId) return;
+      var wallEl = document.getElementById('mb-wall-content');
+      wallEl.innerHTML = '<div class="mb-status">Loading wall...</div>';
+      try {
+        var posts = await rpc('get_wall_posts', { target_user_id: myUserId });
+        if (!posts || posts.length === 0) {
+          wallEl.innerHTML = '<div class="mb-status">No posts yet. Be the first to write on your wall!</div>';
+          return;
+        }
+        var html = '';
+        posts.forEach(function(post) {
+          var content = (post.content || '').replace(/</g, '&lt;');
+          var author = (post.authorDisplayName || post.authorId || 'Someone').replace(/</g, '&lt;');
+          var ts = formatTimestamp(post.createdAt);
+          var isOwn = post.authorId === myUserId;
+          html += '<div class="mb-post">'
+            + (isOwn ? '<button class="mb-post-delete" onclick="mbDeletePost(\'' + post.post_id + '\')">✕ Delete</button>' : '')
+            + '<div class="mb-post-author">' + author + '</div>'
+            + '<div class="mb-post-content">' + content + '</div>'
+            + '<div class="mb-post-timestamp">' + ts + '</div>'
+            + '</div>';
+        });
+        wallEl.innerHTML = html;
+      } catch(e) {
+        wallEl.innerHTML = '<div class="mb-error">Failed to load wall: ' + e.message + '</div>';
+      }
+    }
+
+    async function mbPostToWall() {
+      var input = document.getElementById('mb-post-input');
+      var content = input.value.trim();
+      if (!content || !myUserId) return;
+      try {
+        await rpc('create_wall_post', { target_user_id: myUserId, content: content });
+        input.value = '';
+        mbLoadWall();
+      } catch(e) {
+        alert('Failed to post: ' + e.message);
+      }
+    }
+
+    async function mbDeletePost(postId) {
+      if (!window.confirm('Delete this post?')) return;
+      try {
+        await rpc('delete_wall_post', { post_id: postId });
+        mbLoadWall();
+      } catch(e) {
+        alert('Failed to delete post: ' + e.message);
+      }
+    }
+
+    function formatTimestamp(ts) {
+      if (!ts) return '';
+      var d = new Date(ts);
+      if (isNaN(d.getTime())) return ts;
+      var mm = String(d.getMonth() + 1).padStart(2, '0');
+      var dd = String(d.getDate()).padStart(2, '0');
+      var yyyy = d.getFullYear();
+      var hh = String(d.getHours()).padStart(2, '0');
+      var min = String(d.getMinutes()).padStart(2, '0');
+      return mm + '/' + dd + '/' + yyyy + ' at ' + hh + ':' + min;
+    }
+
+    // ── Init ─────────────────────────────────────────────────────────────────
+
+    function waitForSession(retries) {
+      if (getSession()) {
+        mbLoadProfile().then(function() { mbLoadWall(); });
+        return;
+      }
+      if (retries <= 0) {
+        document.getElementById('mb-display-name').textContent = 'No auth session';
+        document.getElementById('mb-wall-content').innerHTML =
+          '<div class="mb-error">Could not get auth session. Is the KonpyuuTA shell running?</div>';
+        return;
+      }
+      setTimeout(function() { waitForSession(retries - 1); }, 200);
+    }
+
+    waitForSession(25); // up to 5 seconds
+  </script>
+</body>
+</html>
