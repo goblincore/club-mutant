@@ -1472,6 +1472,15 @@
       mtWatchVideo({ id: el.dataset.vidId, title: el.dataset.vidTitle });
     }
 
+    function extractYouTubeId(item) {
+      if (item.id && /^[a-zA-Z0-9_-]{11}$/.test(item.id)) return item.id;
+      if (item.link) {
+        var m = item.link.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+        if (m) return m[1];
+      }
+      return item.id;
+    }
+
     function mtOpenPlaylistById(id) {
       var pl = playlistMap[id];
       if (pl) mtOpenPlaylist(pl);
@@ -1787,8 +1796,9 @@
         html += '<div class="empty-state">Empty archive.<br>Consume media to populate.</div>';
       } else {
         items.forEach(function(v) {
-          var title = (v.title || v.id || 'Unknown').replace(/</g, '&lt;');
-          html += '<div class="mt-track-item" data-vid-id="' + escAttr(v.id) + '" data-vid-title="' + escAttr(title) + '" onclick="mtWatchTrack(this)">'
+          var ytId = extractYouTubeId(v);
+          var title = (v.title || ytId || 'Unknown').replace(/</g, '&lt;');
+          html += '<div class="mt-track-item" data-vid-id="' + escAttr(ytId) + '" data-vid-title="' + escAttr(title) + '" onclick="mtWatchTrack(this)">'
             + '<span class="mt-track-title">▶ ' + title + '</span>'
             + '<button class="mt-btn-delete" onclick="event.stopPropagation();mtRemoveFromPlaylist(\'' + pl.id + '\',\'' + v.id + '\')">✕</button>'
             + '</div>';
