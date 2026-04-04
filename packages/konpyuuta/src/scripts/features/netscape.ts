@@ -34,9 +34,11 @@ class NetscapeNavigator {
   private initPages(): void {
     Object.entries(netscapePages).forEach(([key, value]) => {
       this.nsPages[key] = {
-        title: value.title,
-        url: value.url,
-        content: () => value.content,
+        title:     value.title,
+        url:       value.url,
+        content:   () => (value as any).content ?? '',
+        type:      (value as any).type,
+        localPath: (value as any).localPath,
       };
     });
     this.engine = new NetscapeNavigatorEngine(this.nsPages);
@@ -124,6 +126,22 @@ class NetscapeNavigator {
 
   private renderPage(target: string, animate: boolean): void {
     this.currentPage = target;
+
+    const localKey = this.engine.isLocalPage(target);
+    if (localKey) {
+      const page = this.nsPages[localKey];
+      const localPath = this.engine.getLocalPath(localKey);
+      this.renderer.updateUIForExternal(page.url);
+      if (animate) {
+        this.startLoadingLocal(localPath);
+      } else {
+        if (this.elements.externalView) this.elements.externalView.src = localPath;
+        this.renderer.setStatus('Document: Done');
+      }
+      this.renderer.updateNavButtons(this.history.canGoBack(), this.history.canGoForward());
+      return;
+    }
+
     const internalKey = this.engine.isInternalPage(target);
 
     if (internalKey) {
@@ -233,6 +251,39 @@ class NetscapeNavigator {
         }
       }, 8000);
     }
+  }
+
+  private startLoadingLocal(path: string): void {
+    if (this.isLoading) this.stopLoading();
+    this.isLoading = true;
+    this.toggleLoadingUI(true);
+    this.renderer.setStatus('Connecting...');
+    this.renderer.setProgress(10);
+
+    setTimeout(() => {
+      if (!this.isLoading) return;
+      this.renderer.setStatus('Receiving data...');
+      this.renderer.setProgress(50);
+      if (this.elements.externalView) {
+        this.elements.externalView.src = path;
+        const onLoad = () => {
+          this.renderer.setStatus('Document: Done');
+          this.renderer.setProgress(100);
+          setTimeout(() => this.stopLoading(), 200);
+          this.elements.externalView?.removeEventListener('load', onLoad);
+        };
+        this.elements.externalView.addEventListener('load', onLoad);
+      }
+    }, 300);
+
+    // Fallback if load event never fires
+    setTimeout(() => {
+      if (this.isLoading) {
+        this.renderer.setStatus('Document: Done');
+        this.renderer.setProgress(100);
+        this.stopLoading();
+      }
+    }, 5000);
   }
 
   private toggleLoadingUI(active: boolean): void {

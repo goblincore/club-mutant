@@ -1,7 +1,9 @@
 export interface NSPage {
   title: string;
-  url: string;
+  url: string;           // display URL shown in address bar
   content: () => string;
+  type?: 'local-iframe';
+  localPath?: string;    // actual iframe src, e.g. /konpyuuta/mutanttube/
 }
 
 export interface NSElements {

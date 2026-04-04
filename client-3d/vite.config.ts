@@ -50,7 +50,9 @@ function konpyuutaPlugin(): Plugin {
       // Main app at /konpyuuta/
       server.middlewares.use('/konpyuuta', (req, res, next) => {
         let urlPath = decodeURIComponent((req.url || '/').split('?')[0])
-        if (urlPath === '/' || urlPath === '') urlPath = '/index.html'
+        if (urlPath === '/' || urlPath === '' || urlPath.endsWith('/')) {
+          urlPath = urlPath.replace(/\/?$/, '/index.html')
+        }
         serveFile(path.join(konpyuutaDist, urlPath), res, next)
       })
 

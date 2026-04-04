@@ -1,6 +1,7 @@
 // src/scripts/core/index.ts
 
 import './config';
+import '../boot/bridge';
 import './accessibility';
 import '../boot/init';
 // Features are now loaded dynamically via module-loader.ts
