@@ -10,6 +10,7 @@ import { CharacterSidePreview } from './CharacterSidePreview'
 import { CustomRoomBrowser } from './CustomRoomBrowser'
 import { CreateRoomForm } from './CreateRoomForm'
 import { VersionTag } from './components/VersionTag'
+import { clearNakamaSession } from '../network/nakamaClient'
 
 type Screen = 'character-select' | 'room-select'
 type RoomSubView = 'choose' | 'browse' | 'create'
@@ -317,10 +318,26 @@ export function LobbyScreen() {
     </div>
   )
 
+  const handleLogout = () => {
+    clearNakamaSession()
+    useAuthStore.getState().logout()
+  }
+
   return (
     <div className="relative flex flex-col items-center w-full h-full overflow-hidden">
       <WarpCheckBg />
       <VersionTag />
+
+      {/* Logout — top-right, authenticated users only */}
+      {isAuthenticated && (
+        <button
+          onClick={handleLogout}
+          className="absolute top-3 right-3 z-20 w-10 h-10 flex items-center justify-center rounded-lg border bg-black/60 border-white/10 text-white/50 hover:text-red-400 hover:border-red-400/50 transition-colors shadow-lg"
+          title="Log out"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      )}
 
       {/* ───────── Screen 1: Character Select ───────── */}
       {screen === 'character-select' && (
