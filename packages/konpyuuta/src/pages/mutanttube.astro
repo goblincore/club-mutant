@@ -1320,7 +1320,7 @@
           'Authorization': 'Bearer ' + session.token,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(JSON.stringify(payload)),
       });
       if (!res.ok) throw new Error('RPC ' + id + ' failed: ' + res.status);
       const json = await res.json();
