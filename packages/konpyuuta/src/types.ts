@@ -66,12 +66,19 @@ export interface WallPost {
   createdAt: number
 }
 
+export interface UserProfileMetadata {
+  bio?: string
+  favoriteSong?: string
+  links?: Array<{ label: string; url: string }>
+  [key: string]: unknown
+}
+
 export interface UserProfile {
   user_id: string
   username: string
   display_name: string
   avatar_url: string
-  metadata: Record<string, unknown>
+  metadata: UserProfileMetadata
 }
 
 export interface SocialService {

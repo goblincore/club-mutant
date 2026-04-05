@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useKonpyuuTA } from '../../context/KonpyuuTAContext'
 import type { Playlist, PlaylistTrack } from '../../types'
+import { usePopup } from './MutantTubePopup'
 
 type View = 'homepage' | 'playlists' | 'watch' | 'playlist-detail'
 
@@ -91,10 +92,11 @@ function extractYouTubeId(item: PlaylistTrack): string {
 
 export function MutantTube() {
   const { playlistService, env } = useKonpyuuTA()
+  const popup = usePopup()
 
   const [view, setView] = useState<View>('homepage')
   const [loading, setLoading] = useState(true)
-  const [loadingMessage, setLoadingMessage] = useState('INITIALIZING ARCHIVE...')
+  const [loadingMessage, setLoadingMessage] = useState('INITIALIZING...')
   const [error, setError] = useState<string | null>(null)
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -131,7 +133,7 @@ export function MutantTube() {
 
   const loadHomepage = useCallback(async () => {
     setLoading(true)
-    setLoadingMessage('SCANNING ARCHIVES...')
+    setLoadingMessage('LOADING...')
     setStatusText('Retrieving data fragments...')
     setError(null)
 
@@ -172,7 +174,7 @@ export function MutantTube() {
 
   const loadCategory = useCallback(async (category: string, categoryName: string) => {
     setLoading(true)
-    setLoadingMessage('DECRYPTING ARCHIVE...')
+    setLoadingMessage('LOADING...')
     setStatusText('Decrypting category data...')
     setError(null)
     setCurrentCategory(category)
@@ -260,7 +262,7 @@ export function MutantTube() {
       const lists = playlistService.getPlaylists()
       setPlaylists(lists)
       setLoading(false)
-      setStatusText(`${lists.length} archives mounted`)
+      setStatusText(`${lists.length} playlists loaded`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
       setLoading(false)
@@ -270,55 +272,56 @@ export function MutantTube() {
   const createPlaylist = useCallback(async () => {
     if (!playlistService) return
 
-    const name = window.prompt('Archive designation:')
+    const name = await popup.prompt('Enter playlist name:', '', 'Playlist name...', 'Create Playlist')
     if (!name?.trim()) return
 
-    setStatusText('Initializing archive...')
+    setStatusText('Creating playlist...')
     try {
       playlistService.createPlaylist(name.trim())
       await loadPlaylists()
-      setStatusText('Archive created')
+      setStatusText('Playlist created')
     } catch (err) {
-      alert(`Archive initialization failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      await popup.alert(`Failed to create playlist: ${err instanceof Error ? err.message : 'Unknown error'}`, 'Error')
       setStatusText('Creation failed')
     }
-  }, [playlistService, loadPlaylists])
+  }, [playlistService, loadPlaylists, popup])
 
   const deletePlaylist = useCallback(async (id: string) => {
     if (!playlistService) return
-    if (!window.confirm('Permanently purge this archive?')) return
+    const confirmed = await popup.confirm('Delete this playlist?', 'Confirm Delete')
+    if (!confirmed) return
 
-    setStatusText('Purging archive...')
+    setStatusText('Deleting playlist...')
     try {
       playlistService.removePlaylist(id)
       await loadPlaylists()
-      setStatusText('Archive purged')
+      setStatusText('Playlist deleted')
     } catch (err) {
-      alert(`Purge failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
-      setStatusText('Purge failed')
+      await popup.alert(`Failed to delete playlist: ${err instanceof Error ? err.message : 'Unknown error'}`, 'Error')
+      setStatusText('Delete failed')
     }
-  }, [playlistService, loadPlaylists])
+  }, [playlistService, loadPlaylists, popup])
 
   const openPlaylist = useCallback((pl: Playlist) => {
     setCurrentPlaylist(pl)
     setView('playlist-detail')
-    setStatusText(`${pl.items.length} fragments in archive`)
+    setStatusText(`${pl.items.length} videos in playlist`)
   }, [])
 
   const removeFromPlaylist = useCallback(async (playlistId: string, videoId: string) => {
     if (!playlistService || !currentPlaylist) return
 
-    setStatusText('Modifying archive...')
+    setStatusText('Removing from playlist...')
     try {
       playlistService.removeTrack(playlistId, videoId)
       const updated = { ...currentPlaylist, items: currentPlaylist.items.filter(v => v.id !== videoId) }
       setCurrentPlaylist(updated)
-      setStatusText('Fragment removed')
+      setStatusText('Removed from playlist')
     } catch (err) {
-      alert(`Modification failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      await popup.alert(`Failed to remove: ${err instanceof Error ? err.message : 'Unknown error'}`, 'Error')
       setStatusText('Operation failed')
     }
-  }, [playlistService, currentPlaylist])
+  }, [playlistService, currentPlaylist, popup])
 
   const watchVideo = useCallback((video: Video) => {
     setCurrentVideo(video)
@@ -345,13 +348,13 @@ export function MutantTube() {
       const lists = playlistService.getPlaylists()
 
       if (lists.length === 0) {
-        const createNew = window.confirm('No archives exist. Initialize new container?')
+        const createNew = await popup.confirm('No playlists exist. Create a new one?', 'Add to Playlist')
         if (!createNew) {
           setStatusText('Operation cancelled')
           return
         }
 
-        const name = window.prompt('Archive designation:')
+        const name = await popup.prompt('Enter playlist name:', '', 'Playlist name...', 'Create Playlist')
         if (!name?.trim()) {
           setStatusText('Operation cancelled')
           return
@@ -370,27 +373,26 @@ export function MutantTube() {
 
         playlistService.createPlaylist(newPl.name)
         playlistService.addTrack(newPl.id, newPl.items[0]!)
-        alert(`Fragment stored in "${name.trim()}"`)
-        setStatusText('Stored successfully')
+        await popup.alert(`Added to "${name.trim()}"`, 'Success')
+        setStatusText('Added to playlist')
         return
       }
 
-      const options = lists.map((pl, i) => `${i + 1}. ${pl.name}`).join('\n')
-      const choice = window.prompt(`Select destination archive:\n${options}\n\nEnter number:`)
+      const options = lists.map((pl) => ({ label: pl.name, value: pl.id }))
+      const selectedId = await popup.select('Select playlist:', options, lists[0]!.id, 'Add to Playlist')
 
-      if (!choice) {
+      if (!selectedId) {
         setStatusText('Operation cancelled')
         return
       }
 
-      const idx = parseInt(choice, 10) - 1
-      if (isNaN(idx) || idx < 0 || idx >= lists.length) {
-        alert('Invalid selection.')
+      const pl = lists.find((l) => l.id === selectedId)
+      if (!pl) {
+        await popup.alert('Invalid selection.', 'Error')
         setStatusText('Invalid selection')
         return
       }
 
-      const pl = lists[idx]!
       const track: PlaylistTrack = {
         id: currentVideo.id,
         title: currentVideo.title,
@@ -399,13 +401,13 @@ export function MutantTube() {
       }
 
       playlistService.addTrack(pl.id, track)
-      alert(`Fragment stored in "${pl.name}"`)
-      setStatusText('Stored successfully')
+      await popup.alert(`Added to "${pl.name}"`, 'Success')
+      setStatusText('Added to playlist')
     } catch (err) {
-      alert(`Storage failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
-      setStatusText('Storage failed')
+      await popup.alert(`Failed to add: ${err instanceof Error ? err.message : 'Unknown error'}`, 'Error')
+      setStatusText('Add failed')
     }
-  }, [currentVideo, playlistService])
+  }, [currentVideo, playlistService, popup])
 
   const goBack = useCallback(() => {
     if (view === 'watch') {
@@ -452,20 +454,20 @@ export function MutantTube() {
 
   return (
     <div className="mt-root">
+      {popup.PopupComponent}
       {/* Header */}
       <div id="mt-header">
-        <div className="logo">MUTANT</div>
+        <div className="logo"></div>
         <form id="mt-search-form" onSubmit={doSearch}>
           <input
             id="mt-search-input"
             type="text"
-            placeholder="SEARCH ARCHIVES..."
+            placeholder="SEARCH VIDEOS..."
             autoComplete="off"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
           <button type="submit" id="mt-search-btn">
-            <span className="btn-skull">💀</span>
             <span>SEARCH</span>
           </button>
         </form>
@@ -516,8 +518,8 @@ export function MutantTube() {
         <div id="mt-content">
           {loading && (
             <div className="loading-container">
-              <div className="loading-skull">💀</div>
-              <div className="loading-text">DECRYPTING ARCHIVE</div>
+              <div className="loading-pulse">◈</div>
+              <div className="loading-text">LOADING</div>
               <div className="loading-progress">
                 <div className="loading-progress-bar" />
               </div>
@@ -591,13 +593,13 @@ export function MutantTube() {
 
           {!loading && !error && view === 'playlists' && (
             <>
-              <div className="section-title">⚠ DATA ARCHIVES ⚠</div>
+              <div className="section-title">⚠ PLAYLISTS ⚠</div>
               <button className="mt-btn-new" onClick={createPlaylist}>
-                + Initialize New Archive
+                + Create Playlist
               </button>
               {playlists.length === 0 ? (
                 <div className="empty-state">
-                  No archives found.<br />Create a new data container.
+                  No playlists found.<br />Create a new playlist.
                 </div>
               ) : (
                 playlists.map(pl => (
@@ -628,12 +630,12 @@ export function MutantTube() {
           {!loading && !error && view === 'playlist-detail' && currentPlaylist && (
             <>
               <button className="mt-btn-back" onClick={goBack}>
-                ← RETURN TO ARCHIVES
+                ← RETURN TO PLAYLISTS
               </button>
-              <div className="section-title">ARCHIVE: [ {currentPlaylist.name} ]</div>
+              <div className="section-title">PLAYLIST: [ {currentPlaylist.name} ]</div>
               {currentPlaylist.items.length === 0 ? (
                 <div className="empty-state">
-                  Empty archive.<br />Consume media to populate.
+                  Empty playlist.<br />Add videos to populate.
                 </div>
               ) : (
                 currentPlaylist.items.map(v => {
@@ -664,7 +666,7 @@ export function MutantTube() {
           {!loading && !error && view === 'watch' && currentVideo && (
             <div id="mt-watch">
               <button className="back-btn" onClick={goBack}>
-                ← RETURN TO ARCHIVE
+                ← RETURN
               </button>
               <div id="mt-watch-frame-container">
                 <div className="corner-decoration corner-tl" />
@@ -701,16 +703,16 @@ export function MutantTube() {
                 </div>
                 <div id="mt-watch-actions">
                   <button className="action-btn primary" onClick={addCurrentToPlaylist}>
-                    💀 STORE TO ARCHIVE
+                    ADD TO PLAYLIST
                   </button>
                   <button
                     className="action-btn"
-                    onClick={() => {
+                    onClick={async () => {
                       navigator.clipboard.writeText(`https://youtube.com/watch?v=${currentVideo.id}`)
-                      alert('Link copied to clipboard')
+                      await popup.alert('Link copied to clipboard', 'Copied')
                     }}
                   >
-                    📋 COPY LINK
+                    COPY LINK
                   </button>
                 </div>
               </div>

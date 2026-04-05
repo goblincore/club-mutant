@@ -8,6 +8,9 @@ import { AppManager } from './apps/AppManager'
 import { ManViewer } from './apps/ManViewer'
 import { Screenshot } from './apps/Screenshot'
 import { MutantTube } from './apps/MutantTube'
+import { MutantBook } from './apps/MutantBook'
+import { Messenger } from './apps/Messenger'
+import { MutantMail } from './apps/MutantMail'
 
 interface AppRouterProps {
   app: string
@@ -45,6 +48,15 @@ export function AppRouter({ app, props: _props }: AppRouterProps) {
 
     case 'mutanttube':
       return <MutantTube />
+
+    case 'mutantbook':
+      return <MutantBook />
+
+    case 'messenger':
+      return <Messenger />
+
+    case 'mutantmail':
+      return <MutantMail />
 
     default:
       return (
