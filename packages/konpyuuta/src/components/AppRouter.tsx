@@ -7,6 +7,7 @@ import { Calendar } from './apps/Calendar'
 import { AppManager } from './apps/AppManager'
 import { ManViewer } from './apps/ManViewer'
 import { Screenshot } from './apps/Screenshot'
+import { MutantTube } from './apps/MutantTube'
 
 interface AppRouterProps {
   app: string
@@ -41,6 +42,9 @@ export function AppRouter({ app, props: _props }: AppRouterProps) {
 
     case 'screenshot':
       return <Screenshot />
+
+    case 'mutanttube':
+      return <MutantTube />
 
     default:
       return (

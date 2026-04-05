@@ -166,6 +166,10 @@ export function Panel() {
                 <img src="/icons/apps/lynx.png" alt="" />
                 <span>Lynx Text Browser</span>
               </div>
+              <div className="cde-subpanel-item" onClick={() => openApp('mutanttube', { title: 'MutantTube', size: { width: 900, height: 650 } })}>
+                <img src="/icons/apps/mutanttube.svg" alt="" />
+                <span>MutantTube</span>
+              </div>
             </div>
           )}
         </div>

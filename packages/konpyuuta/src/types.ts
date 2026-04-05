@@ -32,10 +32,62 @@ export interface NotificationItem {
   createdAt: number
 }
 
+// ── Service Interfaces for Social Apps ─────────────────────────────────────
+
+export interface PlaylistTrack {
+  id: string
+  title: string
+  link: string
+  duration: number
+  thumbnail?: string
+}
+
+export interface Playlist {
+  id: string
+  name: string
+  items: PlaylistTrack[]
+}
+
+export interface PlaylistService {
+  getPlaylists: () => Playlist[]
+  createPlaylist: (name: string) => void
+  removePlaylist: (id: string) => void
+  addTrack: (playlistId: string, track: PlaylistTrack) => void
+  removeTrack: (playlistId: string, trackId: string) => void
+  loadFromServer: () => Promise<void>
+}
+
+export interface WallPost {
+  postId: string
+  authorId: string
+  authorUsername: string
+  targetUserId: string
+  content: string
+  createdAt: number
+}
+
+export interface UserProfile {
+  user_id: string
+  username: string
+  display_name: string
+  avatar_url: string
+  metadata: Record<string, unknown>
+}
+
+export interface SocialService {
+  getCurrentUserId: () => string | null
+  getCurrentUsername: () => string | null
+  getUserProfile: (userId: string) => Promise<UserProfile>
+  getMyAccount: () => Promise<UserProfile>
+  getWallPosts: (targetUserId: string, cursor?: string) => Promise<{ posts: WallPost[]; cursor?: string }>
+  createWallPost: (targetUserId: string, content: string) => Promise<WallPost>
+  deleteWallPost: (postId: string, targetUserId: string) => Promise<void>
+  listFriends: () => Promise<Array<{ userId: string; username: string; displayName: string; online: boolean }>>
+}
+
 export interface KonpyuuTAContextValue {
-  nakamaClient?: unknown
-  colyseusRoom?: unknown
-  authStore?: unknown
+  playlistService?: PlaylistService
+  socialService?: SocialService
   env: {
     youtubeApiUrl?: string
   }

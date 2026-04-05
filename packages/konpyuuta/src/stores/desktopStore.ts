@@ -21,6 +21,7 @@ interface DesktopStoreState {
 const DEFAULT_ICONS: DesktopIcon[] = [
   { id: 'netscape', label: 'Netscape', icon: '/icons/apps/netscape_classic.png', app: 'netscape' },
   { id: 'lynx', label: 'Lynx', icon: '/icons/apps/Lynx.svg', app: 'lynx' },
+  { id: 'mutanttube', label: 'MutantTube', icon: '/icons/apps/mutanttube.svg', app: 'mutanttube' },
   { id: 'settings', label: 'Style Manager', icon: '/icons/apps/org.xfce.settings.manager.png', app: 'settings' },
   { id: 'filemanager', label: 'File Manager', icon: '/icons/apps/filemanager.png', app: 'filemanager' },
 ]
