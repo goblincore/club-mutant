@@ -1,17 +1,93 @@
+import { useMemo } from 'react'
 import { KonpyuuTADesktop } from '@club-mutant/konpyuuta'
 import { KonpyuuTAProvider } from '@club-mutant/konpyuuta/context'
+import type {
+  PlaylistService,
+  SocialService,
+  PlaylistTrack,
+  UserProfile,
+} from '../../../../packages/konpyuuta/src/types'
 import { useUIStore } from '../../stores/uiStore'
+import { usePlaylistStore } from '../../stores/playlistStore'
+import { useAuthStore } from '../../stores/authStore'
+import {
+  getUserProfile,
+  getMyAccount,
+  getWallPosts,
+  createWallPost,
+  deleteWallPost,
+  listFriends,
+} from '../../network/nakamaClient'
 import '../../../../packages/konpyuuta/src/styles/cde.css'
 
 export function KonpyuuTAShell() {
   const osActive = useUIStore((s) => s.osActive)
 
+  const playlistService = useMemo<PlaylistService>(() => {
+    const store = usePlaylistStore.getState
+    return {
+      getPlaylists: () => store().playlists,
+      createPlaylist: (name: string) => store().createPlaylist(name),
+      removePlaylist: (id: string) => store().removePlaylist(id),
+      addTrack: (playlistId: string, track: PlaylistTrack) => store().addTrack(playlistId, track),
+      removeTrack: (playlistId: string, trackId: string) =>
+        store().removeTrack(playlistId, trackId),
+      loadFromServer: () => store().loadFromServer(),
+    }
+  }, [])
+
+  const socialService = useMemo<SocialService>(() => {
+    const authStore = useAuthStore.getState
+    return {
+      getCurrentUserId: () => authStore().userId,
+      getCurrentUsername: () => authStore().username,
+      getUserProfile: async (userId: string): Promise<UserProfile> => {
+        const profile = await getUserProfile(userId)
+        return profile
+      },
+      getMyAccount: async (): Promise<UserProfile> => {
+        const account = await getMyAccount()
+        const user = account.user!
+        return {
+          user_id: user.id ?? '',
+          username: user.username ?? '',
+          display_name: user.display_name ?? '',
+          avatar_url: user.avatar_url ?? '',
+          metadata: (user.metadata ?? {}) as Record<string, unknown>,
+        }
+      },
+      getWallPosts: (targetUserId: string, cursor?: string) => getWallPosts(targetUserId, cursor),
+      createWallPost: (targetUserId: string, content: string) =>
+        createWallPost(targetUserId, content),
+      deleteWallPost: (postId: string, targetUserId: string) =>
+        deleteWallPost(postId, targetUserId),
+      listFriends: async () => {
+        const friends = await listFriends(0)
+        return friends.map((f) => {
+          const u = f.user!
+          return {
+            userId: u.id ?? '',
+            username: u.username ?? '',
+            displayName: u.display_name ?? '',
+            online: u.online ?? false,
+          }
+        })
+      },
+    }
+  }, [])
+
   if (!osActive) return null
 
   return (
     <KonpyuuTAProvider
+      playlistService={playlistService}
+      socialService={socialService}
       env={{
-        youtubeApiUrl: import.meta.env.VITE_YOUTUBE_API_URL,
+        youtubeApiUrl:
+          import.meta.env.VITE_YOUTUBE_SERVICE_URL ||
+          (window.location.hostname === 'localhost'
+            ? 'http://localhost:8081'
+            : `${window.location.origin}/youtube`),
       }}
     >
       <KonpyuuTADesktop onShutdown={() => useUIStore.getState().setOsActive(false)} />
