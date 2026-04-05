@@ -6,6 +6,7 @@ import { ProcessMonitor } from './apps/ProcessMonitor'
 import { Calendar } from './apps/Calendar'
 import { AppManager } from './apps/AppManager'
 import { ManViewer } from './apps/ManViewer'
+import { Screenshot } from './apps/Screenshot'
 
 interface AppRouterProps {
   app: string
@@ -37,6 +38,9 @@ export function AppRouter({ app, props: _props }: AppRouterProps) {
 
     case 'manviewer':
       return <ManViewer />
+
+    case 'screenshot':
+      return <Screenshot />
 
     default:
       return (

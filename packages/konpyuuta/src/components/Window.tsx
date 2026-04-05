@@ -1,8 +1,9 @@
-import { useEffect, useState, ReactNode } from 'react'
+import { useEffect, useState, useCallback, ReactNode } from 'react'
 import { useWindow } from '../hooks/useWindow'
 import { useDrag } from '../hooks/useDrag'
 import { useResize, ResizeEdge } from '../hooks/useResize'
 import { useWindowStore } from '../stores/windowStore'
+import { AudioManager } from '../lib/audioManager'
 
 interface WindowProps {
   id: string
@@ -18,11 +19,18 @@ export function Window({ id, children }: WindowProps) {
     return () => clearTimeout(t)
   }, [])
 
+  const TOPBAR_HEIGHT = 28
+
   const { handlePointerDown: handleDragStart } = useDrag({
-    onMove: (dx, dy) => {
-      if (!win) return
-      move({ x: win.position.x + dx, y: win.position.y + dy })
-    },
+    // Read from store directly to avoid stale closure over win.position
+    onMove: useCallback((dx, dy) => {
+      const current = useWindowStore.getState().windows[id]
+      if (!current) return
+      move({
+        x: current.position.x + dx,
+        y: Math.max(TOPBAR_HEIGHT, current.position.y + dy),
+      })
+    }, [id, move]),
     onStart: focus,
   })
 
@@ -36,14 +44,14 @@ export function Window({ id, children }: WindowProps) {
   if (!win || win.minimized) return null
 
   const windowStyle: React.CSSProperties = win.maximized
-    ? { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: win.zIndex, width: '100%', height: '100%' }
+    ? { position: 'fixed', top: 28, left: 0, right: 0, bottom: 0, zIndex: win.zIndex }
     : { position: 'fixed', left: win.position.x, top: win.position.y, width: win.size.width, height: win.size.height, zIndex: win.zIndex }
 
   const RESIZE_EDGES: ResizeEdge[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
 
   return (
     <div
-      className={`cde-window${opening ? ' cde-window-opening' : ''}`}
+      className={`cde-window${opening ? ' cde-window-opening' : ''}${win.maximized ? ' cde-window-maximized' : ''}`}
       style={windowStyle}
       onPointerDown={focus}
     >
@@ -53,13 +61,14 @@ export function Window({ id, children }: WindowProps) {
         onPointerDown={handleDragStart}
         onDoubleClick={shade}
       >
-        <div className="cde-titlebar-buttons">
-          <button className="cde-btn-close" onPointerDown={(e) => e.stopPropagation()} onClick={close} aria-label="Close" />
-          <button className="cde-btn-shade" onPointerDown={(e) => e.stopPropagation()} onClick={shade} aria-label="Shade" />
-          <button className="cde-btn-maximize" onPointerDown={(e) => e.stopPropagation()} onClick={maximize} aria-label="Maximize" />
-          <button className="cde-btn-minimize" onPointerDown={(e) => e.stopPropagation()} onClick={minimize} aria-label="Minimize" />
+        <div className="cde-titlebar-left">
+          <button className="cde-btn-shade" onPointerDown={(e) => e.stopPropagation()} onClick={() => { AudioManager.windowShade(); shade() }} aria-label="Shade" />
         </div>
         <span className="cde-titlebar-title">{win.title}</span>
+        <div className="cde-titlebar-right">
+          <button className="cde-btn-maximize" onPointerDown={(e) => e.stopPropagation()} onClick={() => { AudioManager.windowMaximize(); maximize() }} aria-label="Maximize" />
+          <button className="cde-btn-close" onPointerDown={(e) => e.stopPropagation()} onClick={() => { AudioManager.windowClose(); close() }} aria-label="Close" />
+        </div>
       </div>
 
       {/* Window body */}

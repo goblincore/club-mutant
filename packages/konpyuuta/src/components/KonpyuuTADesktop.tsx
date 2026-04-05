@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useDesktopStore } from '../stores/desktopStore'
 import { useWindowStore } from '../stores/windowStore'
 import { useSettingsStore } from '../stores/settingsStore'
@@ -10,6 +10,7 @@ import { Panel } from './Panel'
 import { Window } from './Window'
 import { NotificationPopup } from './NotificationPopup'
 import { AppRouter } from './AppRouter'
+import { AudioManager } from '../lib/audioManager'
 
 interface KonpyuuTADesktopProps {
   onShutdown: () => void
@@ -22,6 +23,19 @@ export function KonpyuuTADesktop({ onShutdown }: KonpyuuTADesktopProps) {
   const currentWorkspace = useWindowStore((s) => s.currentWorkspace)
   const palette = useSettingsStore((s) => s.palette)
   const fontPreset = useSettingsStore((s) => s.fontPreset)
+  const prevWindowIds = useRef<Set<string>>(new Set())
+
+  // Play window-open sound when a new window appears
+  useEffect(() => {
+    const currentIds = new Set(Object.keys(windows))
+    for (const id of currentIds) {
+      if (!prevWindowIds.current.has(id)) {
+        AudioManager.windowOpen()
+        break // one sound per batch
+      }
+    }
+    prevWindowIds.current = currentIds
+  }, [windows])
 
   useEffect(() => {
     const root = document.querySelector('.cde-root') as HTMLElement | null

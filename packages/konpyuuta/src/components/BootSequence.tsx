@@ -1,77 +1,158 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import bootMessages from '../data/boot-messages.json'
+import { AudioManager } from '../lib/audioManager'
+
+const DEVIL_LOGO = `#>
+#>  _______________________________________________________
+#> /                                                       |
+#> | Time travel initiated... Loading 1995 Unix experience  |
+#> \\                                                      |
+#>  -------------------------------------------------------
+#>                  \\
+#>                   \\
+#>             ,        ,
+#>             /(        )\`
+#>             \\ \\___   / |
+#>             /- _  \`-/  '
+#>            (/\\/ \\ \\   /\\
+#>            / /   | \`
+#>            O O   ) /    |
+#>            \`-^--'\`<     '
+#>           (_.)  _  )   /
+#>            \`.___/\`    /
+#>              \`-----' /
+#> <----.     __ / __   \\
+#> <----|====O)))==) \\) /====
+#> <----'    \`--' \`.__,' \\
+#>              |        |
+#>               \\       /
+#>         ______( (_  / \\______
+#>       ,'  ,-----'   |        \\
+#>       \`--{__________)        \\/`
+
+// Message types that receive a kernel timestamp prefix
+const TIMESTAMP_TYPES = new Set(['kernel', 'cpu', 'fs', 'memory'])
+
+function typeToClass(type: string): string {
+  const map: Record<string, string> = {
+    kernel:  'boot-kernel',
+    cpu:     'boot-cpu',
+    memory:  'boot-memory',
+    fs:      'boot-fs',
+    systemd: 'boot-systemd',
+    service: 'boot-service',
+    drm:     'boot-drm',
+    desktop: 'boot-desktop',
+  }
+  return map[type] ?? 'boot-default'
+}
+
+function pickRandom<T>(arr: T[], min: number, max: number): T[] {
+  const count = min + Math.floor(Math.random() * (max - min + 1))
+  return [...arr].sort(() => Math.random() - 0.5).slice(0, Math.min(count, arr.length))
+}
+
+interface BootLine {
+  text: string
+  cls: string
+}
 
 interface BootSequenceProps {
   onComplete: () => void
 }
 
-function pickRandom<T>(arr: T[], min: number, max: number): T[] {
-  const count = min + Math.floor(Math.random() * (max - min + 1))
-  const shuffled = [...arr].sort(() => Math.random() - 0.5)
-  return shuffled.slice(0, Math.min(count, arr.length))
-}
-
 export function BootSequence({ onComplete }: BootSequenceProps) {
-  const [lines, setLines] = useState<string[]>([])
+  const [lines, setLines] = useState<BootLine[]>([])
+  const [progress, setProgress] = useState(0)
   const [done, setDone] = useState(false)
+  const outputRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to bottom as lines append
+  useEffect(() => {
+    if (outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight
+    }
+  }, [lines])
 
   useEffect(() => {
     const timeouts: ReturnType<typeof setTimeout>[] = []
 
-    // Build message sequence from all phases, respecting per-phase min/max
-    const sequence: string[] = []
+    // Build sequence: pick messages from each phase, add timestamps where needed
+    let totalTime = 0
+    const sequence: BootLine[] = []
+
     for (const phase of bootMessages.phases) {
-      const picked = pickRandom(phase.messages, phase.min, phase.max)
-      for (const msg of picked) {
-        sequence.push(msg.text)
+      const msgs = pickRandom(phase.messages, phase.min, phase.max)
+      for (const msg of msgs) {
+        let text = msg.text
+        if (TIMESTAMP_TYPES.has(msg.type)) {
+          const inc = Math.random() * 0.3 + 0.05
+          totalTime += inc
+          const ts = totalTime.toFixed(6).padStart(12, ' ')
+          text = `[ ${ts} ] ${msg.text}`
+        }
+        sequence.push({ text, cls: typeToClass(msg.type) })
       }
     }
 
-    // Schedule each message with a random 30–120ms delay
+    // Final success line
+    sequence.push({ text: '[    OK    ] CDE Desktop ready ....', cls: 'boot-desktop' })
+
+    const total = sequence.length
+
+    // Schedule each line with 50–250ms varied delay
     let elapsed = 0
-    for (let i = 0; i < sequence.length; i++) {
-      const delay = elapsed + 30 + Math.floor(Math.random() * 91)
+    sequence.forEach((line, i) => {
+      const delay = elapsed + 50 + Math.floor(Math.random() * 200)
       elapsed = delay
-      const text = sequence[i]
       timeouts.push(
         setTimeout(() => {
-          setLines((prev) => [...prev, text])
+          setLines((prev) => [...prev, line])
+          setProgress(Math.round(((i + 1) / total) * 100))
         }, delay)
       )
-    }
+    })
 
-    // After last message, add login lines and call onComplete
-    const loginDelay = elapsed + 600
-    timeouts.push(
-      setTimeout(() => {
-        setLines((prev) => [...prev, 'Login: [USER]'])
-      }, loginDelay)
-    )
+    // After last line: show login prompt, play chime, call onComplete
+    const loginDelay = elapsed + 400
+    timeouts.push(setTimeout(() => {
+      setLines((prev) => [...prev, { text: 'Login: [USER]', cls: 'boot-default' }])
+    }, loginDelay))
 
     const startDelay = loginDelay + 200
-    timeouts.push(
-      setTimeout(() => {
-        setLines((prev) => [...prev, 'Starting KonpyuuTA...'])
-        setDone(true)
-      }, startDelay)
-    )
+    timeouts.push(setTimeout(() => {
+      setLines((prev) => [...prev, { text: 'Starting KonpyuuTA...', cls: 'boot-desktop' }])
+      setDone(true)
+      AudioManager.playStartupChime()
+    }, startDelay))
 
-    timeouts.push(
-      setTimeout(() => {
-        onComplete()
-      }, startDelay + 400)
-    )
+    timeouts.push(setTimeout(() => {
+      onComplete()
+    }, startDelay + 600))
 
     return () => timeouts.forEach(clearTimeout)
   }, [onComplete])
 
   return (
     <div className="cde-boot-screen">
-      <div className="cde-boot-output">
+      <div className="cde-boot-output" ref={outputRef}>
+        {/* Devil logo — always at top, red */}
+        <pre className="boot-logo">{DEVIL_LOGO}</pre>
+
+        {/* Scrolling boot lines */}
         {lines.map((line, i) => (
-          <div key={i} className="cde-boot-line">{line}</div>
+          <div key={i} className={`cde-boot-line ${line.cls}`}>
+            {line.text}
+          </div>
         ))}
-        {done && <div className="cde-boot-line cde-boot-cursor">▋</div>}
+        {done && <div className="cde-boot-line boot-default cde-boot-cursor">▋</div>}
+      </div>
+
+      {/* Progress bar — fixed at bottom like the original */}
+      <div className="cde-boot-progress-wrapper">
+        <div className="cde-boot-progress-track">
+          <div className="cde-boot-progress-bar" style={{ width: `${progress}%` }} />
+        </div>
       </div>
     </div>
   )

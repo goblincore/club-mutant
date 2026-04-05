@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import pagesData from '../../data/netscape-pages.json'
 
+
 interface NetscapePage {
   title: string
   url: string
@@ -27,9 +28,12 @@ export function NetscapeNavigator() {
   const [historyIndex, setHistoryIndex] = useState(0)
   const [menu, setMenu] = useState<MenuState>({ open: null })
   const [statusText, setStatusText] = useState('Document: Done')
+  const [stars, setStars] = useState<{ id: number; x: number; delay: number }[]>([])
   const urlInputRef = useRef<HTMLInputElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const loadTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const starTimerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
+  const starIdRef = useRef(0)
 
   const page = pages[currentPageId] ?? pages['whats-new']
 
@@ -116,8 +120,29 @@ export function NetscapeNavigator() {
     }
   }, [currentPageId])
 
-  // Cleanup load timer on unmount
-  useEffect(() => () => { clearTimeout(loadTimerRef.current) }, [])
+  // Spawn/stop falling stars with loading state
+  useEffect(() => {
+    if (isLoading) {
+      starTimerRef.current = setInterval(() => {
+        const id = ++starIdRef.current
+        const x = Math.random() * 90 + 5
+        const delay = Math.random() * 0.3
+        setStars((prev) => [...prev.slice(-8), { id, x, delay }])
+        // Remove star after animation completes
+        setTimeout(() => setStars((prev) => prev.filter((s) => s.id !== id)), 900)
+      }, 150)
+    } else {
+      clearInterval(starTimerRef.current)
+      setStars([])
+    }
+    return () => clearInterval(starTimerRef.current)
+  }, [isLoading])
+
+  // Cleanup timers on unmount
+  useEffect(() => () => {
+    clearTimeout(loadTimerRef.current)
+    clearInterval(starTimerRef.current)
+  }, [])
 
   const canBack = historyIndex > 0
   const canForward = historyIndex < history.length - 1
@@ -254,76 +279,56 @@ export function NetscapeNavigator() {
       {/* Toolbar */}
       <div className="ns-toolbar">
         <div className="ns-toolbar-inner">
-          <button
-            className="ns-tool-btn"
-            onClick={goBack}
-            disabled={!canBack}
-            title="Back"
-          >
-            <span>◀</span>
+          <button className="ns-tool-btn" onClick={goBack} disabled={!canBack} title="Back">
+            <img src="/icons/actions/previous.png" className="ns-btn-img" alt="Back" />
             <span>Back</span>
           </button>
-          <button
-            className="ns-tool-btn"
-            onClick={goForward}
-            disabled={!canForward}
-            title="Forward"
-          >
-            <span>▶</span>
+          <button className="ns-tool-btn" onClick={goForward} disabled={!canForward} title="Forward">
+            <img src="/icons/actions/right.png" className="ns-btn-img" alt="Forward" />
             <span>Forward</span>
           </button>
-          <button
-            className="ns-tool-btn"
-            onClick={() => navigate('welcome')}
-            title="Home"
-          >
-            <span>🏠</span>
+          <button className="ns-tool-btn" onClick={() => navigate('welcome')} title="Home">
+            <img src="/icons/actions/gohome.png" className="ns-btn-img" alt="Home" />
             <span>Home</span>
           </button>
-          <button
-            className="ns-tool-btn"
-            onClick={() => navigate(currentPageId)}
-            title="Reload"
-          >
-            <span>↺</span>
+          <button className="ns-tool-btn" onClick={() => navigate(currentPageId)} title="Reload">
+            <img src="/icons/actions/view-refresh.png" className="ns-btn-img" alt="Reload" />
             <span>Reload</span>
           </button>
-          <button
-            className="ns-tool-btn"
-            onClick={() => setIsLoading(false)}
-            title="Stop"
-            disabled={!isLoading}
-          >
-            <span>✖</span>
-            <span>Stop</span>
+          <button className="ns-tool-btn" onClick={() => {}} title="Images">
+            <img src="/icons/mimetypes/img.png" className="ns-btn-img" alt="Images" />
+            <span>Images</span>
           </button>
-          <button
-            className="ns-tool-btn"
-            onClick={() => urlInputRef.current?.focus()}
-            title="Open"
-          >
-            <span>📂</span>
+          <button className="ns-tool-btn" onClick={() => urlInputRef.current?.focus()} title="Open">
+            <img src="/icons/places/folder_open.png" className="ns-btn-img" alt="Open" />
             <span>Open</span>
           </button>
-          <button
-            className="ns-tool-btn"
-            onClick={closeMenu}
-            title="Print"
-          >
-            <span>🖨</span>
+          <button className="ns-tool-btn" onClick={() => {}} title="Print">
+            <img src="/icons/devices/printer.png" className="ns-btn-img" alt="Print" />
             <span>Print</span>
           </button>
-          <button
-            className="ns-tool-btn"
-            onClick={() => navigate('net-news')}
-            title="Find"
-          >
-            <span>🔍</span>
+          <button className="ns-tool-btn" onClick={() => {}} title="Find">
+            <img src="/icons/apps/org.xfce.catfish.png" className="ns-btn-img" alt="Find" />
             <span>Find</span>
           </button>
+          <button className="ns-tool-btn" onClick={() => setIsLoading(false)} disabled={!isLoading} title="Stop">
+            <img src="/icons/actions/process-stop.png" className="ns-btn-img" alt="Stop" />
+            <span>Stop</span>
+          </button>
         </div>
-        <div className={`ns-n-logo${isLoading ? ' ns-loading' : ''}`} title="Netscape">
-          <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '32px', fontFamily: 'Times New Roman, serif', userSelect: 'none' }}>N</span>
+        <div className={`ns-n-logo${isLoading ? ' ns-loading' : ''}`} title="Netscape" onClick={() => navigate('about')}>
+          <img className="ns-logo-img" src="/icons/apps/netscape_classic.png" alt="Netscape" />
+          {isLoading && (
+            <div className="ns-n-stars" aria-hidden="true">
+              {stars.map((s) => (
+                <div
+                  key={s.id}
+                  className="ns-n-star"
+                  style={{ left: `${s.x}%`, animationDelay: `${s.delay}s` }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -375,7 +380,7 @@ export function NetscapeNavigator() {
       {/* Status bar */}
       <div className="ns-statusbar">
         <div className="ns-status-security">
-          <span className="ns-lock" title="Security: Not encrypted">🔓</span>
+          <img src="/icons/system/gcr-key.png" className="ns-lock" alt="Security" title="Security: Not encrypted" style={{ width: 16, height: 16 }} />
         </div>
         <span className="ns-status-text">{statusText}</span>
         {isLoading && (
