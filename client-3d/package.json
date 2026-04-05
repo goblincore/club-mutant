@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "acs-web": "file:../packages/acs-web",
+    "@club-mutant/konpyuuta": "workspace:*",
     "@club-mutant/types": "workspace:*",
     "@colyseus/sdk": "^0.17.22",
     "@heroiclabs/nakama-js": "^2.8.0",
