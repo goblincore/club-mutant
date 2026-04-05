@@ -1,7 +1,7 @@
 import { KonpyuuTADesktop } from '@club-mutant/konpyuuta'
 import { KonpyuuTAProvider } from '@club-mutant/konpyuuta/context'
 import { useUIStore } from '../../stores/uiStore'
-import '@club-mutant/konpyuuta/src/styles/cde.css'
+import '../../../../packages/konpyuuta/src/styles/cde.css'
 
 export function KonpyuuTAShell() {
   const osActive = useUIStore((s) => s.osActive)

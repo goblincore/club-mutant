@@ -17,12 +17,14 @@ interface SettingsStoreState {
   fontSize: number
   soundEnabled: boolean
   cursorStyle: string
+  fontPreset: string
 
   setPalette: (palette: Palette) => void
   setFontFamily: (family: string) => void
   setFontSize: (size: number) => void
   setSoundEnabled: (enabled: boolean) => void
   setCursorStyle: (style: string) => void
+  setFontPreset: (key: string) => void
 }
 
 // Default palette derived from the first entry in cde_palettes.json ("Africa").
@@ -46,12 +48,14 @@ export const useSettingsStore = create<SettingsStoreState>()(
       fontSize: 13,
       soundEnabled: true,
       cursorStyle: 'default',
+      fontPreset: '__default__',
 
       setPalette: (palette) => set({ palette }),
       setFontFamily: (family) => set({ fontFamily: family }),
       setFontSize: (size) => set({ fontSize: size }),
       setSoundEnabled: (enabled) => set({ soundEnabled: enabled }),
       setCursorStyle: (style) => set({ cursorStyle: style }),
+      setFontPreset: (key) => set({ fontPreset: key }),
     }),
     {
       name: 'konpyuuta-settings',

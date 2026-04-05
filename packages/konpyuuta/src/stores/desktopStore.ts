@@ -19,19 +19,17 @@ interface DesktopStoreState {
 }
 
 const DEFAULT_ICONS: DesktopIcon[] = [
-  { id: 'netscape', label: 'Netscape', icon: '/icons/apps/netscape.png', app: 'netscape' },
-  { id: 'mutanttube', label: 'MutantTube', icon: '/icons/apps/mutanttube.png', app: 'netscape', appProps: { url: 'mutanttube' } },
-  { id: 'mutantbook', label: 'MutantBook', icon: '/icons/apps/mutantbook.png', app: 'netscape', appProps: { url: 'mutantbook' } },
-  { id: 'messenger', label: 'Messenger', icon: '/icons/apps/messenger.png', app: 'messenger' },
-  { id: 'settings', label: 'Settings', icon: '/icons/apps/settings.png', app: 'settings' },
-  { id: 'appmanager', label: 'App Manager', icon: '/icons/apps/appmanager.png', app: 'appmanager' },
+  { id: 'netscape', label: 'Netscape', icon: '/icons/apps/netscape_classic.png', app: 'netscape' },
+  { id: 'lynx', label: 'Lynx', icon: '/icons/apps/Lynx.svg', app: 'lynx' },
+  { id: 'settings', label: 'Style Manager', icon: '/icons/apps/org.xfce.settings.manager.png', app: 'settings' },
+  { id: 'filemanager', label: 'File Manager', icon: '/icons/apps/filemanager.png', app: 'filemanager' },
 ]
 
 export const useDesktopStore = create<DesktopStoreState>()(
   persist(
     (set) => ({
       bootStatus: 'booting',
-      wallpaper: null,
+      wallpaper: '/backdrops/CircuitBoards.pm',
       icons: DEFAULT_ICONS,
       notifications: [],
 

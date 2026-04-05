@@ -1,12 +1,15 @@
+import { useEffect } from 'react'
 import { useDesktopStore } from '../stores/desktopStore'
 import { useWindowStore } from '../stores/windowStore'
 import { useSettingsStore } from '../stores/settingsStore'
+import fontsData from '../data/fonts.json'
 import { BootSequence } from './BootSequence'
 import { Desktop } from './Desktop'
 import { TopBar } from './TopBar'
 import { Panel } from './Panel'
 import { Window } from './Window'
 import { NotificationPopup } from './NotificationPopup'
+import { AppRouter } from './AppRouter'
 
 interface KonpyuuTADesktopProps {
   onShutdown: () => void
@@ -18,20 +21,31 @@ export function KonpyuuTADesktop({ onShutdown }: KonpyuuTADesktopProps) {
   const windows = useWindowStore((s) => s.windows)
   const currentWorkspace = useWindowStore((s) => s.currentWorkspace)
   const palette = useSettingsStore((s) => s.palette)
+  const fontPreset = useSettingsStore((s) => s.fontPreset)
+
+  useEffect(() => {
+    const root = document.querySelector('.cde-root') as HTMLElement | null
+    if (!root) return
+    const fonts = fontsData as Record<string, Record<string, string>>
+    const vars = fonts[fontPreset] ?? fonts['__default__'] ?? {}
+    Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v))
+  }, [fontPreset])
 
   const handleBootComplete = () => {
     setBootStatus('ready')
   }
 
-  // Apply CDE palette as CSS custom properties on the root element
-  // These will cascade down to all CDE components via CSS variables
+  // Apply CDE palette as CSS custom properties using the original variable names
   const paletteVars: React.CSSProperties = {
-    '--cde-bg': palette.background,
-    '--cde-fg': palette.foreground,
-    '--cde-highlight': palette.highlight,
-    '--cde-shadow': palette.shadow,
-    '--cde-titlebar': palette.titlebar,
-    '--cde-titlebar-text': palette.titlebarText,
+    '--titlebar-color': palette.titlebar,
+    '--titlebar-text-color': palette.titlebarText,
+    '--window-color': palette.background,
+    '--topbar-color': palette.background,
+    '--dock-color': palette.background,
+    '--button-bg': palette.background,
+    '--button-active': palette.shadow,
+    '--border-light': palette.highlight,
+    '--border-dark': palette.shadow,
   } as React.CSSProperties
 
   if (bootStatus === 'booting') {
@@ -54,10 +68,7 @@ export function KonpyuuTADesktop({ onShutdown }: KonpyuuTADesktopProps) {
       {/* Render all visible windows */}
       {visibleWindows.map((win) => (
         <Window key={win.id} id={win.id}>
-          {/* App content rendered by a separate AppRouter component — placeholder for now */}
-          <div className="cde-app-placeholder">
-            <p>{win.app}</p>
-          </div>
+          <AppRouter app={win.app} props={win.props} />
         </Window>
       ))}
       <NotificationPopup />
