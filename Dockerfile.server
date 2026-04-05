@@ -17,7 +17,7 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY package.json ./
 COPY types/package.json ./types/
 COPY server/package.json ./server/
-COPY packages/os5000k/package.json ./packages/os5000k/
+COPY packages/konpyuuta/package.json ./packages/konpyuuta/
 COPY packages/acs-web/package.json ./packages/acs-web/
 
 # Install all workspace dependencies
@@ -49,7 +49,7 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY package.json ./
 COPY types/package.json ./types/
 COPY server/package.json ./server/
-COPY packages/os5000k/package.json ./packages/os5000k/
+COPY packages/konpyuuta/package.json ./packages/konpyuuta/
 COPY packages/acs-web/package.json ./packages/acs-web/
 
 # Install production deps only
