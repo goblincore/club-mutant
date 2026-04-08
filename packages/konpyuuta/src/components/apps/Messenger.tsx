@@ -11,9 +11,7 @@ function timeAgo(timestamp: number): string {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
-function escapeHtml(str: string): string {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
+
 
 export function Messenger() {
   const { socialService, messengerService } = useKonpyuuTA()
@@ -191,14 +189,18 @@ export function Messenger() {
       setLoadingMessages(true)
       messengerService.getMessages(partnerId)
         .then((result) => {
-          const msgs: Message[] = result.messages.map((m) => ({
+          const historyMsgs: Message[] = result.messages.map((m) => ({
             id: m.messageId,
             senderId: m.senderId,
             senderUsername: m.senderUsername,
             content: m.body,
             createdAt: m.createdAt,
           }))
-          setMessages(activeConversationId, msgs)
+          // Merge: keep any real-time messages not in history (by id), append after history
+          const existing = useMessengerStore.getState().messages[activeConversationId] || []
+          const historyIds = new Set(historyMsgs.map((m) => m.id))
+          const realtimeOnly = existing.filter((m) => !historyIds.has(m.id) && !m.id.startsWith('temp-'))
+          setMessages(activeConversationId, [...historyMsgs, ...realtimeOnly])
           setLoaded(activeConversationId)
           setLoadingMessages(false)
         })
@@ -390,7 +392,7 @@ export function Messenger() {
                   className={`mm-message ${msg.senderId === currentUserId ? 'outgoing' : 'incoming'}${msg.failed ? ' failed' : ''}`}
                 >
                   <div className="mm-message-content">
-                    {escapeHtml(msg.content)}
+                    {msg.content}
                   </div>
                   <div className="mm-message-time">
                     {msg.failed ? 'Failed to send' : timeAgo(msg.createdAt)}
