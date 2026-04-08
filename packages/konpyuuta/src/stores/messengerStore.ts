@@ -14,8 +14,10 @@ export interface Conversation {
 export interface Message {
   id: string
   senderId: string
+  senderUsername?: string
   content: string
   createdAt: number
+  failed?: boolean
 }
 
 interface MessengerStoreState {
@@ -24,6 +26,9 @@ interface MessengerStoreState {
   messages: Record<string, Message[]>
   typing: Record<string, boolean>
   buddyListOpen: boolean
+  /** Tracks which conversations have had history fetched from server */
+  loaded: Record<string, boolean>
+  loadingMessages: boolean
 
   setConversations: (conversations: Conversation[]) => void
   addConversation: (conv: Conversation) => void
@@ -34,6 +39,10 @@ interface MessengerStoreState {
   setBuddyListOpen: (open: boolean) => void
   incrementUnread: (channelId: string) => void
   clearUnread: (channelId: string) => void
+  setLoaded: (channelId: string) => void
+  setLoadingMessages: (loading: boolean) => void
+  updateConversationPreview: (channelId: string, preview: string, timestamp: number) => void
+  markMessageFailed: (channelId: string, messageId: string) => void
 }
 
 export const useMessengerStore = create<MessengerStoreState>((set) => ({
@@ -42,6 +51,8 @@ export const useMessengerStore = create<MessengerStoreState>((set) => ({
   messages: {},
   typing: {},
   buddyListOpen: true,
+  loaded: {},
+  loadingMessages: false,
 
   setConversations: (conversations) => set({ conversations }),
 
@@ -92,5 +103,31 @@ export const useMessengerStore = create<MessengerStoreState>((set) => ({
       conversations: state.conversations.map((c) =>
         c.channelId === channelId ? { ...c, unread: 0 } : c
       ),
+    })),
+
+  setLoaded: (channelId) =>
+    set((state) => ({
+      loaded: { ...state.loaded, [channelId]: true },
+    })),
+
+  setLoadingMessages: (loading) => set({ loadingMessages: loading }),
+
+  updateConversationPreview: (channelId, preview, timestamp) =>
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.channelId === channelId
+          ? { ...c, lastMessage: preview, lastMessageAt: timestamp }
+          : c
+      ),
+    })),
+
+  markMessageFailed: (channelId, messageId) =>
+    set((state) => ({
+      messages: {
+        ...state.messages,
+        [channelId]: (state.messages[channelId] || []).map((m) =>
+          m.id === messageId ? { ...m, failed: true } : m
+        ),
+      },
     })),
 }))
