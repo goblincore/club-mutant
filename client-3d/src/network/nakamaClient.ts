@@ -16,6 +16,36 @@ let _reconnectAttempts = 0
 const RECONNECT_DELAY_MS = 3000
 const MAX_RECONNECT_ATTEMPTS = 10
 
+// ── Notification listener registry ─────────────────────────────────────────
+type NotificationListener = (notification: { code: number; content: unknown; sender_id: string }) => void
+const _notificationListeners: NotificationListener[] = []
+
+/**
+ * Register a notification listener. Returns an unsubscribe function.
+ * Listeners are called for ALL notifications — filter by code in your callback.
+ */
+export function onNotification(listener: NotificationListener): () => void {
+  _notificationListeners.push(listener)
+  return () => {
+    const idx = _notificationListeners.indexOf(listener)
+    if (idx >= 0) _notificationListeners.splice(idx, 1)
+  }
+}
+
+// Default DM notification logger
+onNotification((notification) => {
+  if (notification.code === 100) {
+    const data = notification.content as {
+      messageId: string
+      senderId: string
+      senderUsername: string
+      subject: string
+      preview: string
+    }
+    console.log('[nakama] DM notification from %s', data.senderUsername)
+  }
+})
+
 function getClient(): Client {
   if (!_client) {
     _client = new Client(NAKAMA_SERVER_KEY, NAKAMA_HOST, NAKAMA_PORT, NAKAMA_USE_SSL)
@@ -204,16 +234,12 @@ export async function connectSocket(): Promise<void> {
   }
 
   socket.onnotification = (notification) => {
-    if (notification.code === 100) {
-      // DM notification
-      const data = notification.content as {
-        messageId: string
-        senderId: string
-        senderUsername: string
-        subject: string
-        preview: string
+    for (const listener of _notificationListeners) {
+      try {
+        listener(notification as { code: number; content: unknown; sender_id: string })
+      } catch (err) {
+        console.warn('[nakama] Notification listener error:', err)
       }
-      console.log('[nakama] DM notification from %s', data.senderUsername)
     }
   }
 
@@ -238,6 +264,14 @@ export function disconnectSocket(): void {
     _socket = null
   }
   usePresenceStore.getState().clear()
+}
+
+/**
+ * Get the current Nakama socket for direct channel operations.
+ * Returns null if not connected.
+ */
+export function getSocket(): Socket | null {
+  return _socket
 }
 
 /**
