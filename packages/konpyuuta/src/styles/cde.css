@@ -5300,6 +5300,27 @@
   cursor: default;
 }
 
+/* ── Messenger: conversation preview ── */
+.mm-contact-preview {
+  font-size: 10px;
+  color: #888;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+  margin-top: 1px;
+}
+
+/* ── Messenger: failed message ── */
+.mm-message.failed .mm-message-content {
+  opacity: 0.5;
+}
+
+.mm-message.failed .mm-message-time {
+  color: #e74c3c;
+  font-weight: bold;
+}
+
 /* ── MutantMail (Yahoo Mail 1997-2000 style) ─────────────────────────────── */
 
 .ml-root {
