@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { KonpyuuTADesktop } from '@club-mutant/konpyuuta'
 import { KonpyuuTAProvider } from '@club-mutant/konpyuuta/context'
 import type {
   PlaylistService,
   SocialService,
+  MessengerService,
   PlaylistTrack,
   UserProfile,
 } from '../../../../packages/konpyuuta/src/types'
@@ -18,6 +19,7 @@ import {
   deleteWallPost,
   listFriends,
 } from '../../network/nakamaClient'
+import { createMessengerService } from '../../services/messengerService'
 import '../../../../packages/konpyuuta/src/styles/cde.css'
 
 export function KonpyuuTAShell() {
@@ -76,12 +78,21 @@ export function KonpyuuTAShell() {
     }
   }, [])
 
+  const messengerService = useMemo<MessengerService>(() => createMessengerService(), [])
+
+  // Connect/disconnect messenger service lifecycle
+  useEffect(() => {
+    messengerService.connect()
+    return () => messengerService.disconnect()
+  }, [messengerService])
+
   if (!osActive) return null
 
   return (
     <KonpyuuTAProvider
       playlistService={playlistService}
       socialService={socialService}
+      messengerService={messengerService}
       env={{
         youtubeApiUrl:
           import.meta.env.VITE_YOUTUBE_SERVICE_URL ||
