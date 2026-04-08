@@ -92,9 +92,53 @@ export interface SocialService {
   listFriends: () => Promise<Array<{ userId: string; username: string; displayName: string; online: boolean }>>
 }
 
+// ── Messenger Service Interface ───────────────────────────────────────────
+
+export interface DmMessage {
+  messageId: string
+  senderId: string
+  senderUsername: string
+  body: string
+  createdAt: number
+}
+
+export interface ConversationSummary {
+  otherUserId: string
+  otherUsername: string
+  lastMessagePreview: string
+  lastMessageAt: number
+  unreadCount: number
+}
+
+export interface MessengerService {
+  /** Send a DM. Returns the server-assigned message ID and timestamp. */
+  sendMessage(recipientId: string, body: string): Promise<{ messageId: string; createdAt: number }>
+  /** Fetch message history for a conversation. Cursor-based pagination. */
+  getMessages(partnerId: string, cursor?: string): Promise<{ messages: DmMessage[]; cursor?: string }>
+  /** List all conversations with last message preview and unread counts. */
+  listConversations(): Promise<ConversationSummary[]>
+  /** Mark all messages from a partner as read. */
+  markRead(partnerId: string): Promise<void>
+
+  /** Register callback for incoming messages. Returns unsubscribe function. */
+  onMessageReceived(cb: (msg: DmMessage) => void): () => void
+  /** Register callback for typing indicators. Returns unsubscribe function. */
+  onTypingIndicator(cb: (userId: string, typing: boolean) => void): () => void
+  /** Join the DM channel for a partner (enables typing indicators). */
+  joinConversationChannel(partnerId: string): Promise<void>
+  /** Send a typing indicator to the partner. Debounced internally. */
+  sendTypingIndicator(partnerId: string): void
+
+  /** Setup socket listeners for real-time features. */
+  connect(): void
+  /** Cleanup socket listeners and leave channels. */
+  disconnect(): void
+}
+
 export interface KonpyuuTAContextValue {
   playlistService?: PlaylistService
   socialService?: SocialService
+  messengerService?: MessengerService
   env: {
     youtubeApiUrl?: string
   }
