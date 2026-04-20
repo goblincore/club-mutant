@@ -27,7 +27,7 @@ import { SleepPrompt } from './ui/SleepPrompt'
 import { WakePrompt } from './ui/WakePrompt'
 
 // Lazy-loaded: dream scene (heavy — R3F Canvas, shaders, audio player)
-const DreamIframe = lazy(() => import('./ui/DreamIframe').then((m) => ({ default: m.DreamIframe })))
+const DreamScene = lazy(() => import('./ui/DreamScene').then((m) => ({ default: m.DreamScene })))
 // Lazy-loaded: rarely-used interactive overlays
 const MagazineReader = lazy(() => import('./ui/MagazineReader').then((m) => ({ default: m.MagazineReader })))
 
@@ -229,7 +229,7 @@ function MainApp() {
       {/* Lazy-loaded overlays */}
       <Suspense>
         <MagazineReader />
-        <DreamIframe />
+        {isDreaming && <DreamScene />}
       </Suspense>
 
       {/* Sleep prompt (dream mode entry) */}

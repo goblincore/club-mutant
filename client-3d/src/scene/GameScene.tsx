@@ -106,8 +106,7 @@ function SceneContent() {
   // Custom rooms with jukebox musicMode also use the JukeboxRoom scene
   const useJukeboxScene = roomType === 'jukebox' || (roomType === 'custom' && musicMode === 'jukebox')
 
-  // Dream mode is now handled by a fullscreen iframe overlay (DreamIframe.tsx)
-  // The 3D scene stays mounted underneath but is hidden by the iframe
+  // Dream mode and KonpyuuTA both render a fullscreen overlay on top; skip the 3D scene while active.
   if (isDreaming || osActive) {
     return null
   }
