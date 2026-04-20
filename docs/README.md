@@ -2,10 +2,8 @@
 
 ## Authoritative (always current)
 - `architecture/` — System design, DJ queue, dream mode, KonpyuuTA, performance, voice chat
-- `guides/` — Deployment, load testing, YouTube API, spritesheet extraction, debugging
 
-## In-Progress
+## Local-only (gitignored)
 - `plans/` — Approved implementation plans for active work
-
-## Archive (ignore unless explicitly asked)
+- `guides/` — Ops how-tos (deployment, load testing, debugging)
 - `archive/` — Old plans, speculative ideas, superseded designs
