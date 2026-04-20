@@ -1,6 +1,6 @@
 # Club Mutant
 
-Multiplayer virtual world. Monorepo: `client-3d` (React/R3F/Vite), `server` (Colyseus 0.17), `client-dream`, Go microservices, Nakama auth sidecar, `packages/konpyuuta` (in-world OS).
+Multiplayer virtual world. Monorepo: `client-3d` (React/R3F/Vite), `server` (Colyseus 0.17), Go microservices, Nakama auth sidecar, `packages/konpyuuta` (in-world OS).
 
 ## Architecture
 

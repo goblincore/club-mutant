@@ -11,8 +11,6 @@ client-3d (React/R3F/Vite, port 5173+)
   └─ LobbyScreen → NetworkManager → Colyseus rooms
   └─ GameScene (Three.js / @react-three/fiber)
 
-client-dream (React/Vite) — dream room iframe client
-
 server (Colyseus 0.17, Node.js, port 2567)
   └─ ClubMutant.ts — onAuth verifies Nakama JWT → onJoin uses uid as playerId
   └─ lib/verifyNakamaToken.ts — HS256 JWT verification
@@ -34,9 +32,8 @@ tools/paper-rig-editor — standalone Vite app for character rig authoring
 
 ```
 Root
-├── client/          Electron desktop app (Phaser — legacy)
+├── client/          Original Phaser 2D client (legacy, kept as alt implementation)
 ├── client-3d/       React/R3F/Vite 3D client (active)
-├── client-dream/    Dream mode client
 ├── server/          Colyseus multiplayer server
 ├── types/           Shared TypeScript types
 ├── loadtest/        Load testing utilities
@@ -52,7 +49,6 @@ Root
 ```
 types ──→ server        (imports @club-mutant/types)
 types ──→ client-3d     (imports @club-mutant/types)
-types ──→ client-dream  (imports @club-mutant/types)
 konpyuuta → client-3d   (iframe embed, must build konpyuuta first)
 acs-web → client-3d     (WASM import)
 ```
@@ -70,7 +66,7 @@ youtube-api ──HTTP───→ pot-provider     (YouTube PO tokens)
 ### Build order
 1. `types` (no deps)
 2. `packages/konpyuuta` + `packages/acs-web` (no deps on workspace packages)
-3. `server`, `client-3d`, `client-dream` (depend on types, konpyuuta)
+3. `server`, `client-3d` (depend on types, konpyuuta)
 
 ## Services
 

@@ -1,6 +1,5 @@
 packages:
   - client-3d
-  - client-dream
   - server
   - types
   - loadtest
