@@ -3,7 +3,7 @@ import { Room, Client, ServerError, CloseCode } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
 import { verifyNakamaToken, type NakamaTokenPayload } from '../lib/verifyNakamaToken'
 
-import { Player, OfficeState, MusicBooth, ChatMessage } from './schema/OfficeState'
+import { Player, RoomState, MusicBooth, ChatMessage } from '@club-mutant/types/RoomState'
 
 import { IRoomData, type MusicMode } from '@club-mutant/types/Rooms'
 import { Message } from '@club-mutant/types/Messages'
@@ -71,7 +71,7 @@ const NPC_CONVO_WINDOW_MS = 20_000 // 20 second conversational window
 type NpcState = 'idle' | 'walking' | 'dancing' | 'conversing'
 
 export class ClubMutant extends Room {
-  state = new OfficeState()
+  state = new RoomState()
 
   private dispatcher = new Dispatcher(this)
   private name = ''

@@ -7,7 +7,7 @@ Shared TypeScript type definitions — the contract between client and server.
 ## Key Files
 
 - `Messages.ts` — Message enum (all client-server message types) and payload types
-- `IOfficeState.ts` — Client-side interfaces for Colyseus server state (IPlayer, IMusicBooth, etc.)
+- `RoomState.ts` — Colyseus schema classes (RoomState, Player, MusicBooth, etc.) — the single source of truth, imported by both server and client-3d
 - `Dtos.ts` — Wire format DTOs (JukeboxItemDto, etc.)
 - `Players.ts` — Player-related types
 - `Items.ts` — Item types

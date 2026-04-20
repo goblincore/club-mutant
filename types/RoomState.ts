@@ -1,5 +1,5 @@
 import { Schema, ArraySchema, MapSchema, type } from '@colyseus/schema'
-import { TEXTURE_IDS, packDirectionalAnimId } from '@club-mutant/types/AnimationCodec'
+import { TEXTURE_IDS, packDirectionalAnimId } from './AnimationCodec'
 
 // Per-player room queue playlist item for DJ rotation (server-only, not synced to clients)
 export class RoomQueuePlaylistItem {
@@ -82,7 +82,7 @@ export class JukeboxItem extends Schema {
   @type('number') addedAtMs = 0
 }
 
-export class OfficeState extends Schema {
+export class RoomState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>()
   @type([MusicBooth]) musicBooths = new ArraySchema<MusicBooth>()
   @type([ChatMessage]) chatMessages = new ArraySchema<ChatMessage>()

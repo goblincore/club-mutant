@@ -1,5 +1,5 @@
 import type { ClubMutant } from '../ClubMutant'
-import { DJUserInfo } from '../schema/OfficeState'
+import { DJUserInfo } from '@club-mutant/types/RoomState'
 import { Message } from '@club-mutant/types/Messages'
 import { prefetchVideo } from '../../youtubeService'
 

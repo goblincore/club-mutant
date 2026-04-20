@@ -1,5 +1,5 @@
 import { Client, Room, getStateCallbacks } from '@colyseus/sdk'
-import type { IOfficeState, IPlayer } from '@club-mutant/types/IOfficeState'
+import type { RoomState, Player } from '@club-mutant/types/RoomState'
 import { Message } from '@club-mutant/types/Messages'
 import { RoomType } from '@club-mutant/types/Rooms'
 import type { RoomListEntry } from '../stores/gameStore'
@@ -70,7 +70,7 @@ function parseDurationToSeconds(dur: string): number {
 
 export class NetworkManager {
   private client: Client
-  private room: Room<IOfficeState> | null = null
+  private room: Room<RoomState> | null = null
   private lobby: Room | null = null
   private _lobbyPromise: Promise<void> | null = null
   private moveThrottleTimer: ReturnType<typeof setTimeout> | null = null
@@ -243,7 +243,7 @@ export class NetworkManager {
       this.checkNoActiveSession()
       const authOpts = await this.getAuthOptions()
       this.room = await withTimeout(
-        this.client.joinOrCreate<IOfficeState>(RoomType.PUBLIC, {
+        this.client.joinOrCreate<RoomState>(RoomType.PUBLIC, {
           name: playerName,
           playerId: getOrCreatePlayerId(),
           spawnX: 0,
@@ -270,7 +270,7 @@ export class NetworkManager {
       this.checkNoActiveSession()
       const authOpts = await this.getAuthOptions()
       this.room = await withTimeout(
-        this.client.joinOrCreate<IOfficeState>(RoomType.MYROOM, {
+        this.client.joinOrCreate<RoomState>(RoomType.MYROOM, {
           name: playerName,
           playerId: getOrCreatePlayerId(),
           textureId,
@@ -301,7 +301,7 @@ export class NetworkManager {
       this.checkNoActiveSession()
       const authOpts = await this.getAuthOptions()
       this.room = await withTimeout(
-        this.client.create<IOfficeState>(RoomType.JUKEBOX, {
+        this.client.create<RoomState>(RoomType.JUKEBOX, {
           name: roomData.name,
           description: roomData.description,
           password: roomData.password,
@@ -338,7 +338,7 @@ export class NetworkManager {
       const authOpts = await this.getAuthOptions()
 
       this.room = await withTimeout(
-        this.client.create<IOfficeState>(RoomType.CUSTOM, {
+        this.client.create<RoomState>(RoomType.CUSTOM, {
           name: roomData.name,
           description: roomData.description,
           password: roomData.password,
@@ -374,7 +374,7 @@ export class NetworkManager {
       this.checkNoActiveSession()
       const authOpts = await this.getAuthOptions()
       this.room = await withTimeout(
-        this.client.joinById<IOfficeState>(roomId, {
+        this.client.joinById<RoomState>(roomId, {
           password,
           playerId: getOrCreatePlayerId(),
           textureId,
@@ -418,7 +418,7 @@ export class NetworkManager {
     const freshRemotes = new Set<string>()
 
       // Player add/remove/change
-      playersProxy.onAdd((player: IPlayer, sessionId: string) => {
+      playersProxy.onAdd((player: Player, sessionId: string) => {
         const gameStore = useGameStore.getState()
         const chatStore = useChatStore.getState()
 
@@ -498,7 +498,7 @@ export class NetworkManager {
       }
     }, true) // true = trigger for existing items
 
-    playersProxy.onRemove((_player: IPlayer, sessionId: string) => {
+    playersProxy.onRemove((_player: Player, sessionId: string) => {
       const gameStore = useGameStore.getState()
       const chatStore = useChatStore.getState()
 

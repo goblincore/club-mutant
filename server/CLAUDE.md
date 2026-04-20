@@ -6,7 +6,7 @@ Colyseus 0.17 game server. Authoritative multiplayer state.
 
 - `src/index.ts` — Server entry point, Express + Colyseus setup
 - `src/rooms/ClubMutant.ts` — Main room class. All message handlers and game logic live here
-- `src/rooms/schema/OfficeState.ts` — Authoritative state schema (Player, MusicBooth, ChatMessage, etc.)
+- State schema lives in `@club-mutant/types/RoomState` (shared with client — single source of truth, no interface mirror)
 - `src/rooms/commands/` — Command pattern handlers dispatched from ClubMutant.ts:
   - `DJQueueCommand.ts` — DJ queue join/leave/play/stop/skip
   - `MusicBoothUpdateCommand.ts` — Booth connect/disconnect
@@ -28,8 +28,8 @@ Colyseus 0.17 game server. Authoritative multiplayer state.
 3. For complex logic, create a Command class in `src/rooms/commands/` and dispatch via `this.dispatcher.dispatch(new YourCommand(), { ... })`
 
 ### Adding new server state
-1. Define a new Schema class or field in `src/rooms/schema/OfficeState.ts`
-2. Add the corresponding interface in `types/IOfficeState.ts`
+1. Define a new Schema class or field in `types/RoomState.ts` (shared package)
+2. Server and client-3d both consume this file directly — no separate interface needed
 3. State changes auto-sync to all clients via Colyseus
 
 ### NPC (Lily bartender)

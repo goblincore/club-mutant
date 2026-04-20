@@ -104,9 +104,9 @@ YouTube Proof-of-Origin token provider (bgutil). Deployed on Fly.io.
 
 ## Colyseus State Model
 
-- Authoritative state: `OfficeState` (`server/rooms/schema/OfficeState.ts`)
+- Authoritative state: `RoomState` (`types/RoomState.ts` — shared schema package imported by server and client-3d)
 - Key collections: `players` (MapSchema), `musicBooths` (ArraySchema), `djQueue` (ArraySchema), `currentDjSessionId`, `musicStream`
-- Type model: Schema (server state) / IOfficeState interfaces (client typing) / DTOs (wire payloads in `types/Dtos.ts`)
+- Type model: single Colyseus Schema class serves both runtime (server) and typing (client) / DTOs for wire payloads in `types/Dtos.ts`
 
 ## Key Env Vars
 | Var | Service | Notes |

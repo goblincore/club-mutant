@@ -2,7 +2,7 @@ import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 import { v4 as uuidv4 } from 'uuid'
 import type { ClubMutant } from '../ClubMutant'
-import { JukeboxItem, DJUserInfo } from '../schema/OfficeState'
+import { JukeboxItem, DJUserInfo } from '@club-mutant/types/RoomState'
 import { Message } from '@club-mutant/types/Messages'
 import { prefetchVideo } from '../../youtubeService'
 

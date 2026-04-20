@@ -1,7 +1,7 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 import type { ClubMutant } from '../ClubMutant'
-import { DJQueueEntry } from '../schema/OfficeState'
+import { DJQueueEntry } from '@club-mutant/types/RoomState'
 import { Message } from '@club-mutant/types/Messages'
 import { playTrackForCurrentDJ } from './djHelpers'
 

@@ -33,7 +33,7 @@ React + Three.js (R3F) frontend. Main 3D multiplayer client.
 ### State management
 - Client state: Zustand stores in `src/stores/`
 - Server-authoritative state: Colyseus schema listeners set up in `NetworkManager.ts` via `getStateCallbacks()`
-- Types for server state: `@club-mutant/types/IOfficeState`
+- Types for server state: `@club-mutant/types/RoomState` (the Colyseus schema classes — same file the server uses)
 
 ## Build
 

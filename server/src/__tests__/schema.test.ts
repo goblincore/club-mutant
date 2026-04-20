@@ -1,16 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { OfficeState, Player, MusicBooth, ChatMessage, MusicStream } from '../rooms/schema/OfficeState'
+import { RoomState, Player, MusicBooth, ChatMessage, MusicStream } from '@club-mutant/types/RoomState'
 
-describe('OfficeState', () => {
+describe('RoomState', () => {
   it('can be instantiated', () => {
-    const state = new OfficeState()
+    const state = new RoomState()
     expect(state).toBeDefined()
     expect(state.players).toBeDefined()
     expect(state.chatMessages).toBeDefined()
   })
 
   it('can add and remove a player', () => {
-    const state = new OfficeState()
+    const state = new RoomState()
     const player = new Player()
     player.name = 'TestPlayer'
     player.x = 100
