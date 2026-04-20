@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@colyseus/testing": "^0.17.11",
     "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.6",
     "@types/express": "^5.0.0",
