@@ -17,6 +17,7 @@ cookies.txt
 .claude/
 .vexp/
 .vscode/
+.windsurf/
 
 # Task tracking
 TASKS.md
