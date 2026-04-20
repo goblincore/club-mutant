@@ -119,7 +119,6 @@ const SAPI4_TIMEOUT = 20_000
 /**
  * Synthesize text via SAPI4 and play the resulting audio.
  * Returns duration in ms on success, null on failure (graceful fallback).
- * Used by DreamAcsCharacter for Bonzi speaking the Drifter's responses.
  */
 export async function synthesizeAndPlay(text: string): Promise<number | null> {
   try {

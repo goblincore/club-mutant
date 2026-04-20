@@ -14,7 +14,6 @@ Shared TypeScript type definitions — the contract between client and server.
 - `Rooms.ts` — Room types (IRoomData, RoomType, MusicMode)
 - `AnimationCodec.ts` — Animation ID encoding/decoding, texture IDs
 - `Mail.ts` — DM message types
-- `WallPost.ts` — Wall post types
 - `Backgrounds.ts` — Background types
 
 ## JS Companions
