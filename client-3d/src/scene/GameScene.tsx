@@ -10,8 +10,10 @@ import { JapaneseRoom } from './JapaneseRoom'
 import { JukeboxRoom } from './JukeboxRoom'
 import { useDreamStore } from '../dream/dreamStore'
 import { FollowCamera, wasCameraDrag } from './Camera'
-import { PlayerEntity } from './PlayerEntity'
-import { useGameStore } from '../stores/gameStore'
+import { PlayerEntity, triggerRemoteJump } from './PlayerEntity'
+import { addRipple } from './TrampolineRipples'
+import { useGameStore, getPlayerPosition } from '../stores/gameStore'
+import { onPlayerJump } from '../network/events'
 import { usePlayerInput, setClickTarget } from '../input/usePlayerInput'
 import { useVideoBackground } from '../hooks/useVideoBackground'
 import { useAudioAnalyser } from '../hooks/useAudioAnalyser'
@@ -165,8 +167,28 @@ function useDebugKeys() {
   return toast
 }
 
+// Remote jump events arrive via network/events.ts so the network layer doesn't
+// import scene modules. Scene-side reaction: trigger the jump animation + takeoff ripple.
+const REMOTE_TAKEOFF_RIPPLE_AMP = 0.08
+const JUMP_WORLD_SCALE = 0.01
+
+function useRemoteJumpBridge() {
+  useEffect(() => {
+    return onPlayerJump((sessionId) => {
+      triggerRemoteJump(sessionId)
+      const pos = getPlayerPosition(sessionId)
+      if (pos) {
+        const wx = pos.x * JUMP_WORLD_SCALE
+        const wz = -pos.y * JUMP_WORLD_SCALE
+        addRipple(wx, wz, REMOTE_TAKEOFF_RIPPLE_AMP)
+      }
+    })
+  }, [])
+}
+
 export function GameScene() {
   usePlayerInput()
+  useRemoteJumpBridge()
   const toast = useDebugKeys()
 
   const showFps = useUIStore((s) => s.showFps)
