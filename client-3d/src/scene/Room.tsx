@@ -1,8 +1,7 @@
 import { useRef, useCallback } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
+import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
-import { useGameStore, getPlayerPosition } from '../stores/gameStore'
 import { useBoothStore } from '../stores/boothStore'
 import { useUIStore } from '../stores/uiStore'
 import { TvStaticFloorMaterial, FLOOR_SEGMENTS } from '../shaders/TvStaticFloor'
@@ -13,6 +12,7 @@ import { getDisplacementAt } from './TrampolineRipples'
 import { InteractableObject } from './InteractableObject'
 import { GLBModel } from './GLBModel'
 import { MagazineRack } from './MagazineRack'
+import { useWallOcclusion } from './useWallOcclusion'
 import './SpottedEggMaterial'
 import { Sofa, PottedPlant, WaterStation } from './props/office/Furniture'
 import { VideoDisplay, Door, PictureFrame } from './props/office/WallObjects'
@@ -29,7 +29,6 @@ interface RoomProps {
 
 const ROOM_SIZE = 12
 const WALL_HEIGHT = 3
-const WORLD_SCALE = 0.01
 
 // Booth position in world coords (exported for interaction logic)
 const HALF = ROOM_SIZE / 2
@@ -52,13 +51,6 @@ const ORB_FLOAT_Y = 0.25
 export function getDJSlotWorldX(slotIndex: number): number {
   return DJ_SLOT_OFFSETS_X[slotIndex] ?? 0
 }
-
-const FADE_SPEED = 6 // opacity lerp speed
-const OCCLUDE_OPACITY = 0.08 // near-invisible when blocking
-
-const raycaster = new THREE.Raycaster()
-const playerWorldPos = new THREE.Vector3()
-const _scratchDir = new THREE.Vector3()
 
 // Spotted egg for a DJ slot — uses InteractableObject for highlight + click.
 // Hidden entirely when a player occupies this slot.
@@ -171,97 +163,7 @@ function BobbingGroup({
 
 export function Room({ videoTexture, slideshowTexture }: RoomProps) {
   const half = ROOM_SIZE / 2
-  const { camera } = useThree()
-
-  const wallRefs = useRef<THREE.Mesh[]>([])
-  const wallOpacities = useRef<number[]>([1, 1, 1, 1])
-  const wallAttachmentRefs = useRef<(THREE.Group | null)[]>([null, null, null, null])
-
-  const setWallRef = (index: number) => (mesh: THREE.Mesh | null) => {
-    if (mesh) {
-      wallRefs.current[index] = mesh
-    }
-  }
-
-  const setWallAttachmentRef = (index: number) => (group: THREE.Group | null) => {
-    wallAttachmentRefs.current[index] = group
-  }
-
-  useFrame((_, delta) => {
-    const state = useGameStore.getState()
-    const myId = state.mySessionId
-    if (!myId) return
-
-    const me = state.players.get(myId)
-    if (!me) return
-
-    // Player world position
-    const pos = getPlayerPosition(myId)
-    if (!pos) return
-    playerWorldPos.set(pos.x * WORLD_SCALE, 0.5, -pos.y * WORLD_SCALE)
-
-    // Direction from camera to player
-    const dir = _scratchDir.copy(playerWorldPos).sub(camera.position).normalize()
-    raycaster.set(camera.position, dir)
-
-    const distToPlayer = camera.position.distanceTo(playerWorldPos)
-
-    // Test each wall
-    const walls = wallRefs.current
-
-    for (let i = 0; i < walls.length; i++) {
-      const wall = walls[i]
-      if (!wall) continue
-
-      const mat = wall.material as THREE.ShaderMaterial | THREE.MeshStandardMaterial
-      const intersects = raycaster.intersectObject(wall)
-
-      // Wall is blocking if any intersection is between camera and player
-      const isBlocking = intersects.some((hit) => hit.distance < distToPlayer)
-
-      const targetOpacity = isBlocking ? OCCLUDE_OPACITY : 1
-      const t = 1 - Math.exp(-FADE_SPEED * delta)
-
-      wallOpacities.current[i] += (targetOpacity - wallOpacities.current[i]) * t
-
-      const opacity = wallOpacities.current[i]
-      const faded = opacity < 0.99
-
-      // Support both ShaderMaterial (uOpacity uniform) and MeshStandardMaterial (.opacity)
-      // Also toggle depthWrite on the wall itself — faded walls still block depth otherwise.
-      if ('uniforms' in mat && mat.uniforms.uOpacity) {
-        mat.uniforms.uOpacity.value = opacity
-        mat.depthWrite = !faded
-      } else {
-        const msm = mat as THREE.MeshStandardMaterial
-        msm.opacity = opacity
-        msm.depthWrite = !faded
-      }
-
-      // Fade wall-mounted objects (TV, picture frames, door) to match.
-      // Disable depthWrite when faded so characters behind them remain visible.
-      // Switch to DoubleSide when faded so FrontSide planes are visible from behind.
-      const attachments = wallAttachmentRefs.current[i]
-      if (attachments) {
-        attachments.traverse((child) => {
-          if (child instanceof THREE.Mesh && child.material) {
-            const m = child.material as any
-            // Handle ShaderMaterial (AudioReactiveVideoMaterial) via uOpacity uniform
-            if (m.uniforms?.uOpacity) {
-              m.uniforms.uOpacity.value = opacity
-              m.depthWrite = !faded
-              m.side = faded ? THREE.DoubleSide : THREE.FrontSide
-              return
-            }
-            m.transparent = true
-            m.opacity = opacity
-            m.depthWrite = !faded
-            m.side = faded ? THREE.DoubleSide : THREE.FrontSide
-          }
-        })
-      }
-    }
-  })
+  const { setWallRef, setWallAttachmentRef } = useWallOcclusion()
 
   return (
     <group>

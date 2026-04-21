@@ -1,15 +1,13 @@
-import { useRef } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 
 import { getNetwork } from '../network/NetworkManager'
-import { useGameStore, getPlayerPosition } from '../stores/gameStore'
 import { useUIStore } from '../stores/uiStore'
 import { TatamiFloorMaterial } from '../shaders/TatamiFloorMaterial'
 import { StripedWallMaterial } from '../shaders/StripedWallMaterial'
 import { NightSky } from '../shaders/NightSky'
 import { InteractableObject } from './InteractableObject'
 import { GLBModel } from './GLBModel'
+import { useWallOcclusion } from './useWallOcclusion'
 import { OceanWindow } from './props/japanese/OceanWindow'
 
 // Preload GLB models to avoid pop-in
@@ -35,95 +33,11 @@ interface JapaneseRoomProps {
 const ROOM_W = 7 // width (X axis)
 const ROOM_D = 6 // depth (Z axis)
 const WALL_HEIGHT = 2.6
-const WORLD_SCALE = 0.01
 const HALF_W = ROOM_W / 2
 const HALF_D = ROOM_D / 2
 
-const FADE_SPEED = 6
-const OCCLUDE_OPACITY = 0.08
-
-const raycaster = new THREE.Raycaster()
-const playerWorldPos = new THREE.Vector3()
-const _scratchDir = new THREE.Vector3()
-
 export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: JapaneseRoomProps) {
-  const { camera } = useThree()
-
-  // ── Wall occlusion system ──
-  const wallRefs = useRef<THREE.Mesh[]>([])
-  const wallOpacities = useRef<number[]>([1, 1, 1, 1])
-  const wallAttachmentRefs = useRef<(THREE.Group | null)[]>([null, null, null, null])
-
-  const setWallRef = (index: number) => (mesh: THREE.Mesh | null) => {
-    if (mesh) {
-      wallRefs.current[index] = mesh
-    }
-  }
-
-  const setWallAttachmentRef = (index: number) => (group: THREE.Group | null) => {
-    wallAttachmentRefs.current[index] = group
-  }
-
-  useFrame((_, delta) => {
-    const state = useGameStore.getState()
-    const myId = state.mySessionId
-    if (!myId) return
-
-    const me = state.players.get(myId)
-    if (!me) return
-
-    const pos = getPlayerPosition(myId)
-    if (!pos) return
-    playerWorldPos.set(pos.x * WORLD_SCALE, 0.5, -pos.y * WORLD_SCALE)
-
-    const dir = _scratchDir.copy(playerWorldPos).sub(camera.position).normalize()
-    raycaster.set(camera.position, dir)
-
-    const distToPlayer = camera.position.distanceTo(playerWorldPos)
-
-    const walls = wallRefs.current
-
-    for (let i = 0; i < walls.length; i++) {
-      const wall = walls[i]
-      if (!wall) continue
-
-      const mat = wall.material as THREE.ShaderMaterial | THREE.MeshStandardMaterial
-      const intersects = raycaster.intersectObject(wall)
-
-      const isBlocking = intersects.some((hit) => hit.distance < distToPlayer)
-
-      const targetOpacity = isBlocking ? OCCLUDE_OPACITY : 1
-      const t = 1 - Math.exp(-FADE_SPEED * delta)
-
-      wallOpacities.current[i] += (targetOpacity - wallOpacities.current[i]) * t
-
-      const opacity = wallOpacities.current[i]
-      const faded = opacity < 0.99
-
-      // Toggle depthWrite on the wall itself — faded walls still block depth otherwise.
-      if ('uniforms' in mat && mat.uniforms.uOpacity) {
-        mat.uniforms.uOpacity.value = opacity
-        mat.depthWrite = !faded
-      } else {
-        const msm = mat as THREE.MeshStandardMaterial
-        msm.opacity = opacity
-        msm.depthWrite = !faded
-      }
-
-      const attachments = wallAttachmentRefs.current[i]
-      if (attachments) {
-        attachments.traverse((child) => {
-          if (child instanceof THREE.Mesh && child.material) {
-            const m = child.material as THREE.MeshStandardMaterial | THREE.MeshBasicMaterial
-            m.transparent = true
-            m.opacity = opacity
-            m.depthWrite = !faded
-            m.side = faded ? THREE.DoubleSide : THREE.FrontSide
-          }
-        })
-      }
-    }
-  })
+  const { setWallRef, setWallAttachmentRef } = useWallOcclusion()
 
   return (
     <group>

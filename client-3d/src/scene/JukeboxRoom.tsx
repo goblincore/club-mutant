@@ -1,12 +1,10 @@
-import { useRef } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 
-import { useGameStore, getPlayerPosition } from '../stores/gameStore'
 import { useUIStore } from '../stores/uiStore'
 import { getNetwork } from '../network/NetworkManager'
 import { NightSky } from '../shaders/NightSky'
 import { InteractableObject } from './InteractableObject'
+import { useWallOcclusion } from './useWallOcclusion'
 import { CheckerFloor } from './props/diner/CheckerFloor'
 import { DinerWallMaterial } from './props/diner/DinerWall'
 import { DinerBooth } from './props/diner/DinerFurniture'
@@ -27,7 +25,6 @@ interface JukeboxRoomProps {
 const ROOM_W = 9
 const ROOM_D = 9
 const WALL_HEIGHT = 3.0
-const WORLD_SCALE = 0.01
 const HALF_W = ROOM_W / 2
 const HALF_D = ROOM_D / 2
 
@@ -38,102 +35,8 @@ export const JUKEBOX_STAGE_X_MIN = -2.25
 export const JUKEBOX_STAGE_X_MAX = 2.25
 export const JUKEBOX_STAGE_HEIGHT = 0.3                    // world units
 
-const FADE_SPEED = 6
-const OCCLUDE_OPACITY = 0.08
-
-const raycaster = new THREE.Raycaster()
-const playerWorldPos = new THREE.Vector3()
-const _scratchDir = new THREE.Vector3()
-
 export function JukeboxRoom({ videoTexture, slideshowTexture }: JukeboxRoomProps) {
-  const { camera } = useThree()
-
-  const wallRefs = useRef<THREE.Mesh[]>([])
-  const wallOpacities = useRef<number[]>([1, 1, 1, 1])
-  const wallAttachmentRefs = useRef<(THREE.Group | null)[]>([null, null, null, null])
-
-  const setWallRef = (index: number) => (mesh: THREE.Mesh | null) => {
-    if (mesh) wallRefs.current[index] = mesh
-  }
-  const setWallAttachmentRef = (index: number) => (group: THREE.Group | null) => {
-    wallAttachmentRefs.current[index] = group
-  }
-
-  useFrame((_, delta) => {
-    const state = useGameStore.getState()
-    const myId = state.mySessionId
-    if (!myId) return
-    const pos = getPlayerPosition(myId)
-    if (!pos) return
-    playerWorldPos.set(pos.x * WORLD_SCALE, 0.5, -pos.y * WORLD_SCALE)
-
-    const dir = _scratchDir.copy(playerWorldPos).sub(camera.position).normalize()
-    raycaster.set(camera.position, dir)
-    const distToPlayer = camera.position.distanceTo(playerWorldPos)
-
-    for (let i = 0; i < wallRefs.current.length; i++) {
-      const wall = wallRefs.current[i]
-      if (!wall) continue
-
-      const mat = wall.material as THREE.ShaderMaterial | THREE.MeshStandardMaterial
-      // Temporarily use DoubleSide for raycasting so backface hits (camera outside room) register
-      const prevSide = (mat as THREE.Material).side
-      ;(mat as THREE.Material).side = THREE.DoubleSide
-      const isBlocking = raycaster
-        .intersectObject(wall)
-        .some((hit) => hit.distance < distToPlayer)
-      ;(mat as THREE.Material).side = prevSide
-
-      const targetOpacity = isBlocking ? OCCLUDE_OPACITY : 1
-      const t = 1 - Math.exp(-FADE_SPEED * delta)
-      wallOpacities.current[i] += (targetOpacity - wallOpacities.current[i]) * t
-
-      const opacity = wallOpacities.current[i]
-      const faded = opacity < 0.99
-
-      // Update wall material opacity + depthWrite
-      if ('uniforms' in mat) {
-        const sm = mat as THREE.ShaderMaterial
-        if (sm.uniforms?.uOpacity) sm.uniforms.uOpacity.value = opacity
-        sm.depthWrite = !faded
-      } else {
-        const msm = mat as THREE.MeshStandardMaterial
-        msm.opacity = opacity
-        msm.depthWrite = !faded
-      }
-
-      // Update wall attachment opacity + depthWrite + side + emissive scaling
-      const attachments = wallAttachmentRefs.current[i]
-      if (attachments) {
-        attachments.traverse((child) => {
-          if (child instanceof THREE.Mesh && child.material) {
-            const m = child.material as any
-            // Handle ShaderMaterial (AudioReactiveVideoMaterial) via uOpacity uniform
-            if (m.uniforms?.uOpacity) {
-              m.uniforms.uOpacity.value = opacity
-              m.depthWrite = !faded
-              m.side = faded ? THREE.DoubleSide : THREE.FrontSide
-              return
-            }
-            if (!m.transparent) {
-              m.transparent = true
-              m.needsUpdate = true
-            }
-            m.opacity = opacity
-            m.depthWrite = !faded
-            m.side = faded ? THREE.DoubleSide : THREE.FrontSide
-            // Scale down emissive glow so neon signs etc. fade with the wall
-            if (typeof m.emissiveIntensity === 'number') {
-              if (m.userData._baseEmissive === undefined) {
-                m.userData._baseEmissive = m.emissiveIntensity
-              }
-              m.emissiveIntensity = m.userData._baseEmissive * opacity
-            }
-          }
-        })
-      }
-    }
-  })
+  const { setWallRef, setWallAttachmentRef } = useWallOcclusion()
 
   return (
     <group>
