@@ -1,4 +1,5 @@
-import { useUIStore } from '../stores/uiStore'
+import { usePanelStore } from '../stores/panelStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { useGameStore } from '../stores/gameStore'
 import { useState } from 'react'
 import { ChatMessages } from './ChatMessages'
@@ -10,13 +11,13 @@ export const PANEL_WIDTH = 340
 const ICONS_WIDTH = 64
 
 export function RightPanel() {
-  const open = useUIStore((s) => s.rightPanelOpen)
-  const tab = useUIStore((s) => s.rightPanelTab)
-  const muted = useUIStore((s) => s.muted)
+  const open = usePanelStore((s) => s.rightPanelOpen)
+  const tab = usePanelStore((s) => s.rightPanelTab)
+  const muted = useSettingsStore((s) => s.muted)
   const roomType = useGameStore((s) => s.roomType)
-  const setOpen = useUIStore((s) => s.setRightPanelOpen)
-  const setTab = useUIStore((s) => s.setRightPanelTab)
-  const setLeaveOpen = useUIStore((s) => s.setLeaveRoomPromptOpen)
+  const setOpen = usePanelStore((s) => s.setRightPanelOpen)
+  const setTab = usePanelStore((s) => s.setRightPanelTab)
+  const setLeaveOpen = usePanelStore((s) => s.setLeaveRoomPromptOpen)
   
   const [shareOpen, setShareOpen] = useState(false)
 
@@ -61,7 +62,7 @@ export function RightPanel() {
 
       {/* Mute */}
       <button 
-        onClick={() => useUIStore.getState().toggleMuted()} 
+        onClick={() => useSettingsStore.getState().toggleMuted()} 
         className={`w-10 h-10 flex items-center justify-center rounded-lg border transition-colors shadow-lg ${muted ? 'bg-red-500/20 border-red-500/30 text-red-400' : 'bg-black/60 border-white/10 text-white/50 hover:text-white hover:border-white/30'}`} 
         title={muted ? 'Unmute' : 'Mute'}
       >

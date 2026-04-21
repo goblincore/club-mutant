@@ -1,14 +1,14 @@
-import { useUIStore } from '../stores/uiStore'
+import { usePanelStore } from '../stores/panelStore'
 import { useDreamStore } from '../dream/dreamStore'
 import { getNetwork } from '../network/NetworkManager'
 
 export function WakePrompt() {
-  const open = useUIStore((s) => s.wakePromptOpen)
+  const open = usePanelStore((s) => s.wakePromptOpen)
 
   if (!open) return null
 
   const handleConfirm = () => {
-    useUIStore.getState().setWakePromptOpen(false)
+    usePanelStore.getState().setWakePromptOpen(false)
 
     // Tell server we're waking up
     getNetwork().sendDreamWake()
@@ -18,7 +18,7 @@ export function WakePrompt() {
   }
 
   const handleCancel = () => {
-    useUIStore.getState().setWakePromptOpen(false)
+    usePanelStore.getState().setWakePromptOpen(false)
   }
 
   return (

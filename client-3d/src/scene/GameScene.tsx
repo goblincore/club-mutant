@@ -1,7 +1,8 @@
 import { Canvas, useThree } from '@react-three/fiber'
 import { Suspense, useRef, useCallback, useEffect, useState } from 'react'
 import * as THREE from 'three'
-import { useUIStore } from '../stores/uiStore'
+import { usePanelStore } from '../stores/panelStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { PsxPostProcess } from '../shaders/PsxPostProcess'
 import { FpsCounter } from '../ui/FpsCounter'
 
@@ -103,7 +104,7 @@ function SceneContent() {
   const roomType = useGameStore((s) => s.roomType)
   const musicMode = useGameStore((s) => s.musicMode)
   const isDreaming = useDreamStore((s) => s.isDreaming)
-  const osActive = useUIStore((s) => s.osActive)
+  const osActive = usePanelStore((s) => s.osActive)
 
   // Custom rooms with jukebox musicMode also use the JukeboxRoom scene
   const useJukeboxScene = roomType === 'jukebox' || (roomType === 'custom' && musicMode === 'jukebox')
@@ -142,12 +143,12 @@ function useDebugKeys() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
 
       if (e.key === '`') {
-        useUIStore.getState().toggleFps()
+        useSettingsStore.getState().toggleFps()
       }
 
       if (e.key === '-' || e.key === '=') {
-        useUIStore.getState().cycleRenderScale()
-        const scale = useUIStore.getState().renderScale
+        useSettingsStore.getState().cycleRenderScale()
+        const scale = useSettingsStore.getState().renderScale
         setToast(`render ${Math.round(scale * 100)}%`)
       }
     }
@@ -191,7 +192,7 @@ export function GameScene() {
   useRemoteJumpBridge()
   const toast = useDebugKeys()
 
-  const showFps = useUIStore((s) => s.showFps)
+  const showFps = useSettingsStore((s) => s.showFps)
 
   // Cap renderer at 540p — compute dpr so rendered height never exceeds MAX_HEIGHT
   const dpr = Math.min(1, MAX_HEIGHT / window.innerHeight)

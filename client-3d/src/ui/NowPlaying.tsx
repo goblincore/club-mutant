@@ -5,7 +5,7 @@ import { getNetwork } from '../network/NetworkManager'
 import { useMusicStore } from '../stores/musicStore'
 import { useBoothStore } from '../stores/boothStore'
 import { useGameStore } from '../stores/gameStore'
-import { useUIStore } from '../stores/uiStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { useDreamStore } from '../dream/dreamStore'
 
 function formatTime(seconds: number): string {
@@ -25,7 +25,7 @@ export function NowPlaying() {
   const isInQueue = useBoothStore((s) => s.isInQueue)
   const musicMode = useGameStore((s) => s.musicMode)
   const isCurrentDJ = currentDjSessionId === mySessionId
-  const muted = useUIStore((s) => s.muted)
+  const muted = useSettingsStore((s) => s.muted)
   const isDreaming = useDreamStore((s) => s.isDreaming)
 
   const isJukeboxMode = musicMode === 'jukebox' || musicMode === 'personal'

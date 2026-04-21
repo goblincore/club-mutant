@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 
 import { getNetwork } from '../network/NetworkManager'
-import { useUIStore } from '../stores/uiStore'
+import { usePanelStore } from '../stores/panelStore'
 import { TatamiFloorMaterial } from '../shaders/TatamiFloorMaterial'
 import { StripedWallMaterial } from '../shaders/StripedWallMaterial'
 import { NightSky } from '../shaders/NightSky'
@@ -116,7 +116,7 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
       <group ref={setWallAttachmentRef(3)}>
         <InteractableObject
           interactDistance={2.0}
-          onInteract={() => useUIStore.getState().setLeaveRoomPromptOpen(true)}
+          onInteract={() => usePanelStore.getState().setLeaveRoomPromptOpen(true)}
         >
           <group position={[0, 0, HALF_D - 0.02]}>
             {/* Door frame — stone/cream surround */}
@@ -186,7 +186,7 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
       {/* Futon along the right wall — interactable (sleep → dream mode) */}
       <InteractableObject
         interactDistance={2.0}
-        onInteract={() => useUIStore.getState().setSleepPromptOpen(true)}
+        onInteract={() => usePanelStore.getState().setSleepPromptOpen(true)}
       >
         <GLBModel
           src="/models/futon.glb"
@@ -204,7 +204,7 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
       {/* Egg computer on the desk — interactable */}
       <InteractableObject
         interactDistance={2.0}
-        onInteract={() => useUIStore.getState().setOsActive(true)}
+        onInteract={() => usePanelStore.getState().setOsActive(true)}
         occludeHighlight
       >
         <GLBModel
@@ -234,7 +234,7 @@ export function JapaneseRoom({ videoTexture: _vt, slideshowTexture: _st }: Japan
         interactDistance={2.0}
         onInteract={() => {
           getNetwork().jukeboxConnect()
-          useUIStore.getState().setDjQueueOpen(true)
+          usePanelStore.getState().setDjQueueOpen(true)
         }}
       >
         <group position={[1.0, 0.21, 0.5]} rotation={[0, -0.3, 0]}>

@@ -1,4 +1,4 @@
-import { useUIStore } from '../stores/uiStore'
+import { usePanelStore } from '../stores/panelStore'
 import { useGameStore, setPlayerPosition } from '../stores/gameStore'
 import { getNetwork } from '../network/NetworkManager'
 import { BOOTH_WORLD_Z, getDJSlotWorldX } from '../scene/Room'
@@ -9,19 +9,19 @@ const WORLD_SCALE = 0.01
 const BEHIND_BOOTH_SERVER_Y = -(BOOTH_WORLD_Z - 0.8) / WORLD_SCALE
 
 export function BoothPrompt() {
-  const open = useUIStore((s) => s.boothPromptOpen)
+  const open = usePanelStore((s) => s.boothPromptOpen)
 
   if (!open) return null
 
   const handleConfirm = () => {
-    const slotIndex = useUIStore.getState().boothPromptSlotIndex
+    const slotIndex = usePanelStore.getState().boothPromptSlotIndex
 
-    useUIStore.getState().setBoothPromptOpen(false)
+    usePanelStore.getState().setBoothPromptOpen(false)
 
     // Connect to booth + join queue with chosen slot
     getNetwork().connectToBooth(0)
     getNetwork().joinDJQueue(slotIndex)
-    useUIStore.getState().setDjQueueOpen(true)
+    usePanelStore.getState().setDjQueueOpen(true)
 
     // Teleport to the slot position the player clicked
     const offsetX = getDJSlotWorldX(slotIndex)
@@ -40,7 +40,7 @@ export function BoothPrompt() {
   }
 
   const handleCancel = () => {
-    useUIStore.getState().setBoothPromptOpen(false)
+    usePanelStore.getState().setBoothPromptOpen(false)
   }
 
   return (

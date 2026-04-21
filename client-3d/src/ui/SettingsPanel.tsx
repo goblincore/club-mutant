@@ -1,9 +1,9 @@
-import { useUIStore } from '../stores/uiStore'
+import { useSettingsStore } from '../stores/settingsStore'
 
 export function SettingsPanel() {
-  const muted = useUIStore((s) => s.muted)
-  const toggleMuted = useUIStore((s) => s.toggleMuted)
-  const renderScale = useUIStore((s) => s.renderScale)
+  const muted = useSettingsStore((s) => s.muted)
+  const toggleMuted = useSettingsStore((s) => s.toggleMuted)
+  const renderScale = useSettingsStore((s) => s.renderScale)
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 font-mono">
@@ -27,7 +27,7 @@ export function SettingsPanel() {
             {[0.75, 0.5, 0.35].map((scale) => (
               <button
                 key={scale}
-                onClick={() => useUIStore.setState({ renderScale: scale })}
+                onClick={() => useSettingsStore.setState({ renderScale: scale })}
                 className={`flex-1 py-1.5 text-[12px] font-mono rounded transition-colors ${
                   renderScale === scale
                     ? 'bg-purple-500/30 text-purple-300 shadow-sm'

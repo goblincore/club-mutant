@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
 import { useBoothStore } from '../stores/boothStore'
-import { useUIStore } from '../stores/uiStore'
+import { usePanelStore } from '../stores/panelStore'
 import { TvStaticFloorMaterial, FLOOR_SEGMENTS } from '../shaders/TvStaticFloor'
 import { TrampolineGrid } from '../shaders/TrampolineGrid'
 import { TrippySky } from '../shaders/TrippySky'
@@ -89,7 +89,7 @@ function DJSlotOrb({
     // Slot already taken
     if (booth.djQueue.some((e) => e.slotIndex === slotIndex)) return
 
-    useUIStore.getState().setBoothPromptOpen(true, slotIndex)
+    usePanelStore.getState().setBoothPromptOpen(true, slotIndex)
   }, [slotIndex])
 
   // Hide egg when a player is sitting here
@@ -278,7 +278,7 @@ export function Room({ videoTexture, slideshowTexture }: RoomProps) {
       <BobbingGroup baseX={half - 0.6} baseZ={-1.5}>
         <InteractableObject
           interactDistance={2.5}
-          onInteract={() => useUIStore.getState().setMagazineReaderOpen(true)}
+          onInteract={() => usePanelStore.getState().setMagazineReaderOpen(true)}
           occludeHighlight
         >
           <MagazineRack position={[half - 0.6, 0, -1.5]} rotation={[0, -Math.PI / 2, 0]} />
@@ -289,7 +289,7 @@ export function Room({ videoTexture, slideshowTexture }: RoomProps) {
       <BobbingGroup baseX={-(half - 1.2)} baseZ={-(half - 0.8)}>
         <InteractableObject
           interactDistance={2.5}
-          onInteract={() => useUIStore.getState().setOsActive(true)}
+          onInteract={() => usePanelStore.getState().setOsActive(true)}
           occludeHighlight
         >
           <GLBModel

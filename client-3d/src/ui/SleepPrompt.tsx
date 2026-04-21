@@ -1,15 +1,15 @@
-import { useUIStore } from '../stores/uiStore'
+import { usePanelStore } from '../stores/panelStore'
 import { useGameStore } from '../stores/gameStore'
 import { useDreamStore } from '../dream/dreamStore'
 import { getNetwork } from '../network/NetworkManager'
 
 export function SleepPrompt() {
-  const open = useUIStore((s) => s.sleepPromptOpen)
+  const open = usePanelStore((s) => s.sleepPromptOpen)
 
   if (!open) return null
 
   const handleConfirm = () => {
-    useUIStore.getState().setSleepPromptOpen(false)
+    usePanelStore.getState().setSleepPromptOpen(false)
 
     // Tell server we're dreaming
     getNetwork().sendDreamSleep()
@@ -19,7 +19,7 @@ export function SleepPrompt() {
   }
 
   const handleCancel = () => {
-    useUIStore.getState().setSleepPromptOpen(false)
+    usePanelStore.getState().setSleepPromptOpen(false)
   }
 
   return (

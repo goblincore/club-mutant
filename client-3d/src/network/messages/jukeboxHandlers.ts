@@ -3,7 +3,7 @@ import type { RoomState } from '@club-mutant/types/RoomState'
 import type { JukeboxItemDto } from '@club-mutant/types/Dtos'
 import { useGameStore } from '../../stores/gameStore'
 import { useJukeboxStore } from '../../stores/jukeboxStore'
-import { useUIStore } from '../../stores/uiStore'
+import { usePanelStore } from '../../stores/panelStore'
 import { useToastStore } from '../../stores/toastStore'
 
 export function wireJukeboxHandlers(room: Room<RoomState>): void {
@@ -52,7 +52,7 @@ export function wireJukeboxHandlers(room: Room<RoomState>): void {
 
       // Auto-open panel if we just became the occupant
       if (uid === useGameStore.getState().mySessionId) {
-        useUIStore.getState().setDjQueueOpen(true)
+        usePanelStore.getState().setDjQueueOpen(true)
       }
     }
 
