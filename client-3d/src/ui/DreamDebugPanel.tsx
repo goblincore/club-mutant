@@ -80,9 +80,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+type SectionInfo = { kind: string; index: number; bpm: number; themeVideoId: string | null }
+type PlayerWithSectionInfo = { getSectionInfo?: () => SectionInfo | null }
+
 function BPMDisplay() {
   const [bpmInfo, setBpmInfo] = useState({ bpm: 0, confidence: 0, phase: 0 })
   const [layerInfo, setLayerInfo] = useState<Array<{ effect: string; videoId: string }>>([])
+  const [sectionInfo, setSectionInfo] = useState<SectionInfo | null>(null)
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -94,6 +98,8 @@ function BPMDisplay() {
       })
       const layers = player.getLayerInfo()
       setLayerInfo(layers)
+      const info = (player as unknown as PlayerWithSectionInfo).getSectionInfo?.() ?? null
+      setSectionInfo(info)
     }, 100)
     return () => clearInterval(interval)
   }, [])
@@ -131,6 +137,17 @@ function BPMDisplay() {
               <span className="text-purple-400/60 font-mono">{l.effect}</span>
             </div>
           ))}
+        </div>
+      )}
+      {sectionInfo && (
+        <div className="flex justify-between text-[9px] pt-0.5">
+          <span className="text-white/40">SECTION</span>
+          <span className="text-cyan-400/70 font-mono tabular-nums">
+            {sectionInfo.kind} #{sectionInfo.index}
+            {sectionInfo.themeVideoId && (
+              <span className="text-white/30"> · {sectionInfo.themeVideoId}</span>
+            )}
+          </span>
         </div>
       )}
     </div>
@@ -263,6 +280,14 @@ export function DreamDebugPanel() {
         <Slider label="shimmer mix" field="dreamEtherealMix" min={0} max={0.5} step={0.01} />
         <Toggle label="vocal formants" field="dreamFormantEnabled" />
         <Slider label="formant depth" field="dreamFormantDepth" min={0} max={1} step={0.01} />
+      </Section>
+
+      <Section title="Conductor">
+        <Toggle label="Pulse (kick)" field="dreamPulseEnabled" />
+        <Slider label="pulse volume" field="dreamPulseVolume" min={0} max={1} />
+        <Toggle label="Drone" field="dreamDroneEnabled" />
+        <Slider label="drone volume" field="dreamDroneVolume" min={0} max={1} />
+        <Slider label="personal bias" field="dreamPersonalBias" min={1} max={5} step={1} />
       </Section>
 
       <div className="text-white/20 text-[9px] text-center pt-1 border-t border-white/5">

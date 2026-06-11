@@ -77,6 +77,13 @@ export interface DreamDebugState {
   dreamFormantEnabled: boolean
   dreamFormantDepth: number     // 0–1 LFO depth scalar
 
+  // Conductor / songlike structure
+  dreamPulseEnabled: boolean
+  dreamPulseVolume: number      // 0–1
+  dreamDroneEnabled: boolean
+  dreamDroneVolume: number      // 0–1
+  dreamPersonalBias: number     // 1–5 pick-weight multiplier for personal-history tracks
+
   // Actions
   togglePanel: () => void
   set: (partial: Partial<DreamDebugState>) => void
@@ -146,6 +153,12 @@ const DEFAULTS = {
   dreamEtherealMix: 0.12,
   dreamFormantEnabled: true,
   dreamFormantDepth: 0.5,
+
+  dreamPulseEnabled: true,
+  dreamPulseVolume: 0.5,
+  dreamDroneEnabled: true,
+  dreamDroneVolume: 0.4,
+  dreamPersonalBias: 3,
 
 }
 
