@@ -8,6 +8,7 @@ const ROOT_CHOICES = [41.2, 49.0, 55.0, 61.74]
  * Sustained tonal anchor under the collage. An unambiguous tonal center makes the
  * random material above it read as color instead of clash.
  * Connect to masterGain — it should be ducked by the kick sidechain (pump feel).
+ * Starts silent (gain 0) — call setGain() to fade in.
  */
 export class DreamDrone {
   readonly rootHz: number
@@ -21,6 +22,7 @@ export class DreamDrone {
   }
 
   start(ctx: AudioContext, destination: AudioNode): void {
+    this.stop() // guard against double-start leaking the previous oscillator chain
     this.ctx = ctx
     this.out = ctx.createGain()
     this.out.gain.value = 0

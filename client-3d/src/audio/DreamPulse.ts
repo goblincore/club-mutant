@@ -8,6 +8,7 @@ const SCHEDULE_AHEAD_S = 0.12
  * Sparse synthesized kick on a clock WE own (vs. detecting beats in the collage).
  * Half-time feel: kick on beats 1 and 3 of each 4-beat bar, beat 3 occasionally skipped.
  * Connect directly to ctx.destination — must NOT pass through the sidechain it triggers.
+ * Starts silent (gain 0) — call setGain() to fade in.
  */
 export class DreamPulse {
   private ctx: AudioContext | null = null
@@ -27,6 +28,7 @@ export class DreamPulse {
   }
 
   start(ctx: AudioContext, destination: AudioNode, bpm: number): void {
+    this.stop() // guard against double-start leaking the previous interval + nodes
     this.ctx = ctx
     this.beatInterval = 60 / bpm
     this.out = ctx.createGain()
