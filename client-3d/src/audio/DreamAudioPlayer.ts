@@ -42,7 +42,6 @@ interface AudioLayer {
   pitchEffect: PitchEffect
   effectOutput: GainNode // pitch effect outputs to this, which feeds into shared lowpass
   spectralFilter: BiquadFilterNode | null // per-layer spectral split (lowpass for lows, highpass for highs)
-  cycleTimer: ReturnType<typeof setTimeout> | null
   layerIndex: number
 }
 
@@ -124,6 +123,7 @@ class DreamAudioPlayer {
   private themeSeekFraction = 0.3
   private personalIds: string[] = []
   private recentPicks: string[] = []
+  private pendingLayerLoads = new Set<number>()
 
   get isPlaying(): boolean {
     return this._isPlaying
@@ -833,6 +833,8 @@ class DreamAudioPlayer {
   ): Promise<void> {
     if (!this.abortController || this.abortController.signal.aborted) return
 
+    this.pendingLayerLoads.add(layerIndex)
+
     const dbg = useDreamDebugStore.getState()
     const ctx = this.ensureContext()
 
@@ -937,7 +939,6 @@ class DreamAudioPlayer {
         pitchEffect,
         effectOutput,
         spectralFilter,
-        cycleTimer: oldLayer?.cycleTimer ?? null,
         layerIndex,
       }
 
@@ -959,6 +960,8 @@ class DreamAudioPlayer {
     } catch (err) {
       if (this.abortController?.signal.aborted) return
       console.warn(`[DreamAudio] Layer ${layerIndex} failed to play track:`, err)
+    } finally {
+      this.pendingLayerLoads.delete(layerIndex)
     }
   }
 
@@ -1018,12 +1021,17 @@ class DreamAudioPlayer {
     }
 
     if (section.kind === 'themeReturn' && this.themeVideoId) {
-      // The theme alone: same track, same spot, same rate — the dream's chorus
+      // The theme alone: same track, same spot, same rate — the dream's chorus.
+      // Skip if a load is already in flight on layer 0 — dispatching another track
+      // would race the pending one. Accept the rare miss; the theme returns again
+      // within a few sections.
       setLayerGain(1, 0)
-      void this.playTrackOnLayer(0, this.themeVideoId, {
-        rate: this.themeRate,
-        seekFraction: this.themeSeekFraction,
-      })
+      if (!this.pendingLayerLoads.has(0)) {
+        void this.playTrackOnLayer(0, this.themeVideoId, {
+          rate: this.themeRate,
+          seekFraction: this.themeSeekFraction,
+        })
+      }
       if (this.rng!.chance(0.3)) this.playTuningBurst()
       return
     }
@@ -1038,9 +1046,12 @@ class DreamAudioPlayer {
     for (let i = 0; i < 2; i++) {
       if (i < section.params.activeLayers) {
         const layer = this.layers[i]
+        const pending = this.pendingLayerLoads.has(i)
         const wasMuted = layer ? layer.gainNode.gain.value < 0.01 : true
-        // Swap in fresh material when a layer (re)enters, or occasionally for motion
-        if (!layer || wasMuted || this.rng!.chance(0.4)) {
+        // Swap in fresh material when a layer (re)enters, or occasionally for motion.
+        // A pending load already has this layer covered — dispatching another track
+        // would race it (whichever load finishes last wins).
+        if (!pending && (!layer || wasMuted || this.rng!.chance(0.4))) {
           const nextId = this.pickNextVideoId()
           if (nextId) void this.playTrackOnLayer(i, nextId)
         }
@@ -1161,14 +1172,6 @@ class DreamAudioPlayer {
     this.abortController?.abort()
     this.abortController = null
 
-    // Clear all layer cycle timers
-    for (const layer of this.layers) {
-      if (layer?.cycleTimer) {
-        clearTimeout(layer.cycleTimer)
-        layer.cycleTimer = null
-      }
-    }
-
     this.stopAnalysisLoop()
 
     // Stop the conductor and fade out synth layers
@@ -1210,9 +1213,9 @@ class DreamAudioPlayer {
       try { layer.pitchEffect.disconnect() } catch {}
       try { layer.effectOutput.disconnect() } catch {}
       try { layer.spectralFilter?.disconnect() } catch {}
-      if (layer.cycleTimer) clearTimeout(layer.cycleTimer)
     }
     this.layers = []
+    this.pendingLayerLoads.clear()
 
     // Stop noise
     try { this.noiseSource?.stop() } catch {}
