@@ -997,6 +997,7 @@ class DreamAudioPlayer {
     if (this.wetGain) ramp(this.wetGain.gain, section.params.wetMix)
     if (this.dryGain) ramp(this.dryGain.gain, 1 - section.params.wetMix)
     if (this.shimmerOutputGain) {
+      // Ethereal toggle lands at section boundaries only — syncParams defers to the conductor mid-dream
       ramp(this.shimmerOutputGain.gain, dbg.dreamEtherealEnabled ? section.params.shimmerMix : 0)
     }
 
@@ -1100,10 +1101,9 @@ class DreamAudioPlayer {
 
   async start(): Promise<void> {
     if (this._isPlaying) return
-    const gen = ++this.sessionGen
-
     const dbg = useDreamDebugStore.getState()
     if (!dbg.dreamAudioEnabled) return
+    const gen = ++this.sessionGen
 
     this._isPlaying = true
     this.abortController = new AbortController()
@@ -1171,6 +1171,7 @@ class DreamAudioPlayer {
 
   /** Owned-clock kick: sidechain pump on the music bus + visual flash */
   private handlePulseKick(velocity: number): void {
+    if (!this.pulseAudible) return // silent-pulse sections (submerge/breakdown) must not pump or flash
     this._beatKick = Math.max(this._beatKick, velocity)
     if (this.sidechainGain && this.ctx) {
       const g = this.sidechainGain.gain
@@ -1225,6 +1226,7 @@ class DreamAudioPlayer {
     this.drone = null
     this.conductor = null
     this.rng = null
+    this.pulseAudible = false
 
     // Clean up all layers
     for (const layer of this.layers) {
