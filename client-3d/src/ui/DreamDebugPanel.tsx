@@ -81,7 +81,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 type SectionInfo = { kind: string; index: number; bpm: number; themeVideoId: string | null }
-type PlayerWithSectionInfo = { getSectionInfo?: () => SectionInfo | null }
 
 function BPMDisplay() {
   const [bpmInfo, setBpmInfo] = useState({ bpm: 0, confidence: 0, phase: 0 })
@@ -98,8 +97,7 @@ function BPMDisplay() {
       })
       const layers = player.getLayerInfo()
       setLayerInfo(layers)
-      const info = (player as unknown as PlayerWithSectionInfo).getSectionInfo?.() ?? null
-      setSectionInfo(info)
+      setSectionInfo(player.getSectionInfo())
     }, 100)
     return () => clearInterval(interval)
   }, [])

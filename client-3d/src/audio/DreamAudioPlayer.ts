@@ -2,6 +2,11 @@ import { useDreamDebugStore } from '../stores/dreamDebugStore'
 import { setAudioBands, setAudioBeatKick, setAudioSnareHit } from '../hooks/useAudioAnalyser'
 import { randomPitchEffect, type PitchEffect } from './effects'
 import { VocalFormant } from './effects/VocalFormant'
+import { createRng, dreamSeed, type Rng } from '../dream/seededRandom'
+import { DreamConductor, emitDreamSection, type DreamSection } from '../dream/DreamConductor'
+import { DreamPulse } from './DreamPulse'
+import { DreamDrone } from './DreamDrone'
+import { getPlayHistory } from '../dream/playHistory'
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -16,6 +21,17 @@ const YOUTUBE_API_BASE =
   (window.location.hostname === 'localhost'
     ? 'http://localhost:8081'
     : `${window.location.origin}/youtube`)
+
+/** Stable anonymous identity so tonight's dream is a specific, reproducible dream */
+function getDreamIdentity(): string {
+  const KEY = 'club-mutant-3d:dream-identity'
+  let id = localStorage.getItem(KEY)
+  if (!id) {
+    id = crypto.randomUUID()
+    localStorage.setItem(KEY, id)
+  }
+  return id
+}
 
 // ── AudioLayer type ──────────────────────────────────────────────────────
 
@@ -95,6 +111,19 @@ class DreamAudioPlayer {
   private _isPlaying = false
   private videoIds: string[] = []
   private abortController: AbortController | null = null
+
+  // Songlike structure
+  private rng: Rng | null = null
+  private conductor: DreamConductor | null = null
+  private pulse: DreamPulse | null = null
+  private drone: DreamDrone | null = null
+  private sectionTimer: ReturnType<typeof setTimeout> | null = null
+  private pulseAudible = false
+  private themeVideoId: string | null = null
+  private themeRate = 0.8
+  private themeSeekFraction = 0.3
+  private personalIds: string[] = []
+  private recentPicks: string[] = []
 
   get isPlaying(): boolean {
     return this._isPlaying
@@ -397,22 +426,26 @@ class DreamAudioPlayer {
   syncParams(): void {
     const dbg = useDreamDebugStore.getState()
 
-    if (this.lowpass) {
-      this.lowpass.frequency.value = dbg.dreamAudioLowpassFreq
-    }
-    if (this.wetGain) {
-      this.wetGain.gain.value = dbg.dreamAudioWetMix
-    }
-    if (this.dryGain) {
-      this.dryGain.gain.value = 1.0 - dbg.dreamAudioWetMix
+    // During a dream the conductor owns the lowpass/wet/dry/shimmer params
+    const conductorOwns = this._isPlaying && this.conductor !== null
+    if (!conductorOwns) {
+      if (this.lowpass) {
+        this.lowpass.frequency.value = dbg.dreamAudioLowpassFreq
+      }
+      if (this.wetGain) {
+        this.wetGain.gain.value = dbg.dreamAudioWetMix
+      }
+      if (this.dryGain) {
+        this.dryGain.gain.value = 1.0 - dbg.dreamAudioWetMix
+      }
+      if (this.shimmerOutputGain) {
+        this.shimmerOutputGain.gain.value = dbg.dreamEtherealEnabled ? dbg.dreamEtherealMix : 0
+      }
     }
     if (this.masterGain && this._isPlaying) {
       this.masterGain.gain.value = dbg.dreamAudioVolume
     }
 
-    if (this.shimmerOutputGain) {
-      this.shimmerOutputGain.gain.value = dbg.dreamEtherealEnabled ? dbg.dreamEtherealMix : 0
-    }
     if (this.formantChain) {
       this.formantChain.setEnabled(dbg.dreamFormantEnabled, dbg.dreamFormantDepth)
     }
@@ -512,35 +545,24 @@ class DreamAudioPlayer {
     setAudioBands(0, 0, 0, 0)
   }
 
-  // ── Random seek ──────────────────────────────────────────────────────
+  // ── Seek ─────────────────────────────────────────────────────────────
 
-  private seekToRandomPosition(audio: HTMLAudioElement): void {
+  private seekToPosition(audio: HTMLAudioElement, fraction: number): void {
     const trySeek = () => {
       if (audio.duration && isFinite(audio.duration) && audio.duration > 20) {
-        // Seek to 5%-70% of the track (avoid intros and outros)
-        const minPos = audio.duration * 0.05
-        const maxPos = audio.duration * 0.7
-        audio.currentTime = minPos + Math.random() * (maxPos - minPos)
-        console.log(`[DreamAudio] Seeked to ${audio.currentTime.toFixed(1)}s / ${audio.duration.toFixed(1)}s`)
+        audio.currentTime = audio.duration * fraction
         return true
       }
       return false
     }
-
-    // Try immediately
     if (trySeek()) return
-
-    // If duration not available, wait for metadata or durationchange
     const onDuration = () => {
       audio.removeEventListener('durationchange', onDuration)
       audio.removeEventListener('loadedmetadata', onDuration)
-      // Small delay to ensure the seek is accepted
       setTimeout(() => trySeek(), 100)
     }
     audio.addEventListener('durationchange', onDuration)
     audio.addEventListener('loadedmetadata', onDuration)
-
-    // Fallback: try again after 2 seconds
     setTimeout(() => {
       audio.removeEventListener('durationchange', onDuration)
       audio.removeEventListener('loadedmetadata', onDuration)
@@ -590,22 +612,27 @@ class DreamAudioPlayer {
     this._beatKick *= 0.92
 
     if (energyDelta > this.onsetThreshold && now - this.lastBeatTime > 200) {
-      // Detected an onset (beat) — fire the kick
-      // Scale delta to 0-1 range: raw bass deltas on techno kicks can be 0.1-0.5+
-      this._beatKick = Math.min(1.0, energyDelta * 6.0)
+      // Detection only drives kick/sidechain when the pulse is silent
+      // (submerge/breakdown — the collage's own transients can still flicker the visuals)
+      if (!this.pulseAudible) {
+        // Detected an onset (beat) — fire the kick
+        // Scale delta to 0-1 range: raw bass deltas on techno kicks can be 0.1-0.5+
+        this._beatKick = Math.min(1.0, energyDelta * 6.0)
+
+        // Sidechain ducking — fast attack, slow release
+        // Duck to 0.4 (60% reduction) on kick, release over 300ms
+        if (this.sidechainGain && this.ctx) {
+          const g = this.sidechainGain.gain
+          const t = this.ctx.currentTime
+          g.cancelScheduledValues(t)
+          g.setValueAtTime(g.value, t)
+          g.linearRampToValueAtTime(0.4, t + 0.01) // 10ms attack
+          g.linearRampToValueAtTime(1.0, t + 0.30) // 300ms release
+        }
+      }
+
       this.lastBeatTime = now
       this.onsetHistory.push(now)
-
-      // Sidechain ducking — fast attack, slow release
-      // Duck to 0.4 (60% reduction) on kick, release over 300ms
-      if (this.sidechainGain && this.ctx) {
-        const g = this.sidechainGain.gain
-        const t = this.ctx.currentTime
-        g.cancelScheduledValues(t)
-        g.setValueAtTime(g.value, t)
-        g.linearRampToValueAtTime(0.4, t + 0.01) // 10ms attack
-        g.linearRampToValueAtTime(1.0, t + 0.30) // 300ms release
-      }
 
       // Keep last 20 onsets
       if (this.onsetHistory.length > 20) {
@@ -764,9 +791,46 @@ class DreamAudioPlayer {
     }))
   }
 
+  // ── Track selection ───────────────────────────────────────────────
+
+  /** Pick the next collage track: personal history weighted over anonymous cache */
+  private pickNextVideoId(): string | null {
+    const rng = this.rng!
+    const dbg = useDreamDebugStore.getState()
+    const playing = new Set(
+      this.layers.filter(Boolean).map((l) => l.audioEl.src.split('/').pop()?.split('?')[0] ?? '')
+    )
+    const excluded = new Set([...playing, ...this.recentPicks, this.themeVideoId ?? ''])
+
+    const candidates: string[] = []
+    const weights: number[] = []
+    for (const id of this.personalIds) {
+      if (excluded.has(id)) continue
+      candidates.push(id)
+      weights.push(dbg.dreamPersonalBias)
+    }
+    for (const id of this.videoIds) {
+      if (excluded.has(id) || candidates.includes(id)) continue
+      candidates.push(id)
+      weights.push(1)
+    }
+    if (candidates.length === 0) {
+      // everything excluded — fall back to any cached id
+      return this.videoIds.length > 0 ? rng.pick(this.videoIds) : null
+    }
+    const picked = rng.pickWeighted(candidates, weights)
+    this.recentPicks.push(picked)
+    if (this.recentPicks.length > 4) this.recentPicks.shift()
+    return picked
+  }
+
   // ── Multi-layer playback ──────────────────────────────────────────
 
-  private async playTrackOnLayer(layerIndex: number, videoId: string): Promise<void> {
+  private async playTrackOnLayer(
+    layerIndex: number,
+    videoId: string,
+    opts?: { rate?: number; seekFraction?: number }
+  ): Promise<void> {
     if (!this.abortController || this.abortController.signal.aborted) return
 
     const dbg = useDreamDebugStore.getState()
@@ -787,39 +851,14 @@ class DreamAudioPlayer {
       // Disable browser pitch correction — we WANT pitch to drop with speed (DJ Screw)
       audio.preservesPitch = false
 
-      // Set playback rate
-      const rate = dbg.dreamAudioRateMin +
-        Math.random() * (dbg.dreamAudioRateMax - dbg.dreamAudioRateMin)
+      // Set playback rate — seeded, or pinned (theme return)
+      const rate =
+        opts?.rate ??
+        this.rng!.range(dbg.dreamAudioRateMin, dbg.dreamAudioRateMax)
       audio.playbackRate = rate
 
-      // Random seek
-      this.seekToRandomPosition(audio)
-
-      // Beat-matched rate
-      if (this.currentBPM > 0 && this.bpmConfidence > 0.4) {
-        const targetBeatInterval = this.beatInterval
-        if (targetBeatInterval > 0) {
-          const musicalRatios = [0.5, 0.667, 0.75, 0.8, 1.0]
-          const chosenRatio = musicalRatios[Math.floor(Math.random() * musicalRatios.length)]!
-          const matchedRate = rate * chosenRatio
-          const clampedRate = Math.max(dbg.dreamAudioRateMin, Math.min(dbg.dreamAudioRateMax, matchedRate))
-          audio.playbackRate = clampedRate
-          console.log(`[DreamAudio] Layer ${layerIndex} beat-matched rate: ${clampedRate.toFixed(3)}x (ratio: ${chosenRatio}, BPM: ${this.currentBPM.toFixed(1)}, confidence: ${this.bpmConfidence.toFixed(2)})`)
-        }
-      }
-
-      // Beat-aligned crossfade
-      if (this.beatInterval > 0 && this.bpmConfidence > 0.3) {
-        const msUntilNextBeat = this.beatInterval * (1 - this.beatPhase)
-        if (msUntilNextBeat > 50 && msUntilNextBeat < this.beatInterval) {
-          await new Promise(r => setTimeout(r, msUntilNextBeat))
-          if (this.abortController?.signal.aborted) {
-            audio.pause()
-            audio.src = ''
-            return
-          }
-        }
-      }
+      // Seek — seeded fraction, or pinned (theme return)
+      this.seekToPosition(audio, opts?.seekFraction ?? this.rng!.range(0.05, 0.7))
 
       // If replacing an existing layer, crossfade out the old one
       const oldLayer = this.layers[layerIndex]
@@ -849,7 +888,7 @@ class DreamAudioPlayer {
 
       // Create per-layer nodes
       const sourceNode = ctx.createMediaElementSource(audio)
-      const layerVolume = dbg.dreamAudioVolume / this.layerCount
+      const layerVolume = dbg.dreamAudioVolume / Math.max(1, this.conductor?.current.params.activeLayers ?? this.layerCount)
       const gainNode = ctx.createGain()
       gainNode.gain.value = layerVolume
 
@@ -923,33 +962,112 @@ class DreamAudioPlayer {
     }
   }
 
-  private scheduleLayerCycle(layerIndex: number): void {
-    const delay = 60_000 + Math.random() * 60_000
+  // ── Conductor runtime ────────────────────────────────────────────────
 
-    const layer = this.layers[layerIndex]
-    if (layer?.cycleTimer) clearTimeout(layer.cycleTimer)
+  /** Ramp the shared chain + synth layers to a section's params, retarget the collage layers */
+  private applySection(section: DreamSection): void {
+    if (!this.ctx) return
+    const dbg = useDreamDebugStore.getState()
+    const t = this.ctx.currentTime
+    const RAMP = 4 // seconds — sections bleed into each other
 
-    const timer = setTimeout(async () => {
-      if (!this._isPlaying || this.videoIds.length === 0) return
+    const ramp = (param: AudioParam, value: number) => {
+      param.cancelScheduledValues(t)
+      param.setValueAtTime(param.value, t)
+      param.linearRampToValueAtTime(value, t + RAMP)
+    }
+    if (this.lowpass) ramp(this.lowpass.frequency, section.params.lowpassFreq)
+    if (this.wetGain) ramp(this.wetGain.gain, section.params.wetMix)
+    if (this.dryGain) ramp(this.dryGain.gain, 1 - section.params.wetMix)
+    if (this.shimmerOutputGain && dbg.dreamEtherealEnabled) {
+      ramp(this.shimmerOutputGain.gain, section.params.shimmerMix)
+    }
 
-      // Radio tuning burst before switching tracks (50% chance)
-      if (Math.random() < 0.5) {
-        this.playTuningBurst()
+    this.pulseAudible = dbg.dreamPulseEnabled && section.params.pulseGain > 0
+    this.pulse?.setGain(
+      dbg.dreamPulseEnabled ? section.params.pulseGain * dbg.dreamPulseVolume : 0,
+      RAMP
+    )
+    this.drone?.setGain(
+      dbg.dreamDroneEnabled ? section.params.droneGain * dbg.dreamDroneVolume : 0,
+      RAMP
+    )
+
+    this.applyLayerPlan(section)
+    emitDreamSection(section, this.conductor!.bpm)
+    console.log(
+      `[DreamAudio] Section #${section.index} ${section.kind} (${section.bars} bars @ ${this.conductor!.bpm} BPM)`
+    )
+  }
+
+  /** Bring collage layers in line with the section's activeLayers count */
+  private applyLayerPlan(section: DreamSection): void {
+    if (!this.ctx) return
+    const dbg = useDreamDebugStore.getState()
+    const t = this.ctx.currentTime
+    const RAMP = 4
+    const audibleGain = dbg.dreamAudioVolume / Math.max(1, section.params.activeLayers)
+
+    const setLayerGain = (i: number, value: number) => {
+      const layer = this.layers[i]
+      if (!layer) return
+      const g = layer.gainNode.gain
+      g.cancelScheduledValues(t)
+      g.setValueAtTime(g.value, t)
+      g.linearRampToValueAtTime(value, t + RAMP)
+    }
+
+    if (section.kind === 'themeReturn' && this.themeVideoId) {
+      // The theme alone: same track, same spot, same rate — the dream's chorus
+      setLayerGain(1, 0)
+      void this.playTrackOnLayer(0, this.themeVideoId, {
+        rate: this.themeRate,
+        seekFraction: this.themeSeekFraction,
+      })
+      if (this.rng!.chance(0.3)) this.playTuningBurst()
+      return
+    }
+
+    if (section.params.activeLayers === 0) {
+      // Breakdown: mute the collage, leave drone + shimmer tails
+      setLayerGain(0, 0)
+      setLayerGain(1, 0)
+      return
+    }
+
+    for (let i = 0; i < 2; i++) {
+      if (i < section.params.activeLayers) {
+        const layer = this.layers[i]
+        const wasMuted = layer ? layer.gainNode.gain.value < 0.01 : true
+        // Swap in fresh material when a layer (re)enters, or occasionally for motion
+        if (!layer || wasMuted || this.rng!.chance(0.4)) {
+          const nextId = this.pickNextVideoId()
+          if (nextId) void this.playTrackOnLayer(i, nextId)
+        }
+        setLayerGain(i, audibleGain)
+      } else {
+        setLayerGain(i, 0)
       }
+    }
+  }
 
-      // Pick a random video different from this layer's current
-      const currentSrc = this.layers[layerIndex]?.audioEl?.src ?? ''
-      let nextId: string
-      do {
-        nextId = this.videoIds[Math.floor(Math.random() * this.videoIds.length)]!
-      } while (this.videoIds.length > 1 && currentSrc.includes(nextId))
+  private scheduleNextSection(): void {
+    if (this.sectionTimer) clearTimeout(this.sectionTimer)
+    const durationMs = this.conductor!.sectionDurationMs()
+    this.sectionTimer = setTimeout(() => {
+      if (!this._isPlaying || !this.conductor) return
+      this.applySection(this.conductor.nextSection())
+      this.scheduleNextSection()
+    }, durationMs)
+  }
 
-      await this.playTrackOnLayer(layerIndex, nextId)
-      this.scheduleLayerCycle(layerIndex)
-    }, delay)
-
-    if (this.layers[layerIndex]) {
-      this.layers[layerIndex].cycleTimer = timer
+  getSectionInfo(): { kind: string; index: number; bpm: number; themeVideoId: string | null } | null {
+    if (!this.conductor) return null
+    return {
+      kind: this.conductor.current.kind,
+      index: this.conductor.current.index,
+      bpm: this.conductor.bpm,
+      themeVideoId: this.themeVideoId,
     }
   }
 
@@ -984,20 +1102,54 @@ class DreamAudioPlayer {
       return
     }
 
-    // Start analysis loop & play entry static
-    this.ensureContext()
+    // Seeded session: tonight's dream is a specific dream
+    this.rng = createRng(dreamSeed(getDreamIdentity()))
+    this.conductor = new DreamConductor(this.rng)
+    this.personalIds = getPlayHistory().recent(24 * 60 * 60 * 1000)
+    this.recentPicks = []
+
+    // Theme: the dream's recurring motif — prefer the player's own listening
+    this.themeVideoId = this.personalIds[0] ?? this.videoIds[0] ?? null
+    this.themeRate = this.rng.range(dbg.dreamAudioRateMin, dbg.dreamAudioRateMax)
+    this.themeSeekFraction = this.rng.range(0.1, 0.6)
+
+    const ctx = this.ensureContext()
     this.playEntryStatic()
     this.startAnalysisLoop()
 
-    // Launch layers with staggered starts — delay first layer to let static play
-    const staticLeadIn = 1500 + Math.random() * 1000 // 1.5-2.5s of static before music
-    for (let i = 0; i < this.layerCount && i < this.videoIds.length; i++) {
-      const videoId = this.videoIds[i % this.videoIds.length]!
-      const delay = staticLeadIn + i * (5000 + Math.random() * 10000)
-      setTimeout(() => {
-        void this.playTrackOnLayer(i, videoId)
-        this.scheduleLayerCycle(i)
-      }, delay)
+    // Synth layers — drone through masterGain (ducked, master-faded);
+    // pulse direct to destination (must not duck itself)
+    this.drone = new DreamDrone(this.rng)
+    this.drone.start(ctx, this.masterGain!)
+    this.pulse = new DreamPulse(this.rng)
+    this.pulse.start(ctx, ctx.destination, this.conductor.bpm)
+    this.pulse.onKick = (velocity) => this.handlePulseKick(velocity)
+
+    // Open with the theme emerging from static, then let the conductor run
+    const staticLeadIn = 1500 + this.rng.range(0, 1000)
+    setTimeout(() => {
+      if (!this._isPlaying || !this.conductor) return
+      if (this.themeVideoId) {
+        void this.playTrackOnLayer(0, this.themeVideoId, {
+          rate: this.themeRate,
+          seekFraction: this.themeSeekFraction,
+        })
+      }
+      this.applySection(this.conductor.current)
+      this.scheduleNextSection()
+    }, staticLeadIn)
+  }
+
+  /** Owned-clock kick: sidechain pump on the music bus + visual flash */
+  private handlePulseKick(velocity: number): void {
+    this._beatKick = Math.max(this._beatKick, velocity)
+    if (this.sidechainGain && this.ctx) {
+      const g = this.sidechainGain.gain
+      const t = this.ctx.currentTime
+      g.cancelScheduledValues(t)
+      g.setValueAtTime(g.value, t)
+      g.linearRampToValueAtTime(0.45, t + 0.012)
+      g.linearRampToValueAtTime(1.0, t + 0.32)
     }
   }
 
@@ -1019,6 +1171,14 @@ class DreamAudioPlayer {
 
     this.stopAnalysisLoop()
 
+    // Stop the conductor and fade out synth layers
+    if (this.sectionTimer) {
+      clearTimeout(this.sectionTimer)
+      this.sectionTimer = null
+    }
+    this.pulse?.setGain(0, FADE_DURATION)
+    this.drone?.setGain(0, FADE_DURATION)
+
     // Fade out master
     if (this.masterGain && this.ctx) {
       this.masterGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + FADE_DURATION)
@@ -1031,6 +1191,14 @@ class DreamAudioPlayer {
   }
 
   private cleanup(): void {
+    // Tear down synth layers + conductor
+    this.pulse?.stop()
+    this.drone?.stop()
+    this.pulse = null
+    this.drone = null
+    this.conductor = null
+    this.rng = null
+
     // Clean up all layers
     for (const layer of this.layers) {
       if (!layer) continue
