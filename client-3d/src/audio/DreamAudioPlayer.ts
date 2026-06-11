@@ -22,15 +22,24 @@ const YOUTUBE_API_BASE =
     ? 'http://localhost:8081'
     : `${window.location.origin}/youtube`)
 
-/** Stable anonymous identity so tonight's dream is a specific, reproducible dream */
+let memoryDreamIdentity: string | null = null
+
+/** Stable anonymous identity anchoring tonight's dream (BPM, theme, drone root) to player+day */
 function getDreamIdentity(): string {
+  if (memoryDreamIdentity) return memoryDreamIdentity
   const KEY = 'club-mutant-3d:dream-identity'
-  let id = localStorage.getItem(KEY)
-  if (!id) {
-    id = crypto.randomUUID()
-    localStorage.setItem(KEY, id)
+  try {
+    let id = localStorage.getItem(KEY)
+    if (!id) {
+      id = crypto.randomUUID()
+      localStorage.setItem(KEY, id)
+    }
+    memoryDreamIdentity = id
+    return id
+  } catch {
+    memoryDreamIdentity = crypto.randomUUID()
+    return memoryDreamIdentity
   }
-  return id
 }
 
 // ── AudioLayer type ──────────────────────────────────────────────────────
@@ -124,6 +133,8 @@ class DreamAudioPlayer {
   private personalIds: string[] = []
   private recentPicks: string[] = []
   private pendingLayerLoads = new Set<number>()
+  private sessionGen = 0
+  private leadInTimer: ReturnType<typeof setTimeout> | null = null
 
   get isPlaying(): boolean {
     return this._isPlaying
@@ -836,13 +847,14 @@ class DreamAudioPlayer {
     this.pendingLayerLoads.add(layerIndex)
 
     const dbg = useDreamDebugStore.getState()
-    const ctx = this.ensureContext()
-
-    if (ctx.state === 'suspended') {
-      await ctx.resume()
-    }
 
     try {
+      const ctx = this.ensureContext()
+
+      if (ctx.state === 'suspended') {
+        await ctx.resume()
+      }
+
       const audio = await this.loadAudioTrack(videoId, this.abortController!.signal)
       if (this.abortController!.signal.aborted) {
         audio.pause()
@@ -872,6 +884,8 @@ class DreamAudioPlayer {
         const oldEffectOutput = oldLayer.effectOutput
 
         // Fade out the old layer's gain
+        oldGain.gain.cancelScheduledValues(ctx.currentTime)
+        oldGain.gain.setValueAtTime(oldGain.gain.value, ctx.currentTime)
         oldGain.gain.linearRampToValueAtTime(0, ctx.currentTime + CROSSFADE_DURATION)
 
         // Clean up after crossfade
@@ -982,8 +996,8 @@ class DreamAudioPlayer {
     if (this.lowpass) ramp(this.lowpass.frequency, section.params.lowpassFreq)
     if (this.wetGain) ramp(this.wetGain.gain, section.params.wetMix)
     if (this.dryGain) ramp(this.dryGain.gain, 1 - section.params.wetMix)
-    if (this.shimmerOutputGain && dbg.dreamEtherealEnabled) {
-      ramp(this.shimmerOutputGain.gain, section.params.shimmerMix)
+    if (this.shimmerOutputGain) {
+      ramp(this.shimmerOutputGain.gain, dbg.dreamEtherealEnabled ? section.params.shimmerMix : 0)
     }
 
     this.pulseAudible = dbg.dreamPulseEnabled && section.params.pulseGain > 0
@@ -1085,6 +1099,7 @@ class DreamAudioPlayer {
   // ── Playback control ────────────────────────────────────────────────
 
   async start(): Promise<void> {
+    const gen = ++this.sessionGen
     if (this._isPlaying) return
 
     const dbg = useDreamDebugStore.getState()
@@ -1102,8 +1117,9 @@ class DreamAudioPlayer {
       if (!res.ok) throw new Error('Cache list fetch failed')
       const data = await res.json()
       this.videoIds = (data.videoIds as string[]) || []
+      if (gen !== this.sessionGen) return
     } catch {
-      this._isPlaying = false
+      if (gen === this.sessionGen) this._isPlaying = false
       return
     }
 
@@ -1113,7 +1129,9 @@ class DreamAudioPlayer {
       return
     }
 
-    // Seeded session: tonight's dream is a specific dream
+    if (this.ctx) this.cleanup() // a prior session skipped its cleanup (re-entry during fade) — start fresh
+
+    // Seeded session: anchors tonight's dream (BPM, theme, drone root, opening) to player+day
     this.rng = createRng(dreamSeed(getDreamIdentity()))
     this.conductor = new DreamConductor(this.rng)
     this.personalIds = getPlayHistory().recent(24 * 60 * 60 * 1000)
@@ -1138,8 +1156,8 @@ class DreamAudioPlayer {
 
     // Open with the theme emerging from static, then let the conductor run
     const staticLeadIn = 1500 + this.rng.range(0, 1000)
-    setTimeout(() => {
-      if (!this._isPlaying || !this.conductor) return
+    this.leadInTimer = setTimeout(() => {
+      if (gen !== this.sessionGen || !this._isPlaying || !this.conductor) return
       if (this.themeVideoId) {
         void this.playTrackOnLayer(0, this.themeVideoId, {
           rate: this.themeRate,
@@ -1165,6 +1183,7 @@ class DreamAudioPlayer {
   }
 
   async stop(): Promise<void> {
+    const gen = this.sessionGen
     if (!this._isPlaying) return
     this._isPlaying = false
 
@@ -1179,6 +1198,10 @@ class DreamAudioPlayer {
       clearTimeout(this.sectionTimer)
       this.sectionTimer = null
     }
+    if (this.leadInTimer) {
+      clearTimeout(this.leadInTimer)
+      this.leadInTimer = null
+    }
     this.pulse?.setGain(0, FADE_DURATION)
     this.drone?.setGain(0, FADE_DURATION)
 
@@ -1190,6 +1213,7 @@ class DreamAudioPlayer {
       await new Promise((resolve) => setTimeout(resolve, FADE_DURATION * 1000 + 200))
     }
 
+    if (gen !== this.sessionGen) return // a new session started during our fade — it owns the graph now
     this.cleanup()
   }
 
