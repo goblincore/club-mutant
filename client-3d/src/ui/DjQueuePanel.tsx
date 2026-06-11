@@ -5,7 +5,7 @@ import { useToastStore } from '../stores/toastStore'
 import { useBoothStore } from '../stores/boothStore'
 import { useGameStore } from '../stores/gameStore'
 import { useMusicStore } from '../stores/musicStore'
-import { useUIStore } from '../stores/uiStore'
+import { usePanelStore } from '../stores/panelStore'
 import { useJukeboxStore } from '../stores/jukeboxStore'
 
 interface SearchResult {
@@ -155,12 +155,12 @@ export function DjQueuePanel() {
   function leaveBooth() {
     getNetwork().disconnectFromBooth()
     getNetwork().leaveDJQueue()
-    useUIStore.getState().setDjQueueOpen(false)
+    usePanelStore.getState().setDjQueueOpen(false)
   }
 
   function leaveJukebox() {
     getNetwork().jukeboxDisconnect()
-    useUIStore.getState().setDjQueueOpen(false)
+    usePanelStore.getState().setDjQueueOpen(false)
   }
 
   // JUKEBOX / PERSONAL MODE
@@ -177,7 +177,7 @@ export function DjQueuePanel() {
           <button
             onClick={() => {
               if (isJukeboxOccupant && musicMode !== 'personal') getNetwork().jukeboxDisconnect()
-              useUIStore.getState().setDjQueueOpen(false)
+              usePanelStore.getState().setDjQueueOpen(false)
             }}
             className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white transition-colors rounded hover:bg-white/10 flex-shrink-0"
             title="Close panel"
@@ -330,7 +330,7 @@ export function DjQueuePanel() {
                       <p>no tracks — use the search bar above to add tracks</p>
                       <button
                         onClick={() => {
-                          useUIStore.getState().setRightPanelTab('playlist')
+                          usePanelStore.getState().setRightPanelTab('playlist')
                         }}
                         className="mt-2 text-purple-400 hover:text-purple-300 transition-colors underline underline-offset-2"
                       >
@@ -385,7 +385,7 @@ export function DjQueuePanel() {
             </button>
           )}
 
-          <button onClick={() => useUIStore.getState().setDjQueueMinimized(true)} className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white transition-colors rounded hover:bg-white/10" title="Minimize panel">
+          <button onClick={() => usePanelStore.getState().setDjQueueMinimized(true)} className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white transition-colors rounded hover:bg-white/10" title="Minimize panel">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></svg>
           </button>
         </div>

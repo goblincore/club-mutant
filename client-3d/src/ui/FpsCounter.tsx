@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 
-import { useUIStore } from '../stores/uiStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { useGameStore } from '../stores/gameStore'
 import { getNetwork } from '../network/NetworkManager'
 
@@ -12,9 +12,9 @@ export function FpsCounter() {
   const frames = useRef(0)
   const lastTime = useRef(performance.now())
 
-  const renderScale = useUIStore((s) => s.renderScale)
-  const fisheyeOverride = useUIStore((s) => s.fisheyeOverride)
-  const vertexFisheye = useUIStore((s) => s.vertexFisheye)
+  const renderScale = useSettingsStore((s) => s.renderScale)
+  const fisheyeOverride = useSettingsStore((s) => s.fisheyeOverride)
+  const vertexFisheye = useSettingsStore((s) => s.vertexFisheye)
   const roomType = useGameStore((s) => s.roomType)
   const [copied, setCopied] = useState(false)
 
@@ -42,15 +42,15 @@ export function FpsCounter() {
   }, [])
 
   const handleFisheyeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    useUIStore.getState().setFisheyeOverride(parseFloat(e.target.value))
+    useSettingsStore.getState().setFisheyeOverride(parseFloat(e.target.value))
   }, [])
 
   const resetFisheye = useCallback(() => {
-    useUIStore.getState().setFisheyeOverride(null)
+    useSettingsStore.getState().setFisheyeOverride(null)
   }, [])
 
   const handleVertexFisheyeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    useUIStore.getState().setVertexFisheye(parseFloat(e.target.value))
+    useSettingsStore.getState().setVertexFisheye(parseFloat(e.target.value))
   }, [])
 
   const handleCopyLink = useCallback(() => {
@@ -121,8 +121,8 @@ export function FpsCounter() {
       <label className="flex items-center gap-1.5 cursor-pointer">
         <input
           type="checkbox"
-          checked={useUIStore((s) => s.vortexOob)}
-          onChange={() => useUIStore.getState().toggleVortexOob()}
+          checked={useSettingsStore((s) => s.vortexOob)}
+          onChange={() => useSettingsStore.getState().toggleVortexOob()}
           className="accent-green-500"
         />
 
@@ -132,8 +132,8 @@ export function FpsCounter() {
       <label className="flex items-center gap-1.5 cursor-pointer">
         <input
           type="checkbox"
-          checked={useUIStore((s) => s.crtFrame)}
-          onChange={() => useUIStore.getState().toggleCrtFrame()}
+          checked={useSettingsStore((s) => s.crtFrame)}
+          onChange={() => useSettingsStore.getState().toggleCrtFrame()}
           className="accent-green-500"
         />
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-import { useUIStore } from '../stores/uiStore'
+import { usePanelStore } from '../stores/panelStore'
 
 const MANIFEST_URL = '/textures/magazines/magazines.json'
 const BASE_PATH = '/textures/magazines/'
@@ -189,7 +189,7 @@ function PageViewer({ magazine, onBack }: { magazine: MagazineEntry; onBack: () 
 }
 
 export function MagazineReader() {
-  const open = useUIStore((s) => s.magazineReaderOpen)
+  const open = usePanelStore((s) => s.magazineReaderOpen)
   const [magazines, setMagazines] = useState<MagazineEntry[]>([])
   const [selectedMag, setSelectedMag] = useState<MagazineEntry | null>(null)
 
@@ -215,7 +215,7 @@ export function MagazineReader() {
   if (!open) return null
 
   const handleClose = () => {
-    useUIStore.getState().setMagazineReaderOpen(false)
+    usePanelStore.getState().setMagazineReaderOpen(false)
   }
 
   const handleBack = () => setSelectedMag(null)

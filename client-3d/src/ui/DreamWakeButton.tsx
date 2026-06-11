@@ -1,9 +1,9 @@
-import { useUIStore } from '../stores/uiStore'
+import { usePanelStore } from '../stores/panelStore'
 
 export function DreamWakeButton() {
   return (
     <button
-      onClick={() => useUIStore.getState().setWakePromptOpen(true)}
+      onClick={() => usePanelStore.getState().setWakePromptOpen(true)}
       className="fixed bottom-4 right-4 group flex items-end gap-0.5 cursor-pointer"
       style={{ zIndex: 55 }}
       title="Wake up"

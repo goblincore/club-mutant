@@ -3,7 +3,8 @@ import { KonpyuuTAShell } from './ui/konpyuuta/KonpyuuTAShell'
 import { Routes, Route } from 'react-router-dom'
 import { getNetwork } from './network/NetworkManager'
 import { useGameStore } from './stores/gameStore'
-import { useUIStore } from './stores/uiStore'
+import { usePanelStore } from './stores/panelStore'
+import { useSettingsStore } from './stores/settingsStore'
 import { useAuthStore } from './stores/authStore'
 import { usePlaylistStore } from './stores/playlistStore'
 import { useDreamStore } from './dream/dreamStore'
@@ -46,13 +47,13 @@ function MinimizedBoothBar() {
   const handleLeave = () => {
     getNetwork().disconnectFromBooth()
     getNetwork().leaveDJQueue()
-    useUIStore.getState().setDjQueueOpen(false)
+    usePanelStore.getState().setDjQueueOpen(false)
   }
 
   return (
     <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm border border-white/10 rounded-lg px-3 py-2">
       <button
-        onClick={() => useUIStore.getState().setDjQueueMinimized(false)}
+        onClick={() => usePanelStore.getState().setDjQueueMinimized(false)}
         className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white transition-colors rounded hover:bg-white/10 flex-shrink-0"
         title="Expand panel"
       >
@@ -118,20 +119,20 @@ function MainApp() {
 
   const connectionStatus = useGameStore((s) => s.connectionStatus)
   const mySessionId = useGameStore((s) => s.mySessionId)
-  const playlistOpen = useUIStore((s) => s.djQueueOpen)
-  const playlistMinimized = useUIStore((s) => s.djQueueMinimized)
+  const playlistOpen = usePanelStore((s) => s.djQueueOpen)
+  const playlistMinimized = usePanelStore((s) => s.djQueueMinimized)
   const isAtBooth = useBoothStore((s) => s.isConnected)
   const musicMode = useGameStore((s) => s.musicMode)
   const isJukeboxMode = musicMode === 'jukebox' || musicMode === 'personal'
 
-  const muted = useUIStore((s) => s.muted)
+  const muted = useSettingsStore((s) => s.muted)
   const videoBackgroundEnabled = useBoothStore((s) => s.videoBackgroundEnabled)
   const videoBgMode = useBoothStore((s) => s.videoBgMode)
   const streamIsPlaying = useMusicStore((s) => s.stream.isPlaying)
   const streamCurrentLink = useMusicStore((s) => s.stream.currentLink)
   const currentDjSessionId = useBoothStore((s) => s.currentDjSessionId)
 
-  const rightPanelOpen = useUIStore((s) => s.rightPanelOpen)
+  const rightPanelOpen = usePanelStore((s) => s.rightPanelOpen)
 
   const showIframe =
     videoBackgroundEnabled && videoBgMode === 'iframe' && streamIsPlaying && !!streamCurrentLink

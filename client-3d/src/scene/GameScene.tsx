@@ -1,7 +1,8 @@
 import { Canvas, useThree } from '@react-three/fiber'
 import { Suspense, useRef, useCallback, useEffect, useState } from 'react'
 import * as THREE from 'three'
-import { useUIStore } from '../stores/uiStore'
+import { usePanelStore } from '../stores/panelStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { PsxPostProcess } from '../shaders/PsxPostProcess'
 import { FpsCounter } from '../ui/FpsCounter'
 
@@ -10,8 +11,10 @@ import { JapaneseRoom } from './JapaneseRoom'
 import { JukeboxRoom } from './JukeboxRoom'
 import { useDreamStore } from '../dream/dreamStore'
 import { FollowCamera, wasCameraDrag } from './Camera'
-import { PlayerEntity } from './PlayerEntity'
-import { useGameStore } from '../stores/gameStore'
+import { PlayerEntity, triggerRemoteJump } from './PlayerEntity'
+import { addRipple } from './TrampolineRipples'
+import { useGameStore, getPlayerPosition } from '../stores/gameStore'
+import { onPlayerJump } from '../network/events'
 import { usePlayerInput, setClickTarget } from '../input/usePlayerInput'
 import { useVideoBackground } from '../hooks/useVideoBackground'
 import { useAudioAnalyser } from '../hooks/useAudioAnalyser'
@@ -101,7 +104,7 @@ function SceneContent() {
   const roomType = useGameStore((s) => s.roomType)
   const musicMode = useGameStore((s) => s.musicMode)
   const isDreaming = useDreamStore((s) => s.isDreaming)
-  const osActive = useUIStore((s) => s.osActive)
+  const osActive = usePanelStore((s) => s.osActive)
 
   // Custom rooms with jukebox musicMode also use the JukeboxRoom scene
   const useJukeboxScene = roomType === 'jukebox' || (roomType === 'custom' && musicMode === 'jukebox')
@@ -140,12 +143,12 @@ function useDebugKeys() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
 
       if (e.key === '`') {
-        useUIStore.getState().toggleFps()
+        useSettingsStore.getState().toggleFps()
       }
 
       if (e.key === '-' || e.key === '=') {
-        useUIStore.getState().cycleRenderScale()
-        const scale = useUIStore.getState().renderScale
+        useSettingsStore.getState().cycleRenderScale()
+        const scale = useSettingsStore.getState().renderScale
         setToast(`render ${Math.round(scale * 100)}%`)
       }
     }
@@ -165,11 +168,31 @@ function useDebugKeys() {
   return toast
 }
 
+// Remote jump events arrive via network/events.ts so the network layer doesn't
+// import scene modules. Scene-side reaction: trigger the jump animation + takeoff ripple.
+const REMOTE_TAKEOFF_RIPPLE_AMP = 0.08
+const JUMP_WORLD_SCALE = 0.01
+
+function useRemoteJumpBridge() {
+  useEffect(() => {
+    return onPlayerJump((sessionId) => {
+      triggerRemoteJump(sessionId)
+      const pos = getPlayerPosition(sessionId)
+      if (pos) {
+        const wx = pos.x * JUMP_WORLD_SCALE
+        const wz = -pos.y * JUMP_WORLD_SCALE
+        addRipple(wx, wz, REMOTE_TAKEOFF_RIPPLE_AMP)
+      }
+    })
+  }, [])
+}
+
 export function GameScene() {
   usePlayerInput()
+  useRemoteJumpBridge()
   const toast = useDebugKeys()
 
-  const showFps = useUIStore((s) => s.showFps)
+  const showFps = useSettingsStore((s) => s.showFps)
 
   // Cap renderer at 540p — compute dpr so rendered height never exceeds MAX_HEIGHT
   const dpr = Math.min(1, MAX_HEIGHT / window.innerHeight)

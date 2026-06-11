@@ -13,7 +13,7 @@ import {
   setCharacterSpaceBounds,
   setDistortScale,
 } from './DistortMaterial'
-import { useUIStore } from '../stores/uiStore'
+import { useSettingsStore } from '../stores/settingsStore'
 
 const PX_SCALE = 0.01
 const PLANE_SEGMENTS = 8 // subdivisions for smooth vertex distortion
@@ -436,7 +436,7 @@ export function PaperDoll({
 
     // 2. Update vertex shader distortion uniforms
     distortTimeRef.current += delta
-    const vFisheye = useUIStore.getState().vertexFisheye
+    const vFisheye = useSettingsStore.getState().vertexFisheye
     for (const mat of materialsRef.current) {
       updateDistortUniforms(mat, distortTimeRef.current, speed, billboardTwist)
       setVertexFisheye(mat, vFisheye)

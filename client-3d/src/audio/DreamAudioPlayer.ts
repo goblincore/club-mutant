@@ -2,10 +2,12 @@ import { useDreamDebugStore } from '../stores/dreamDebugStore'
 import { setAudioBands, setAudioBeatKick, setAudioSnareHit } from '../hooks/useAudioAnalyser'
 import { randomPitchEffect, type PitchEffect } from './effects'
 import { VocalFormant } from './effects/VocalFormant'
+import { generateIR, generateBrightIR, generateNoiseBuffer } from './dreamAudio/buffers'
+import { BeatDetector } from './dreamAudio/beatDetection'
+import { loadAudioTrack, seekToRandomPosition } from './dreamAudio/trackLoader'
 
 // ── Constants ────────────────────────────────────────────────────────────
 
-const IR_SAMPLE_RATE = 44100
 const FFT_SIZE = 256
 const SMOOTHING = 0.15
 const FADE_DURATION = 2.0 // seconds for volume fades
@@ -105,7 +107,7 @@ class DreamAudioPlayer {
   private ensureContext(): AudioContext {
     if (this.ctx) return this.ctx
 
-    this.ctx = new AudioContext({ sampleRate: IR_SAMPLE_RATE })
+    this.ctx = new AudioContext({ sampleRate: 44100 })
 
     // Randomize spectral crossover per session: 600-1400Hz
     // This is the frequency that splits "lows" layers from "highs" layers
@@ -130,7 +132,7 @@ class DreamAudioPlayer {
 
     // ── Reverb convolver (main) ───────────────────────────────────────
     this.convolver = this.ctx.createConvolver()
-    this.convolver.buffer = this.generateIR(dbg.dreamAudioReverbDecay)
+    this.convolver.buffer = generateIR(this.ctx!, dbg.dreamAudioReverbDecay)
 
     // Wet/dry mix
     this.wetGain = this.ctx.createGain()
@@ -162,7 +164,7 @@ class DreamAudioPlayer {
 
     // Extra reverb on highs — longer, brighter than the main reverb
     this.hiReverb = this.ctx.createConvolver()
-    this.hiReverb.buffer = this.generateIR(dbg.dreamAudioReverbDecay * 1.5)
+    this.hiReverb.buffer = generateIR(this.ctx!, dbg.dreamAudioReverbDecay * 1.5)
     this.hiReverbGain = this.ctx.createGain()
     this.hiReverbGain.gain.value = 0.12
 
@@ -176,7 +178,7 @@ class DreamAudioPlayer {
     this.shimmerHPF.Q.value = 0.5
 
     this.shimmerReverb = this.ctx.createConvolver()
-    this.shimmerReverb.buffer = this.generateBrightIR(8.0)
+    this.shimmerReverb.buffer = generateBrightIR(this.ctx!, 8.0)
 
     this.shimmerOutputGain = this.ctx.createGain()
     this.shimmerOutputGain.gain.value = dbg.dreamEtherealEnabled ? dbg.dreamEtherealMix : 0
@@ -245,84 +247,12 @@ class DreamAudioPlayer {
     return this.ctx
   }
 
-  private generateIR(decay: number): AudioBuffer {
-    const ctx = this.ctx!
-    const length = Math.floor(IR_SAMPLE_RATE * decay)
-    const ir = ctx.createBuffer(2, length, IR_SAMPLE_RATE)
-
-    for (let ch = 0; ch < 2; ch++) {
-      const data = ir.getChannelData(ch)
-      for (let i = 0; i < length; i++) {
-        const t = i / IR_SAMPLE_RATE
-        const envelope = Math.exp(-t / (decay * 0.35))
-        data[i] = (Math.random() * 2 - 1) * envelope
-      }
-      // Smooth IR to darken the reverb tail
-      for (let pass = 0; pass < 3; pass++) {
-        for (let i = length - 1; i >= 2; i--) {
-          data[i] = (data[i]! + data[i - 1]! + data[i - 2]!) / 3
-        }
-      }
-    }
-
-    return ir
-  }
-
-  /** Bright impulse response — same as generateIR but WITHOUT the smoothing loop.
-   *  The smoothing averages adjacent samples, which rolls off high frequencies.
-   *  Omitting it preserves full-spectrum brightness for the angelic shimmer. */
-  private generateBrightIR(decay: number): AudioBuffer {
-    const ctx = this.ctx!
-    const length = Math.floor(IR_SAMPLE_RATE * decay)
-    const ir = ctx.createBuffer(2, length, IR_SAMPLE_RATE)
-
-    for (let ch = 0; ch < 2; ch++) {
-      const data = ir.getChannelData(ch)
-      for (let i = 0; i < length; i++) {
-        const t = i / IR_SAMPLE_RATE
-        const envelope = Math.exp(-t / (decay * 0.40)) // slightly slower decay than dark IR
-        data[i] = (Math.random() * 2 - 1) * envelope
-        // No smoothing passes — brightness preserved
-      }
-    }
-
-    return ir
-  }
-
-  // ── Noise generation ─────────────────────────────────────────────────
-
-  /** Generate a brown noise buffer (warmer than white, like radio static) */
-  private generateNoiseBuffer(duration: number): AudioBuffer {
-    const ctx = this.ctx!
-    const length = Math.floor(ctx.sampleRate * duration)
-    const buffer = ctx.createBuffer(2, length, ctx.sampleRate)
-
-    for (let ch = 0; ch < 2; ch++) {
-      const data = buffer.getChannelData(ch)
-      let lastOut = 0
-
-      for (let i = 0; i < length; i++) {
-        const white = Math.random() * 2 - 1
-
-        // Brown noise: integrate white noise with leak
-        lastOut = (lastOut + 0.02 * white) / 1.02
-        data[i] = lastOut * 3.5 // boost amplitude
-
-        // Add occasional crackle pops (radio tuning texture)
-        if (Math.random() < 0.0003) {
-          data[i] += (Math.random() - 0.5) * 0.8
-        }
-      }
-    }
-
-    return buffer
-  }
 
   /** Play radio static burst on dream entry, then fade into music */
   private playEntryStatic(): void {
     if (!this.ctx || !this.sidechainGain) return
 
-    const noiseBuffer = this.generateNoiseBuffer(4.0) // 4 seconds of static
+    const noiseBuffer = generateNoiseBuffer(this.ctx!, 4.0) // 4 seconds of static
 
     this.noiseSource = this.ctx.createBufferSource()
     this.noiseSource.buffer = noiseBuffer
@@ -367,7 +297,7 @@ class DreamAudioPlayer {
     if (!this.ctx || !this.sidechainGain) return
 
     const duration = 0.3 + Math.random() * 0.7 // 0.3-1.0s
-    const noiseBuffer = this.generateNoiseBuffer(duration)
+    const noiseBuffer = generateNoiseBuffer(this.ctx!, duration)
 
     const source = this.ctx.createBufferSource()
     source.buffer = noiseBuffer
@@ -486,12 +416,12 @@ class DreamAudioPlayer {
         rawOnsetMidHigh = snareBandSum / ((snareEnd - snareStart) * 255)
       }
 
-      this.detectBeats(rawOnsetBass)
-      this.detectSnares(rawOnsetMidHigh)
+      this.beatDetector.detectBeats(rawOnsetBass)
+      this.beatDetector.detectSnares(rawOnsetMidHigh)
 
       // Write kick and snare values for shader consumption
-      setAudioBeatKick(this._beatKick)
-      setAudioSnareHit(this._snareHit)
+      setAudioBeatKick(this.beatDetector.getBeatKick())
+      setAudioSnareHit(this.beatDetector.getSnareHit())
 
       rafId = requestAnimationFrame(tick)
     }
@@ -512,247 +442,25 @@ class DreamAudioPlayer {
     setAudioBands(0, 0, 0, 0)
   }
 
-  // ── Random seek ──────────────────────────────────────────────────────
+  // ── Beat detection — delegates to BeatDetector module. ──────────────
+  // The onKick callback triggers sidechain ducking on our own audio chain.
 
-  private seekToRandomPosition(audio: HTMLAudioElement): void {
-    const trySeek = () => {
-      if (audio.duration && isFinite(audio.duration) && audio.duration > 20) {
-        // Seek to 5%-70% of the track (avoid intros and outros)
-        const minPos = audio.duration * 0.05
-        const maxPos = audio.duration * 0.7
-        audio.currentTime = minPos + Math.random() * (maxPos - minPos)
-        console.log(`[DreamAudio] Seeked to ${audio.currentTime.toFixed(1)}s / ${audio.duration.toFixed(1)}s`)
-        return true
-      }
-      return false
-    }
+  private beatDetector = new BeatDetector(() => this.triggerSidechainDuck())
 
-    // Try immediately
-    if (trySeek()) return
+  getBPM(): number { return this.beatDetector.getBPM() }
+  getBeatPhase(): number { return this.beatDetector.getBeatPhase() }
+  getBPMConfidence(): number { return this.beatDetector.getBPMConfidence() }
+  getBeatKick(): number { return this.beatDetector.getBeatKick() }
+  getSnareHit(): number { return this.beatDetector.getSnareHit() }
 
-    // If duration not available, wait for metadata or durationchange
-    const onDuration = () => {
-      audio.removeEventListener('durationchange', onDuration)
-      audio.removeEventListener('loadedmetadata', onDuration)
-      // Small delay to ensure the seek is accepted
-      setTimeout(() => trySeek(), 100)
-    }
-    audio.addEventListener('durationchange', onDuration)
-    audio.addEventListener('loadedmetadata', onDuration)
-
-    // Fallback: try again after 2 seconds
-    setTimeout(() => {
-      audio.removeEventListener('durationchange', onDuration)
-      audio.removeEventListener('loadedmetadata', onDuration)
-      trySeek()
-    }, 2000)
-  }
-
-  // ── BPM Detection (onset detection in bass frequencies) ─────────────
-
-  private currentBPM = 0
-  private beatPhase = 0 // 0-1, where in the current beat we are
-  private lastBeatTime = 0
-  private beatInterval = 0 // ms between beats
-  private onsetHistory: number[] = [] // timestamps of detected bass onsets
-  private prevOnsetEnergy = 0
-  private onsetThreshold = 0.06
-  private bpmConfidence = 0 // 0-1 how confident we are in the detected BPM
-  private _beatKick = 0 // 0-1, spikes on kick then decays
-
-  // Snare detection state
-  private prevSnareEnergy = 0
-  private snareThreshold = 0.04  // lower than kick — snares are often quieter
-  private lastSnareTime = 0
-  private _snareHit = 0 // 0-1, spikes on snare then decays
-
-  getBPM(): number { return this.currentBPM }
-  getBeatPhase(): number { return this.beatPhase }
-  getBPMConfidence(): number { return this.bpmConfidence }
-  getBeatKick(): number { return this._beatKick }
-  getSnareHit(): number { return this._snareHit }
-
-  private detectBeats(rawBass: number): void {
-    if (!this.analyser || !this.dataArray) return
-
-    // Use RAW (unsmoothed) bass for onset detection — the smoothed value
-    // (lerp with 0.15) flattens transients so much that kicks become invisible.
-    // Raw bass preserves the sharp edge of a kick drum.
-    const bassEnergy = rawBass
-
-    // Onset detection: slow envelope follower so transients create large deltas
-    const energyDelta = bassEnergy - this.prevOnsetEnergy
-    this.prevOnsetEnergy = bassEnergy * 0.05 + this.prevOnsetEnergy * 0.95
-
-    const now = performance.now()
-
-    // Decay beat kick value each frame (~0.92 per frame at 60fps ≈ fast decay)
-    this._beatKick *= 0.92
-
-    if (energyDelta > this.onsetThreshold && now - this.lastBeatTime > 200) {
-      // Detected an onset (beat) — fire the kick
-      // Scale delta to 0-1 range: raw bass deltas on techno kicks can be 0.1-0.5+
-      this._beatKick = Math.min(1.0, energyDelta * 6.0)
-      this.lastBeatTime = now
-      this.onsetHistory.push(now)
-
-      // Sidechain ducking — fast attack, slow release
-      // Duck to 0.4 (60% reduction) on kick, release over 300ms
-      if (this.sidechainGain && this.ctx) {
-        const g = this.sidechainGain.gain
-        const t = this.ctx.currentTime
-        g.cancelScheduledValues(t)
-        g.setValueAtTime(g.value, t)
-        g.linearRampToValueAtTime(0.4, t + 0.01) // 10ms attack
-        g.linearRampToValueAtTime(1.0, t + 0.30) // 300ms release
-      }
-
-      // Keep last 20 onsets
-      if (this.onsetHistory.length > 20) {
-        this.onsetHistory.shift()
-      }
-
-      // Calculate BPM from inter-onset intervals
-      if (this.onsetHistory.length >= 4) {
-        const intervals: number[] = []
-        for (let i = 1; i < this.onsetHistory.length; i++) {
-          const interval = this.onsetHistory[i]! - this.onsetHistory[i - 1]!
-          // Filter out unreasonable intervals (only keep 70-200 BPM range)
-          if (interval > 300 && interval < 860) {
-            intervals.push(interval)
-          }
-        }
-
-        if (intervals.length >= 3) {
-          // Use median interval for robustness
-          intervals.sort((a, b) => a - b)
-          const medianInterval = intervals[Math.floor(intervals.length / 2)]!
-
-          // Also try double-time and half-time
-          const bpm = 60000 / medianInterval
-          const prevBPM = this.currentBPM
-
-          // Smooth BPM updates (don't jump wildly)
-          if (prevBPM === 0) {
-            this.currentBPM = bpm
-          } else {
-            // Check if new BPM is close to current, double, or half
-            const ratio = bpm / prevBPM
-            if (ratio > 0.9 && ratio < 1.1) {
-              // Close to current — smooth update
-              this.currentBPM = this.currentBPM * 0.8 + bpm * 0.2
-            } else if (ratio > 1.8 && ratio < 2.2) {
-              // Double time — use half
-              this.currentBPM = this.currentBPM * 0.8 + (bpm / 2) * 0.2
-            } else if (ratio > 0.4 && ratio < 0.6) {
-              // Half time — use double
-              this.currentBPM = this.currentBPM * 0.8 + (bpm * 2) * 0.2
-            } else {
-              // Big change — new song section, jump
-              this.currentBPM = bpm
-            }
-          }
-
-          this.beatInterval = 60000 / this.currentBPM
-
-          // Confidence based on variance of intervals
-          const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length
-          const variance = intervals.reduce((a, b) => a + (b - mean) ** 2, 0) / intervals.length
-          const stdDev = Math.sqrt(variance)
-          // Low std dev relative to mean = high confidence
-          this.bpmConfidence = Math.max(0, Math.min(1, 1 - (stdDev / mean) * 3))
-        }
-      }
-    }
-
-    // Update beat phase (where in the current beat we are)
-    if (this.beatInterval > 0) {
-      const elapsed = now - this.lastBeatTime
-      this.beatPhase = (elapsed % this.beatInterval) / this.beatInterval
-    }
-  }
-
-  // ── Snare detection (mid-high frequency onset) ─────────────────────
-
-  private detectSnares(rawMidHigh: number): void {
-    // Snares have a distinctive broadband "crack" in the 2-8kHz range
-    // plus a body around 150-300Hz. We detect the high-frequency transient
-    // which is what makes snare rolls visually exciting.
-    const snareEnergy = rawMidHigh
-
-    // Slow envelope follower (same approach as kick detection)
-    const energyDelta = snareEnergy - this.prevSnareEnergy
-    this.prevSnareEnergy = snareEnergy * 0.08 + this.prevSnareEnergy * 0.92
-
-    const now = performance.now()
-
-    // Decay snare value each frame (~0.88 per frame = faster decay than kick for snappy feel)
-    this._snareHit *= 0.88
-
-    // Snares can be closer together than kicks (snare rolls!), so shorter cooldown (100ms)
-    if (energyDelta > this.snareThreshold && now - this.lastSnareTime > 100) {
-      // Make sure this isn't just a kick bleed-through:
-      // If a kick JUST fired (within 30ms), skip — it's likely the same transient
-      if (now - this.lastBeatTime < 30) return
-
-      this._snareHit = Math.min(1.0, energyDelta * 8.0)
-      this.lastSnareTime = now
-    }
-  }
-
-  // ── Track loading ───────────────────────────────────────────────────
-
-  private async loadAudioTrack(videoId: string, signal: AbortSignal): Promise<HTMLAudioElement> {
-    return new Promise((resolve, reject) => {
-      if (signal.aborted) {
-        reject(new Error('Aborted'))
-        return
-      }
-
-      const audio = document.createElement('audio')
-      audio.crossOrigin = 'anonymous'
-      audio.preload = 'auto'
-      audio.src = `${YOUTUBE_API_BASE}/proxy/${videoId}?audioOnly=true`
-
-      const cleanup = () => {
-        audio.removeEventListener('canplay', onCanPlay)
-        audio.removeEventListener('error', onError)
-      }
-
-      const onCanPlay = () => {
-        cleanup()
-        resolve(audio)
-      }
-
-      const onError = () => {
-        cleanup()
-        reject(new Error(`Audio load failed: ${audio.error?.message ?? 'unknown'}`))
-      }
-
-      audio.addEventListener('canplay', onCanPlay)
-      audio.addEventListener('error', onError)
-
-      const timeout = setTimeout(() => {
-        cleanup()
-        reject(new Error('Audio load timeout'))
-      }, 15_000)
-
-      signal.addEventListener('abort', () => {
-        clearTimeout(timeout)
-        cleanup()
-        audio.pause()
-        audio.src = ''
-        reject(new Error('Aborted'))
-      })
-
-      audio.load()
-
-      // Clear timeout on resolve/reject
-      const origResolve = resolve
-      resolve = (v) => { clearTimeout(timeout); origResolve(v) }
-      const origReject = reject
-      reject = (e) => { clearTimeout(timeout); origReject(e) }
-    })
+  private triggerSidechainDuck(): void {
+    if (!this.sidechainGain || !this.ctx) return
+    const g = this.sidechainGain.gain
+    const t = this.ctx.currentTime
+    g.cancelScheduledValues(t)
+    g.setValueAtTime(g.value, t)
+    g.linearRampToValueAtTime(0.4, t + 0.01) // 10ms attack
+    g.linearRampToValueAtTime(1.0, t + 0.30) // 300ms release
   }
 
   // ── Layer info (for debug panel) ──────────────────────────────────
@@ -777,7 +485,7 @@ class DreamAudioPlayer {
     }
 
     try {
-      const audio = await this.loadAudioTrack(videoId, this.abortController!.signal)
+      const audio = await loadAudioTrack(videoId, this.abortController!.signal)
       if (this.abortController!.signal.aborted) {
         audio.pause()
         audio.src = ''
@@ -793,25 +501,25 @@ class DreamAudioPlayer {
       audio.playbackRate = rate
 
       // Random seek
-      this.seekToRandomPosition(audio)
+      seekToRandomPosition(audio)
 
       // Beat-matched rate
-      if (this.currentBPM > 0 && this.bpmConfidence > 0.4) {
-        const targetBeatInterval = this.beatInterval
+      if (this.beatDetector.getBPM() > 0 && this.beatDetector.getBPMConfidence() > 0.4) {
+        const targetBeatInterval = this.beatDetector.getBeatInterval()
         if (targetBeatInterval > 0) {
           const musicalRatios = [0.5, 0.667, 0.75, 0.8, 1.0]
           const chosenRatio = musicalRatios[Math.floor(Math.random() * musicalRatios.length)]!
           const matchedRate = rate * chosenRatio
           const clampedRate = Math.max(dbg.dreamAudioRateMin, Math.min(dbg.dreamAudioRateMax, matchedRate))
           audio.playbackRate = clampedRate
-          console.log(`[DreamAudio] Layer ${layerIndex} beat-matched rate: ${clampedRate.toFixed(3)}x (ratio: ${chosenRatio}, BPM: ${this.currentBPM.toFixed(1)}, confidence: ${this.bpmConfidence.toFixed(2)})`)
+          console.log(`[DreamAudio] Layer ${layerIndex} beat-matched rate: ${clampedRate.toFixed(3)}x (ratio: ${chosenRatio}, BPM: ${this.beatDetector.getBPM().toFixed(1)}, confidence: ${this.beatDetector.getBPMConfidence().toFixed(2)})`)
         }
       }
 
       // Beat-aligned crossfade
-      if (this.beatInterval > 0 && this.bpmConfidence > 0.3) {
-        const msUntilNextBeat = this.beatInterval * (1 - this.beatPhase)
-        if (msUntilNextBeat > 50 && msUntilNextBeat < this.beatInterval) {
+      if (this.beatDetector.getBeatInterval() > 0 && this.beatDetector.getBPMConfidence() > 0.3) {
+        const msUntilNextBeat = this.beatDetector.getBeatInterval() * (1 - this.beatDetector.getBeatPhase())
+        if (msUntilNextBeat > 50 && msUntilNextBeat < this.beatDetector.getBeatInterval()) {
           await new Promise(r => setTimeout(r, msUntilNextBeat))
           if (this.abortController?.signal.aborted) {
             audio.pause()
@@ -913,8 +621,7 @@ class DreamAudioPlayer {
       }
 
       // Reset onset history for new tracks
-      this.onsetHistory = []
-      this.prevOnsetEnergy = 0
+      this.beatDetector.resetOnsetHistory()
 
       console.log(`[DreamAudio] Layer ${layerIndex} playing ${videoId} at ${audio.playbackRate.toFixed(3)}x with effect "${pitchEffect.name}"`)
     } catch (err) {
