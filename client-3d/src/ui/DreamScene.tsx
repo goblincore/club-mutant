@@ -262,40 +262,51 @@ function DreamLayer() {
 
       setHasVideos(true)
 
-      try {
-        // Layer A: load immediately
-        const videoIdA = ids[0]!
-        nextVideoIndexRef.current = 1
-        const layerA = await loadLayer(videoIdA, abort.signal)
-        if (abort.signal.aborted) return
-
-        initDoneRef.current = true
-        setState({
-          layerA,
-          layerB: null,
-          swappingLayer: null,
-          swapTransition: 0,
-          swapPrevTexture: null,
-          swapPrevVideoEl: null,
-        })
-
-        // Layer B: load after a random delay with a different video
-        layerBDelayRef.current = setTimeout(async () => {
+      // Layer A: walk the list until one loads (a stale personal-history id must not black-screen the dream)
+      let layerA: VideoLayer | null = null
+      let loadedIdA: string | null = null
+      const maxAttempts = Math.min(5, ids.length)
+      for (let attempt = 0; attempt < maxAttempts && !layerA; attempt++) {
+        const candidate = ids[attempt]!
+        nextVideoIndexRef.current = attempt + 1
+        try {
+          layerA = await loadLayer(candidate, abort.signal)
+          loadedIdA = candidate
+        } catch (err) {
           if (abort.signal.aborted) return
-          const videoIdB = pickNextVideoId(videoIdA)
-          if (!videoIdB) return
-          try {
-            const layerB = await loadLayer(videoIdB, abort.signal)
-            if (abort.signal.aborted) return
-            setState((prev) => prev ? { ...prev, layerB } : prev)
-          } catch (err) {
-            console.warn('[DreamScene] Failed to load layer B:', err)
-          }
-        }, randomLayerBDelay())
-      } catch (err) {
-        console.warn('[DreamScene] Failed to load initial video:', err)
-        setHasVideos(false)
+          console.warn(`[DreamScene] Initial video ${candidate} failed, trying next:`, err)
+        }
       }
+      if (!layerA || !loadedIdA) {
+        console.warn('[DreamScene] All initial video candidates failed')
+        setHasVideos(false)
+        return
+      }
+      if (abort.signal.aborted) return
+
+      initDoneRef.current = true
+      setState({
+        layerA,
+        layerB: null,
+        swappingLayer: null,
+        swapTransition: 0,
+        swapPrevTexture: null,
+        swapPrevVideoEl: null,
+      })
+
+      // Layer B: load after a random delay with a different video
+      layerBDelayRef.current = setTimeout(async () => {
+        if (abort.signal.aborted) return
+        const videoIdB = pickNextVideoId(loadedIdA!)
+        if (!videoIdB) return
+        try {
+          const layerB = await loadLayer(videoIdB, abort.signal)
+          if (abort.signal.aborted) return
+          setState((prev) => prev ? { ...prev, layerB } : prev)
+        } catch (err) {
+          console.warn('[DreamScene] Failed to load layer B:', err)
+        }
+      }, randomLayerBDelay())
     }
 
     void init()
