@@ -49,7 +49,7 @@ Root
 ```
 types ──→ server        (imports @club-mutant/types)
 types ──→ client-3d     (imports @club-mutant/types)
-konpyuuta → client-3d   (iframe embed, must build konpyuuta first)
+konpyuuta → client-3d   (consumed as TS source — no build step; Vite compiles it)
 acs-web → client-3d     (WASM import)
 ```
 
@@ -65,8 +65,8 @@ youtube-api ──HTTP───→ pot-provider     (YouTube PO tokens)
 
 ### Build order
 1. `types` (no deps)
-2. `packages/konpyuuta` + `packages/acs-web` (no deps on workspace packages)
-3. `server`, `client-3d` (depend on types, konpyuuta)
+2. `packages/acs-web` (no deps on workspace packages)
+3. `server`, `client-3d` (depend on types; client-3d compiles `packages/konpyuuta` source directly — no separate build)
 
 ## Services
 

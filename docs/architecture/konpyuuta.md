@@ -1,5 +1,7 @@
 # KonpyuuTA — In-World Operating System
 
+> **⚠️ Partially stale — describes KonpyuuTA v1.** The package is now v2.0.0: a React package consumed as TypeScript source (no build step, no iframes, no postMessage bridge). Apps are React components in `packages/konpyuuta/src/components/apps/`, routed by `AppRouter.tsx`, with desktop icons registered in `stores/desktopStore.ts`. Main-app data (profiles, playlists, messaging) is injected as services through `KonpyuuTAProvider` — see `client-3d/src/ui/konpyuuta/KonpyuuTAShell.tsx`. The "Package & Dev Setup" section below is current; sections mentioning `static/`, `build.mjs`, `bridge-sdk.ts`, or iframe apps are historical.
+
 ## Overview
 
 KonpyuuTA is an in-world mini-OS that opens when players interact with computer terminals in Club Mutant. It uses a **React-based shell** (window manager, taskbar, desktop) with a DOS/BIOS-style boot sequence. Apps are vanilla JS HTML files loaded as single-level iframes. A **postMessage bridge** connects apps to the main Club Mutant app — giving them access to player profiles, friends, direct messaging, playlists, wall posts, and YouTube search.
@@ -136,12 +138,11 @@ The homepage generates 3 random search queries from word pools (e.g. "backyard f
   - Fields: `otherUserId`, `otherUsername`, `lastMessagePreview`, `lastMessageAt`, `unreadCount`
   - Updated atomically on every send/receive
 
-## Build System
+## Package & Dev Setup
 
-- **Package**: `@club-mutant/konpyuuta` in `packages/konpyuuta/`
-- **Build**: `node build.mjs` — copies `static/` to `dist/`, compiles `bridge-sdk.ts` to IIFE with esbuild, injects bridge script into each `apps/*.html`
-- **Dev**: Vite plugin (`client-3d/vite.config.ts`) serves `dist/` at `/konpyuuta/` in dev, copies to `client-3d/dist/konpyuuta/` in production
-- **Deployment**: Cloudflare Pages `_redirects` has passthrough rule `/konpyuuta/* /konpyuuta/:splat 200`
+- **Package**: `@club-mutant/konpyuuta` in `packages/konpyuuta/` (v2.0.0)
+- **No build step**: `package.json` has no `build` script — its `exports` point at `./src/*.ts` and client-3d's Vite compiles the TypeScript source directly
+- **Static assets**: `packages/konpyuuta/public/` (icons, backdrops, palettes) — the `konpyuuta-static` plugin in `client-3d/vite.config.ts` serves it in dev and copies it into the Vite output dir for production builds
 
 ## Key Files
 
