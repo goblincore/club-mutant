@@ -1099,8 +1099,8 @@ class DreamAudioPlayer {
   // ── Playback control ────────────────────────────────────────────────
 
   async start(): Promise<void> {
-    const gen = ++this.sessionGen
     if (this._isPlaying) return
+    const gen = ++this.sessionGen
 
     const dbg = useDreamDebugStore.getState()
     if (!dbg.dreamAudioEnabled) return
@@ -1108,6 +1108,8 @@ class DreamAudioPlayer {
     this._isPlaying = true
     this.abortController = new AbortController()
     this.layerCount = dbg.dreamAudioLayerCount
+
+    if (this.ctx) this.cleanup() // a prior session skipped its cleanup (re-entry during fade) — start fresh
 
     // Fetch available audio IDs
     try {
@@ -1128,8 +1130,6 @@ class DreamAudioPlayer {
       this._isPlaying = false
       return
     }
-
-    if (this.ctx) this.cleanup() // a prior session skipped its cleanup (re-entry during fade) — start fresh
 
     // Seeded session: anchors tonight's dream (BPM, theme, drone root, opening) to player+day
     this.rng = createRng(dreamSeed(getDreamIdentity()))
