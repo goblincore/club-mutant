@@ -92,5 +92,11 @@ export function onDreamSection(cb: SectionListener): () => void {
 }
 
 export function emitDreamSection(section: DreamSection, bpm: number): void {
-  listeners.forEach((cb) => cb(section, bpm))
+  listeners.forEach((cb) => {
+    try {
+      cb(section, bpm)
+    } catch (err) {
+      console.warn('[DreamConductor] section listener failed:', err)
+    }
+  })
 }

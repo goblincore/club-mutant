@@ -8,6 +8,8 @@ import { useDreamDebugStore } from '../stores/dreamDebugStore'
 import { getDreamAudioPlayer } from '../audio/DreamAudioPlayer'
 import { DreamDebugPanel } from './DreamDebugPanel'
 import { DreamWakeButton } from './DreamWakeButton'
+import { onDreamSection } from '../dream/DreamConductor'
+import { getPlayHistory } from '../dream/playHistory'
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -47,13 +49,6 @@ interface DualLayerState {
 function randomRate(): number {
   const { playbackRateMin, playbackRateMax } = useDreamDebugStore.getState()
   return playbackRateMin + Math.random() * (playbackRateMax - playbackRateMin)
-}
-
-function randomCycleDelay(): number {
-  // Fixed range — not debug-controlled (transition duration is separate)
-  const min = 60_000
-  const max = 120_000
-  return min + Math.random() * (max - min)
 }
 
 function randomLayerBDelay(): number {
@@ -146,8 +141,6 @@ function DreamLayer() {
   const videoIdsRef = useRef<string[]>([])
   const nextVideoIndexRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
-  const cycleTimerARef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const cycleTimerBRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const cutTimerARef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cutTimerBRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -166,7 +159,10 @@ function DreamLayer() {
       const res = await fetch(`${YOUTUBE_API_BASE}/cache/list?limit=20&random=true`, { signal })
       if (!res.ok) return []
       const data = await res.json()
-      return (data.videoIds as string[]) || []
+      const cacheIds = (data.videoIds as string[]) || []
+      const personal = getPlayHistory().recent(24 * 60 * 60 * 1000)
+      // Personal first, then cache, deduped
+      return [...new Set([...personal, ...cacheIds])]
     } catch {
       return []
     }
@@ -317,8 +313,6 @@ function DreamLayer() {
 
     return () => {
       abort.abort()
-      if (cycleTimerARef.current) clearTimeout(cycleTimerARef.current)
-      if (cycleTimerBRef.current) clearTimeout(cycleTimerBRef.current)
       if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
       if (cutTimerARef.current) clearTimeout(cutTimerARef.current)
       if (cutTimerBRef.current) clearTimeout(cutTimerBRef.current)
@@ -392,33 +386,14 @@ function DreamLayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!state])
 
-  // ── Video cycling timers (both layers independently) ───────────────
+  // ── Video cycling: melt to new material on conductor section boundaries ──
   useEffect(() => {
     if (!state) return
-    const abort = abortRef.current
-    if (!abort || abort.signal.aborted) return
-
-    const scheduleCycleA = () => {
-      cycleTimerARef.current = setTimeout(async () => {
-        await cycleLayer('a')
-        if (!abort.signal.aborted) scheduleCycleA()
-      }, randomCycleDelay())
-    }
-
-    const scheduleCycleB = () => {
-      cycleTimerBRef.current = setTimeout(async () => {
-        await cycleLayer('b')
-        if (!abort.signal.aborted) scheduleCycleB()
-      }, randomCycleDelay())
-    }
-
-    scheduleCycleA()
-    scheduleCycleB()
-
-    return () => {
-      if (cycleTimerARef.current) clearTimeout(cycleTimerARef.current)
-      if (cycleTimerBRef.current) clearTimeout(cycleTimerBRef.current)
-    }
+    return onDreamSection((section) => {
+      // Alternate which video layer melts each section; breakdowns leave the image alone
+      if (section.kind === 'breakdown') return
+      void cycleLayer(section.index % 2 === 0 ? 'a' : 'b')
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!state])
 
