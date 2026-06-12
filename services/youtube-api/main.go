@@ -572,13 +572,19 @@ func warmupYtDlp() {
 func initCookiesFile() {
 	// Prefer volume-mounted file (no env var needed, easy to update via scp)
 	if _, err := os.Stat(cookiesMountPath); err == nil {
-		// Symlink mounted file to the path yt-dlp reads from
-		os.Remove(cookiesFilePath)
-		if err := os.Symlink(cookiesMountPath, cookiesFilePath); err != nil {
-			log.Printf("[cookies] Failed to symlink mounted cookies: %v", err)
+		// Copy (not symlink) to a writable path: yt-dlp rewrites the cookie jar on
+		// exit, and a symlink into the read-only mount makes every run fail with EROFS
+		data, err := os.ReadFile(cookiesMountPath)
+		if err != nil {
+			log.Printf("[cookies] Failed to read mounted cookies: %v", err)
 			return
 		}
-		log.Println("[cookies] Using volume-mounted cookies file")
+		os.Remove(cookiesFilePath)
+		if err := os.WriteFile(cookiesFilePath, data, 0o600); err != nil {
+			log.Printf("[cookies] Failed to copy mounted cookies: %v", err)
+			return
+		}
+		log.Println("[cookies] Using writable copy of volume-mounted cookies file")
 		return
 	}
 
