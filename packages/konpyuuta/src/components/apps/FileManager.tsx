@@ -191,7 +191,7 @@ export function FileManager() {
           title="File view"
           style={{ display: viewContent !== null ? undefined : 'none' }}
         >
-          <img src="/icons/actions/go-previous.png" alt="Back" onError={(e) => {
+          <img src="/icons/actions/previous.png" alt="Back" onError={(e) => {
             (e.currentTarget as HTMLImageElement).style.display = 'none'
             e.currentTarget.parentElement!.textContent = '←'
           }} />

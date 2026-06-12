@@ -8,6 +8,8 @@ import { useDreamDebugStore } from '../stores/dreamDebugStore'
 import { getDreamAudioPlayer } from '../audio/DreamAudioPlayer'
 import { DreamDebugPanel } from './DreamDebugPanel'
 import { DreamWakeButton } from './DreamWakeButton'
+import { onDreamSection } from '../dream/DreamConductor'
+import { getPlayHistory } from '../dream/playHistory'
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -47,13 +49,6 @@ interface DualLayerState {
 function randomRate(): number {
   const { playbackRateMin, playbackRateMax } = useDreamDebugStore.getState()
   return playbackRateMin + Math.random() * (playbackRateMax - playbackRateMin)
-}
-
-function randomCycleDelay(): number {
-  // Fixed range — not debug-controlled (transition duration is separate)
-  const min = 60_000
-  const max = 120_000
-  return min + Math.random() * (max - min)
 }
 
 function randomLayerBDelay(): number {
@@ -146,8 +141,6 @@ function DreamLayer() {
   const videoIdsRef = useRef<string[]>([])
   const nextVideoIndexRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
-  const cycleTimerARef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const cycleTimerBRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const cutTimerARef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cutTimerBRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -166,7 +159,10 @@ function DreamLayer() {
       const res = await fetch(`${YOUTUBE_API_BASE}/cache/list?limit=20&random=true`, { signal })
       if (!res.ok) return []
       const data = await res.json()
-      return (data.videoIds as string[]) || []
+      const cacheIds = (data.videoIds as string[]) || []
+      const personal = getPlayHistory().recent(24 * 60 * 60 * 1000)
+      // Personal first, then cache, deduped
+      return [...new Set([...personal, ...cacheIds])]
     } catch {
       return []
     }
@@ -266,40 +262,51 @@ function DreamLayer() {
 
       setHasVideos(true)
 
-      try {
-        // Layer A: load immediately
-        const videoIdA = ids[0]!
-        nextVideoIndexRef.current = 1
-        const layerA = await loadLayer(videoIdA, abort.signal)
-        if (abort.signal.aborted) return
-
-        initDoneRef.current = true
-        setState({
-          layerA,
-          layerB: null,
-          swappingLayer: null,
-          swapTransition: 0,
-          swapPrevTexture: null,
-          swapPrevVideoEl: null,
-        })
-
-        // Layer B: load after a random delay with a different video
-        layerBDelayRef.current = setTimeout(async () => {
+      // Layer A: walk the list until one loads (a stale personal-history id must not black-screen the dream)
+      let layerA: VideoLayer | null = null
+      let loadedIdA: string | null = null
+      const maxAttempts = Math.min(5, ids.length)
+      for (let attempt = 0; attempt < maxAttempts && !layerA; attempt++) {
+        const candidate = ids[attempt]!
+        nextVideoIndexRef.current = attempt + 1
+        try {
+          layerA = await loadLayer(candidate, abort.signal)
+          loadedIdA = candidate
+        } catch (err) {
           if (abort.signal.aborted) return
-          const videoIdB = pickNextVideoId(videoIdA)
-          if (!videoIdB) return
-          try {
-            const layerB = await loadLayer(videoIdB, abort.signal)
-            if (abort.signal.aborted) return
-            setState((prev) => prev ? { ...prev, layerB } : prev)
-          } catch (err) {
-            console.warn('[DreamScene] Failed to load layer B:', err)
-          }
-        }, randomLayerBDelay())
-      } catch (err) {
-        console.warn('[DreamScene] Failed to load initial video:', err)
-        setHasVideos(false)
+          console.warn(`[DreamScene] Initial video ${candidate} failed, trying next:`, err)
+        }
       }
+      if (!layerA || !loadedIdA) {
+        console.warn('[DreamScene] All initial video candidates failed')
+        setHasVideos(false)
+        return
+      }
+      if (abort.signal.aborted) return
+
+      initDoneRef.current = true
+      setState({
+        layerA,
+        layerB: null,
+        swappingLayer: null,
+        swapTransition: 0,
+        swapPrevTexture: null,
+        swapPrevVideoEl: null,
+      })
+
+      // Layer B: load after a random delay with a different video
+      layerBDelayRef.current = setTimeout(async () => {
+        if (abort.signal.aborted) return
+        const videoIdB = pickNextVideoId(loadedIdA!)
+        if (!videoIdB) return
+        try {
+          const layerB = await loadLayer(videoIdB, abort.signal)
+          if (abort.signal.aborted) return
+          setState((prev) => prev ? { ...prev, layerB } : prev)
+        } catch (err) {
+          console.warn('[DreamScene] Failed to load layer B:', err)
+        }
+      }, randomLayerBDelay())
     }
 
     void init()
@@ -317,8 +324,6 @@ function DreamLayer() {
 
     return () => {
       abort.abort()
-      if (cycleTimerARef.current) clearTimeout(cycleTimerARef.current)
-      if (cycleTimerBRef.current) clearTimeout(cycleTimerBRef.current)
       if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
       if (cutTimerARef.current) clearTimeout(cutTimerARef.current)
       if (cutTimerBRef.current) clearTimeout(cutTimerBRef.current)
@@ -392,33 +397,14 @@ function DreamLayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!state])
 
-  // ── Video cycling timers (both layers independently) ───────────────
+  // ── Video cycling: melt to new material on conductor section boundaries ──
   useEffect(() => {
     if (!state) return
-    const abort = abortRef.current
-    if (!abort || abort.signal.aborted) return
-
-    const scheduleCycleA = () => {
-      cycleTimerARef.current = setTimeout(async () => {
-        await cycleLayer('a')
-        if (!abort.signal.aborted) scheduleCycleA()
-      }, randomCycleDelay())
-    }
-
-    const scheduleCycleB = () => {
-      cycleTimerBRef.current = setTimeout(async () => {
-        await cycleLayer('b')
-        if (!abort.signal.aborted) scheduleCycleB()
-      }, randomCycleDelay())
-    }
-
-    scheduleCycleA()
-    scheduleCycleB()
-
-    return () => {
-      if (cycleTimerARef.current) clearTimeout(cycleTimerARef.current)
-      if (cycleTimerBRef.current) clearTimeout(cycleTimerBRef.current)
-    }
+    return onDreamSection((section) => {
+      // Alternate which video layer melts each section; breakdowns leave the image alone
+      if (section.kind === 'breakdown') return
+      void cycleLayer(section.index % 2 === 0 ? 'a' : 'b')
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!state])
 

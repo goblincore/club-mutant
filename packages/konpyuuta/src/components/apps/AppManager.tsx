@@ -5,8 +5,8 @@ const APPS = [
   { id: 'filemanager', label: 'File Manager', icon: '/icons/apps/filemanager.png' },
   { id: 'lynx', label: 'Lynx Browser', icon: '/icons/apps/Lynx.svg' },
   { id: 'processmonitor', label: 'Process Monitor', icon: '/icons/apps/org.xfce.taskmanager.png' },
-  { id: 'calendar', label: 'Calendar', icon: '/icons/apps/org.xfce.calendar.png' },
-  { id: 'manviewer', label: 'Man Viewer', icon: '/icons/apps/org.xfce.terminal.png' },
+  { id: 'calendar', label: 'Calendar', icon: '/icons/apps/calendar.svg' },
+  { id: 'manviewer', label: 'Man Viewer', icon: '/icons/apps/man.png' },
   { id: 'settings', label: 'Style Manager', icon: '/icons/apps/org.xfce.settings.manager.png' },
 ]
 

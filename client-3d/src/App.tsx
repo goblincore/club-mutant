@@ -8,6 +8,7 @@ import { useSettingsStore } from './stores/settingsStore'
 import { useAuthStore } from './stores/authStore'
 import { usePlaylistStore } from './stores/playlistStore'
 import { useDreamStore } from './dream/dreamStore'
+import { startPlayHistoryTracking } from './dream/playHistory'
 import { AuthScreen } from './ui/AuthScreen'
 import { UserProfilePage } from './ui/UserProfilePage'
 import { PlayerContextMenu } from './ui/PlayerContextMenu'
@@ -116,6 +117,9 @@ function MainApp() {
       usePlaylistStore.getState().loadFromServer()
     }
   }, [isAuthenticated])
+
+  // Track play history for dream mode source material
+  useEffect(() => startPlayHistoryTracking(), [])
 
   const connectionStatus = useGameStore((s) => s.connectionStatus)
   const mySessionId = useGameStore((s) => s.mySessionId)

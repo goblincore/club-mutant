@@ -89,7 +89,7 @@ export function Panel() {
                 <span>Process Monitor</span>
               </div>
               <div className="cde-subpanel-item" onClick={() => openApp('calendar', { title: 'Calendar', size: { width: 280, height: 300 } })}>
-                <img src="/icons/apps/office-calendar.png" alt="" />
+                <img src="/icons/apps/calendar.svg" alt="" />
                 <span>Calendar</span>
               </div>
               <div className="cde-subpanel-item" onClick={doScreenshot}>
@@ -163,7 +163,7 @@ export function Panel() {
                 <span>Netscape Navigator</span>
               </div>
               <div className="cde-subpanel-item" onClick={() => openApp('lynx', { title: 'Lynx', size: { width: 700, height: 500 } })}>
-                <img src="/icons/apps/lynx.png" alt="" />
+                <img src="/icons/apps/Lynx.svg" alt="" />
                 <span>Lynx Text Browser</span>
               </div>
               <div className="cde-subpanel-item" onClick={() => openApp('mutanttube', { title: 'MutantTube', size: { width: 900, height: 650 } })}>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <defs>
+    <linearGradient id="rustGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#B7410E"/>
+      <stop offset="100%" style="stop-color:#8B4513"/>
+    </linearGradient>
+    <linearGradient id="slimeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#9ACD32"/>
+      <stop offset="100%" style="stop-color:#556B2F"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect x="2" y="2" width="44" height="44" rx="4" fill="#0a0a0a" stroke="#2F4F4F" stroke-width="2"/>
+  <!-- Decaying envelope body -->
+  <rect x="8" y="14" width="32" height="22" rx="2" fill="url(#rustGrad)" stroke="#B7410E" stroke-width="1"/>
+  <!-- Envelope flap -->
+  <polygon points="8,15 24,27 40,15" fill="none" stroke="#9ACD32" stroke-width="2"/>
+  <!-- Slime drips from the bottom edge -->
+  <path d="M14 36 Q14 41 12 41 Q10 41 11 36 Z" fill="url(#slimeGrad)"/>
+  <path d="M30 36 Q30 43 28 43 Q26 43 27 36 Z" fill="url(#slimeGrad)"/>
+  <!-- Rot spot -->
+  <circle cx="34" cy="30" r="2.5" fill="url(#slimeGrad)"/>
+  <!-- Corner accents -->
+  <rect x="4" y="4" width="6" height="2" fill="#B7410E"/>
+  <rect x="38" y="42" width="6" height="2" fill="#9ACD32"/>
+</svg>
