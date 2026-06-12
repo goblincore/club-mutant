@@ -1,9 +1,9 @@
-import { useUIStore } from '../stores/uiStore'
+import { usePanelStore } from '../stores/panelStore'
 import { getNetwork } from '../network/NetworkManager'
 
 export function LeaveRoomPrompt() {
-  const open = useUIStore((s) => s.leaveRoomPromptOpen)
-  const setOpen = useUIStore((s) => s.setLeaveRoomPromptOpen)
+  const open = usePanelStore((s) => s.leaveRoomPromptOpen)
+  const setOpen = usePanelStore((s) => s.setLeaveRoomPromptOpen)
 
   if (!open) return null
 

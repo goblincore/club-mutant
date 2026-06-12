@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useChatStore, ChatMessage } from '../stores/chatStore'
-import { useUIStore } from '../stores/uiStore'
+import { usePanelStore } from '../stores/panelStore'
 
 const IMAGE_URL_REGEX = /https?:\/\/\S+\.(?:png|jpe?g|gif|webp)(?:\?\S*)?/gi
 const CDN_URL_REGEX = /^https:\/\/cdn\.mutante\.club\//
@@ -81,7 +81,7 @@ function MessageContent({ msg }: { msg: ChatMessage }) {
 
 export function ChatMessages() {
   const messages = useChatStore((s) => s.messages)
-  const expanded = useUIStore((s) => s.rightPanelOpen)
+  const expanded = usePanelStore((s) => s.rightPanelOpen)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // Auto scroll to bottom (also re-scroll when images load by listening to DOM mutations)

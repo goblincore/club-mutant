@@ -8,7 +8,7 @@ import type {
   PlaylistTrack,
   UserProfile,
 } from '../../../../packages/konpyuuta/src/types'
-import { useUIStore } from '../../stores/uiStore'
+import { usePanelStore } from '../../stores/panelStore'
 import { usePlaylistStore } from '../../stores/playlistStore'
 import { useAuthStore } from '../../stores/authStore'
 import {
@@ -23,7 +23,7 @@ import { createMessengerService } from '../../services/messengerService'
 import '../../../../packages/konpyuuta/src/styles/cde.css'
 
 export function KonpyuuTAShell() {
-  const osActive = useUIStore((s) => s.osActive)
+  const osActive = usePanelStore((s) => s.osActive)
 
   const playlistService = useMemo<PlaylistService>(() => {
     const store = usePlaylistStore.getState
@@ -101,7 +101,7 @@ export function KonpyuuTAShell() {
             : `${window.location.origin}/youtube`),
       }}
     >
-      <KonpyuuTADesktop onShutdown={() => useUIStore.getState().setOsActive(false)} />
+      <KonpyuuTADesktop onShutdown={() => usePanelStore.getState().setOsActive(false)} />
     </KonpyuuTAProvider>
   )
 }

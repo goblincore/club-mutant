@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect } from 'react'
 import { useThree, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { useUIStore } from '../stores/uiStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { cameraDistance } from '../scene/Camera'
 import {
   HIGHLIGHT_LAYER,
@@ -378,7 +378,7 @@ const BLOOM_SCALE = 0.5 // bloom at half the scene RT resolution
 
 export function PsxPostProcess() {
   const { gl, scene, camera, size } = useThree()
-  const renderScale = useUIStore((s) => s.renderScale)
+  const renderScale = useSettingsStore((s) => s.renderScale)
 
   const originalRenderRef = useRef<typeof gl.render | null>(null)
   const timeRef = useRef(0)
@@ -578,7 +578,7 @@ export function PsxPostProcess() {
     material.uniforms.u_time.value = timeRef.current
 
     // Dynamic fisheye: stronger when zoomed in, weaker when zoomed out
-    const override = useUIStore.getState().fisheyeOverride
+    const override = useSettingsStore.getState().fisheyeOverride
 
     if (override !== null) {
       material.uniforms.u_fisheye.value = override
@@ -589,7 +589,7 @@ export function PsxPostProcess() {
     }
 
     // CRT frame toggle
-    const crtFrameOn = useUIStore.getState().crtFrame
+    const crtFrameOn = useSettingsStore.getState().crtFrame
     material.uniforms.u_crtFrameEnabled.value = crtFrameOn ? 1.0 : 0.0
 
     const hasBg = scene.background !== null
@@ -659,7 +659,7 @@ export function PsxPostProcess() {
     render(blitScene, blitCamera)
 
     // 2.5. Render vortex grid to tiny 128×128 RT (skip when CRT frame covers OOB)
-    const vortexOn = useUIStore.getState().vortexOob && !crtFrameOn
+    const vortexOn = useSettingsStore.getState().vortexOob && !crtFrameOn
     material.uniforms.u_vortexEnabled.value = vortexOn ? 1.0 : 0.0
 
     if (vortexOn) {
