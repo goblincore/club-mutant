@@ -48,6 +48,7 @@ import {
 
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 import PunchPlayerCommand from './commands/PunchPlayerCommand'
+import { NpcDjManager, parseNpcDjLobbyEnv } from './NpcDjManager'
 
 const LOG_ENABLED = process.env.NODE_ENV !== 'production'
 
@@ -90,6 +91,9 @@ export class ClubMutant extends Room {
   private trackWatchdogTimerId: NodeJS.Timeout | null = null
 
   private ambientPublicVideoId = '5-gDL5G-VQQ' //'5-gDL5G-VQQ'
+
+  // ── NPC automaton DJ (Phase 1) ──
+  private npcDjManager: NpcDjManager | null = null
 
   // ── NPC state ──
   private npcUpdateIntervalId: NodeJS.Timeout | null = null
@@ -162,7 +166,9 @@ export class ClubMutant extends Room {
     }, timeoutMs)
   }
 
-  private clearTrackWatchdog() {
+  // Public: the NPC DJ manager clears/re-arms the watchdog around its own
+  // track-advance timer (its timer is the sole authority for NPC tracks).
+  clearTrackWatchdog() {
     if (this.trackWatchdogTimerId) {
       clearTimeout(this.trackWatchdogTimerId)
       this.trackWatchdogTimerId = null
@@ -170,7 +176,7 @@ export class ClubMutant extends Room {
   }
 
   /** Helper: start watchdog if a track is currently playing with a known duration. */
-  private startWatchdogIfPlaying() {
+  startWatchdogIfPlaying() {
     const ms = this.state.musicStream
 
     if (ms.status === 'playing' && ms.currentLink && ms.duration > 0) {
@@ -241,7 +247,9 @@ export class ClubMutant extends Room {
     this.musicStreamTickIntervalId = null
   }
 
-  private stopAmbientIfNeeded() {
+  // Public: also called by the NPC DJ manager when it takes over the booth
+  // (mirrors what the human booth-connect path does).
+  stopAmbientIfNeeded() {
     const musicStream = this.state.musicStream
     if (!musicStream.isAmbient) return
 
@@ -789,6 +797,19 @@ export class ClubMutant extends Room {
     if (this.musicMode === 'jukebox') {
       this.spawnNpc()
       this.startNpcHeartbeat()
+    }
+
+    // Spawn NPC automaton DJ for djqueue rooms (Phase 1: config at room
+    // creation, or NPC_DJ_LOBBY env for the public lobby)
+    if (this.musicMode === 'djqueue') {
+      const npcDjConfig =
+        options.npcDj ?? (this.isPublic ? parseNpcDjLobbyEnv(process.env.NPC_DJ_LOBBY) : null)
+      if (npcDjConfig) {
+        const manager = new NpcDjManager(this, npcDjConfig)
+        if (manager.spawn()) {
+          this.npcDjManager = manager
+        }
+      }
     }
 
     this.onMessage(Message.TIME_SYNC_REQUEST, (client, message: { clientSentAtMs?: unknown }) => {
@@ -1354,6 +1375,8 @@ export class ClubMutant extends Room {
 
     this.stopNpcHeartbeat()
     this.cleanupNpc()
+    this.npcDjManager?.dispose()
+    this.npcDjManager = null
     this.clearTrackWatchdog()
     this.stopMusicStreamTickIfNeeded()
     this.dispatcher.stop()

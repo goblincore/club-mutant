@@ -97,7 +97,9 @@ export function NowPlaying() {
 
   // Build "up next" text (DJ queue mode only — jukebox returns early above)
   const nextDJ = djQueue.length > 1 ? djQueue[1] : null
-  const upNextText = nextDJ ? `Up next: ${nextDJ.name}` : null
+  const upNextText = nextDJ
+    ? `Up next: ${nextDJ.name}${nextDJ.sessionId?.startsWith('npc-dj:') ? ' [BOT]' : ''}`
+    : null
 
   // Time display
   const timeText =
