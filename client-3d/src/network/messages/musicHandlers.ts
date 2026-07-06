@@ -45,8 +45,38 @@ export function wireMusicHandlers(room: Room<RoomState>, timeSync: TimeSync | nu
     (data: { streamId: number; startTime: number; serverNowMs: number }) => {
       const store = useMusicStore.getState()
 
-      // Ignore ticks for a different stream
-      if (!store.stream.isPlaying || store.stream.streamId !== data.streamId) return
+      // F13: a tick carrying a NEWER streamId than the store means this client
+      // missed START_MUSIC_STREAM (dropped message / transient handler error).
+      // Rehydrate from schema state — which the tick confirms is current —
+      // instead of staying silent until the next track.
+      if (!store.stream.isPlaying || data.streamId > (store.stream.streamId ?? 0)) {
+        const ms = (room.state as any)?.musicStream
+        if (
+          ms &&
+          ms.status === 'playing' &&
+          ms.currentLink &&
+          !ms.isAmbient &&
+          (ms.streamId ?? 0) === data.streamId
+        ) {
+          const rehydratedStart = timeSync?.ready
+            ? timeSync.toClientTime(data.startTime)
+            : data.startTime
+          console.log('[Music] Tick carries newer streamId — rehydrating missed stream')
+          store.setStream({
+            currentLink: ms.currentLink,
+            currentTitle: ms.currentTitle ?? null,
+            currentDjName: ms.currentDj?.name ?? null,
+            startTime: rehydratedStart,
+            duration: ms.duration ?? 0,
+            isPlaying: true,
+            streamId: ms.streamId ?? 0,
+          })
+        }
+        return
+      }
+
+      // Ignore stale ticks for an older stream
+      if (store.stream.streamId !== data.streamId) return
 
       // Recompute client-local startTime from this tick's authoritative server time
       const clientStartTime = timeSync?.ready

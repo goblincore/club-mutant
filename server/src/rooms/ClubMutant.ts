@@ -52,6 +52,11 @@ import { NpcDjManager, parseNpcDjLobbyEnv } from './NpcDjManager'
 
 const LOG_ENABLED = process.env.NODE_ENV !== 'production'
 
+// F14: fallback watchdog window for tracks whose duration is unknown (0).
+// Long enough to never cut a legitimate track short in practice, short
+// enough that a stalled rotation always recovers without human input.
+const UNKNOWN_DURATION_WATCHDOG_MS = 10 * 60 * 1000
+
 // ── NPC Constants ──
 const NPC_SESSION_ID = 'npc_lily'
 const NPC_NAME = 'Lily'
@@ -187,9 +192,18 @@ export class ClubMutant extends Room {
   startWatchdogIfPlaying() {
     const ms = this.state.musicStream
 
-    if (ms.status === 'playing' && ms.currentLink && ms.duration > 0) {
+    if (ms.status !== 'playing' || !ms.currentLink) return
+
+    if (ms.duration > 0) {
       const remainingMs = ms.startTime + ms.duration * 1000 - Date.now()
       this.startTrackWatchdog(Math.max(remainingMs, 0))
+    } else {
+      // F14: unknown duration (client sent 0 / unparseable) used to mean NO
+      // watchdog at all — combined with a missing turn-complete that was a
+      // permanent stall. Arm a conservative fallback so the rotation always
+      // has a backstop, measured from the stream's startTime.
+      const elapsedMs = Math.max(Date.now() - ms.startTime, 0)
+      this.startTrackWatchdog(Math.max(UNKNOWN_DURATION_WATCHDOG_MS - elapsedMs, 0))
     }
   }
 

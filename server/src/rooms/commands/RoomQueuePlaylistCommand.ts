@@ -5,7 +5,7 @@ import type { ClubMutant } from '../ClubMutant'
 import { RoomQueuePlaylistItem } from '@club-mutant/types/RoomState'
 import { Message } from '@club-mutant/types/Messages'
 import { prefetchVideo } from '../../youtubeService'
-import { playTrackForCurrentDJ } from './djHelpers'
+import { playTrackForCurrentDJ, clampTrackDuration } from './djHelpers'
 
 type AddPayload = {
   client: Client
@@ -44,7 +44,8 @@ export class RoomQueuePlaylistAddCommand extends Command<ClubMutant, AddPayload>
     playlistItem.id = uuidv4()
     playlistItem.title = item.title
     playlistItem.link = item.link
-    playlistItem.duration = item.duration
+    // F14: this value later drives the track watchdog — never trust it raw
+    playlistItem.duration = clampTrackDuration(item.duration)
     playlistItem.addedAtMs = Date.now()
     playlistItem.played = false
 

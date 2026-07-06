@@ -101,9 +101,32 @@ describe('advanceRotation — F1: rotates the CURRENT DJ, not djQueue[0]', () =>
     expect(room.state.currentDjSessionId).toBe('A')
   })
 
-  it('stops the stream when no DJ has unplayed tracks', () => {
+  // F8: a full cycle through every DJ's playlist must loop, not strand the
+  // rotation in silence until a human presses ▶.
+  it('loops the rotation by resetting played flags when every queued DJ is exhausted (F8)', () => {
     const alice = addPlayer(room, 'A', 'Alice', ['track-a'])
+    const bob = addPlayer(room, 'B', 'Bob', ['track-b'])
     alice.roomQueuePlaylist[0].played = true
+    bob.roomQueuePlaylist[0].played = true
+    addToQueue(room, 'A', 'Alice', 0)
+    addToQueue(room, 'B', 'Bob', 1)
+    room.state.currentDjSessionId = 'A'
+
+    advanceRotation(room)
+
+    // Rotation continues: A rotated to the back, B starts a fresh cycle
+    expect(queueIds(room)).toEqual(['B', 'A'])
+    expect(room.state.currentDjSessionId).toBe('B')
+    expect(room.state.musicStream.status).toBe('playing')
+    expect(room.state.musicStream.currentTitle).toBe('track-b')
+    // Both flags were reset by the loop; marking happens via markTrackAsPlayed
+    // on turn completion, not at playback start — so both are false here
+    expect(bob.roomQueuePlaylist[0].played).toBe(false)
+    expect(alice.roomQueuePlaylist[0].played).toBe(false)
+  })
+
+  it('still stops the stream when queued DJs have no tracks at all (nothing to loop)', () => {
+    addPlayer(room, 'A', 'Alice') // empty playlist — no flags to reset
     addToQueue(room, 'A', 'Alice', 0)
     room.state.currentDjSessionId = 'A'
 

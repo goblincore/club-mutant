@@ -104,6 +104,20 @@ function prefetchNextDJTrack(room: ClubMutant, currentDjId: string) {
 // never depend on a Colyseus `Client` — the NPC DJ has none. Commands keep
 // their client.send(...) UI notifications; everything else lives here.
 
+// F14: client-supplied durations drive the track watchdog — validate/clamp
+// them server-side. youtubeService has no metadata plumbing (it only
+// prefetches), so bounds are the best available validation: non-finite or
+// non-positive values become 0 ("unknown" — the watchdog arms a conservative
+// fallback instead of not arming), positives are clamped to [MIN, MAX].
+export const MIN_TRACK_DURATION_S = 5
+export const MAX_TRACK_DURATION_S = 4 * 60 * 60
+
+export function clampTrackDuration(raw: unknown): number {
+  const n = typeof raw === 'number' && Number.isFinite(raw) ? raw : 0
+  if (n <= 0) return 0
+  return Math.min(Math.max(n, MIN_TRACK_DURATION_S), MAX_TRACK_DURATION_S)
+}
+
 /** True if the player has at least one unplayed track in their room queue playlist. */
 export function hasUnplayedTracks(player: any): boolean {
   for (let i = 0; i < player.roomQueuePlaylist.length; i++) {
@@ -185,7 +199,30 @@ export function advanceRotation(room: ClubMutant) {
   })
 
   // Find next DJ with tracks (skip those without)
-  const { entry: nextEntry, player: nextPlayer } = findNextDJWithTracks(room)
+  let { entry: nextEntry, player: nextPlayer } = findNextDJWithTracks(room)
+
+  // F8: nobody has unplayed tracks but DJs are still queued — a full cycle
+  // just finished. Reset played flags and loop the rotation instead of
+  // stopping with DJs stranded at the booth in silence (recovery used to
+  // require a human pressing ▶).
+  if (!nextEntry && room.state.djQueue.length > 0) {
+    let anyReset = false
+    room.state.djQueue.forEach((entry) => {
+      const p = room.state.players.get(entry.sessionId)
+      if (!p) return
+      for (const t of p.roomQueuePlaylist) {
+        if (t.played) {
+          t.played = false
+          anyReset = true
+        }
+      }
+    })
+
+    if (anyReset) {
+      console.log('[DJQueue] All queued DJs exhausted — resetting played flags to loop rotation')
+      ;({ entry: nextEntry, player: nextPlayer } = findNextDJWithTracks(room))
+    }
+  }
 
   if (nextEntry && nextPlayer) {
     // Move this DJ to the front of the queue

@@ -5,6 +5,7 @@ import type { ClubMutant } from '../ClubMutant'
 import { JukeboxItem, DJUserInfo } from '@club-mutant/types/RoomState'
 import { Message } from '@club-mutant/types/Messages'
 import { prefetchVideo } from '../../youtubeService'
+import { clampTrackDuration } from './djHelpers'
 
 type ClientPayload = {
   client: Client
@@ -109,7 +110,8 @@ export class JukeboxAddCommand extends Command<ClubMutant, AddPayload> {
     jukeboxItem.id = uuidv4()
     jukeboxItem.title = String(item.title)
     jukeboxItem.link = String(item.link)
-    jukeboxItem.duration = typeof item.duration === 'number' ? item.duration : 0
+    // F14: this value later drives the track watchdog — never trust it raw
+    jukeboxItem.duration = clampTrackDuration(item.duration)
     jukeboxItem.addedBySessionId = client.sessionId
     jukeboxItem.addedByName = player.name
     jukeboxItem.addedAtMs = Date.now()
