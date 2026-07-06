@@ -406,7 +406,7 @@ export function DjQueuePanel() {
                   {isCurrentDJ ? '● you are the DJ' : myQueuePos > 0 ? `your queue spot: #${myQueuePos}` : 'you are not in the queue'}
                 </span>
                 {djQueue.length > 0 && (
-                  <span className="text-white/40">{djQueue[0]?.sessionId === mySessionId ? 'now playing' : `playing: ${djQueue[0]?.name}`}</span>
+                  <span className="text-white/40">{djQueue[0]?.sessionId === mySessionId ? 'now playing' : `playing: ${djQueue[0]?.name}${djQueue[0]?.sessionId?.startsWith('npc-dj:') ? ' [BOT]' : ''}`}</span>
                 )}
               </div>
             </div>
