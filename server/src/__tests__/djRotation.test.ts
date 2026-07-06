@@ -15,6 +15,10 @@ function makeRoom(): ClubMutant {
     state: new RoomState(),
     broadcast: vi.fn(),
     notifyNpcMusicStarted: vi.fn(),
+    // F2: the helpers own the watchdog lifecycle — stubbed here since the
+    // real timers live on the Colyseus room, not under rotation test.
+    clearTrackWatchdog: vi.fn(),
+    startWatchdogIfPlaying: vi.fn(),
   }
   return room as unknown as ClubMutant
 }

@@ -154,6 +154,8 @@ export class ClubMutant extends Room {
           client: { sessionId: '' } as Client,
           streamId: ms.streamId,
         })
+        // F2: watchdog-driven jukebox advance must protect the next track too
+        this.startWatchdogIfPlaying()
       } else {
         const djId = this.state.currentDjSessionId
         if (!djId) return
@@ -176,16 +178,25 @@ export class ClubMutant extends Room {
     }
   }
 
-  /** Helper: start watchdog if a track is currently playing with a known duration. */
+  /**
+   * Helper: (re-)arm the watchdog if a track is currently playing with a known
+   * duration. Uses the REMAINING time (startTime + duration - now) rather than
+   * the full duration so mid-track re-arms don't push the deadline out (F3) —
+   * startTrackWatchdog still adds its own grace buffer on top.
+   */
   startWatchdogIfPlaying() {
     const ms = this.state.musicStream
 
     if (ms.status === 'playing' && ms.currentLink && ms.duration > 0) {
-      this.startTrackWatchdog(ms.duration * 1000)
+      const remainingMs = ms.startTime + ms.duration * 1000 - Date.now()
+      this.startTrackWatchdog(Math.max(remainingMs, 0))
     }
   }
 
   private setStoppedMusicStream() {
+    // F2: every stop path kills the watchdog so it can't fire for a dead stream
+    this.clearTrackWatchdog()
+
     const musicStream = this.state.musicStream
 
     musicStream.status = 'waiting'
@@ -1041,37 +1052,33 @@ export class ClubMutant extends Room {
         })
       })
 
+      // F2: no watchdog wrappers here — the DJ command/helper layer owns the
+      // watchdog lifecycle (playTrackForCurrentDJ arms, every stop path clears).
+      // This also means a REJECTED command (e.g. stale DJ_TURN_COMPLETE, F4)
+      // leaves the running track's watchdog untouched instead of resetting it.
       this.onMessage(Message.DJ_QUEUE_LEAVE, (client) => {
         if (this.throttle(client, Message.DJ_QUEUE_LEAVE, 2000)) return
-        this.clearTrackWatchdog()
         this.dispatcher.dispatch(new DJQueueLeaveCommand(), { client })
-        this.startWatchdogIfPlaying()
       })
 
       this.onMessage(Message.DJ_PLAY, (client) => {
         this.dispatcher.dispatch(new DJPlayCommand(), { client })
-        this.startWatchdogIfPlaying()
       })
 
       this.onMessage(Message.DJ_STOP, (client) => {
-        this.clearTrackWatchdog()
         this.dispatcher.dispatch(new DJStopCommand(), { client })
       })
 
       this.onMessage(Message.DJ_SKIP_TURN, (client) => {
-        this.clearTrackWatchdog()
         this.dispatcher.dispatch(new DJSkipTurnCommand(), { client })
-        this.startWatchdogIfPlaying()
       })
 
       // Carries streamId (F4) — server deduplicates stale/duplicate completions.
       this.onMessage(Message.DJ_TURN_COMPLETE, (client, message) => {
-        this.clearTrackWatchdog()
         this.dispatcher.dispatch(new DJTurnCompleteCommand(), {
           client,
           streamId: message?.streamId,
         })
-        this.startWatchdogIfPlaying()
       })
 
       // Room Queue Playlist Management (per-player, djqueue mode only)

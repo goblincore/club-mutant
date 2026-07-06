@@ -244,14 +244,12 @@ export class NpcDjManager {
   private leaveQueue() {
     this.leaveAfterTrack = false
     this.clearTrackTimer()
-    // removeDJFromQueue may stop our stream and auto-start the next DJ's
-    // track — clear any watchdog armed for the old stream first.
-    this.room.clearTrackWatchdog()
+    // Watchdog lifecycle is owned by djHelpers (F2): removeDJFromQueue clears
+    // it when stopping our stream, and playTrackForCurrentDJ re-arms it if a
+    // promoted DJ's track auto-starts. No manual clear/re-arm needed here.
     removeDJFromQueue(this.room, this.sessionId)
     this.disconnectBooth()
     this.moveToStandby()
-    // Match message-handler behavior: re-arm for the promoted DJ's track.
-    this.room.startWatchdogIfPlaying()
   }
 
   private findFreeSlot(): number | null {
@@ -352,8 +350,10 @@ export class NpcDjManager {
     if (musicStream.status !== 'playing' || musicStream.streamId !== streamId) return
     if (state.currentDjSessionId !== this.sessionId) return
 
-    // Defensive: the watchdog isn't reliably cleared elsewhere — clear it
-    // before advancing so it can't double-advance behind us.
+    // Defensive only: armTrackTimer already cleared the watchdog when it
+    // claimed this stream, and the F2 centralization keeps clear/arm paired in
+    // djHelpers — but clearing again here is a free guarantee that nothing can
+    // double-advance behind us while we mutate rotation state.
     this.room.clearTrackWatchdog()
 
     const npc = state.players.get(this.sessionId)
@@ -371,11 +371,10 @@ export class NpcDjManager {
 
     // advanceRotation rotates the entry matching currentDjSessionId (F1 fix in
     // djHelpers.ts), so it is safe even if the queue was reordered under us.
+    // Its play/stop paths arm/clear the watchdog themselves (F2); if the next
+    // track is ours again, the next tick's armTrackTimer reclaims the stream
+    // by clearing that watchdog and arming our own timer.
     advanceRotation(this.room)
-
-    // Match message-handler behavior: arm the watchdog for whatever track just
-    // started. If it's ours again, the next tick's armTrackTimer reclaims it.
-    this.room.startWatchdogIfPlaying()
   }
 
   // ── Playlist ───────────────────────────────────────────────────────────────

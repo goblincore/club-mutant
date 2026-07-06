@@ -139,6 +139,8 @@ export class DJStopCommand extends Command<ClubMutant, Payload> {
     musicStream.currentLink = null
     musicStream.currentTitle = null
 
+    // F2: stop path owns the watchdog clear (handler no longer wraps this)
+    this.room.clearTrackWatchdog()
     this.room.broadcast(Message.STOP_MUSIC_STREAM, {})
   }
 }

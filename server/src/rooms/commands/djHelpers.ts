@@ -59,6 +59,13 @@ export function playTrackForCurrentDJ(room: ClubMutant) {
 
   // Prefetch the next DJ's first unplayed track so rotation is instant
   prefetchNextDJTrack(room, djId)
+
+  // F2/F3: the play path owns the watchdog. Every stream start (re-)arms it
+  // here so out-of-band advances (onLeave promotion, watchdog auto-advance,
+  // NPC rotation) can't leave a stale or missing watchdog. NpcDjManager
+  // clears this immediately after when it arms its own timer (armTrackTimer)
+  // — its timer is the sole timing authority for NPC tracks.
+  room.startWatchdogIfPlaying()
 }
 
 /**
@@ -124,6 +131,7 @@ export function advanceRotation(room: ClubMutant) {
     musicStream.currentTitle = null
 
     console.log('[DJQueue] No more DJs, stopping music')
+    room.clearTrackWatchdog() // F2: stop path kills the watchdog
     room.broadcast(Message.STOP_MUSIC_STREAM, {})
     return
   }
@@ -197,6 +205,7 @@ export function advanceRotation(room: ClubMutant) {
     musicStream.currentTitle = null
 
     console.log('[DJQueue] No DJs with tracks, waiting...')
+    room.clearTrackWatchdog() // F2: stop path kills the watchdog
     room.broadcast(Message.STOP_MUSIC_STREAM, {})
   }
 
@@ -240,6 +249,9 @@ export function removeDJFromQueue(room: ClubMutant, sessionId: string) {
     musicStream.status = 'waiting'
     musicStream.currentLink = null
     musicStream.currentTitle = null
+    // F2: the leaving DJ's watchdog must die with their stream — if a new DJ
+    // is promoted below, playTrackForCurrentDJ re-arms it for the new track.
+    room.clearTrackWatchdog()
     room.broadcast(Message.STOP_MUSIC_STREAM, {})
   }
 
