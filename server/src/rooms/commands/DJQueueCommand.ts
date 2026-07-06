@@ -158,10 +158,14 @@ export class DJTurnCompleteCommand extends Command<ClubMutant, Payload> {
     // Mark played track and move to bottom (keep history)
     markTrackAsPlayed(player)
 
-    // Notify client so their playlist UI updates
-    client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
-      items: [...player.roomQueuePlaylist],
-    })
+    // Notify client so their playlist UI updates. The track watchdog (and any
+    // NPC-related path) dispatches this command with a synthetic Client that
+    // only carries a sessionId — it has no send().
+    if (typeof client.send === 'function') {
+      client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
+        items: [...player.roomQueuePlaylist],
+      })
+    }
 
     // ALWAYS advance to next DJ after playing one track
     console.log('[DJQueue] Track finished, advancing to next DJ')
