@@ -4,6 +4,7 @@ import type { ClubMutant } from '../ClubMutant'
 import { Message } from '@club-mutant/types/Messages'
 import {
   advanceRotation,
+  hasUnplayedTracks,
   joinDjQueue,
   markTrackAsPlayed,
   playTrackForCurrentDJ,
@@ -57,8 +58,10 @@ export class DJSkipTurnCommand extends Command<ClubMutant, Payload> {
 
     const player = this.state.players.get(client.sessionId)
     if (player) {
-      // Mark current track as played even when skipping
-      markTrackAsPlayed(player)
+      // Mark current track as played even when skipping (F7: by id — the
+      // playing track is not necessarily index 0; null while stopped falls
+      // back to legacy index-0 behavior)
+      markTrackAsPlayed(player, this.state.musicStream.currentTrackId)
 
       // Notify client so their playlist UI updates
       client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
@@ -82,6 +85,33 @@ export class DJPlayCommand extends Command<ClubMutant, Payload> {
       if (!this.state.currentDjSessionId && inQueue) {
         this.state.currentDjSessionId = client.sessionId
         console.log('[DJQueue] No current DJ, promoted on play:', client.sessionId)
+      } else if (inQueue && this.state.musicStream.status !== 'playing') {
+        // F6: a current DJ with no unplayed tracks must not hold the booth
+        // hostage. When nothing is playing and a queued DJ asks to play,
+        // pass the turn instead of rejecting.
+        const currentPlayer = this.state.players.get(this.state.currentDjSessionId!)
+        if (currentPlayer && hasUnplayedTracks(currentPlayer)) {
+          console.log('[DJQueue] Play rejected - not current DJ:', client.sessionId)
+          return
+        }
+
+        console.log(
+          '[DJQueue] Trackless current DJ — passing turn on play request from:',
+          client.sessionId
+        )
+        advanceRotation(this.room)
+
+        if (this.state.currentDjSessionId !== client.sessionId) {
+          if (this.state.currentDjSessionId !== null) {
+            // Rotation promoted another DJ and started their track —
+            // the requester keeps waiting in queue order.
+            return
+          }
+          // Nobody had unplayed tracks — promote the requester so the
+          // loop-reset below can restart their playlist.
+          this.state.currentDjSessionId = client.sessionId
+          console.log('[DJQueue] No DJ with unplayed tracks, promoted requester:', client.sessionId)
+        }
       } else {
         console.log('[DJQueue] Play rejected - not current DJ:', client.sessionId)
         return
@@ -138,6 +168,7 @@ export class DJStopCommand extends Command<ClubMutant, Payload> {
     musicStream.status = 'waiting'
     musicStream.currentLink = null
     musicStream.currentTitle = null
+    musicStream.currentTrackId = null
 
     // F2: stop path owns the watchdog clear (handler no longer wraps this)
     this.room.clearTrackWatchdog()
@@ -179,8 +210,10 @@ export class DJTurnCompleteCommand extends Command<ClubMutant, TurnCompletePaylo
       return
     }
 
-    // Mark played track and move to bottom (keep history)
-    markTrackAsPlayed(player)
+    // Mark played track and move to bottom (keep history). F7: target the
+    // track that actually played (recorded when playTrackForCurrentDJ
+    // started it), not index 0.
+    markTrackAsPlayed(player, this.state.musicStream.currentTrackId)
 
     // Notify client so their playlist UI updates. The track watchdog (and any
     // NPC-related path) dispatches this command with a synthetic Client that

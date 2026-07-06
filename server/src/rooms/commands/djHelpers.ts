@@ -37,6 +37,9 @@ export function playTrackForCurrentDJ(room: ClubMutant) {
   musicStream.streamId += 1
   musicStream.currentLink = track.link
   musicStream.currentTitle = track.title
+  // F7: record WHICH item is playing so markTrackAsPlayed and the
+  // remove/reorder guards target the real track, not index 0.
+  musicStream.currentTrackId = track.id
   musicStream.isAmbient = false
 
   const djInfo = new DJUserInfo()
@@ -134,6 +137,7 @@ export function advanceRotation(room: ClubMutant) {
     musicStream.status = 'waiting'
     musicStream.currentLink = null
     musicStream.currentTitle = null
+    musicStream.currentTrackId = null
 
     console.log('[DJQueue] No more DJs, stopping music')
     room.clearTrackWatchdog() // F2: stop path kills the watchdog
@@ -208,6 +212,7 @@ export function advanceRotation(room: ClubMutant) {
     musicStream.status = 'waiting'
     musicStream.currentLink = null
     musicStream.currentTitle = null
+    musicStream.currentTrackId = null
 
     console.log('[DJQueue] No DJs with tracks, waiting...')
     room.clearTrackWatchdog() // F2: stop path kills the watchdog
@@ -220,19 +225,36 @@ export function advanceRotation(room: ClubMutant) {
   })
 }
 
-/** Mark the current track as played and move it to the bottom of the playlist. */
-export function markTrackAsPlayed(player: any) {
+/**
+ * Mark the played track and move it to the bottom of the playlist.
+ * F7: callers pass musicStream.currentTrackId so the track that ACTUALLY
+ * played gets marked — playTrackForCurrentDJ plays the first unplayed track,
+ * which can sit at index > 0 (e.g. after a while-stopped reorder). Falls back
+ * to index 0 when no id is available (legacy callers / nothing was playing).
+ */
+export function markTrackAsPlayed(player: any, trackId?: string | null) {
   if (player.roomQueuePlaylist.length === 0) return
 
-  const track = player.roomQueuePlaylist[0]
+  let index = 0
+  if (trackId) {
+    index = player.roomQueuePlaylist.findIndex((t: any) => t.id === trackId)
+    if (index < 0) {
+      // The played track is no longer in this playlist — mark nothing rather
+      // than flagging an innocent bystander at index 0.
+      console.log('[DJQueue] Played track not found in playlist, skipping mark:', trackId)
+      return
+    }
+  }
+
+  const track = player.roomQueuePlaylist[index]
   if (!track) return
 
   // Mark as played
   track.played = true
 
   // Move to the bottom of the queue
+  player.roomQueuePlaylist.splice(index, 1)
   player.roomQueuePlaylist.push(track)
-  player.roomQueuePlaylist.shift()
 
   console.log('[DJQueue] Marked track as played and moved to bottom:', track.title)
 }
@@ -254,6 +276,7 @@ export function removeDJFromQueue(room: ClubMutant, sessionId: string) {
     musicStream.status = 'waiting'
     musicStream.currentLink = null
     musicStream.currentTitle = null
+    musicStream.currentTrackId = null
     // F2: the leaving DJ's watchdog must die with their stream — if a new DJ
     // is promoted below, playTrackForCurrentDJ re-arms it for the new track.
     room.clearTrackWatchdog()
@@ -269,18 +292,43 @@ export function removeDJFromQueue(room: ClubMutant, sessionId: string) {
   })
 
   if (wasCurrentDJ) {
-    // Promote next person in queue to current DJ (regardless of whether they have tracks)
-    const nextEntry = room.state.djQueue[0] ?? null
+    // F5: promote like advanceRotation does — skip DJs with no UNPLAYED
+    // tracks instead of blindly promoting djQueue[0]. The old length check
+    // let a fully-played playlist through, playTrackForCurrentDJ no-opped,
+    // and the room stalled silently.
+    const { entry: nextEntry, player: nextPlayer } = findNextDJWithTracks(room)
 
-    if (nextEntry) {
+    if (nextEntry && nextPlayer) {
+      // Move this DJ to the front so queue order reflects the rotation
+      const nextIndex = room.state.djQueue.findIndex((e) => e.sessionId === nextEntry.sessionId)
+      if (nextIndex > 0) {
+        room.state.djQueue.splice(nextIndex, 1)
+        room.state.djQueue.unshift(nextEntry)
+        room.state.djQueue.forEach((entry, i) => {
+          entry.queuePosition = i
+        })
+      }
+
       room.state.currentDjSessionId = nextEntry.sessionId
-      console.log('[DJQueue] Promoted next DJ:', nextEntry.sessionId)
+      console.log('[DJQueue] Promoted next DJ with unplayed tracks:', nextEntry.sessionId)
+      playTrackForCurrentDJ(room)
+    } else if (room.state.djQueue.length > 0) {
+      // Nobody has unplayed tracks. Promote the head anyway (they hold the
+      // booth and can add tracks) — and if their playlist is merely
+      // exhausted, apply the same loop-reset DJPlayCommand does so the room
+      // keeps playing instead of stalling (F5).
+      const headEntry = room.state.djQueue[0]
+      room.state.currentDjSessionId = headEntry.sessionId
 
-      // Auto-start the next DJ's track if they have one queued up
-      const nextPlayer = room.state.players.get(nextEntry.sessionId)
-
-      if (nextPlayer && nextPlayer.roomQueuePlaylist.length > 0) {
+      const headPlayer = room.state.players.get(headEntry.sessionId)
+      if (headPlayer && headPlayer.roomQueuePlaylist.length > 0) {
+        console.log('[DJQueue] All tracks played — loop-reset for promoted DJ:', headEntry.sessionId)
+        for (let i = 0; i < headPlayer.roomQueuePlaylist.length; i++) {
+          headPlayer.roomQueuePlaylist[i].played = false
+        }
         playTrackForCurrentDJ(room)
+      } else {
+        console.log('[DJQueue] Promoted next DJ (no tracks):', headEntry.sessionId)
       }
     } else {
       // Queue is empty

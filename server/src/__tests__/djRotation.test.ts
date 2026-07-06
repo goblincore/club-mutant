@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { RoomState, Player, DJQueueEntry, RoomQueuePlaylistItem } from '@club-mutant/types/RoomState'
-import { advanceRotation } from '../rooms/commands/djHelpers'
+import { advanceRotation, markTrackAsPlayed, removeDJFromQueue } from '../rooms/commands/djHelpers'
 import { DJTurnCompleteCommand } from '../rooms/commands/DJQueueCommand'
 import type { ClubMutant } from '../rooms/ClubMutant'
 
@@ -159,5 +159,126 @@ describe('DJTurnCompleteCommand — F4: stale/duplicate completions are rejected
     runTurnComplete(room, 'B', 5)
     expect(room.state.currentDjSessionId).toBe('A')
     expect(queueIds(room)).toEqual(['A', 'B'])
+  })
+})
+
+describe('removeDJFromQueue — F5: leave-promotion skips exhausted DJs', () => {
+  let room: ClubMutant
+
+  beforeEach(() => {
+    room = makeRoom()
+  })
+
+  it('promotes the next DJ with UNPLAYED tracks, not blindly djQueue[0]', () => {
+    addPlayer(room, 'A', 'Alice', ['track-a'])
+    const bob = addPlayer(room, 'B', 'Bob', ['track-b'])
+    bob.roomQueuePlaylist[0].played = true // B exhausted their playlist
+    addPlayer(room, 'C', 'Carol', ['track-c'])
+    addToQueue(room, 'A', 'Alice', 0)
+    addToQueue(room, 'B', 'Bob', 1)
+    addToQueue(room, 'C', 'Carol', 2)
+    room.state.currentDjSessionId = 'A'
+    room.state.musicStream.status = 'playing'
+
+    removeDJFromQueue(room, 'A')
+
+    // C (first with unplayed tracks) is current and playing; B was skipped
+    expect(room.state.currentDjSessionId).toBe('C')
+    expect(queueIds(room)).toEqual(['C', 'B'])
+    expect(room.state.musicStream.status).toBe('playing')
+    expect(room.state.musicStream.currentTitle).toBe('track-c')
+    // B's played flags untouched — they were skipped, not reset
+    expect(bob.roomQueuePlaylist[0].played).toBe(true)
+  })
+
+  it('loop-resets an exhausted playlist when nobody has unplayed tracks', () => {
+    addPlayer(room, 'A', 'Alice', ['track-a'])
+    const bob = addPlayer(room, 'B', 'Bob', ['track-b'])
+    bob.roomQueuePlaylist[0].played = true
+    addToQueue(room, 'A', 'Alice', 0)
+    addToQueue(room, 'B', 'Bob', 1)
+    room.state.currentDjSessionId = 'A'
+    room.state.musicStream.status = 'playing'
+
+    removeDJFromQueue(room, 'A')
+
+    // B promoted; their fully-played playlist was reset and playback resumed
+    // instead of stalling silently (the old length>0 check no-opped here)
+    expect(room.state.currentDjSessionId).toBe('B')
+    expect(room.state.musicStream.status).toBe('playing')
+    expect(room.state.musicStream.currentTitle).toBe('track-b')
+  })
+
+  it('promotes a trackless DJ as waiting current without crashing', () => {
+    addPlayer(room, 'A', 'Alice', ['track-a'])
+    addPlayer(room, 'B', 'Bob') // no tracks at all
+    addToQueue(room, 'A', 'Alice', 0)
+    addToQueue(room, 'B', 'Bob', 1)
+    room.state.currentDjSessionId = 'A'
+    room.state.musicStream.status = 'playing'
+
+    removeDJFromQueue(room, 'A')
+
+    expect(room.state.currentDjSessionId).toBe('B')
+    expect(room.state.musicStream.status).toBe('waiting')
+    expect(room.state.musicStream.currentLink).toBeNull()
+  })
+})
+
+describe('markTrackAsPlayed — F7: marks the track that actually played', () => {
+  let room: ClubMutant
+
+  beforeEach(() => {
+    room = makeRoom()
+  })
+
+  it('marks the track matching the given id even at index > 0', () => {
+    const alice = addPlayer(room, 'A', 'Alice', ['old-track', 'actual-track'])
+    alice.roomQueuePlaylist[0].played = true // played track reordered to index 0
+
+    markTrackAsPlayed(alice, 'A-actual-track')
+
+    // The actually-playing track (index 1) got marked and moved to the bottom
+    const titles = alice.roomQueuePlaylist.map((t) => t.title)
+    expect(titles).toEqual(['old-track', 'actual-track'])
+    const actual = alice.roomQueuePlaylist.find((t) => t.id === 'A-actual-track')!
+    expect(actual.played).toBe(true)
+  })
+
+  it('marks nothing when the id is no longer in the playlist', () => {
+    const alice = addPlayer(room, 'A', 'Alice', ['bystander'])
+
+    markTrackAsPlayed(alice, 'A-gone-track')
+
+    expect(alice.roomQueuePlaylist[0].played).toBe(false)
+    expect(alice.roomQueuePlaylist.length).toBe(1)
+  })
+
+  it('falls back to index 0 when no id is provided (legacy callers)', () => {
+    const alice = addPlayer(room, 'A', 'Alice', ['first', 'second'])
+
+    markTrackAsPlayed(alice, null)
+
+    const first = alice.roomQueuePlaylist.find((t) => t.id === 'A-first')!
+    expect(first.played).toBe(true)
+    expect(alice.roomQueuePlaylist[alice.roomQueuePlaylist.length - 1].id).toBe('A-first')
+  })
+
+  it('turn-complete marks the currentTrackId track, not index 0', () => {
+    const alice = addPlayer(room, 'A', 'Alice', ['old-track', 'actual-track'])
+    alice.roomQueuePlaylist[0].played = true
+    addPlayer(room, 'B', 'Bob', ['track-b'])
+    addToQueue(room, 'A', 'Alice', 0)
+    addToQueue(room, 'B', 'Bob', 1)
+    room.state.currentDjSessionId = 'A'
+    room.state.musicStream.status = 'playing'
+    room.state.musicStream.streamId = 7
+    room.state.musicStream.currentTrackId = 'A-actual-track'
+
+    runTurnComplete(room, 'A', 7)
+
+    const actual = alice.roomQueuePlaylist.find((t) => t.id === 'A-actual-track')!
+    expect(actual.played).toBe(true)
+    expect(room.state.currentDjSessionId).toBe('B')
   })
 })

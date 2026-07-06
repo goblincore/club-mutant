@@ -58,6 +58,9 @@ export class MusicStream extends Schema {
   @type('number') streamId = 0
   @type('string') currentLink: string | null = null
   @type('string') currentTitle: string | null = null
+  // F7: id of the playlist item that is actually playing — playTrackForCurrentDJ
+  // plays the first UNPLAYED track, which is not necessarily index 0.
+  @type('string') currentTrackId: string | null = null
   @type('string') currentVisualUrl: string | null = null
   @type('string') currentTrackMessage: string | null = null
   @type('number') currentBooth = 0

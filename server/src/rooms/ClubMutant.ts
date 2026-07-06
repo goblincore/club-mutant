@@ -202,6 +202,7 @@ export class ClubMutant extends Room {
     musicStream.status = 'waiting'
     musicStream.currentLink = null
     musicStream.currentTitle = null
+    musicStream.currentTrackId = null
     musicStream.currentVisualUrl = null
     musicStream.currentTrackMessage = null
     musicStream.startTime = Date.now()

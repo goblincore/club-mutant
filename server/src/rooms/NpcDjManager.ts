@@ -357,7 +357,9 @@ export class NpcDjManager {
     this.room.clearTrackWatchdog()
 
     const npc = state.players.get(this.sessionId)
-    if (npc) markTrackAsPlayed(npc)
+    // F7: pass the playing track's id — the stream is still 'playing' with a
+    // matching streamId here (checked above), so currentTrackId is valid.
+    if (npc) markTrackAsPlayed(npc, musicStream.currentTrackId)
 
     if (this.config.mode === 'fallback' && this.leaveAfterTrack) {
       console.log('[NpcDj] Track finished with humans waiting — leaving the queue')

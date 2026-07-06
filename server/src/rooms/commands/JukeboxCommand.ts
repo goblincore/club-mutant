@@ -44,6 +44,9 @@ export function playNextJukeboxTrack(room: ClubMutant) {
   musicStream.streamId += 1
   musicStream.currentLink = track.link
   musicStream.currentTitle = track.title
+  // F7: currentTrackId refers to a DJ's roomQueuePlaylist item — a jukebox
+  // stream must not carry a stale id from a previous DJ-queue stream.
+  musicStream.currentTrackId = null
   musicStream.isAmbient = false
 
   const djInfo = new DJUserInfo()
@@ -73,6 +76,7 @@ export function stopJukeboxStream(room: ClubMutant) {
   musicStream.status = 'waiting'
   musicStream.currentLink = null
   musicStream.currentTitle = null
+  musicStream.currentTrackId = null
   musicStream.isAmbient = false
 
   console.log('[Jukebox] Stream stopped')
