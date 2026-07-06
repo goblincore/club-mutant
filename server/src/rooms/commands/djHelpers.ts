@@ -48,7 +48,12 @@ export function playTrackForCurrentDJ(room: ClubMutant) {
   musicStream.duration = track.duration
 
   console.log('[DJQueue] Playing track:', track.title, 'by DJ:', player.name)
-  room.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
+  // F12: send the real elapsed offset (≈0 here since startTime was just set)
+  // so the field is truthful on every path — late joiners get a nonzero one.
+  room.broadcast(Message.START_MUSIC_STREAM, {
+    musicStream,
+    offset: (Date.now() - musicStream.startTime) / 1000,
+  })
   room.broadcast(Message.DJ_PLAY_STARTED, {
     djSessionId: djId,
     trackId: track.id,

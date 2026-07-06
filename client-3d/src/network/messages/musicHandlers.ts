@@ -15,10 +15,13 @@ export function wireMusicHandlers(room: Room<RoomState>, timeSync: TimeSync | nu
       // Skip ambient background streams — no DJ is playing
       if (ms.isAmbient) return
 
-      // Convert server startTime to client time using clock sync
+      // Convert server startTime to client time using clock sync. Before
+      // TimeSync is ready, derive startTime from the server-computed offset
+      // (F11/F12): that value is skew-free (only off by one-way latency),
+      // unlike the raw server-clock startTime.
       const clientStartTime = timeSync?.ready
         ? timeSync.toClientTime(ms.startTime ?? 0)
-        : (ms.startTime ?? 0)
+        : Date.now() - (data.offset ?? 0) * 1000
 
       useMusicStore.getState().setStream({
         currentLink: ms.currentLink ?? null,
@@ -69,11 +72,17 @@ export function wireMusicHandlers(room: Room<RoomState>, timeSync: TimeSync | nu
       const ms = rs?.musicStream
       if (!ms || ms.status !== 'playing' || !ms.currentLink || ms.isAmbient) return
 
-      // Skip if START_MUSIC_STREAM message already set this stream
       const store = useMusicStore.getState()
-      if (store.stream.isPlaying && store.stream.streamId === (ms.streamId ?? 0)) return
-
       const clientStartTime = timeSync.toClientTime(ms.startTime ?? 0)
+
+      // START_MUSIC_STREAM may have set this stream BEFORE TimeSync was ready
+      // (offset-derived startTime, off by one-way latency). Now that sync
+      // samples exist, refresh startTime with the skew-corrected value
+      // instead of skipping the stream entirely (F11).
+      if (store.stream.isPlaying && store.stream.streamId === (ms.streamId ?? 0)) {
+        store.setStream({ startTime: clientStartTime })
+        return
+      }
 
       store.setStream({
         currentLink: ms.currentLink,

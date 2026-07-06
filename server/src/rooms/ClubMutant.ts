@@ -233,7 +233,11 @@ export class ClubMutant extends Room {
     musicStream.startTime = Date.now()
     musicStream.duration = 0
 
-    this.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
+    // F12: keep the offset field truthful on every send path
+    this.broadcast(Message.START_MUSIC_STREAM, {
+      musicStream,
+      offset: (Date.now() - musicStream.startTime) / 1000,
+    })
   }
 
   private startMusicStreamTickIfNeeded() {

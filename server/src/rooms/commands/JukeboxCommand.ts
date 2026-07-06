@@ -55,7 +55,11 @@ export function playNextJukeboxTrack(room: ClubMutant) {
   musicStream.duration = track.duration
 
   console.log('[Jukebox] Playing track:', track.title, 'added by:', track.addedByName)
-  room.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
+  // F12: keep the offset field truthful on every send path
+  room.broadcast(Message.START_MUSIC_STREAM, {
+    musicStream,
+    offset: (Date.now() - musicStream.startTime) / 1000,
+  })
 
   // Notify Lily NPC about the new track (she may comment spontaneously)
   room.notifyNpcMusicStarted(track.title)
