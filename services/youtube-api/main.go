@@ -16,13 +16,13 @@ import (
 	"os/exec"
 	"os/signal"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/raitonoberu/ytsearch"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -1152,6 +1152,17 @@ func normalizeQuery(q string) string {
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
+	// Safety net: a parser bug must never abort the connection (the old
+	// ytsearch panic surfaced as an empty reply). Log and return JSON 500.
+	defer func() {
+		if rec := recover(); rec != nil {
+			log.Printf("[search] PANIC query='%s': %v\n%s", r.URL.Query().Get("q"), rec, debug.Stack())
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "search failed"})
+		}
+	}()
+
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -1194,31 +1205,25 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[search] CACHE MISS query='%s' (fetching from YouTube)", rawQuery)
 		searchStart := time.Now()
 
-		search := ytsearch.VideoSearch(query)
-		results, err := search.Next()
+		videos, err := innertubeSearch(query)
 		if err != nil {
 			return nil, err
 		}
 
 		items := make([]VideoResult, 0, limit)
-		for i, video := range results.Videos {
-			if i >= limit {
+		for _, video := range videos {
+			if len(items) >= limit {
 				break
-			}
-
-			thumbnail := ""
-			if len(video.Thumbnails) > 0 {
-				thumbnail = video.Thumbnails[0].URL
 			}
 
 			items = append(items, VideoResult{
 				ID:           video.ID,
 				Type:         "video",
 				Title:        video.Title,
-				ChannelTitle: video.Channel.Title,
-				Duration:     formatDuration(video.Duration),
-				IsLive:       video.Duration == 0,
-				Thumbnail:    thumbnail,
+				ChannelTitle: video.Channel,
+				Duration:     formatDuration(video.DurationSeconds),
+				IsLive:       video.DurationSeconds == 0,
+				Thumbnail:    video.Thumbnail,
 				ViewCount:    video.ViewCount,
 			})
 		}
