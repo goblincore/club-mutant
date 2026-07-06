@@ -128,27 +128,39 @@ export function advanceRotation(room: ClubMutant) {
     return
   }
 
-  // Move current DJ to end of queue (if they still have tracks)
-  const currentEntry = room.state.djQueue[0]
-  const currentPlayer = room.state.players.get(currentEntry.sessionId)
+  // Move the CURRENT DJ to the end of the queue. F1: rotate the entry matching
+  // state.currentDjSessionId — several promotion paths (join, DJ_PLAY
+  // auto-promote, playlist-add promote) set a current DJ that is NOT at
+  // index 0, so blindly rotating djQueue[0] starves that entry.
+  const currentDjId = room.state.currentDjSessionId
+  const currentIndex = currentDjId
+    ? room.state.djQueue.findIndex((e) => e.sessionId === currentDjId)
+    : -1
 
-  room.state.djQueue.shift() // Remove from front
+  if (currentIndex >= 0) {
+    const currentEntry = room.state.djQueue[currentIndex]
+    const currentPlayer = room.state.players.get(currentEntry.sessionId)
 
-  // If player still connected, move to end of queue (even without unplayed tracks —
-  // they can still add more tracks while at the booth). findNextDJWithTracks will
-  // skip them for playback if they have no unplayed tracks.
-  if (currentPlayer) {
-    const newEntry = new DJQueueEntry()
-    newEntry.sessionId = currentEntry.sessionId
-    newEntry.name = currentEntry.name
-    newEntry.joinedAtMs = Date.now()
-    newEntry.queuePosition = room.state.djQueue.length
-    newEntry.slotIndex = currentEntry.slotIndex
-    room.state.djQueue.push(newEntry)
-    console.log('[DJQueue] Moved DJ to end of queue:', currentEntry.sessionId)
-  } else {
-    console.log('[DJQueue] DJ removed from queue (disconnected):', currentEntry.sessionId)
+    room.state.djQueue.splice(currentIndex, 1) // Remove from current position
+
+    // If player still connected, move to end of queue (even without unplayed tracks —
+    // they can still add more tracks while at the booth). findNextDJWithTracks will
+    // skip them for playback if they have no unplayed tracks.
+    if (currentPlayer) {
+      const newEntry = new DJQueueEntry()
+      newEntry.sessionId = currentEntry.sessionId
+      newEntry.name = currentEntry.name
+      newEntry.joinedAtMs = Date.now()
+      newEntry.queuePosition = room.state.djQueue.length
+      newEntry.slotIndex = currentEntry.slotIndex
+      room.state.djQueue.push(newEntry)
+      console.log('[DJQueue] Moved DJ to end of queue:', currentEntry.sessionId)
+    } else {
+      console.log('[DJQueue] DJ removed from queue (disconnected):', currentEntry.sessionId)
+    }
   }
+  // currentIndex < 0: no current DJ (or they already left the queue) — nothing
+  // to rotate; fall through to promoting the next DJ with tracks.
 
   // Update positions
   room.state.djQueue.forEach((entry, i) => {

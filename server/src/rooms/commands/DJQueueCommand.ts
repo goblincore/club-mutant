@@ -18,6 +18,11 @@ type Payload = {
   slotIndex?: number
 }
 
+type TurnCompletePayload = {
+  client: Client
+  streamId?: number
+}
+
 // Thin wrappers over the djHelpers queue functions. Commands keep their
 // client.send(...) UI notifications; all queue/rotation logic lives in
 // djHelpers.ts so the NPC DJ manager can drive the same code paths without
@@ -138,9 +143,26 @@ export class DJStopCommand extends Command<ClubMutant, Payload> {
   }
 }
 
-export class DJTurnCompleteCommand extends Command<ClubMutant, Payload> {
-  execute(data: Payload) {
+export class DJTurnCompleteCommand extends Command<ClubMutant, TurnCompletePayload> {
+  execute(data: TurnCompletePayload) {
     const { client } = data
+
+    // Dedup (F4): only process if the streamId matches the current stream —
+    // mirrors the jukebox pattern (JukeboxTrackCompleteCommand). Prevents a
+    // late/duplicate completion (client onEnded racing the watchdog, or a
+    // double ▶▶ press) from marking/killing the track that just started.
+    if (
+      data.streamId !== undefined &&
+      data.streamId !== this.state.musicStream.streamId
+    ) {
+      console.log(
+        '[DJQueue] Turn complete ignored - streamId mismatch:',
+        data.streamId,
+        'vs',
+        this.state.musicStream.streamId
+      )
+      return
+    }
 
     // Only current DJ can complete their turn
     if (this.state.currentDjSessionId !== client.sessionId) {

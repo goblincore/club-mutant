@@ -161,6 +161,7 @@ export class ClubMutant extends Room {
         console.log('[Watchdog] Track duration exceeded for DJ %s, auto-advancing', djId)
         this.dispatcher.dispatch(new DJTurnCompleteCommand(), {
           client: { sessionId: djId } as Client,
+          streamId: ms.streamId,
         })
       }
     }, timeoutMs)
@@ -1063,9 +1064,13 @@ export class ClubMutant extends Room {
         this.startWatchdogIfPlaying()
       })
 
-      this.onMessage(Message.DJ_TURN_COMPLETE, (client) => {
+      // Carries streamId (F4) — server deduplicates stale/duplicate completions.
+      this.onMessage(Message.DJ_TURN_COMPLETE, (client, message) => {
         this.clearTrackWatchdog()
-        this.dispatcher.dispatch(new DJTurnCompleteCommand(), { client })
+        this.dispatcher.dispatch(new DJTurnCompleteCommand(), {
+          client,
+          streamId: message?.streamId,
+        })
         this.startWatchdogIfPlaying()
       })
 

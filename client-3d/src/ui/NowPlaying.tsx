@@ -56,7 +56,7 @@ export function NowPlaying() {
     } else {
       if (!isCurrentDJ) return
       console.log('[NowPlaying] DJ track ended (streamId=%d), sending djTurnComplete', sid)
-      getNetwork().djTurnComplete()
+      getNetwork().djTurnComplete(sid)
     }
   }, [isCurrentDJ, isJukeboxMode])
 
@@ -187,7 +187,9 @@ export function NowPlaying() {
             )}
 
             <button
-              onClick={() => getNetwork().djTurnComplete()}
+              onClick={() =>
+                getNetwork().djTurnComplete(useMusicStore.getState().stream.streamId)
+              }
               className="w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 border border-white/15 rounded transition-colors"
               title="Skip to next"
             >

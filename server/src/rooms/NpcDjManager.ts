@@ -369,16 +369,9 @@ export class NpcDjManager {
     // (solo rotation) and immediately call playTrackForCurrentDJ.
     if (npc) this.ensureUnplayedTracks(npc)
 
-    // advanceRotation assumes djQueue[0] is the current DJ. If the queue was
-    // reordered under us, hand over via remove(+rejoin) instead.
-    if (state.djQueue.length > 0 && state.djQueue[0].sessionId === this.sessionId) {
-      advanceRotation(this.room)
-    } else {
-      console.warn('[NpcDj] Queue reordered under NPC — remove+rejoin instead of advanceRotation')
-      removeDJFromQueue(this.room, this.sessionId)
-      this.disconnectBooth()
-      if (this.config.mode === 'rotation') this.joinQueue()
-    }
+    // advanceRotation rotates the entry matching currentDjSessionId (F1 fix in
+    // djHelpers.ts), so it is safe even if the queue was reordered under us.
+    advanceRotation(this.room)
 
     // Match message-handler behavior: arm the watchdog for whatever track just
     // started. If it's ours again, the next tick's armTrackTimer reclaims it.
