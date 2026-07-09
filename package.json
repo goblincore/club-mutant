@@ -2,6 +2,7 @@
   "name": "club-mutant",
   "version": "0.1.0",
   "description": "Server for Club Mutant",
+  "packageManager": "pnpm@10.25.0",
   "main": ".eslintrc.js",
   "scripts": {
     "start": "cd server && npm run start",
