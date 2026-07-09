@@ -1,0 +1,78 @@
+{
+  "id": "default",
+  "name": "House Rotation",
+  "tracks": [
+    {
+      "id": "dQw4w9WgXcQ",
+      "title": "Rick Astley - Never Gonna Give You Up",
+      "link": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "duration": 213
+    },
+    {
+      "id": "9bZkp7q19f0",
+      "title": "PSY - Gangnam Style",
+      "link": "https://www.youtube.com/watch?v=9bZkp7q19f0",
+      "duration": 252
+    },
+    {
+      "id": "fJ9rUzIMcZQ",
+      "title": "Queen - Bohemian Rhapsody",
+      "link": "https://www.youtube.com/watch?v=fJ9rUzIMcZQ",
+      "duration": 359
+    },
+    {
+      "id": "FTQbiNvZqaY",
+      "title": "Toto - Africa",
+      "link": "https://www.youtube.com/watch?v=FTQbiNvZqaY",
+      "duration": 271
+    },
+    {
+      "id": "djV11Xbc914",
+      "title": "a-ha - Take On Me",
+      "link": "https://www.youtube.com/watch?v=djV11Xbc914",
+      "duration": 244
+    },
+    {
+      "id": "FGBhQbmPwH8",
+      "title": "Daft Punk - One More Time",
+      "link": "https://www.youtube.com/watch?v=FGBhQbmPwH8",
+      "duration": 321
+    },
+    {
+      "id": "Gs069dndIYk",
+      "title": "Earth, Wind & Fire - September",
+      "link": "https://www.youtube.com/watch?v=Gs069dndIYk",
+      "duration": 215
+    },
+    {
+      "id": "y6120QOlsfU",
+      "title": "Darude - Sandstorm",
+      "link": "https://www.youtube.com/watch?v=y6120QOlsfU",
+      "duration": 232
+    },
+    {
+      "id": "Zi_XLOBDo_Y",
+      "title": "Michael Jackson - Billie Jean",
+      "link": "https://www.youtube.com/watch?v=Zi_XLOBDo_Y",
+      "duration": 296
+    },
+    {
+      "id": "hTWKbfoikeg",
+      "title": "Nirvana - Smells Like Teen Spirit",
+      "link": "https://www.youtube.com/watch?v=hTWKbfoikeg",
+      "duration": 278
+    },
+    {
+      "id": "4NRXx6U8ABQ",
+      "title": "The Weeknd - Blinding Lights",
+      "link": "https://www.youtube.com/watch?v=4NRXx6U8ABQ",
+      "duration": 263
+    },
+    {
+      "id": "OPf0YbXqDm0",
+      "title": "Mark Ronson - Uptown Funk ft. Bruno Mars",
+      "link": "https://www.youtube.com/watch?v=OPf0YbXqDm0",
+      "duration": 270
+    }
+  ]
+}

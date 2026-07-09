@@ -4,6 +4,7 @@ import { Client } from 'colyseus'
 import type { ClubMutant } from '../ClubMutant'
 import { Message } from '@club-mutant/types/Messages'
 import { TEXTURE_IDS, encodeAnimKey } from '@club-mutant/types/AnimationCodec'
+import { NPC_DJ_SESSION_PREFIX } from '../NpcDjManager'
 
 type Payload = {
   client: Client
@@ -19,6 +20,9 @@ export default class PunchPlayerCommand extends Command<ClubMutant, Payload> {
     if (!targetId) return
 
     if (targetId === data.client.sessionId) return
+
+    // The NPC automaton DJ can't be punched (would knock it off the booth)
+    if (targetId.startsWith(NPC_DJ_SESSION_PREFIX)) return
 
     const victim = this.state.players.get(targetId)
     if (!victim) return

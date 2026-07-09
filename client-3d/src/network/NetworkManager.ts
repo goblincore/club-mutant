@@ -525,8 +525,9 @@ export class NetworkManager {
     this.room?.send(Message.DJ_SKIP_TURN, {})
   }
 
-  djTurnComplete() {
-    this.room?.send(Message.DJ_TURN_COMPLETE, {})
+  // streamId lets the server reject stale/duplicate completions (audit F4)
+  djTurnComplete(streamId?: number) {
+    this.room?.send(Message.DJ_TURN_COMPLETE, { streamId })
   }
 
   // Trampoline jump

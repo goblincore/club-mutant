@@ -41,6 +41,13 @@ export function wireDJQueueHandlers(room: Room<RoomState>): void {
     console.warn('[network] Schema callbacks for djQueue failed:', err)
   }
 
+  // F9: the 3D client syncs the DJ queue exclusively via the schema callbacks
+  // above, but the server still broadcasts DJ_QUEUE_UPDATED for the legacy 2D
+  // client (client/src/services/Network.ts consumes it and is not part of the
+  // pnpm workspace, so it can't be refactored here). Register a no-op so
+  // Colyseus stops logging "onMessage ... not registered" on every mutation.
+  room.onMessage(Message.DJ_QUEUE_UPDATED, () => {})
+
   // Per-player queue playlist updates
   room.onMessage(Message.ROOM_QUEUE_PLAYLIST_UPDATED, (payload: { items: any[] }) => {
     useBoothStore.getState().setQueuePlaylist(

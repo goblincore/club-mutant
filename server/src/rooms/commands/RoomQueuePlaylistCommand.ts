@@ -5,7 +5,7 @@ import type { ClubMutant } from '../ClubMutant'
 import { RoomQueuePlaylistItem } from '@club-mutant/types/RoomState'
 import { Message } from '@club-mutant/types/Messages'
 import { prefetchVideo } from '../../youtubeService'
-import { playTrackForCurrentDJ } from './djHelpers'
+import { playTrackForCurrentDJ, clampTrackDuration } from './djHelpers'
 
 type AddPayload = {
   client: Client
@@ -44,19 +44,24 @@ export class RoomQueuePlaylistAddCommand extends Command<ClubMutant, AddPayload>
     playlistItem.id = uuidv4()
     playlistItem.title = item.title
     playlistItem.link = item.link
-    playlistItem.duration = item.duration
+    // F14: this value later drives the track watchdog — never trust it raw
+    playlistItem.duration = clampTrackDuration(item.duration)
     playlistItem.addedAtMs = Date.now()
     playlistItem.played = false
 
-    // Insert strategy: New tracks go after currently playing (if playing), otherwise at top
-    const isCurrentlyPlaying =
+    // Insert strategy: New tracks go after currently playing (if playing), otherwise at top.
+    // F7: locate the playing track by id — it is not necessarily index 0.
+    const playingIndex =
       this.state.currentDjSessionId === client.sessionId &&
-      this.state.musicStream.status === 'playing' &&
-      player.roomQueuePlaylist.length > 0
+      this.state.musicStream.status === 'playing'
+        ? player.roomQueuePlaylist.findIndex(
+            (t) => t.id === this.state.musicStream.currentTrackId
+          )
+        : -1
 
-    if (isCurrentlyPlaying) {
-      // Insert at index 1 (right after currently playing track)
-      player.roomQueuePlaylist.splice(1, 0, playlistItem)
+    if (playingIndex >= 0) {
+      // Insert right after the currently playing track
+      player.roomQueuePlaylist.splice(playingIndex + 1, 0, playlistItem)
     } else {
       // Insert at the top
       player.roomQueuePlaylist.unshift(playlistItem)
@@ -94,11 +99,12 @@ export class RoomQueuePlaylistRemoveCommand extends Command<ClubMutant, RemovePa
     const index = player.roomQueuePlaylist.findIndex((i) => i.id === itemId)
     if (index < 0) return
 
-    // Don't allow removing currently playing track
+    // Don't allow removing the currently playing track (F7: match by id —
+    // the playing track is not necessarily index 0)
     if (
       this.state.currentDjSessionId === client.sessionId &&
-      index === 0 &&
-      this.state.musicStream.status === 'playing'
+      this.state.musicStream.status === 'playing' &&
+      player.roomQueuePlaylist[index]?.id === this.state.musicStream.currentTrackId
     ) {
       console.log('[RoomQueuePlaylist] Remove rejected - cannot remove currently playing track')
       return
@@ -125,12 +131,15 @@ export class RoomQueuePlaylistReorderCommand extends Command<ClubMutant, Reorder
     if (fromIndex >= player.roomQueuePlaylist.length) return
     if (toIndex >= player.roomQueuePlaylist.length) return
 
-    // Don't allow reordering currently playing track
+    // Don't allow moving the currently playing track (F7: match by id — the
+    // playing track is not necessarily index 0). Moving OTHER tracks past it
+    // is safe now that played-marking targets ids instead of positions.
     if (
       this.state.currentDjSessionId === client.sessionId &&
       this.state.musicStream.status === 'playing'
     ) {
-      if (fromIndex === 0 || toIndex === 0) {
+      const movedItem = player.roomQueuePlaylist[fromIndex]
+      if (movedItem && movedItem.id === this.state.musicStream.currentTrackId) {
         console.log('[RoomQueuePlaylist] Reorder rejected - cannot move currently playing track')
         return
       }

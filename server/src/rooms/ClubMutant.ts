@@ -48,8 +48,14 @@ import {
 
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 import PunchPlayerCommand from './commands/PunchPlayerCommand'
+import { NpcDjManager, parseNpcDjLobbyEnv } from './NpcDjManager'
 
 const LOG_ENABLED = process.env.NODE_ENV !== 'production'
+
+// F14: fallback watchdog window for tracks whose duration is unknown (0).
+// Long enough to never cut a legitimate track short in practice, short
+// enough that a stalled rotation always recovers without human input.
+const UNKNOWN_DURATION_WATCHDOG_MS = 10 * 60 * 1000
 
 // ── NPC Constants ──
 const NPC_SESSION_ID = 'npc_lily'
@@ -90,6 +96,9 @@ export class ClubMutant extends Room {
   private trackWatchdogTimerId: NodeJS.Timeout | null = null
 
   private ambientPublicVideoId = '5-gDL5G-VQQ' //'5-gDL5G-VQQ'
+
+  // ── NPC automaton DJ (Phase 1) ──
+  private npcDjManager: NpcDjManager | null = null
 
   // ── NPC state ──
   private npcUpdateIntervalId: NodeJS.Timeout | null = null
@@ -150,6 +159,8 @@ export class ClubMutant extends Room {
           client: { sessionId: '' } as Client,
           streamId: ms.streamId,
         })
+        // F2: watchdog-driven jukebox advance must protect the next track too
+        this.startWatchdogIfPlaying()
       } else {
         const djId = this.state.currentDjSessionId
         if (!djId) return
@@ -157,33 +168,55 @@ export class ClubMutant extends Room {
         console.log('[Watchdog] Track duration exceeded for DJ %s, auto-advancing', djId)
         this.dispatcher.dispatch(new DJTurnCompleteCommand(), {
           client: { sessionId: djId } as Client,
+          streamId: ms.streamId,
         })
       }
     }, timeoutMs)
   }
 
-  private clearTrackWatchdog() {
+  // Public: the NPC DJ manager clears/re-arms the watchdog around its own
+  // track-advance timer (its timer is the sole authority for NPC tracks).
+  clearTrackWatchdog() {
     if (this.trackWatchdogTimerId) {
       clearTimeout(this.trackWatchdogTimerId)
       this.trackWatchdogTimerId = null
     }
   }
 
-  /** Helper: start watchdog if a track is currently playing with a known duration. */
-  private startWatchdogIfPlaying() {
+  /**
+   * Helper: (re-)arm the watchdog if a track is currently playing with a known
+   * duration. Uses the REMAINING time (startTime + duration - now) rather than
+   * the full duration so mid-track re-arms don't push the deadline out (F3) —
+   * startTrackWatchdog still adds its own grace buffer on top.
+   */
+  startWatchdogIfPlaying() {
     const ms = this.state.musicStream
 
-    if (ms.status === 'playing' && ms.currentLink && ms.duration > 0) {
-      this.startTrackWatchdog(ms.duration * 1000)
+    if (ms.status !== 'playing' || !ms.currentLink) return
+
+    if (ms.duration > 0) {
+      const remainingMs = ms.startTime + ms.duration * 1000 - Date.now()
+      this.startTrackWatchdog(Math.max(remainingMs, 0))
+    } else {
+      // F14: unknown duration (client sent 0 / unparseable) used to mean NO
+      // watchdog at all — combined with a missing turn-complete that was a
+      // permanent stall. Arm a conservative fallback so the rotation always
+      // has a backstop, measured from the stream's startTime.
+      const elapsedMs = Math.max(Date.now() - ms.startTime, 0)
+      this.startTrackWatchdog(Math.max(UNKNOWN_DURATION_WATCHDOG_MS - elapsedMs, 0))
     }
   }
 
   private setStoppedMusicStream() {
+    // F2: every stop path kills the watchdog so it can't fire for a dead stream
+    this.clearTrackWatchdog()
+
     const musicStream = this.state.musicStream
 
     musicStream.status = 'waiting'
     musicStream.currentLink = null
     musicStream.currentTitle = null
+    musicStream.currentTrackId = null
     musicStream.currentVisualUrl = null
     musicStream.currentTrackMessage = null
     musicStream.startTime = Date.now()
@@ -215,7 +248,11 @@ export class ClubMutant extends Room {
     musicStream.startTime = Date.now()
     musicStream.duration = 0
 
-    this.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
+    // F12: keep the offset field truthful on every send path
+    this.broadcast(Message.START_MUSIC_STREAM, {
+      musicStream,
+      offset: (Date.now() - musicStream.startTime) / 1000,
+    })
   }
 
   private startMusicStreamTickIfNeeded() {
@@ -241,7 +278,9 @@ export class ClubMutant extends Room {
     this.musicStreamTickIntervalId = null
   }
 
-  private stopAmbientIfNeeded() {
+  // Public: also called by the NPC DJ manager when it takes over the booth
+  // (mirrors what the human booth-connect path does).
+  stopAmbientIfNeeded() {
     const musicStream = this.state.musicStream
     if (!musicStream.isAmbient) return
 
@@ -791,6 +830,19 @@ export class ClubMutant extends Room {
       this.startNpcHeartbeat()
     }
 
+    // Spawn NPC automaton DJ for djqueue rooms (Phase 1: config at room
+    // creation, or NPC_DJ_LOBBY env for the public lobby)
+    if (this.musicMode === 'djqueue') {
+      const npcDjConfig =
+        options.npcDj ?? (this.isPublic ? parseNpcDjLobbyEnv(process.env.NPC_DJ_LOBBY) : null)
+      if (npcDjConfig) {
+        const manager = new NpcDjManager(this, npcDjConfig)
+        if (manager.spawn()) {
+          this.npcDjManager = manager
+        }
+      }
+    }
+
     this.onMessage(Message.TIME_SYNC_REQUEST, (client, message: { clientSentAtMs?: unknown }) => {
       const clientSentAtMs =
         typeof message?.clientSentAtMs === 'number' && Number.isFinite(message.clientSentAtMs)
@@ -1019,33 +1071,33 @@ export class ClubMutant extends Room {
         })
       })
 
+      // F2: no watchdog wrappers here — the DJ command/helper layer owns the
+      // watchdog lifecycle (playTrackForCurrentDJ arms, every stop path clears).
+      // This also means a REJECTED command (e.g. stale DJ_TURN_COMPLETE, F4)
+      // leaves the running track's watchdog untouched instead of resetting it.
       this.onMessage(Message.DJ_QUEUE_LEAVE, (client) => {
         if (this.throttle(client, Message.DJ_QUEUE_LEAVE, 2000)) return
-        this.clearTrackWatchdog()
         this.dispatcher.dispatch(new DJQueueLeaveCommand(), { client })
-        this.startWatchdogIfPlaying()
       })
 
       this.onMessage(Message.DJ_PLAY, (client) => {
         this.dispatcher.dispatch(new DJPlayCommand(), { client })
-        this.startWatchdogIfPlaying()
       })
 
       this.onMessage(Message.DJ_STOP, (client) => {
-        this.clearTrackWatchdog()
         this.dispatcher.dispatch(new DJStopCommand(), { client })
       })
 
       this.onMessage(Message.DJ_SKIP_TURN, (client) => {
-        this.clearTrackWatchdog()
         this.dispatcher.dispatch(new DJSkipTurnCommand(), { client })
-        this.startWatchdogIfPlaying()
       })
 
-      this.onMessage(Message.DJ_TURN_COMPLETE, (client) => {
-        this.clearTrackWatchdog()
-        this.dispatcher.dispatch(new DJTurnCompleteCommand(), { client })
-        this.startWatchdogIfPlaying()
+      // Carries streamId (F4) — server deduplicates stale/duplicate completions.
+      this.onMessage(Message.DJ_TURN_COMPLETE, (client, message) => {
+        this.dispatcher.dispatch(new DJTurnCompleteCommand(), {
+          client,
+          streamId: message?.streamId,
+        })
       })
 
       // Room Queue Playlist Management (per-player, djqueue mode only)
@@ -1354,6 +1406,8 @@ export class ClubMutant extends Room {
 
     this.stopNpcHeartbeat()
     this.cleanupNpc()
+    this.npcDjManager?.dispose()
+    this.npcDjManager = null
     this.clearTrackWatchdog()
     this.stopMusicStreamTickIfNeeded()
     this.dispatcher.stop()

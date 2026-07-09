@@ -5,6 +5,7 @@ import type { ClubMutant } from '../ClubMutant'
 import { JukeboxItem, DJUserInfo } from '@club-mutant/types/RoomState'
 import { Message } from '@club-mutant/types/Messages'
 import { prefetchVideo } from '../../youtubeService'
+import { clampTrackDuration } from './djHelpers'
 
 type ClientPayload = {
   client: Client
@@ -44,6 +45,9 @@ export function playNextJukeboxTrack(room: ClubMutant) {
   musicStream.streamId += 1
   musicStream.currentLink = track.link
   musicStream.currentTitle = track.title
+  // F7: currentTrackId refers to a DJ's roomQueuePlaylist item — a jukebox
+  // stream must not carry a stale id from a previous DJ-queue stream.
+  musicStream.currentTrackId = null
   musicStream.isAmbient = false
 
   const djInfo = new DJUserInfo()
@@ -55,7 +59,11 @@ export function playNextJukeboxTrack(room: ClubMutant) {
   musicStream.duration = track.duration
 
   console.log('[Jukebox] Playing track:', track.title, 'added by:', track.addedByName)
-  room.broadcast(Message.START_MUSIC_STREAM, { musicStream, offset: 0 })
+  // F12: keep the offset field truthful on every send path
+  room.broadcast(Message.START_MUSIC_STREAM, {
+    musicStream,
+    offset: (Date.now() - musicStream.startTime) / 1000,
+  })
 
   // Notify Lily NPC about the new track (she may comment spontaneously)
   room.notifyNpcMusicStarted(track.title)
@@ -69,6 +77,7 @@ export function stopJukeboxStream(room: ClubMutant) {
   musicStream.status = 'waiting'
   musicStream.currentLink = null
   musicStream.currentTitle = null
+  musicStream.currentTrackId = null
   musicStream.isAmbient = false
 
   console.log('[Jukebox] Stream stopped')
@@ -101,7 +110,8 @@ export class JukeboxAddCommand extends Command<ClubMutant, AddPayload> {
     jukeboxItem.id = uuidv4()
     jukeboxItem.title = String(item.title)
     jukeboxItem.link = String(item.link)
-    jukeboxItem.duration = typeof item.duration === 'number' ? item.duration : 0
+    // F14: this value later drives the track watchdog — never trust it raw
+    jukeboxItem.duration = clampTrackDuration(item.duration)
     jukeboxItem.addedBySessionId = client.sessionId
     jukeboxItem.addedByName = player.name
     jukeboxItem.addedAtMs = Date.now()

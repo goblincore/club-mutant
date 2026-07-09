@@ -56,7 +56,7 @@ export function NowPlaying() {
     } else {
       if (!isCurrentDJ) return
       console.log('[NowPlaying] DJ track ended (streamId=%d), sending djTurnComplete', sid)
-      getNetwork().djTurnComplete()
+      getNetwork().djTurnComplete(sid)
     }
   }, [isCurrentDJ, isJukeboxMode])
 
@@ -70,6 +70,58 @@ export function NowPlaying() {
       playerRef.current.seekTo(offsetSec, 'seconds')
     }
   }, [stream.currentLink, stream.startTime, stream.isPlaying])
+
+  // F10: re-apply the late-join seek once the player is actually ready.
+  // A seekTo issued before the YouTube iframe is ready can silently expire
+  // (react-player's pending seek has a ~5s TTL — slow networks or blocked
+  // autoplay exceed it), leaving playback at 0:00 with no correction.
+  const handleReadyOrStart = useCallback(() => {
+    const s = useMusicStore.getState().stream
+    const player = playerRef.current
+    if (!s.isPlaying || !s.startTime || !player) return
+
+    const expectedSec = (Date.now() - s.startTime) / 1000
+    const actualSec = player.getCurrentTime?.() ?? 0
+
+    if (expectedSec > 1 && Math.abs(actualSec - expectedSec) > 2) {
+      console.log(
+        '[NowPlaying] Player ready %ds behind stream — re-seeking to %ds',
+        Math.round(expectedSec - actualSec),
+        Math.round(expectedSec)
+      )
+      player.seekTo(expectedSec, 'seconds')
+    }
+  }, [])
+
+  // F10: periodic position-drift check — compares the ACTUAL player position
+  // against expected elapsed and re-seeks when they diverge. Catches expired
+  // initial seeks and YouTube buffering stalls, which the timestamp-only tick
+  // correction in musicHandlers.ts can never see.
+  useEffect(() => {
+    if (!isPlaying) return
+
+    const id = setInterval(() => {
+      const s = useMusicStore.getState().stream
+      const player = playerRef.current
+      if (!s.isPlaying || !s.startTime || !player) return
+
+      const expectedSec = (Date.now() - s.startTime) / 1000
+      const actualSec = player.getCurrentTime?.()
+
+      if (typeof actualSec !== 'number' || !isFinite(actualSec)) return
+
+      if (Math.abs(actualSec - expectedSec) > 2) {
+        console.log(
+          '[NowPlaying] Position drift: expected %ds, actual %ds — resyncing',
+          Math.round(expectedSec),
+          Math.round(actualSec)
+        )
+        player.seekTo(expectedSec, 'seconds')
+      }
+    }, 5000)
+
+    return () => clearInterval(id)
+  }, [isPlaying, stream.streamId])
 
   // Track elapsed time and total duration
   useEffect(() => {
@@ -97,7 +149,9 @@ export function NowPlaying() {
 
   // Build "up next" text (DJ queue mode only — jukebox returns early above)
   const nextDJ = djQueue.length > 1 ? djQueue[1] : null
-  const upNextText = nextDJ ? `Up next: ${nextDJ.name}` : null
+  const upNextText = nextDJ
+    ? `Up next: ${nextDJ.name}${nextDJ.sessionId?.startsWith('npc-dj:') ? ' [BOT]' : ''}`
+    : null
 
   // Time display
   const timeText =
@@ -121,6 +175,8 @@ export function NowPlaying() {
           width={1}
           height={1}
           onEnded={handleEnded}
+          onReady={handleReadyOrStart}
+          onStart={handleReadyOrStart}
           config={{
             playerVars: {
               autoplay: 1,
@@ -151,6 +207,8 @@ export function NowPlaying() {
             width={1}
             height={1}
             onEnded={handleEnded}
+            onReady={handleReadyOrStart}
+            onStart={handleReadyOrStart}
             config={{
               playerVars: {
                 autoplay: 1,
@@ -185,7 +243,9 @@ export function NowPlaying() {
             )}
 
             <button
-              onClick={() => getNetwork().djTurnComplete()}
+              onClick={() =>
+                getNetwork().djTurnComplete(useMusicStore.getState().stream.streamId)
+              }
               className="w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 border border-white/15 rounded transition-colors"
               title="Skip to next"
             >

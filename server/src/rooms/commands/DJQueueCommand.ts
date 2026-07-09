@@ -1,192 +1,33 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 import type { ClubMutant } from '../ClubMutant'
-import { DJQueueEntry } from '@club-mutant/types/RoomState'
 import { Message } from '@club-mutant/types/Messages'
-import { playTrackForCurrentDJ } from './djHelpers'
+import {
+  advanceRotation,
+  hasUnplayedTracks,
+  joinDjQueue,
+  markTrackAsPlayed,
+  playTrackForCurrentDJ,
+  removeDJFromQueue,
+} from './djHelpers'
+
+// Re-exported for compatibility — the constant now lives with the queue helpers.
+export { MAX_DJ_QUEUE_SIZE } from './djHelpers'
 
 type Payload = {
   client: Client
   slotIndex?: number
 }
 
-// Helper function to find next DJ with tracks
-function hasUnplayedTracks(player: any): boolean {
-  for (let i = 0; i < player.roomQueuePlaylist.length; i++) {
-    if (!player.roomQueuePlaylist[i].played) return true
-  }
-  return false
+type TurnCompletePayload = {
+  client: Client
+  streamId?: number
 }
 
-function findNextDJWithTracks(room: ClubMutant): {
-  entry: DJQueueEntry | null
-  player: any | null
-} {
-  for (let i = 0; i < room.state.djQueue.length; i++) {
-    const entry = room.state.djQueue[i]
-    const player = room.state.players.get(entry.sessionId)
-    if (player && hasUnplayedTracks(player)) {
-      return { entry, player }
-    }
-  }
-  return { entry: null, player: null }
-}
-
-// Helper function to advance rotation
-function advanceRotation(room: ClubMutant) {
-  if (room.state.djQueue.length === 0) {
-    room.state.currentDjSessionId = null
-
-    // Stop music stream
-    const musicStream = room.state.musicStream
-    musicStream.status = 'waiting'
-    musicStream.currentLink = null
-    musicStream.currentTitle = null
-
-    console.log('[DJQueue] No more DJs, stopping music')
-    room.broadcast(Message.STOP_MUSIC_STREAM, {})
-    return
-  }
-
-  // Move current DJ to end of queue (if they still have tracks)
-  const currentEntry = room.state.djQueue[0]
-  const currentPlayer = room.state.players.get(currentEntry.sessionId)
-
-  room.state.djQueue.shift() // Remove from front
-
-  // If player still connected, move to end of queue (even without unplayed tracks —
-  // they can still add more tracks while at the booth). findNextDJWithTracks will
-  // skip them for playback if they have no unplayed tracks.
-  if (currentPlayer) {
-    const newEntry = new DJQueueEntry()
-    newEntry.sessionId = currentEntry.sessionId
-    newEntry.name = currentEntry.name
-    newEntry.joinedAtMs = Date.now()
-    newEntry.queuePosition = room.state.djQueue.length
-    newEntry.slotIndex = currentEntry.slotIndex
-    room.state.djQueue.push(newEntry)
-    console.log('[DJQueue] Moved DJ to end of queue:', currentEntry.sessionId)
-  } else {
-    console.log('[DJQueue] DJ removed from queue (disconnected):', currentEntry.sessionId)
-  }
-
-  // Update positions
-  room.state.djQueue.forEach((entry, i) => {
-    entry.queuePosition = i
-  })
-
-  // Find next DJ with tracks (skip those without)
-  const { entry: nextEntry, player: nextPlayer } = findNextDJWithTracks(room)
-
-  if (nextEntry && nextPlayer) {
-    // Move this DJ to the front of the queue
-    const index = room.state.djQueue.findIndex((e) => e.sessionId === nextEntry.sessionId)
-    if (index > 0) {
-      // Remove from current position and add to front
-      room.state.djQueue.splice(index, 1)
-      room.state.djQueue.unshift(nextEntry)
-      // Re-update positions
-      room.state.djQueue.forEach((entry, i) => {
-        entry.queuePosition = i
-      })
-    }
-
-    room.state.currentDjSessionId = nextEntry.sessionId
-    console.log('[DJQueue] New current DJ:', room.state.currentDjSessionId)
-    playTrackForCurrentDJ(room)
-  } else {
-    // No DJs with tracks - wait for someone to add tracks
-    room.state.currentDjSessionId = null
-
-    // Stop music stream
-    const musicStream = room.state.musicStream
-    musicStream.status = 'waiting'
-    musicStream.currentLink = null
-    musicStream.currentTitle = null
-
-    console.log('[DJQueue] No DJs with tracks, waiting...')
-    room.broadcast(Message.STOP_MUSIC_STREAM, {})
-  }
-
-  room.broadcast(Message.DJ_QUEUE_UPDATED, {
-    djQueue: room.state.djQueue.toArray(),
-    currentDjSessionId: room.state.currentDjSessionId,
-  })
-}
-
-// Helper function to mark track as played and move to bottom
-function markTrackAsPlayed(player: any) {
-  if (player.roomQueuePlaylist.length === 0) return
-
-  const track = player.roomQueuePlaylist[0]
-  if (!track) return
-
-  // Mark as played
-  track.played = true
-
-  // Move to the bottom of the queue
-  player.roomQueuePlaylist.push(track)
-  player.roomQueuePlaylist.shift()
-
-  console.log('[DJQueue] Marked track as played and moved to bottom:', track.title)
-}
-
-// Helper function to remove DJ from queue
-function removeDJFromQueue(room: ClubMutant, sessionId: string) {
-  const index = room.state.djQueue.findIndex((e) => e.sessionId === sessionId)
-  if (index < 0) return
-
-  const wasCurrentDJ = room.state.currentDjSessionId === sessionId
-  const wasPlaying = room.state.musicStream.status === 'playing'
-
-  console.log('[DJQueue] Removing from queue:', sessionId, wasCurrentDJ ? '(was current DJ)' : '')
-
-  // If current DJ was playing, stop their track first
-  if (wasCurrentDJ && wasPlaying) {
-    console.log('[DJQueue] Current DJ left during track, stopping playback')
-    const musicStream = room.state.musicStream
-    musicStream.status = 'waiting'
-    musicStream.currentLink = null
-    musicStream.currentTitle = null
-    room.broadcast(Message.STOP_MUSIC_STREAM, {})
-  }
-
-  // Remove the leaving DJ from the queue
-  room.state.djQueue.splice(index, 1)
-
-  // Reassign queue positions
-  room.state.djQueue.forEach((entry, i) => {
-    entry.queuePosition = i
-  })
-
-  if (wasCurrentDJ) {
-    // Promote next person in queue to current DJ (regardless of whether they have tracks)
-    const nextEntry = room.state.djQueue[0] ?? null
-
-    if (nextEntry) {
-      room.state.currentDjSessionId = nextEntry.sessionId
-      console.log('[DJQueue] Promoted next DJ:', nextEntry.sessionId)
-
-      // Auto-start the next DJ's track if they have one queued up
-      const nextPlayer = room.state.players.get(nextEntry.sessionId)
-
-      if (nextPlayer && nextPlayer.roomQueuePlaylist.length > 0) {
-        playTrackForCurrentDJ(room)
-      }
-    } else {
-      // Queue is empty
-      room.state.currentDjSessionId = null
-      console.log('[DJQueue] Queue empty, no current DJ')
-    }
-  }
-
-  room.broadcast(Message.DJ_QUEUE_UPDATED, {
-    djQueue: room.state.djQueue.toArray(),
-    currentDjSessionId: room.state.currentDjSessionId,
-  })
-}
-
-export const MAX_DJ_QUEUE_SIZE = 3
+// Thin wrappers over the djHelpers queue functions. Commands keep their
+// client.send(...) UI notifications; all queue/rotation logic lives in
+// djHelpers.ts so the NPC DJ manager can drive the same code paths without
+// a Colyseus Client.
 
 export class DJQueueJoinCommand extends Command<ClubMutant, Payload> {
   execute(data: Payload) {
@@ -194,71 +35,7 @@ export class DJQueueJoinCommand extends Command<ClubMutant, Payload> {
     const player = this.state.players.get(client.sessionId)
     if (!player) return
 
-    // Check if already in queue
-    const existingIndex = this.state.djQueue.findIndex(
-      (entry) => entry.sessionId === client.sessionId
-    )
-    if (existingIndex >= 0) return
-
-    // Enforce max queue size
-    if (this.state.djQueue.length >= MAX_DJ_QUEUE_SIZE) {
-      console.log('[DJQueue] Queue full, rejecting:', client.sessionId)
-      return
-    }
-
-    // Validate slotIndex (0, 1, or 2) and ensure it's not already taken
-    const slot =
-      typeof data.slotIndex === 'number' && data.slotIndex >= 0 && data.slotIndex <= 2
-        ? data.slotIndex
-        : 0
-
-    const slotTaken = this.state.djQueue.some((e) => e.slotIndex === slot)
-
-    if (slotTaken) {
-      console.log('[DJQueue] Slot', slot, 'already taken, rejecting:', client.sessionId)
-      return
-    }
-
-    // Add to queue
-    const entry = new DJQueueEntry()
-    entry.sessionId = client.sessionId
-    entry.name = player.name
-    entry.joinedAtMs = Date.now()
-    entry.queuePosition = this.state.djQueue.length
-    entry.slotIndex = slot
-
-    this.state.djQueue.push(entry)
-
-    // Teleport player behind the booth (must be server-authoritative so late-joining
-    // clients see the correct position — client sendPosition can be rejected by speed check)
-    const DJ_SLOT_SERVER_X = [100, 0, -100]
-    const BEHIND_BOOTH_SERVER_Y = 430
-
-    player.x = DJ_SLOT_SERVER_X[slot] ?? 0
-    player.y = BEHIND_BOOTH_SERVER_Y
-
-    console.log(
-      '[DJQueue] Joined:',
-      client.sessionId,
-      'Position:',
-      entry.queuePosition,
-      `teleported to (${player.x}, ${player.y})`
-    )
-
-    // If first DJ, set as current (playback requires explicit DJ_PLAY)
-    if (this.state.djQueue.length === 1) {
-      this.state.currentDjSessionId = client.sessionId
-      console.log('[DJQueue] First DJ, set as current:', client.sessionId)
-    } else if (!this.state.currentDjSessionId) {
-      // No current DJ — set this one as current
-      this.state.currentDjSessionId = client.sessionId
-      console.log('[DJQueue] No current DJ, set as current:', client.sessionId)
-    }
-
-    this.room.broadcast(Message.DJ_QUEUE_UPDATED, {
-      djQueue: this.state.djQueue.toArray(),
-      currentDjSessionId: this.state.currentDjSessionId,
-    })
+    joinDjQueue(this.room, client.sessionId, player.name, data.slotIndex)
   }
 }
 
@@ -281,8 +58,10 @@ export class DJSkipTurnCommand extends Command<ClubMutant, Payload> {
 
     const player = this.state.players.get(client.sessionId)
     if (player) {
-      // Mark current track as played even when skipping
-      markTrackAsPlayed(player)
+      // Mark current track as played even when skipping (F7: by id — the
+      // playing track is not necessarily index 0; null while stopped falls
+      // back to legacy index-0 behavior)
+      markTrackAsPlayed(player, this.state.musicStream.currentTrackId)
 
       // Notify client so their playlist UI updates
       client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
@@ -306,6 +85,33 @@ export class DJPlayCommand extends Command<ClubMutant, Payload> {
       if (!this.state.currentDjSessionId && inQueue) {
         this.state.currentDjSessionId = client.sessionId
         console.log('[DJQueue] No current DJ, promoted on play:', client.sessionId)
+      } else if (inQueue && this.state.musicStream.status !== 'playing') {
+        // F6: a current DJ with no unplayed tracks must not hold the booth
+        // hostage. When nothing is playing and a queued DJ asks to play,
+        // pass the turn instead of rejecting.
+        const currentPlayer = this.state.players.get(this.state.currentDjSessionId!)
+        if (currentPlayer && hasUnplayedTracks(currentPlayer)) {
+          console.log('[DJQueue] Play rejected - not current DJ:', client.sessionId)
+          return
+        }
+
+        console.log(
+          '[DJQueue] Trackless current DJ — passing turn on play request from:',
+          client.sessionId
+        )
+        advanceRotation(this.room)
+
+        if (this.state.currentDjSessionId !== client.sessionId) {
+          if (this.state.currentDjSessionId !== null) {
+            // Rotation promoted another DJ and started their track —
+            // the requester keeps waiting in queue order.
+            return
+          }
+          // Nobody had unplayed tracks — promote the requester so the
+          // loop-reset below can restart their playlist.
+          this.state.currentDjSessionId = client.sessionId
+          console.log('[DJQueue] No DJ with unplayed tracks, promoted requester:', client.sessionId)
+        }
       } else {
         console.log('[DJQueue] Play rejected - not current DJ:', client.sessionId)
         return
@@ -362,14 +168,34 @@ export class DJStopCommand extends Command<ClubMutant, Payload> {
     musicStream.status = 'waiting'
     musicStream.currentLink = null
     musicStream.currentTitle = null
+    musicStream.currentTrackId = null
 
+    // F2: stop path owns the watchdog clear (handler no longer wraps this)
+    this.room.clearTrackWatchdog()
     this.room.broadcast(Message.STOP_MUSIC_STREAM, {})
   }
 }
 
-export class DJTurnCompleteCommand extends Command<ClubMutant, Payload> {
-  execute(data: Payload) {
+export class DJTurnCompleteCommand extends Command<ClubMutant, TurnCompletePayload> {
+  execute(data: TurnCompletePayload) {
     const { client } = data
+
+    // Dedup (F4): only process if the streamId matches the current stream —
+    // mirrors the jukebox pattern (JukeboxTrackCompleteCommand). Prevents a
+    // late/duplicate completion (client onEnded racing the watchdog, or a
+    // double ▶▶ press) from marking/killing the track that just started.
+    if (
+      data.streamId !== undefined &&
+      data.streamId !== this.state.musicStream.streamId
+    ) {
+      console.log(
+        '[DJQueue] Turn complete ignored - streamId mismatch:',
+        data.streamId,
+        'vs',
+        this.state.musicStream.streamId
+      )
+      return
+    }
 
     // Only current DJ can complete their turn
     if (this.state.currentDjSessionId !== client.sessionId) {
@@ -384,13 +210,19 @@ export class DJTurnCompleteCommand extends Command<ClubMutant, Payload> {
       return
     }
 
-    // Mark played track and move to bottom (keep history)
-    markTrackAsPlayed(player)
+    // Mark played track and move to bottom (keep history). F7: target the
+    // track that actually played (recorded when playTrackForCurrentDJ
+    // started it), not index 0.
+    markTrackAsPlayed(player, this.state.musicStream.currentTrackId)
 
-    // Notify client so their playlist UI updates
-    client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
-      items: [...player.roomQueuePlaylist],
-    })
+    // Notify client so their playlist UI updates. The track watchdog (and any
+    // NPC-related path) dispatches this command with a synthetic Client that
+    // only carries a sessionId — it has no send().
+    if (typeof client.send === 'function') {
+      client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
+        items: [...player.roomQueuePlaylist],
+      })
+    }
 
     // ALWAYS advance to next DJ after playing one track
     console.log('[DJQueue] Track finished, advancing to next DJ')
