@@ -5,6 +5,7 @@ import {
   NpcDjManager,
   NPC_DJ_WANDER_BOUNDS,
   NPC_DJ_HANDOVER_TEMPLATES,
+  sanitizeNpcDjOptions,
 } from '../rooms/NpcDjManager'
 import { Message } from '@club-mutant/types/Messages'
 import { DJ_SLOT_SERVER_X, BEHIND_BOOTH_SERVER_Y } from '../rooms/commands/djHelpers'
@@ -161,5 +162,28 @@ describe('NpcDjManager movement', () => {
     )
     expect(chatCalls.length).toBe(1)
     expect(NPC_DJ_HANDOVER_TEMPLATES).toContain(chatCalls[0][1].content)
+  })
+})
+
+describe('sanitizeNpcDjOptions — untrusted client input', () => {
+  it('accepts valid modes and strips every other field', () => {
+    expect(sanitizeNpcDjOptions({ mode: 'fallback' })).toEqual({ mode: 'fallback' })
+    expect(
+      sanitizeNpcDjOptions({
+        mode: 'rotation',
+        name: 'impersonator',
+        playlistId: '../../etc/passwd',
+        textureId: 99,
+      })
+    ).toEqual({ mode: 'rotation' })
+  })
+
+  it('rejects anything without a valid mode', () => {
+    expect(sanitizeNpcDjOptions(undefined)).toBeNull()
+    expect(sanitizeNpcDjOptions(null)).toBeNull()
+    expect(sanitizeNpcDjOptions('rotation')).toBeNull()
+    expect(sanitizeNpcDjOptions({})).toBeNull()
+    expect(sanitizeNpcDjOptions({ mode: 'evil' })).toBeNull()
+    expect(sanitizeNpcDjOptions({ mode: 42 })).toBeNull()
   })
 })

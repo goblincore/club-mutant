@@ -98,6 +98,19 @@ export function parseNpcDjLobbyEnv(raw: string | undefined): INpcDjConfig | null
   return { mode, playlistId: playlistId || undefined }
 }
 
+/**
+ * Sanitize a client-supplied room-creation npcDj option. Only the mode is
+ * accepted — playlist/name/texture stay server-controlled (random defaults)
+ * so room creators can't impersonate players or reference arbitrary
+ * playlists. Returns null when the shape is invalid (no NPC spawns).
+ */
+export function sanitizeNpcDjOptions(raw: unknown): INpcDjConfig | null {
+  if (!raw || typeof raw !== 'object') return null
+  const mode = (raw as { mode?: unknown }).mode
+  if (mode !== 'fallback' && mode !== 'rotation') return null
+  return { mode }
+}
+
 export class NpcDjManager {
   readonly sessionId: string
 
