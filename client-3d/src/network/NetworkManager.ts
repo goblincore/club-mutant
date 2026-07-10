@@ -327,7 +327,13 @@ export class NetworkManager {
   }
 
   async createCustomRoom(
-    roomData: { name: string; description: string; password: string | null; musicMode?: string },
+    roomData: {
+      name: string
+      description: string
+      password: string | null
+      musicMode?: string
+      npcDj?: { mode: 'fallback' | 'rotation' }
+    },
     playerName: string,
     textureId: number
   ): Promise<void> {
@@ -343,6 +349,7 @@ export class NetworkManager {
           password: roomData.password,
           autoDispose: true,
           musicMode,
+          npcDj: roomData.npcDj,
           playerId: getOrCreatePlayerId(),
           textureId,
           spawnX: 0,
