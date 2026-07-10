@@ -70,7 +70,19 @@ const TRACK_START_TEMPLATES = [
   '{title}. enjoy.',
 ]
 
-const FALLBACK_JOIN_MESSAGE = "taking over while the booth's empty."
+// Fired when the fallback NPC hands the booth to waiting humans.
+export const NPC_DJ_HANDOVER_TEMPLATES = [
+  "booth's yours 🎛️",
+  'passing the decks — keep it moving',
+  "warmed 'em up for you",
+]
+
+// Fired when the fallback NPC (re-)takes an empty booth.
+export const NPC_DJ_FALLBACK_JOIN_TEMPLATES = [
+  "taking over while the booth's empty.",
+  'back to the decks 🎧',
+  'no DJ? i got this.',
+]
 
 /**
  * Parse the NPC_DJ_LOBBY env var ("<mode>" or "<mode>:<playlistId>",
@@ -271,12 +283,15 @@ export class NpcDjManager {
     this.room.stopAmbientIfNeeded()
 
     if (this.config.mode === 'fallback') {
-      this.announce(FALLBACK_JOIN_MESSAGE)
+      this.announce(this.pickTemplate(NPC_DJ_FALLBACK_JOIN_TEMPLATES))
     }
     return true
   }
 
   private leaveQueue() {
+    // Only fallback mode ever leaves the queue (rotation leaves only via
+    // dispose, which bypasses this method) — this is always a human handover.
+    this.announce(this.pickTemplate(NPC_DJ_HANDOVER_TEMPLATES))
     this.leaveAfterTrack = false
     this.clearTrackTimer()
     // Watchdog lifecycle is owned by djHelpers (F2): removeDJFromQueue clears
@@ -517,6 +532,10 @@ export class NpcDjManager {
       clientId: this.sessionId,
       content,
     })
+  }
+
+  private pickTemplate(pool: string[]): string {
+    return pool[Math.floor(Math.random() * pool.length)]
   }
 
   private announceTrack(title: string) {

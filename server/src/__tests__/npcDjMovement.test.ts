@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { RoomState, Player, DJQueueEntry } from '@club-mutant/types/RoomState'
 import type { ClubMutant } from '../rooms/ClubMutant'
-import { NpcDjManager, NPC_DJ_WANDER_BOUNDS } from '../rooms/NpcDjManager'
+import {
+  NpcDjManager,
+  NPC_DJ_WANDER_BOUNDS,
+  NPC_DJ_HANDOVER_TEMPLATES,
+} from '../rooms/NpcDjManager'
+import { Message } from '@club-mutant/types/Messages'
 import { DJ_SLOT_SERVER_X, BEHIND_BOOTH_SERVER_Y } from '../rooms/commands/djHelpers'
 
 // playTrackForCurrentDJ prefetches via the network — stub it out.
@@ -141,5 +146,20 @@ describe('NpcDjManager movement', () => {
     // It actually moves (idle windows are 3–8s, so 2 minutes must include walks).
     const distinct = new Set(visited.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`))
     expect(distinct.size).toBeGreaterThan(1)
+  })
+
+  it('announces a handover line when leaving the queue', () => {
+    manager = new NpcDjManager(room, { mode: 'fallback' })
+    expect(manager.spawn()).toBe(true)
+    vi.advanceTimersByTime(10_000)
+    ;(room.broadcast as any).mockClear()
+
+    ;(manager as any).leaveQueue()
+
+    const chatCalls = (room.broadcast as any).mock.calls.filter(
+      (c: any[]) => c[0] === Message.ADD_CHAT_MESSAGE
+    )
+    expect(chatCalls.length).toBe(1)
+    expect(NPC_DJ_HANDOVER_TEMPLATES).toContain(chatCalls[0][1].content)
   })
 })
