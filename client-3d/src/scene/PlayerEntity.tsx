@@ -102,6 +102,7 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
   const [headTopY, setHeadTopY] = useState(1.1)
 
   const lastVisualX = useRef(0)
+  const didSpawnSnap = useRef(false)
   const stopTimer = useRef(0)
   const smoothSpeed = useRef(0)
   const smoothVelX = useRef(0)
@@ -128,6 +129,19 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
     const pos = getPlayerPosition(player.sessionId)
     const targetX = (pos?.x ?? 0) * WORLD_SCALE
     const targetZ = -(pos?.y ?? 0) * WORLD_SCALE
+
+    // First frame after mount: snap straight to the server position. The group
+    // otherwise mounts at (0,0,0) and the lerp below visibly slides late-joiners'
+    // views of existing players from the world origin to their real spots.
+    // (playerHandlers.onAdd seeds the position map before this entity mounts.)
+    // Seeding lastVisualX too keeps the snap from registering as a huge visual
+    // velocity, which would flash the walk animation on frame one.
+    if (!didSpawnSnap.current && pos) {
+      didSpawnSnap.current = true
+      groupRef.current.position.x = targetX
+      groupRef.current.position.z = targetZ
+      lastVisualX.current = targetX
+    }
 
     const curX = groupRef.current.position.x
     const curZ = groupRef.current.position.z
