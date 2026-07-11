@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { RoomState, Player, DJQueueEntry, RoomQueuePlaylistItem } from '@club-mutant/types/RoomState'
-import { advanceRotation, markTrackAsPlayed, removeDJFromQueue } from '../rooms/commands/djHelpers'
+import {
+  advanceRotation,
+  markTrackAsPlayed,
+  removeDJFromQueue,
+  joinDjQueue,
+} from '../rooms/commands/djHelpers'
 import { DJTurnCompleteCommand } from '../rooms/commands/DJQueueCommand'
 import type { ClubMutant } from '../rooms/ClubMutant'
 
@@ -303,5 +308,40 @@ describe('markTrackAsPlayed — F7: marks the track that actually played', () =>
     const actual = alice.roomQueuePlaylist.find((t) => t.id === 'A-actual-track')!
     expect(actual.played).toBe(true)
     expect(room.state.currentDjSessionId).toBe('B')
+  })
+})
+
+describe('joinDjQueue — teleport parameter', () => {
+  let room: ClubMutant
+
+  beforeEach(() => {
+    room = makeRoom()
+  })
+
+  it('teleports the joining player to the slot by default', () => {
+    const player = addPlayer(room, 'A', 'Alice', ['track-a'])
+    player.x = 50
+    player.y = 50
+
+    const ok = joinDjQueue(room, 'A', 'Alice', 0)
+
+    expect(ok).toBe(true)
+    expect(player.x).toBe(100) // DJ_SLOT_SERVER_X[0]
+    expect(player.y).toBe(430) // BEHIND_BOOTH_SERVER_Y
+  })
+
+  it('leaves the player position untouched when teleport=false (NPC walks instead)', () => {
+    const player = addPlayer(room, 'A', 'Alice', ['track-a'])
+    player.x = 50
+    player.y = 50
+
+    const ok = joinDjQueue(room, 'A', 'Alice', 0, false)
+
+    expect(ok).toBe(true)
+    // Queue membership is instant…
+    expect(room.state.djQueue.some((e) => e.sessionId === 'A')).toBe(true)
+    // …but the body has not moved.
+    expect(player.x).toBe(50)
+    expect(player.y).toBe(50)
   })
 })

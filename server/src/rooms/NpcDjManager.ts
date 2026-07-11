@@ -20,6 +20,7 @@ import { TEXTURE_IDS, sanitizeTextureId } from '@club-mutant/types/AnimationCode
 
 import type { ClubMutant } from './ClubMutant'
 import {
+  BEHIND_BOOTH_SERVER_Y,
   DJ_SLOT_SERVER_X,
   advanceRotation,
   hasUnplayedTracks,
@@ -40,6 +41,27 @@ const WATCH_INTERVAL_MS = 1000
 const NPC_DJ_STANDBY_X = 220
 const NPC_DJ_STANDBY_Y = 500
 
+// ── Movement (cosmetic layer) ────────────────────────────────────────────────
+// The NPC's body is server-driven: we mutate Player.x/y and the client lerps
+// (REMOTE_LERP) and derives walk/dance/idle animation from visual velocity +
+// music state. Movement NEVER gates queue or playback logic — state changes
+// are instant and the body walks to catch up.
+const NPC_DJ_MOVE_INTERVAL_MS = 200 // Lily parity (NPC_UPDATE_INTERVAL)
+const NPC_DJ_SPEED = 60 // server px/s (Lily parity)
+// Dancefloor rectangle in front of the booth (slots sit at y=430). Provisional —
+// tuned during the runtime smoke test. Must stay within the client's ±550 clamp.
+export const NPC_DJ_WANDER_BOUNDS = { minX: -250, maxX: 250, minY: 150, maxY: 380 }
+const NPC_DJ_IDLE_MIN_MS = 3000
+const NPC_DJ_IDLE_RANGE_MS = 5000 // idle window: 3–8s
+
+// While walking the client shows 'walk'; while standing with music playing it
+// shows 'dance' automatically. 'stationed' = parked at the booth slot (no
+// jitter — jitter would flip the client's auto-dance into 'walk').
+type NpcDjMoveState =
+  | { kind: 'stationed' }
+  | { kind: 'walking'; targetX: number; targetY: number; arrive: 'booth' | 'floor' }
+  | { kind: 'hangingOut'; timerMs: number }
+
 const NPC_DJ_NAME_POOL = ['DJ Automaton', 'Unit-33', 'The Resident', 'Vinyl Golem', 'MC Circuit']
 
 const TRACK_START_TEMPLATES = [
@@ -48,7 +70,19 @@ const TRACK_START_TEMPLATES = [
   '{title}. enjoy.',
 ]
 
-const FALLBACK_JOIN_MESSAGE = "taking over while the booth's empty."
+// Fired when the fallback NPC hands the booth to waiting humans.
+export const NPC_DJ_HANDOVER_TEMPLATES = [
+  "booth's yours 🎛️",
+  'passing the decks — keep it moving',
+  "warmed 'em up for you",
+]
+
+// Fired when the fallback NPC (re-)takes an empty booth.
+export const NPC_DJ_FALLBACK_JOIN_TEMPLATES = [
+  "taking over while the booth's empty.",
+  'back to the decks 🎧',
+  'no DJ? i got this.',
+]
 
 /**
  * Parse the NPC_DJ_LOBBY env var ("<mode>" or "<mode>:<playlistId>",
@@ -64,6 +98,19 @@ export function parseNpcDjLobbyEnv(raw: string | undefined): INpcDjConfig | null
   return { mode, playlistId: playlistId || undefined }
 }
 
+/**
+ * Sanitize a client-supplied room-creation npcDj option. Only the mode is
+ * accepted — playlist/name/texture stay server-controlled (random defaults)
+ * so room creators can't impersonate players or reference arbitrary
+ * playlists. Returns null when the shape is invalid (no NPC spawns).
+ */
+export function sanitizeNpcDjOptions(raw: unknown): INpcDjConfig | null {
+  if (!raw || typeof raw !== 'object') return null
+  const mode = (raw as { mode?: unknown }).mode
+  if (mode !== 'fallback' && mode !== 'rotation') return null
+  return { mode }
+}
+
 export class NpcDjManager {
   readonly sessionId: string
 
@@ -73,6 +120,8 @@ export class NpcDjManager {
   private playlist: NpcPlaylist | null = null
 
   private watchIntervalId: NodeJS.Timeout | null = null
+  private moveIntervalId: NodeJS.Timeout | null = null
+  private moveState: NpcDjMoveState = { kind: 'hangingOut', timerMs: NPC_DJ_IDLE_MIN_MS }
   private trackTimerId: NodeJS.Timeout | null = null
   private trackTimerStreamId = -1
   private lastAnnouncedStreamId = -1
@@ -122,6 +171,10 @@ export class NpcDjManager {
       `playlist=${playlist.name} (${playlist.tracks.length} tracks)`
     )
 
+    // Movement loop must exist before the first tick() — a successful
+    // joinQueue() inside it sets the walk target to the claimed booth slot.
+    this.moveIntervalId = setInterval(() => this.moveTick(), NPC_DJ_MOVE_INTERVAL_MS)
+
     // Join/play immediately (rotation always joins; fallback joins while no
     // humans are queued), then keep watching.
     this.tick()
@@ -137,6 +190,10 @@ export class NpcDjManager {
     if (this.watchIntervalId !== null) {
       clearInterval(this.watchIntervalId)
       this.watchIntervalId = null
+    }
+    if (this.moveIntervalId !== null) {
+      clearInterval(this.moveIntervalId)
+      this.moveIntervalId = null
     }
     this.clearTrackTimer()
 
@@ -228,7 +285,10 @@ export class NpcDjManager {
     const slot = this.findFreeSlot()
     if (slot === null) return false // queue/slots full — tick retries later
 
-    if (!joinDjQueue(this.room, this.sessionId, this.name, slot)) return false
+    if (!joinDjQueue(this.room, this.sessionId, this.name, slot, false)) return false
+
+    // Body walks to the slot; queue membership above is already live.
+    this.walkToBoothSlot()
 
     // Occupy a booth seat so ambient playback won't hijack the stream while
     // the NPC is DJing (startAmbientIfNeeded checks booth occupancy).
@@ -236,12 +296,15 @@ export class NpcDjManager {
     this.room.stopAmbientIfNeeded()
 
     if (this.config.mode === 'fallback') {
-      this.announce(FALLBACK_JOIN_MESSAGE)
+      this.announce(this.pickTemplate(NPC_DJ_FALLBACK_JOIN_TEMPLATES))
     }
     return true
   }
 
   private leaveQueue() {
+    // Only fallback mode ever leaves the queue (rotation leaves only via
+    // dispose, which bypasses this method) — this is always a human handover.
+    this.announce(this.pickTemplate(NPC_DJ_HANDOVER_TEMPLATES))
     this.leaveAfterTrack = false
     this.clearTrackTimer()
     // Watchdog lifecycle is owned by djHelpers (F2): removeDJFromQueue clears
@@ -249,7 +312,7 @@ export class NpcDjManager {
     // promoted DJ's track auto-starts. No manual clear/re-arm needed here.
     removeDJFromQueue(this.room, this.sessionId)
     this.disconnectBooth()
-    this.moveToStandby()
+    this.walkToFloor()
   }
 
   private findFreeSlot(): number | null {
@@ -257,6 +320,72 @@ export class NpcDjManager {
       if (!this.room.state.djQueue.some((e) => e.slotIndex === slot)) return slot
     }
     return null
+  }
+
+  // ── Movement (cosmetic layer — see NpcDjMoveState) ─────────────────────────
+
+  private walkToBoothSlot() {
+    const entry = this.room.state.djQueue.find((e) => e.sessionId === this.sessionId)
+    if (!entry) return
+    this.moveState = {
+      kind: 'walking',
+      targetX: DJ_SLOT_SERVER_X[entry.slotIndex] ?? 0,
+      targetY: BEHIND_BOOTH_SERVER_Y,
+      arrive: 'booth',
+    }
+  }
+
+  private walkToFloor() {
+    const { minX, maxX, minY, maxY } = NPC_DJ_WANDER_BOUNDS
+    this.moveState = {
+      kind: 'walking',
+      targetX: minX + Math.random() * (maxX - minX),
+      targetY: minY + Math.random() * (maxY - minY),
+      arrive: 'floor',
+    }
+  }
+
+  private randomIdleMs(): number {
+    return NPC_DJ_IDLE_MIN_MS + Math.random() * NPC_DJ_IDLE_RANGE_MS
+  }
+
+  private moveTick() {
+    if (this.disposed) return
+    const npc = this.room.state.players.get(this.sessionId)
+    if (!npc) return
+
+    const state = this.moveState
+    switch (state.kind) {
+      case 'stationed':
+        // Parked at the booth. Standing still is deliberate: the client plays
+        // the dance animation for stationary players while music is playing.
+        return
+
+      case 'walking': {
+        const dx = state.targetX - npc.x
+        const dy = state.targetY - npc.y
+        const dist = Math.hypot(dx, dy)
+        const step = (NPC_DJ_SPEED * NPC_DJ_MOVE_INTERVAL_MS) / 1000
+        if (dist <= step) {
+          npc.x = state.targetX
+          npc.y = state.targetY
+          this.moveState =
+            state.arrive === 'booth'
+              ? { kind: 'stationed' }
+              : { kind: 'hangingOut', timerMs: this.randomIdleMs() }
+        } else {
+          npc.x += (dx / dist) * step
+          npc.y += (dy / dist) * step
+        }
+        return
+      }
+
+      case 'hangingOut': {
+        state.timerMs -= NPC_DJ_MOVE_INTERVAL_MS
+        if (state.timerMs <= 0) this.walkToFloor() // wander leg
+        return
+      }
+    }
   }
 
   private connectBooth() {
@@ -273,13 +402,6 @@ export class NpcDjManager {
     if (!booth) return
     const index = booth.connectedUsers.findIndex((id) => id === this.sessionId)
     if (index >= 0) booth.connectedUsers.splice(index, 1, '')
-  }
-
-  private moveToStandby() {
-    const npc = this.room.state.players.get(this.sessionId)
-    if (!npc) return
-    npc.x = NPC_DJ_STANDBY_X
-    npc.y = NPC_DJ_STANDBY_Y
   }
 
   // ── Playback ───────────────────────────────────────────────────────────────
@@ -423,6 +545,10 @@ export class NpcDjManager {
       clientId: this.sessionId,
       content,
     })
+  }
+
+  private pickTemplate(pool: string[]): string {
+    return pool[Math.floor(Math.random() * pool.length)]
   }
 
   private announceTrack(title: string) {

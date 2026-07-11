@@ -16,6 +16,7 @@ Multiplayer virtual world. Monorepo: `client-3d` (React/R3F/Vite), `server` (Col
 ```bash
 docker compose -f docker-compose.dev.yml up -d  # Nakama + Postgres
 export NAKAMA_ENCRYPTION_KEY=clubmutant_dev_encryption_key_32ch
+export NPC_DJ_LOBBY=fallback:default   # optional: spawn the NPC DJ in the public lobby
 cd server && pnpm dev
 cd client-3d && pnpm dev   # KonpyuuTA needs no prebuild — Vite consumes it as TS source
 ```

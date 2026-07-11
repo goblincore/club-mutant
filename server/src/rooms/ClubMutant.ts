@@ -48,7 +48,7 @@ import {
 
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 import PunchPlayerCommand from './commands/PunchPlayerCommand'
-import { NpcDjManager, parseNpcDjLobbyEnv } from './NpcDjManager'
+import { NpcDjManager, parseNpcDjLobbyEnv, sanitizeNpcDjOptions } from './NpcDjManager'
 
 const LOG_ENABLED = process.env.NODE_ENV !== 'production'
 
@@ -833,8 +833,11 @@ export class ClubMutant extends Room {
     // Spawn NPC automaton DJ for djqueue rooms (Phase 1: config at room
     // creation, or NPC_DJ_LOBBY env for the public lobby)
     if (this.musicMode === 'djqueue') {
-      const npcDjConfig =
-        options.npcDj ?? (this.isPublic ? parseNpcDjLobbyEnv(process.env.NPC_DJ_LOBBY) : null)
+      // Public lobby: env-only (clients can't inject an NPC via joinOrCreate
+      // options). Custom rooms: creator's choice, sanitized to { mode } only.
+      const npcDjConfig = this.isPublic
+        ? parseNpcDjLobbyEnv(process.env.NPC_DJ_LOBBY)
+        : sanitizeNpcDjOptions(options.npcDj)
       if (npcDjConfig) {
         const manager = new NpcDjManager(this, npcDjConfig)
         if (manager.spawn()) {
