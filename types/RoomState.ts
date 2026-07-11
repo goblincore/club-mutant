@@ -95,6 +95,12 @@ export class RoomState extends Schema {
   @type([JukeboxItem]) jukeboxPlaylist = new ArraySchema<JukeboxItem>()
   @type('string') jukeboxUserId = ''
   @type('string') jukeboxUserName = ''
+  // Live NPC DJ config: 'off' | 'fallback' | 'rotation'. Owner-controlled in
+  // custom djqueue rooms (Message.NPC_DJ_SET_MODE); env-controlled in the lobby.
+  @type('string') npcDjMode = 'off'
+  // playerId of the room's first human joiner — the owner of custom-room
+  // settings (empty for public rooms).
+  @type('string') creatorPlayerId = ''
 }
 
 // const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'

@@ -8,7 +8,11 @@ import {
   sanitizeNpcDjOptions,
 } from '../rooms/NpcDjManager'
 import { Message } from '@club-mutant/types/Messages'
-import { DJ_SLOT_SERVER_X, BEHIND_BOOTH_SERVER_Y } from '../rooms/commands/djHelpers'
+import {
+  DJ_SLOT_SERVER_X,
+  BEHIND_BOOTH_SERVER_Y,
+  removeDJFromQueue,
+} from '../rooms/commands/djHelpers'
 
 // playTrackForCurrentDJ prefetches via the network — stub it out.
 vi.mock('../youtubeService', () => ({
@@ -162,6 +166,90 @@ describe('NpcDjManager movement', () => {
     )
     expect(chatCalls.length).toBe(1)
     expect(NPC_DJ_HANDOVER_TEMPLATES).toContain(chatCalls[0][1].content)
+  })
+})
+
+describe('NpcDjManager fallback handover', () => {
+  let room: ClubMutant
+  let manager: NpcDjManager
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    room = makeRoom()
+  })
+
+  afterEach(() => {
+    manager?.dispose()
+    vi.useRealTimers()
+  })
+
+  it('leaves the queue immediately when a human joins while its track is playing', () => {
+    manager = new NpcDjManager(room, { mode: 'fallback' })
+    expect(manager.spawn()).toBe(true)
+
+    // Reach the booth; the watcher starts a track once stationed.
+    vi.advanceTimersByTime(10_000)
+    expect(room.state.currentDjSessionId).toBe(manager.sessionId)
+    expect(room.state.musicStream.status).toBe('playing')
+
+    addHumanDj(room, 'human-1', 1)
+
+    // Next watcher tick: the NPC yields mid-track — no waiting for track end.
+    vi.advanceTimersByTime(1000)
+    expect(room.state.djQueue.some((e) => e.sessionId === manager.sessionId)).toBe(false)
+    expect(room.state.musicStream.status).not.toBe('playing')
+    expect(room.state.currentDjSessionId).toBe('human-1')
+  })
+
+  it('waits out the takeover grace before re-taking an emptied queue', () => {
+    manager = new NpcDjManager(room, { mode: 'fallback' })
+    expect(manager.spawn()).toBe(true)
+    vi.advanceTimersByTime(10_000)
+
+    // Human takes over, then leaves the queue.
+    addHumanDj(room, 'human-1', 1)
+    vi.advanceTimersByTime(1000)
+    expect(room.state.djQueue.some((e) => e.sessionId === manager.sessionId)).toBe(false)
+    removeDJFromQueue(room, 'human-1')
+
+    // Well into the grace window: the NPC holds back.
+    vi.advanceTimersByTime(60_000)
+    expect(room.state.djQueue.some((e) => e.sessionId === manager.sessionId)).toBe(false)
+
+    // Once the grace elapses, it takes the booth again.
+    vi.advanceTimersByTime(120_000)
+    expect(room.state.djQueue.some((e) => e.sessionId === manager.sessionId)).toBe(true)
+  })
+
+  it('standby keeps it off the decks indefinitely; a summon brings it back', () => {
+    manager = new NpcDjManager(room, { mode: 'fallback' })
+    expect(manager.spawn()).toBe(true)
+    vi.advanceTimersByTime(10_000)
+    addHumanDj(room, 'human-1', 1)
+    vi.advanceTimersByTime(1000) // NPC yields
+
+    // Leaving player declined the takeover prompt.
+    manager.setStandby(true)
+    removeDJFromQueue(room, 'human-1')
+
+    // Long past any grace window: still standing by.
+    vi.advanceTimersByTime(600_000)
+    expect(room.state.djQueue.some((e) => e.sessionId === manager.sessionId)).toBe(false)
+
+    // A player clicks the NPC and summons it — back on the decks promptly.
+    manager.setStandby(false)
+    vi.advanceTimersByTime(1000)
+    expect(room.state.djQueue.some((e) => e.sessionId === manager.sessionId)).toBe(true)
+  })
+
+  it('setStandby is ignored in rotation mode', () => {
+    manager = new NpcDjManager(room, { mode: 'rotation' })
+    expect(manager.spawn()).toBe(true)
+    vi.advanceTimersByTime(10_000)
+
+    manager.setStandby(true)
+    vi.advanceTimersByTime(5000)
+    expect(room.state.djQueue.some((e) => e.sessionId === manager.sessionId)).toBe(true)
   })
 })
 

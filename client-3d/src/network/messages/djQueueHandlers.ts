@@ -2,6 +2,7 @@ import { Room, getStateCallbacks } from '@colyseus/sdk'
 import type { RoomState } from '@club-mutant/types/RoomState'
 import { Message } from '@club-mutant/types/Messages'
 import { useBoothStore, type DJQueueEntry } from '../../stores/boothStore'
+import { useGameStore } from '../../stores/gameStore'
 
 export function wireDJQueueHandlers(room: Room<RoomState>): void {
   const $ = getStateCallbacks(room)
@@ -37,6 +38,15 @@ export function wireDJQueueHandlers(room: Room<RoomState>): void {
     djQueueProxy.onAdd(() => syncDJQueueFromSchema())
     djQueueProxy.onRemove(() => syncDJQueueFromSchema())
     stateProxy.listen('currentDjSessionId', () => syncDJQueueFromSchema())
+    // Room-level NPC DJ config (owner toggle in settings reads these).
+    stateProxy.listen('npcDjMode', (value: string) =>
+      useGameStore
+        .getState()
+        .setNpcDjMode(value === 'fallback' || value === 'rotation' ? value : 'off')
+    )
+    stateProxy.listen('creatorPlayerId', (value: string) =>
+      useGameStore.getState().setRoomCreatorPlayerId(value ?? '')
+    )
   } catch (err) {
     console.warn('[network] Schema callbacks for djQueue failed:', err)
   }

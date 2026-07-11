@@ -33,9 +33,15 @@ import { NpcPlaylist, loadNpcPlaylist } from './npcPlaylists'
 
 // Reserved session ID prefix — no real Colyseus sessionId can collide with it,
 // and guards (punch targeting, BOT badge) key off it.
-export const NPC_DJ_SESSION_PREFIX = 'npc-dj:'
+import { NPC_DJ_SESSION_PREFIX } from '@club-mutant/types/Players'
+
+export { NPC_DJ_SESSION_PREFIX }
 
 const WATCH_INTERVAL_MS = 1000
+
+// How long a fallback NPC waits after the last human leaves the queue before
+// re-taking the booth. Exported for tests.
+export const NPC_DJ_TAKEOVER_GRACE_MS = 120_000
 
 // Where the NPC stands when not behind the booth (fallback mode, waiting).
 const NPC_DJ_STANDBY_X = 220
@@ -125,7 +131,12 @@ export class NpcDjManager {
   private trackTimerId: NodeJS.Timeout | null = null
   private trackTimerStreamId = -1
   private lastAnnouncedStreamId = -1
-  private leaveAfterTrack = false
+  // 0 at spawn so a fresh (empty) room gets its NPC immediately; armed to
+  // now+grace on every tick that finds humans in the queue.
+  private takeoverGraceUntil = 0
+  // True after a player declines the takeover prompt — the NPC stays on the
+  // floor until another player summons it (fallback mode only).
+  private standby = false
   private disposed = false
 
   constructor(room: ClubMutant, config: INpcDjConfig) {
@@ -182,6 +193,24 @@ export class NpcDjManager {
     return true
   }
 
+  /**
+   * A player asked the NPC to stay off the decks (true) or summoned it back
+   * (false). Fallback mode only — a rotation NPC is a permanent queue member.
+   * Summoning zeroes the takeover grace so the NPC heads to the booth on the
+   * next tick whenever the queue is free.
+   */
+  setStandby(standby: boolean) {
+    if (this.config.mode !== 'fallback') return
+    this.standby = standby
+    if (standby) {
+      if (this.room.state.djQueue.some((e) => e.sessionId === this.sessionId)) {
+        this.leaveQueue()
+      }
+    } else {
+      this.takeoverGraceUntil = 0
+    }
+  }
+
   /** Tear down timers and remove the NPC from queue/booth/state (room dispose). */
   dispose() {
     if (this.disposed) return
@@ -233,19 +262,17 @@ export class NpcDjManager {
 
     if (this.config.mode === 'fallback') {
       if (humanQueued) {
+        // Keep the takeover grace armed while humans hold the queue, so the
+        // NPC doesn't pounce the moment the last one steps down.
+        this.takeoverGraceUntil = Date.now() + NPC_DJ_TAKEOVER_GRACE_MS
         if (npcQueued) {
-          if (npcPlaying) {
-            // Finish the current track first; hand over on track end.
-            this.leaveAfterTrack = true
-          } else {
-            // Not mid-track — hand over immediately.
-            this.leaveQueue()
-            return
-          }
+          // A human wants the booth — yield immediately, even mid-track
+          // (removeDJFromQueue stops our stream and promotes them).
+          this.leaveQueue()
+          return
         }
-      } else {
-        this.leaveAfterTrack = false
-        if (!npcQueued) this.joinQueue()
+      } else if (!npcQueued && !this.standby && Date.now() >= this.takeoverGraceUntil) {
+        this.joinQueue()
       }
     } else if (!npcQueued) {
       // Rotation mode: permanent queue member — re-join whenever we fall out.
@@ -305,7 +332,6 @@ export class NpcDjManager {
     // Only fallback mode ever leaves the queue (rotation leaves only via
     // dispose, which bypasses this method) — this is always a human handover.
     this.announce(this.pickTemplate(NPC_DJ_HANDOVER_TEMPLATES))
-    this.leaveAfterTrack = false
     this.clearTrackTimer()
     // Watchdog lifecycle is owned by djHelpers (F2): removeDJFromQueue clears
     // it when stopping our stream, and playTrackForCurrentDJ re-arms it if a
@@ -482,12 +508,6 @@ export class NpcDjManager {
     // F7: pass the playing track's id — the stream is still 'playing' with a
     // matching streamId here (checked above), so currentTrackId is valid.
     if (npc) markTrackAsPlayed(npc, musicStream.currentTrackId)
-
-    if (this.config.mode === 'fallback' && this.leaveAfterTrack) {
-      console.log('[NpcDj] Track finished with humans waiting — leaving the queue')
-      this.leaveQueue()
-      return
-    }
 
     // Reset played flags BEFORE advanceRotation — it may promote us again
     // (solo rotation) and immediately call playTrackForCurrentDJ.
