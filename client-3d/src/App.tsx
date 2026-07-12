@@ -23,6 +23,7 @@ import { LobbyScreen } from './ui/LobbyScreen'
 import { NowPlaying } from './ui/NowPlaying'
 import { IframeVideoBackground } from './ui/IframeVideoBackground'
 import { BoothPrompt } from './ui/BoothPrompt'
+import { NpcTakeoverPrompt, maybePromptNpcTakeover } from './ui/NpcTakeoverPrompt'
 import { ToastContainer } from './ui/ToastContainer'
 import { DisconnectedOverlay } from './ui/DisconnectedOverlay'
 import { SleepPrompt } from './ui/SleepPrompt'
@@ -46,6 +47,7 @@ function MinimizedBoothBar() {
   const myQueuePos = djQueue.findIndex((e) => e.sessionId === mySessionId) + 1
 
   const handleLeave = () => {
+    maybePromptNpcTakeover()
     getNetwork().disconnectFromBooth()
     getNetwork().leaveDJQueue()
     usePanelStore.getState().setDjQueueOpen(false)
@@ -227,6 +229,7 @@ function MainApp() {
 
       {/* Booth prompt popup */}
       <BoothPrompt />
+      <NpcTakeoverPrompt />
 
       {/* KonpyuuTA desktop OS (full-screen iframe, renders null when inactive) */}
       <KonpyuuTAShell />

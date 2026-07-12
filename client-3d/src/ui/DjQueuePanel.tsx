@@ -7,6 +7,7 @@ import { useGameStore } from '../stores/gameStore'
 import { useMusicStore } from '../stores/musicStore'
 import { usePanelStore } from '../stores/panelStore'
 import { useJukeboxStore } from '../stores/jukeboxStore'
+import { maybePromptNpcTakeover } from './NpcTakeoverPrompt'
 
 interface SearchResult {
   title: string
@@ -153,6 +154,7 @@ export function DjQueuePanel() {
   }, [])
 
   function leaveBooth() {
+    maybePromptNpcTakeover()
     getNetwork().disconnectFromBooth()
     getNetwork().leaveDJQueue()
     usePanelStore.getState().setDjQueueOpen(false)

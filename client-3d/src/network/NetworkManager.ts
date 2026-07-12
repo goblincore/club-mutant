@@ -46,7 +46,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ])
 }
 
-function getOrCreatePlayerId(): string {
+export function getOrCreatePlayerId(): string {
   let id = localStorage.getItem(PLAYER_ID_KEY)
 
   if (!id) {
@@ -327,7 +327,13 @@ export class NetworkManager {
   }
 
   async createCustomRoom(
-    roomData: { name: string; description: string; password: string | null; musicMode?: string },
+    roomData: {
+      name: string
+      description: string
+      password: string | null
+      musicMode?: string
+      npcDj?: { mode: 'fallback' | 'rotation' }
+    },
     playerName: string,
     textureId: number
   ): Promise<void> {
@@ -343,6 +349,7 @@ export class NetworkManager {
           password: roomData.password,
           autoDispose: true,
           musicMode,
+          npcDj: roomData.npcDj,
           playerId: getOrCreatePlayerId(),
           textureId,
           spawnX: 0,
@@ -511,6 +518,16 @@ export class NetworkManager {
 
   leaveDJQueue() {
     this.room?.send(Message.DJ_QUEUE_LEAVE, {})
+  }
+
+  /** Keep the fallback NPC DJ off the decks (true) or summon it back (false). */
+  setNpcDjStandby(standby: boolean) {
+    this.room?.send(Message.NPC_DJ_SET_STANDBY, { standby })
+  }
+
+  /** Room creator only (custom djqueue rooms): live-toggle the NPC DJ. */
+  setNpcDjMode(mode: 'off' | 'fallback' | 'rotation') {
+    this.room?.send(Message.NPC_DJ_SET_MODE, { mode })
   }
 
   djPlay() {

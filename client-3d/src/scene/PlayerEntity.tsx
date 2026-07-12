@@ -13,6 +13,7 @@ import { consumeJumpRequest } from '../input/usePlayerInput'
 import { addRipple, getDisplacementAt } from './TrampolineRipples'
 import { getNetwork } from '../network/NetworkManager'
 import { usePlayerContextStore } from '../ui/PlayerContextMenu'
+import { NPC_DJ_SESSION_PREFIX } from '@club-mutant/types/Players'
 import {
   JUKEBOX_STAGE_X_MIN,
   JUKEBOX_STAGE_X_MAX,
@@ -353,13 +354,19 @@ export function PlayerEntity({ player, isLocal, characterPath }: PlayerEntityPro
     usePlayerContextStore.getState().setClickedPlayer({
       name: player.name,
       nakamaId: player.nakamaId,
+      sessionId: player.sessionId,
     })
-  }, [player.name, player.nakamaId])
+  }, [player.name, player.nakamaId, player.sessionId])
 
   return (
     <group
       ref={groupRef}
-      onClick={(!isLocal && !player.isNpc) ? handleClick : undefined}
+      onClick={
+        !isLocal &&
+        (!player.isNpc || player.sessionId.startsWith(NPC_DJ_SESSION_PREFIX))
+          ? handleClick
+          : undefined
+      }
     >
       {/* Billboard rotation group — lazily faces camera */}
       <group ref={dollGroupRef}>

@@ -1,14 +1,18 @@
 import { create } from 'zustand'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { NPC_DJ_SESSION_PREFIX } from '@club-mutant/types/Players'
 import { sendFriendRequest } from '../network/nakamaClient'
 import { useAuthStore } from '../stores/authStore'
+import { useBoothStore } from '../stores/boothStore'
+import { getNetwork } from '../network/NetworkManager'
 
 // ── Shared state — set from PlayerEntity (inside Canvas), read here (outside Canvas) ──
 
 interface ClickedPlayer {
   name: string
   nakamaId: string // empty string = guest (no Nakama account)
+  sessionId: string
 }
 
 interface PlayerContextState {
@@ -31,12 +35,14 @@ export function PlayerContextMenu() {
   const navigate = useNavigate()
 
   const [addStatus, setAddStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const djQueue = useBoothStore((s) => s.djQueue)
 
   if (!clickedPlayer) return null
 
+  const isNpcDj = clickedPlayer.sessionId.startsWith(NPC_DJ_SESSION_PREFIX)
   const isGuest = !clickedPlayer.nakamaId
   const isMe = clickedPlayer.nakamaId && clickedPlayer.nakamaId === myUserId
-  const canAddFriend = isAuthenticated && !isGuest && !isMe
+  const canAddFriend = isAuthenticated && !isGuest && !isMe && !isNpcDj
 
   const handleClose = () => {
     setClickedPlayer(null)
@@ -125,8 +131,23 @@ export function PlayerContextMenu() {
           </button>
         )}
 
-        {isGuest && (
-          <p className="text-white/25 text-[10px] text-center">guest player</p>
+        {isNpcDj ? (
+          djQueue.some((e) => e.sessionId === clickedPlayer.sessionId) ? (
+            <p className="text-white/25 text-[10px] text-center">on the decks 🎧</p>
+          ) : (
+            <button
+              onClick={() => {
+                getNetwork().setNpcDjStandby(false)
+                handleClose()
+              }}
+              className="w-full py-1.5 rounded-lg text-xs font-bold transition-all duration-200"
+              style={{ backgroundColor: 'rgba(57,255,20,0.15)', color: '#39ff14', border: '1px solid rgba(57,255,20,0.4)', cursor: 'pointer' }}
+            >
+              hit the decks when it&apos;s free
+            </button>
+          )
+        ) : (
+          isGuest && <p className="text-white/25 text-[10px] text-center">guest player</p>
         )}
       </div>
     </div>

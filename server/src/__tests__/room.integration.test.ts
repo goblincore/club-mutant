@@ -171,4 +171,86 @@ describe('ClubMutant room integration', () => {
     await dj1.leave()
     await dj2.leave()
   })
+
+  it('NPC_DJ_SET_STANDBY waves the fallback NPC off the decks and summons it back', { timeout: 15000 }, async () => {
+    const room = await testServer.createRoom<ClubMutant>(RoomType.CUSTOM, {
+      ...PRIVATE_ROOM_OPTIONS,
+      npcDj: { mode: 'fallback' },
+    })
+    const npcSessionId = `npc-dj:${room.roomId}`
+
+    // Fallback NPC spawns with an empty queue → takes the booth immediately.
+    expect(room.state.djQueue.some((e) => e.sessionId === npcSessionId)).toBe(true)
+
+    const client = await testServer.connectTo(room, {
+      ...GUEST_AUTH,
+      playerId: 'guest-heckler',
+      textureId: 0,
+    })
+
+    client.send(Message.NPC_DJ_SET_STANDBY, { standby: true })
+    await wait(80)
+    expect(room.state.djQueue.some((e) => e.sessionId === npcSessionId)).toBe(false)
+
+    // Past the per-client throttle, then summon — the NPC rejoins on its next
+    // watcher tick (1s interval).
+    await wait(1100)
+    client.send(Message.NPC_DJ_SET_STANDBY, { standby: false })
+    await wait(1300)
+    expect(room.state.djQueue.some((e) => e.sessionId === npcSessionId)).toBe(true)
+
+    await client.leave()
+  })
+
+  it('NPC_DJ_SET_MODE: room creator toggles the NPC DJ live; others are ignored', { timeout: 20000 }, async () => {
+    // Custom djqueue room created WITHOUT an NPC DJ.
+    const room = await testServer.createRoom<ClubMutant>(RoomType.CUSTOM, PRIVATE_ROOM_OPTIONS)
+    const npcSessionId = `npc-dj:${room.roomId}`
+    expect(room.state.npcDjMode).toBe('off')
+
+    // First joiner is the creator/owner.
+    const creator = await testServer.connectTo(room, {
+      ...GUEST_AUTH,
+      playerId: 'guest-creator',
+      textureId: 0,
+    })
+    await wait(80)
+    expect(room.state.creatorPlayerId).toBe('guest-creator')
+
+    const guest = await testServer.connectTo(room, {
+      ...GUEST_AUTH,
+      playerId: 'guest-other',
+      textureId: 0,
+    })
+    await wait(80)
+
+    // Non-creator cannot summon an NPC.
+    guest.send(Message.NPC_DJ_SET_MODE, { mode: 'fallback' })
+    await wait(120)
+    expect(room.state.npcDjMode).toBe('off')
+    expect(room.state.players.has(npcSessionId)).toBe(false)
+
+    // Creator turns it on (fallback): NPC spawns and takes the empty booth.
+    creator.send(Message.NPC_DJ_SET_MODE, { mode: 'fallback' })
+    await wait(120)
+    expect(room.state.npcDjMode).toBe('fallback')
+    expect(room.state.players.has(npcSessionId)).toBe(true)
+    expect(room.state.djQueue.some((e) => e.sessionId === npcSessionId)).toBe(true)
+
+    // Non-creator cannot dismiss it either.
+    await wait(1100)
+    guest.send(Message.NPC_DJ_SET_MODE, { mode: 'off' })
+    await wait(120)
+    expect(room.state.npcDjMode).toBe('fallback')
+
+    // Creator turns it off: NPC fully despawns.
+    creator.send(Message.NPC_DJ_SET_MODE, { mode: 'off' })
+    await wait(120)
+    expect(room.state.npcDjMode).toBe('off')
+    expect(room.state.players.has(npcSessionId)).toBe(false)
+    expect(room.state.djQueue.some((e) => e.sessionId === npcSessionId)).toBe(false)
+
+    await creator.leave()
+    await guest.leave()
+  })
 })

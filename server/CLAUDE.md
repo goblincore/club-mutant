@@ -45,3 +45,4 @@ pnpm build  # Production build
 ## Environment Variables
 - `NAKAMA_ENCRYPTION_KEY` — Required for JWT verification
 - `DREAM_NPC_SERVICE_URL` — NPC service endpoint (default: http://localhost:4000)
+- `NPC_DJ_LOBBY` — Spawn the NPC automaton DJ in the public lobby. Format `<mode>[:<playlistId>]`, e.g. `fallback:default` or `rotation:default`. Modes: `fallback` (DJs only while no humans are queued: yields immediately — stopping its track mid-play — when a human joins; re-takes an emptied booth only after a ~2 min grace; the last human DJ to leave gets a client prompt whose "keep it free" answer puts the NPC on standby via `NPC_DJ_SET_STANDBY`, and clicking the NPC summons it back), `rotation` (permanent queue member). Playlists live in `server/src/data/npc-playlists/`. Custom rooms use the create-form toggle instead.

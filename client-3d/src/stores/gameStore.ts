@@ -66,6 +66,10 @@ export interface GameState {
   musicMode: 'djqueue' | 'jukebox' | 'personal' | null
   pendingRoomId: string | null
 
+  // Room-level NPC DJ state (synced from RoomState schema)
+  npcDjMode: 'off' | 'fallback' | 'rotation'
+  roomCreatorPlayerId: string
+
   // Players
   players: Map<string, PlayerState>
 
@@ -85,6 +89,8 @@ export interface GameState {
   removeRoom: (roomId: string) => void
   setRoomType: (type: 'public' | 'custom' | 'myroom' | 'jukebox' | null) => void
   setMusicMode: (mode: 'djqueue' | 'jukebox' | 'personal' | null) => void
+  setNpcDjMode: (mode: 'off' | 'fallback' | 'rotation') => void
+  setRoomCreatorPlayerId: (playerId: string) => void
   addPlayer: (sessionId: string, player: PlayerState) => void
   removePlayer: (sessionId: string) => void
   updatePlayer: (sessionId: string, updates: Partial<PlayerState>) => void
@@ -103,6 +109,9 @@ export const useGameStore = create<GameState>((set) => ({
   roomType: null,
   musicMode: null,
   pendingRoomId: null,
+
+  npcDjMode: 'off',
+  roomCreatorPlayerId: '',
 
   players: new Map(),
 
@@ -139,6 +148,10 @@ export const useGameStore = create<GameState>((set) => ({
   setRoomType: (type) => set({ roomType: type }),
 
   setMusicMode: (mode) => set({ musicMode: mode }),
+
+  setNpcDjMode: (mode) => set({ npcDjMode: mode }),
+
+  setRoomCreatorPlayerId: (playerId) => set({ roomCreatorPlayerId: playerId }),
 
   setPendingRoomId: (id) => set({ pendingRoomId: id }),
 

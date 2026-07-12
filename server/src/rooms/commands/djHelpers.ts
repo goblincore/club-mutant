@@ -390,7 +390,8 @@ export function joinDjQueue(
   room: ClubMutant,
   sessionId: string,
   name: string,
-  slotIndex?: number
+  slotIndex?: number,
+  teleport = true
 ): boolean {
   const player = room.state.players.get(sessionId)
   if (!player) return false
@@ -426,16 +427,20 @@ export function joinDjQueue(
   room.state.djQueue.push(entry)
 
   // Teleport player behind the booth (must be server-authoritative so late-joining
-  // clients see the correct position — client sendPosition can be rejected by speed check)
-  player.x = DJ_SLOT_SERVER_X[slot] ?? 0
-  player.y = BEHIND_BOOTH_SERVER_Y
+  // clients see the correct position — client sendPosition can be rejected by speed
+  // check). The NPC DJ passes teleport=false and walks to the slot instead — its
+  // movement is server-driven, so authority is preserved either way.
+  if (teleport) {
+    player.x = DJ_SLOT_SERVER_X[slot] ?? 0
+    player.y = BEHIND_BOOTH_SERVER_Y
+  }
 
   console.log(
     '[DJQueue] Joined:',
     sessionId,
     'Position:',
     entry.queuePosition,
-    `teleported to (${player.x}, ${player.y})`
+    teleport ? `teleported to (${player.x}, ${player.y})` : 'walking to slot'
   )
 
   // If first DJ, set as current (playback requires explicit DJ_PLAY)

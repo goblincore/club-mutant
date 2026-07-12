@@ -48,7 +48,7 @@ import {
 
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 import PunchPlayerCommand from './commands/PunchPlayerCommand'
-import { NpcDjManager, parseNpcDjLobbyEnv } from './NpcDjManager'
+import { NpcDjManager, parseNpcDjLobbyEnv, sanitizeNpcDjOptions } from './NpcDjManager'
 
 const LOG_ENABLED = process.env.NODE_ENV !== 'production'
 
@@ -833,12 +833,16 @@ export class ClubMutant extends Room {
     // Spawn NPC automaton DJ for djqueue rooms (Phase 1: config at room
     // creation, or NPC_DJ_LOBBY env for the public lobby)
     if (this.musicMode === 'djqueue') {
-      const npcDjConfig =
-        options.npcDj ?? (this.isPublic ? parseNpcDjLobbyEnv(process.env.NPC_DJ_LOBBY) : null)
+      // Public lobby: env-only (clients can't inject an NPC via joinOrCreate
+      // options). Custom rooms: creator's choice, sanitized to { mode } only.
+      const npcDjConfig = this.isPublic
+        ? parseNpcDjLobbyEnv(process.env.NPC_DJ_LOBBY)
+        : sanitizeNpcDjOptions(options.npcDj)
       if (npcDjConfig) {
         const manager = new NpcDjManager(this, npcDjConfig)
         if (manager.spawn()) {
           this.npcDjManager = manager
+          this.state.npcDjMode = npcDjConfig.mode
         }
       }
     }
@@ -1080,6 +1084,38 @@ export class ClubMutant extends Room {
         this.dispatcher.dispatch(new DJQueueLeaveCommand(), { client })
       })
 
+      // Any player may wave the fallback NPC DJ off the decks (takeover
+      // prompt) or summon it back (click menu). No-op for rotation NPCs.
+      this.onMessage(Message.NPC_DJ_SET_STANDBY, (client, message: { standby?: unknown }) => {
+        if (this.throttle(client, Message.NPC_DJ_SET_STANDBY, 1000)) return
+        this.npcDjManager?.setStandby(message?.standby === true)
+      })
+
+      // Room creator live-toggles the NPC DJ (custom djqueue rooms only — the
+      // public lobby stays env-controlled). Mode changes respawn the NPC.
+      this.onMessage(Message.NPC_DJ_SET_MODE, (client, message: { mode?: unknown }) => {
+        if (this.throttle(client, Message.NPC_DJ_SET_MODE, 1000)) return
+        if (this.isPublic) return
+        const sender = this.state.players.get(client.sessionId)
+        if (!sender || !this.state.creatorPlayerId) return
+        if (sender.playerId !== this.state.creatorPlayerId) return
+        const mode = message?.mode
+        if (mode !== 'off' && mode !== 'fallback' && mode !== 'rotation') return
+        if (mode === this.state.npcDjMode) return
+
+        this.npcDjManager?.dispose()
+        this.npcDjManager = null
+        this.state.npcDjMode = 'off'
+
+        if (mode !== 'off') {
+          const manager = new NpcDjManager(this, { mode })
+          if (manager.spawn()) {
+            this.npcDjManager = manager
+            this.state.npcDjMode = mode
+          }
+        }
+      })
+
       this.onMessage(Message.DJ_PLAY, (client) => {
         this.dispatcher.dispatch(new DJPlayCommand(), { client })
       })
@@ -1274,6 +1310,12 @@ export class ClubMutant extends Room {
         : (options?.playerId || client.sessionId.slice(0, 8))
       player.playerId = playerId
       player.nakamaId = isAuthenticated ? (auth as NakamaTokenPayload).uid : ''
+
+      // First human to join a custom room owns its room-level settings
+      // (e.g. the live NPC DJ toggle). NPCs never pass through onJoin.
+      if (!this.isPublic && !this.state.creatorPlayerId) {
+        this.state.creatorPlayerId = playerId
+      }
       const rawTextureId = options?.textureId
       player.textureId = rawTextureId != null ? sanitizeTextureId(rawTextureId) : TEXTURE_IDS.mutant
       player.animId = packDirectionalAnimId('idle', 'down')

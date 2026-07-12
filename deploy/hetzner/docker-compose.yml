@@ -29,6 +29,9 @@ services:
       - YOUTUBE_SERVICE_URL=http://youtube-api:8081
       - DREAM_NPC_SERVICE_URL=http://dream-npc:4000
       - NAKAMA_ENCRYPTION_KEY=${NAKAMA_ENCRYPTION_KEY}
+      # Public-lobby NPC DJ: fills the booth when no humans are queued,
+      # yields instantly when one joins. See server/CLAUDE.md.
+      - NPC_DJ_LOBBY=fallback:default
     expose:
       - '2567'
 
