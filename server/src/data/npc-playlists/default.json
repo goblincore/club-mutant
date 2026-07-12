@@ -1,78 +1,102 @@
 {
   "id": "default",
-  "name": "House Rotation",
+  "name": "Mutant Rotation",
   "tracks": [
     {
-      "id": "dQw4w9WgXcQ",
-      "title": "Rick Astley - Never Gonna Give You Up",
-      "link": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      "duration": 213
+      "id": "BPKf3Wu3xHs",
+      "title": "DJ LOSTBOI — I AM REAL",
+      "link": "https://www.youtube.com/watch?v=BPKf3Wu3xHs",
+      "duration": 267
     },
     {
-      "id": "9bZkp7q19f0",
-      "title": "PSY - Gangnam Style",
-      "link": "https://www.youtube.com/watch?v=9bZkp7q19f0",
+      "id": "4Q2FU-b8keM",
+      "title": "dj lostboi - See Inside",
+      "link": "https://www.youtube.com/watch?v=4Q2FU-b8keM",
+      "duration": 341
+    },
+    {
+      "id": "y8tRQQH1QyE",
+      "title": "avril23 - . ✧· ✵ * . + * · . ˚",
+      "link": "https://www.youtube.com/watch?v=y8tRQQH1QyE",
+      "duration": 123
+    },
+    {
+      "id": "JWI7hEJcMzM",
+      "title": "oklou/avril23 - champion",
+      "link": "https://www.youtube.com/watch?v=JWI7hEJcMzM",
+      "duration": 121
+    },
+    {
+      "id": "Hmg78T5tPOA",
+      "title": "Tuning Circuits - We Rule The World",
+      "link": "https://www.youtube.com/watch?v=Hmg78T5tPOA",
+      "duration": 610
+    },
+    {
+      "id": "bG0SsofxwR4",
+      "title": "Tuning Circuits - It's In My Brain Too (Screaming Oscillator Version)",
+      "link": "https://www.youtube.com/watch?v=bG0SsofxwR4",
+      "duration": 426
+    },
+    {
+      "id": "uaYyMaQnqzA",
+      "title": "Merzbow - Woodpecker No. 1",
+      "link": "https://www.youtube.com/watch?v=uaYyMaQnqzA",
+      "duration": 409
+    },
+    {
+      "id": "QDI5rg4ggyc",
+      "title": "Pharmakon - Crawling on Bruised Knees",
+      "link": "https://www.youtube.com/watch?v=QDI5rg4ggyc",
+      "duration": 396
+    },
+    {
+      "id": "xc7atbM0k6g",
+      "title": "Biosphere - Poa Alpina",
+      "link": "https://www.youtube.com/watch?v=xc7atbM0k6g",
       "duration": 252
     },
     {
-      "id": "fJ9rUzIMcZQ",
-      "title": "Queen - Bohemian Rhapsody",
-      "link": "https://www.youtube.com/watch?v=fJ9rUzIMcZQ",
-      "duration": 359
+      "id": "2EaE0_gQLw0",
+      "title": "Tiësto - Adagio For Strings",
+      "link": "https://www.youtube.com/watch?v=2EaE0_gQLw0",
+      "duration": 206
     },
     {
-      "id": "FTQbiNvZqaY",
-      "title": "Toto - Africa",
-      "link": "https://www.youtube.com/watch?v=FTQbiNvZqaY",
-      "duration": 271
+      "id": "UItJn_4do88",
+      "title": "Tiësto - Traffic",
+      "link": "https://www.youtube.com/watch?v=UItJn_4do88",
+      "duration": 177
     },
     {
-      "id": "djV11Xbc914",
-      "title": "a-ha - Take On Me",
-      "link": "https://www.youtube.com/watch?v=djV11Xbc914",
-      "duration": 244
+      "id": "bn1ycNxQMvk",
+      "title": "Armin van Buuren - Communication",
+      "link": "https://www.youtube.com/watch?v=bn1ycNxQMvk",
+      "duration": 251
     },
     {
-      "id": "FGBhQbmPwH8",
-      "title": "Daft Punk - One More Time",
-      "link": "https://www.youtube.com/watch?v=FGBhQbmPwH8",
-      "duration": 321
+      "id": "-pVswvngu9Y",
+      "title": "Ferry Corsten - Punk (Album Version)",
+      "link": "https://www.youtube.com/watch?v=-pVswvngu9Y",
+      "duration": 291
     },
     {
-      "id": "Gs069dndIYk",
-      "title": "Earth, Wind & Fire - September",
-      "link": "https://www.youtube.com/watch?v=Gs069dndIYk",
-      "duration": 215
+      "id": "QFGMQZyvnmY",
+      "title": "ATB - 9PM (Till I Come)",
+      "link": "https://www.youtube.com/watch?v=QFGMQZyvnmY",
+      "duration": 194
     },
     {
-      "id": "y6120QOlsfU",
-      "title": "Darude - Sandstorm",
-      "link": "https://www.youtube.com/watch?v=y6120QOlsfU",
-      "duration": 232
+      "id": "Qgx_V0So0qk",
+      "title": "System F - Out Of The Blue",
+      "link": "https://www.youtube.com/watch?v=Qgx_V0So0qk",
+      "duration": 249
     },
     {
-      "id": "Zi_XLOBDo_Y",
-      "title": "Michael Jackson - Billie Jean",
-      "link": "https://www.youtube.com/watch?v=Zi_XLOBDo_Y",
-      "duration": 296
-    },
-    {
-      "id": "hTWKbfoikeg",
-      "title": "Nirvana - Smells Like Teen Spirit",
-      "link": "https://www.youtube.com/watch?v=hTWKbfoikeg",
-      "duration": 278
-    },
-    {
-      "id": "4NRXx6U8ABQ",
-      "title": "The Weeknd - Blinding Lights",
-      "link": "https://www.youtube.com/watch?v=4NRXx6U8ABQ",
-      "duration": 263
-    },
-    {
-      "id": "OPf0YbXqDm0",
-      "title": "Mark Ronson - Uptown Funk ft. Bruno Mars",
-      "link": "https://www.youtube.com/watch?v=OPf0YbXqDm0",
-      "duration": 270
+      "id": "CC5ca6Hsb2Q",
+      "title": "Robert Miles - Children (Dream Version)",
+      "link": "https://www.youtube.com/watch?v=CC5ca6Hsb2Q",
+      "duration": 453
     }
   ]
 }
