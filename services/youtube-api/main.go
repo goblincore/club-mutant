@@ -200,6 +200,7 @@ type Server struct {
 	potCache      *POTokenCache
 	diskCache     *DiskCache
 	prefetchQueue *PrefetchQueue
+	playlistCache *PlaylistCache
 }
 
 // POTokenCache caches PO tokens to avoid regenerating on every yt-dlp call
@@ -1719,11 +1720,12 @@ func main() {
 	}
 
 	server := &Server{
-		searchCache:  NewCache(time.Duration(cacheTTLSeconds) * time.Second),
-		resolveCache: NewResolveCache(),
-		videoCache:   NewVideoCache(videoCacheSize),
-		potCache:     NewPOTokenCache(),
-		diskCache:    diskCache,
+		searchCache:   NewCache(time.Duration(cacheTTLSeconds) * time.Second),
+		resolveCache:  NewResolveCache(),
+		videoCache:    NewVideoCache(videoCacheSize),
+		potCache:      NewPOTokenCache(),
+		diskCache:     diskCache,
+		playlistCache: NewPlaylistCache(playlistCacheTTL),
 	}
 
 	// Initialize and start prefetch queue
@@ -1732,6 +1734,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /search", server.handleSearch)
+	mux.HandleFunc("GET /playlist/{playlistId}", server.handlePlaylist)
 	mux.HandleFunc("GET /resolve/{videoId}", server.handleResolve)
 	mux.HandleFunc("GET /proxy/{videoId}", server.handleProxy)
 	mux.HandleFunc("POST /prefetch/{videoId}", server.handlePrefetch)

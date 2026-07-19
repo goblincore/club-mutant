@@ -631,6 +631,27 @@ export class NetworkManager {
     return items
   }
 
+  // Fetch a public YouTube playlist via the Go service (InnerTube browse).
+  // Anonymous sessions cap out around 200 items; `truncated` signals a
+  // partial fetch and `declaredCount` (0 = unknown) the playlist's real size.
+  async fetchYouTubePlaylist(playlistId: string): Promise<{
+    playlistId: string
+    title: string
+    items: { videoId: string; title: string; duration: number; thumbnail?: string }[]
+    itemCount: number
+    declaredCount: number
+    truncated: boolean
+  }> {
+    const res = await fetch(`${this.youtubeBaseUrl}/playlist/${encodeURIComponent(playlistId)}`)
+    if (res.status === 404) throw new Error('Playlist not found (is it public?)')
+    if (res.status === 400) throw new Error('This playlist type cannot be imported')
+    if (!res.ok) throw new Error(`Playlist fetch failed (${res.status})`)
+
+    const data = await res.json()
+    data.items = data.items ?? []
+    return data
+  }
+
   // Resolve direct video URL for WebGL texture rendering
   async resolveYouTube(videoId: string): Promise<{ url: string; expiresAtMs: number | null }> {
     const res = await fetch(`${this.youtubeBaseUrl}/resolve/${videoId}`)

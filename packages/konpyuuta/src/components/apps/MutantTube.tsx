@@ -306,7 +306,105 @@ export function MutantTube() {
     setCurrentPlaylist(pl)
     setView('playlist-detail')
     setStatusText(`${pl.items.length} videos in playlist`)
+    // Lazily-listed playlists carry only metadata until opened.
+    if (pl.itemsLoaded === false && playlistService?.ensureItemsLoaded) {
+      playlistService
+        .ensureItemsLoaded(pl.id)
+        .then(() => {
+          const fresh = playlistService.getPlaylists().find((p) => p.id === pl.id)
+          if (fresh) {
+            setCurrentPlaylist(fresh)
+            setPlaylists(playlistService.getPlaylists())
+            setStatusText(`${fresh.items.length} videos in playlist`)
+          }
+        })
+        .catch(() => setStatusText('Failed to load playlist tracks'))
+    }
+  }, [playlistService])
+
+  // Local copy of the playlist-URL parser (konpyuuta cannot import from
+  // client-3d; cf. extractYouTubeId above). Rejects mixes (RD*) and
+  // auth-required lists (WL/LL), which cannot be fetched anonymously.
+  const extractPlaylistId = useCallback((input: string): string | null => {
+    const trimmed = input.trim()
+    if (!trimmed) return null
+    const idRegex = /^[A-Za-z0-9_-]{10,64}$/
+    const importable = (id: string) =>
+      idRegex.test(id) && id !== 'WL' && id !== 'LL' && !id.startsWith('RD')
+    if (idRegex.test(trimmed) && trimmed.length !== 11) {
+      return importable(trimmed) ? trimmed : null
+    }
+    try {
+      const url = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`)
+      const hosts = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be']
+      if (!hosts.includes(url.hostname)) return null
+      const list = url.searchParams.get('list')
+      return list && importable(list) ? list : null
+    } catch {
+      return null
+    }
   }, [])
+
+  const importFromYouTube = useCallback(async () => {
+    if (!playlistService?.importPlaylist) return
+
+    const input = await popup.prompt(
+      'Paste a YouTube playlist URL:',
+      '',
+      'https://www.youtube.com/playlist?list=...',
+      'Import From YouTube'
+    )
+    if (!input?.trim()) return
+
+    const playlistId = extractPlaylistId(input)
+    if (!playlistId) {
+      await popup.alert('Invalid playlist URL. Mixes and private lists cannot be imported.', 'Error')
+      return
+    }
+
+    setLoading(true)
+    setLoadingMessage('SIPHONING PLAYLIST DATA...')
+    setStatusText('Contacting the tube...')
+    try {
+      const res = await fetch(`${youtubeApiUrl}/playlist/${encodeURIComponent(playlistId)}`)
+      if (res.status === 404) throw new Error('Playlist not found (is it public?)')
+      if (res.status === 400) throw new Error('This playlist type cannot be imported')
+      if (!res.ok) throw new Error(`Fetch failed (${res.status})`)
+      const data: {
+        title: string
+        items: { videoId: string; title: string; duration: number; thumbnail?: string }[]
+        declaredCount: number
+        truncated: boolean
+      } = await res.json()
+
+      const items = data.items ?? []
+      if (items.length === 0) throw new Error('Playlist is empty or unavailable')
+
+      const tracks: PlaylistTrack[] = items.map((it) => ({
+        id: crypto.randomUUID(),
+        title: it.title,
+        link: `https://www.youtube.com/watch?v=${it.videoId}`,
+        duration: it.duration,
+        thumbnail: it.thumbnail,
+      }))
+      playlistService.importPlaylist(data.title || 'YouTube Playlist', tracks)
+      await loadPlaylists()
+
+      const total = data.declaredCount > tracks.length ? data.declaredCount : tracks.length
+      const summary = data.truncated
+        ? `Imported first ${tracks.length} of ${total} fragments.`
+        : `Imported ${tracks.length} fragments.`
+      setStatusText(summary)
+      await popup.alert(summary, 'Import Complete')
+    } catch (err) {
+      setLoading(false)
+      setStatusText('Import failed')
+      await popup.alert(
+        `Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        'Error'
+      )
+    }
+  }, [playlistService, popup, youtubeApiUrl, extractPlaylistId, loadPlaylists])
 
   const removeFromPlaylist = useCallback(async (playlistId: string, videoId: string) => {
     if (!playlistService || !currentPlaylist) return
@@ -597,6 +695,11 @@ export function MutantTube() {
               <button className="mt-btn-new" onClick={createPlaylist}>
                 + Create Playlist
               </button>
+              {playlistService?.importPlaylist && (
+                <button className="mt-btn-new" onClick={importFromYouTube}>
+                  ⇩ Import From YouTube
+                </button>
+              )}
               {playlists.length === 0 ? (
                 <div className="empty-state">
                   No playlists found.<br />Create a new playlist.
@@ -610,7 +713,9 @@ export function MutantTube() {
                   >
                     <div className="mt-playlist-info">
                       <div className="mt-playlist-name">[ {pl.name} ]</div>
-                      <div className="mt-playlist-count">{pl.items.length} FRAGMENTS STORED</div>
+                      <div className="mt-playlist-count">
+                        {(pl.itemsLoaded === false ? pl.trackCount ?? 0 : pl.items.length)} FRAGMENTS STORED
+                      </div>
                     </div>
                     <button
                       className="mt-btn-delete"
