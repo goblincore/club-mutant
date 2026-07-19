@@ -402,6 +402,14 @@ func (pq *PrefetchQueue) doPrefetchAudio(videoID string) {
 	}
 
 	log.Printf("[prefetch-queue] Cached %s audio (%d bytes)", videoID, len(audioData))
+
+	// Analyze the freshly cached audio to produce the precomputed FFT
+	// timeline. Synchronous here (we're already in a goroutine); the CPU
+	// semaphore inside runAnalysis serializes the heavy work. Failures are
+	// non-fatal — the live analyser path covers misses on the client.
+	if err := pq.server.runAnalysis(videoID, audioData); err != nil {
+		log.Printf("[prefetch-queue] Analysis failed for %s: %v", videoID, err)
+	}
 }
 
 func (pq *PrefetchQueue) addToHistory(job *PrefetchJob) {

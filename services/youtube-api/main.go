@@ -1736,6 +1736,7 @@ func main() {
 	mux.HandleFunc("GET /search", server.handleSearch)
 	mux.HandleFunc("GET /playlist/{playlistId}", server.handlePlaylist)
 	mux.HandleFunc("GET /resolve/{videoId}", server.handleResolve)
+	mux.HandleFunc("GET /analysis/{videoId}", server.handleAnalysis)
 	mux.HandleFunc("GET /proxy/{videoId}", server.handleProxy)
 	mux.HandleFunc("POST /prefetch/{videoId}", server.handlePrefetch)
 	mux.HandleFunc("GET /health", server.handleHealth)
