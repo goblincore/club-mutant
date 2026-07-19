@@ -317,15 +317,20 @@ func (pq *PrefetchQueue) doPrefetch(videoID string) error {
 		return fmt.Errorf("bad status: %d", resp.StatusCode)
 	}
 
-	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxCacheableVideoSize))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, pq.server.maxCacheableVideoSize+1))
 	if err != nil {
 		return fmt.Errorf("read failed: %w", err)
 	}
+	if int64(len(data)) > pq.server.maxCacheableVideoSize {
+		return fmt.Errorf("video too large to cache (%d bytes)", len(data))
+	}
 
-	// Cache in memory
-	pq.server.videoCache.Set(cacheKey, data)
-
-	// Cache on disk
+	// Entries at or below the memory threshold go to both memory and disk;
+	// larger entries go to disk only so one long video doesn't evict the hot
+	// memory set.
+	if int64(len(data)) <= MemoryCacheMaxEntrySize {
+		pq.server.videoCache.Set(cacheKey, data)
+	}
 	if pq.server.diskCache != nil {
 		pq.server.diskCache.Set(cacheKey, data)
 	}
@@ -390,13 +395,19 @@ func (pq *PrefetchQueue) doPrefetchAudio(videoID string) {
 		return
 	}
 
-	audioData, err := io.ReadAll(io.LimitReader(resp.Body, MaxCacheableVideoSize))
+	audioData, err := io.ReadAll(io.LimitReader(resp.Body, pq.server.maxCacheableVideoSize+1))
 	if err != nil {
 		log.Printf("[prefetch-queue] Audio read failed for %s: %v", videoID, err)
 		return
 	}
+	if int64(len(audioData)) > pq.server.maxCacheableVideoSize {
+		log.Printf("[prefetch-queue] Audio too large to cache for %s (%d bytes)", videoID, len(audioData))
+		return
+	}
 
-	pq.server.videoCache.Set(audioCacheKey, audioData)
+	if int64(len(audioData)) <= MemoryCacheMaxEntrySize {
+		pq.server.videoCache.Set(audioCacheKey, audioData)
+	}
 	if pq.server.diskCache != nil {
 		pq.server.diskCache.Set(audioCacheKey, audioData)
 	}

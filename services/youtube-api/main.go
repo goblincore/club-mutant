@@ -194,13 +194,14 @@ func (c *ResolveCache) cleanupLoop() {
 }
 
 type Server struct {
-	searchCache   *Cache
-	resolveCache  *ResolveCache
-	videoCache    *VideoCache
-	potCache      *POTokenCache
-	diskCache     *DiskCache
-	prefetchQueue *PrefetchQueue
-	playlistCache *PlaylistCache
+	searchCache           *Cache
+	resolveCache          *ResolveCache
+	videoCache            *VideoCache
+	potCache              *POTokenCache
+	diskCache             *DiskCache
+	prefetchQueue         *PrefetchQueue
+	playlistCache         *PlaylistCache
+	maxCacheableVideoSize int64
 }
 
 // POTokenCache caches PO tokens to avoid regenerating on every yt-dlp call
@@ -300,8 +301,9 @@ type VideoCacheEntry struct {
 	size int64
 }
 
-const DefaultVideoCacheMaxSize = 100 * 1024 * 1024  // 100MB
-const MaxCacheableVideoSize = 15 * 1024 * 1024      // 15MB per entry
+const DefaultVideoCacheMaxSize = 100 * 1024 * 1024    // 100MB
+const MemoryCacheMaxEntrySize = 15 * 1024 * 1024      // 15MB: entries at or below this go to both memory and disk
+const DefaultMaxCacheableVideoSize = 50 * 1024 * 1024 // 50MB: default per-entry cap (MAX_CACHEABLE_VIDEO_MB)
 
 func NewVideoCache(maxSize int64) *VideoCache {
 	return &VideoCache{
@@ -883,25 +885,60 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	rangeHeader := r.Header.Get("Range")
 
-	// Check byte cache first (only for non-range requests or initial request)
-	if rangeHeader == "" || rangeHeader == "bytes=0-" {
-		cachedData, found := s.videoCache.Get(cacheKey)
+	// Check byte cache. We serve from cache for:
+	//   - no Range header (full 200)
+	//   - a satisfiable single Range (206 Partial Content)
+	//   - a malformed Range (ignore per RFC 7233, serve full 200)
+	//   - an unsatisfiable Range (416)
+	// Multipart ranges fall through to the upstream proxy path unchanged.
+	cachedData, found := s.videoCache.Get(cacheKey)
 
-		// Memory miss → check disk cache and promote to memory
-		if !found && s.diskCache != nil {
-			if diskData, diskHit := s.diskCache.Get(cacheKey); diskHit {
-				cachedData = diskData
-				found = true
+	// Memory miss → check disk cache and promote to memory (only when the
+	// entry is small enough to belong in the hot memory set).
+	if !found && s.diskCache != nil {
+		if diskData, diskHit := s.diskCache.Get(cacheKey); diskHit {
+			cachedData = diskData
+			found = true
+			if int64(len(diskData)) <= MemoryCacheMaxEntrySize {
 				s.videoCache.Set(cacheKey, diskData) // promote to memory
-				log.Printf("[proxy] Disk cache hit for %s (%d bytes), promoted to memory", videoID, len(diskData))
 			}
+			log.Printf("[proxy] Disk cache hit for %s (%d bytes)", videoID, len(diskData))
 		}
+	}
 
-		if found {
-			contentType := "video/mp4"
-			if audioOnly {
-				contentType = "audio/mp4"
-			}
+	if found {
+		contentType := "video/mp4"
+		if audioOnly {
+			contentType = "audio/mp4"
+		}
+		total := int64(len(cachedData))
+
+		start, end, status := parseRangeDetailed(rangeHeader, total)
+		switch status {
+		case rangeMultipart:
+			// Can't serve multipart from a single cached blob; fall through to upstream.
+			log.Printf("[proxy] Multipart range %q for %s; bypassing cache", rangeHeader, videoID)
+		case rangeUnsatisfiable:
+			log.Printf("[proxy] Cache hit for %s but range %q unsatisfiable (416)", videoID, rangeHeader)
+			w.Header().Set("Content-Type", contentType)
+			w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", total))
+			w.Header().Set("Accept-Ranges", "bytes")
+			w.Header().Set("Cache-Control", "public, max-age=3600")
+			w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+			return
+		case rangeOK:
+			slice := cachedData[start : end+1]
+			log.Printf("[proxy] Cache hit for %s range %q (%d bytes)", videoID, rangeHeader, len(slice))
+			w.Header().Set("Content-Type", contentType)
+			w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, total))
+			w.Header().Set("Content-Length", strconv.Itoa(len(slice)))
+			w.Header().Set("Accept-Ranges", "bytes")
+			w.Header().Set("Cache-Control", "public, max-age=3600")
+			w.WriteHeader(http.StatusPartialContent)
+			w.Write(slice)
+			return
+		default:
+			// rangeNone or rangeMalformed: serve full 200 from cache.
 			log.Printf("[proxy] Cache hit for %s (%d bytes)", videoID, len(cachedData))
 			w.Header().Set("Content-Type", contentType)
 			w.Header().Set("Content-Length", strconv.Itoa(len(cachedData)))
@@ -1064,8 +1101,19 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(resp.StatusCode)
 
-	// For non-range requests, try to cache the video bytes
-	shouldCache := rangeHeader == "" && resp.StatusCode == http.StatusOK
+	// Cache the response when it represents the full resource:
+	//   - bare GET with HTTP 200, or
+	//   - "Range: bytes=0-" with HTTP 206 whose Content-Range covers the full resource.
+	// In both cases the response body is the complete resource, so we can
+	// accumulate it and store the same way we would for a plain 200.
+	shouldCache := false
+	if rangeHeader == "" && resp.StatusCode == http.StatusOK {
+		shouldCache = true
+	} else if rangeHeader == "bytes=0-" && resp.StatusCode == http.StatusPartialContent {
+		if cr := resp.Header.Get("Content-Range"); contentRangeCoversFull(cr) {
+			shouldCache = true
+		}
+	}
 	var videoData []byte
 	if shouldCache {
 		videoData = make([]byte, 0, 5*1024*1024) // Pre-allocate 5MB
@@ -1085,8 +1133,8 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 			}
 			bytesWritten += int64(n)
 
-			// Accumulate data for caching (limit to MaxCacheableVideoSize to avoid memory issues)
-			if shouldCache && len(videoData)+n <= MaxCacheableVideoSize {
+			// Accumulate data for caching up to the per-entry cap.
+			if shouldCache && int64(len(videoData))+int64(n) <= s.maxCacheableVideoSize {
 				videoData = append(videoData, buf[:n]...)
 			}
 		}
@@ -1101,9 +1149,14 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[proxy] Streamed %d bytes for %s in %dms", bytesWritten, videoID, time.Since(proxyStart).Milliseconds())
 
-	// Cache the video if we got a full response (LRU eviction, no TTL)
-	if shouldCache && len(videoData) > 0 && len(videoData) <= MaxCacheableVideoSize {
-		s.videoCache.Set(cacheKey, videoData)
+	// Cache the video if we got a full response (LRU eviction, no TTL).
+	// Entries larger than the memory threshold go to disk only so one long
+	// video doesn't evict the hot memory set; entries at or below the threshold
+	// go to both memory and disk.
+	if shouldCache && len(videoData) > 0 && int64(len(videoData)) <= s.maxCacheableVideoSize {
+		if int64(len(videoData)) <= MemoryCacheMaxEntrySize {
+			s.videoCache.Set(cacheKey, videoData)
+		}
 		if s.diskCache != nil {
 			s.diskCache.Set(cacheKey, videoData)
 		}
@@ -1702,6 +1755,15 @@ func main() {
 		}
 	}
 
+	// Per-entry cap for cacheable video bytes (MAX_CACHEABLE_VIDEO_MB, default 50).
+	// Entries above MemoryCacheMaxEntrySize go to disk only.
+	var maxCacheableVideoSize int64 = DefaultMaxCacheableVideoSize
+	if sizeStr := os.Getenv("MAX_CACHEABLE_VIDEO_MB"); sizeStr != "" {
+		if parsed, err := strconv.Atoi(sizeStr); err == nil && parsed > 0 {
+			maxCacheableVideoSize = int64(parsed) * 1024 * 1024
+		}
+	}
+
 	// Initialize disk cache
 	diskCacheDir := os.Getenv("DISK_CACHE_DIR")
 	if diskCacheDir == "" {
@@ -1720,12 +1782,13 @@ func main() {
 	}
 
 	server := &Server{
-		searchCache:   NewCache(time.Duration(cacheTTLSeconds) * time.Second),
-		resolveCache:  NewResolveCache(),
-		videoCache:    NewVideoCache(videoCacheSize),
-		potCache:      NewPOTokenCache(),
-		diskCache:     diskCache,
-		playlistCache: NewPlaylistCache(playlistCacheTTL),
+		searchCache:           NewCache(time.Duration(cacheTTLSeconds) * time.Second),
+		resolveCache:          NewResolveCache(),
+		videoCache:            NewVideoCache(videoCacheSize),
+		potCache:              NewPOTokenCache(),
+		diskCache:             diskCache,
+		playlistCache:         NewPlaylistCache(playlistCacheTTL),
+		maxCacheableVideoSize: maxCacheableVideoSize,
 	}
 
 	// Initialize and start prefetch queue
