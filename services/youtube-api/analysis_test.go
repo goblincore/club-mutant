@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"math"
 	"os"
 	"os/exec"
@@ -89,9 +90,9 @@ func TestAnalyzePCMBandDominance(t *testing.T) {
 
 	// Sanity: all values in [0,255].
 	for f := 0; f < res.FrameCount; f++ {
-		for _, arr := range [][]uint8{res.Bass, res.Mid, res.High, res.Energy} {
-			if arr[f] > 255 {
-				t.Fatalf("band value %d out of uint8 range at frame %d", arr[f], f)
+		for _, arr := range [][]int{res.Bass, res.Mid, res.High, res.Energy} {
+			if arr[f] < 0 || arr[f] > 255 {
+				t.Fatalf("band value %d out of byte range at frame %d", arr[f], f)
 			}
 		}
 	}
@@ -196,13 +197,53 @@ func TestDecodeToPCM(t *testing.T) {
 	}
 }
 
-func meanU8(b []uint8) float64 {
+func meanU8(b []int) float64 {
 	if len(b) == 0 {
 		return 0
 	}
 	var sum int
 	for _, v := range b {
-		sum += int(v)
+		sum += v
 	}
 	return float64(sum) / float64(len(b))
+}
+
+// TestAnalysisResultJSONShape pins the wire format the client depends on:
+// band fields must marshal as JSON NUMBER ARRAYS. (A []uint8 field would
+// silently marshal as a base64 string — the exact bug this test guards
+// against — and the client would reject the payload and fall back to the
+// live analyser forever.)
+func TestAnalysisResultJSONShape(t *testing.T) {
+	res := &AnalysisResult{
+		VideoID:    "AAAAAAAAAAA",
+		Version:    analysisVersion,
+		SampleRate: analysisSampleRate,
+		FrameRate:  analysisFrameRate,
+		FrameCount: 2,
+		Duration:   0.1,
+		Bass:       []int{1, 255},
+		Mid:        []int{2, 0},
+		High:       []int{3, 128},
+		Energy:     []int{4, 64},
+	}
+	b, err := json.Marshal(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"bass", "mid", "high", "energy"} {
+		arr, ok := m[key].([]interface{})
+		if !ok {
+			t.Fatalf("field %q is %T, want JSON array (got: %s)", key, m[key], b)
+		}
+		if len(arr) != 2 {
+			t.Fatalf("field %q has %d elements, want 2", key, len(arr))
+		}
+		if _, ok := arr[0].(float64); !ok {
+			t.Fatalf("field %q[0] is %T, want JSON number", key, arr[0])
+		}
+	}
 }

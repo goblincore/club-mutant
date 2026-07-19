@@ -39,10 +39,12 @@ type AnalysisResult struct {
 	FrameRate  int     `json:"frameRate"`
 	FrameCount int     `json:"frameCount"`
 	Duration   float64 `json:"duration"`
-	Bass       []uint8 `json:"bass"`
-	Mid        []uint8 `json:"mid"`
-	High       []uint8 `json:"high"`
-	Energy     []uint8 `json:"energy"`
+	// int, not uint8: json.Marshal encodes []uint8 ([]byte) as a base64
+	// string, but the client expects JSON number arrays.
+	Bass   []int `json:"bass"`
+	Mid    []int `json:"mid"`
+	High   []int `json:"high"`
+	Energy []int `json:"energy"`
 }
 
 // Analysis singleflight coalesces concurrent analysis requests for the same
@@ -77,9 +79,13 @@ func decodeToPCM(audioData []byte) ([]int16, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
+	// -t caps the decode at the analysis window so an overlong track can't
+	// fill the stdout pipe past our LimitReader and stall until the context
+	// timeout kills ffmpeg.
 	cmd := exec.CommandContext(ctx, "ffmpeg",
 		"-hide_banner", "-v", "error",
 		"-i", tmpPath,
+		"-t", strconv.Itoa(int(analysisMaxDuration)),
 		"-f", "s16le",
 		"-ac", "1",
 		"-ar", strconv.Itoa(analysisSampleRate),
@@ -253,10 +259,10 @@ func analyzePCM(pcm []int16, sampleRate, frameRate int) *AnalysisResult {
 	}
 	res.FrameCount = frameCount
 
-	bassVals := make([]uint8, frameCount)
-	midVals := make([]uint8, frameCount)
-	highVals := make([]uint8, frameCount)
-	energyVals := make([]uint8, frameCount)
+	bassVals := make([]int, frameCount)
+	midVals := make([]int, frameCount)
+	highVals := make([]int, frameCount)
+	energyVals := make([]int, frameCount)
 
 	reBuf := make([]float64, fftN)
 	imBuf := make([]float64, fftN)
@@ -303,10 +309,10 @@ func analyzePCM(pcm []int16, sampleRate, frameRate int) *AnalysisResult {
 		sHigh = 0.8*sHigh + 0.2*rawHigh
 		sEnergy = 0.8*sEnergy + 0.2*rawEnergy
 
-		bassVals[f] = uint8(sBass + 0.5)
-		midVals[f] = uint8(sMid + 0.5)
-		highVals[f] = uint8(sHigh + 0.5)
-		energyVals[f] = uint8(sEnergy + 0.5)
+		bassVals[f] = int(sBass + 0.5)
+		midVals[f] = int(sMid + 0.5)
+		highVals[f] = int(sHigh + 0.5)
+		energyVals[f] = int(sEnergy + 0.5)
 	}
 
 	res.Bass = bassVals
