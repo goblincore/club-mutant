@@ -9,6 +9,22 @@ const LOAD_TIMEOUT_MS = 12_000
 const FFT_SIZE = 256 // 128 frequency bins
 const SMOOTHING = 0.15 // Exponential smoothing factor for visual stability
 
+// Precomputed analysis timeline served by the Go service at /analysis/{videoId}.
+// When present, the client drives the visualizer from the synced playback
+// clock instead of opening a live silent audio stream per client.
+export interface PrecomputedAnalysis {
+  videoId: string
+  version: number
+  sampleRate: number
+  frameRate: number
+  frameCount: number
+  duration: number
+  bass: number[] // 0-255 per frame
+  mid: number[]
+  high: number[]
+  energy: number[]
+}
+
 // ── Module-level state (read imperatively by shader useFrame) ──────────
 export let audioBass = 0
 export let audioMid = 0
@@ -84,6 +100,7 @@ export function useAudioAnalyser() {
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null)
+  const analysisRef = useRef<PrecomputedAnalysis | null>(null)
   const activeVideoIdRef = useRef<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -103,6 +120,7 @@ export function useAudioAnalyser() {
       }
       analyserRef.current = null
       dataArrayRef.current = null
+      analysisRef.current = null
 
       if (audioRef.current) {
         audioRef.current.pause()
@@ -130,8 +148,12 @@ export function useAudioAnalyser() {
       return
     }
 
-    // Don't restart if same video is already being analysed
-    if (activeVideoIdRef.current === videoId && audioRef.current && !audioRef.current.paused) {
+    // Don't restart if same video is already being analysed. Covers both
+    // paths: live analyser (audioRef set) and precomputed (analysisRef set).
+    if (
+      activeVideoIdRef.current === videoId &&
+      ((audioRef.current && !audioRef.current.paused) || analysisRef.current)
+    ) {
       return
     }
 
@@ -145,6 +167,29 @@ export function useAudioAnalyser() {
       if (abort.signal.aborted) return
 
       try {
+        // Prefer the precomputed analysis timeline (one-shot fetch, no
+        // persistent audio stream). If the service has it, we drive the
+        // visualizer purely from the synced playback clock and skip the
+        // <audio>/AudioContext entirely. On any non-200 (pending / not yet
+        // available / network error) we fall through to the live path.
+        const analysis = await getNetwork().fetchYouTubeAnalysis(videoId)
+        if (abort.signal.aborted) return
+
+        if (
+          analysis &&
+          analysis.version === 1 &&
+          analysis.frameCount > 0 &&
+          analysis.bass?.length === analysis.frameCount &&
+          analysis.mid?.length === analysis.frameCount &&
+          analysis.high?.length === analysis.frameCount &&
+          analysis.energy?.length === analysis.frameCount
+        ) {
+          analysisRef.current = analysis
+          audioAnalyserActive = true
+          console.log('[AudioAnalyser] Using precomputed analysis for:', videoId)
+          return
+        }
+
         const proxyUrl = getNetwork().getYouTubeAudioProxyUrl(videoId)
         if (abort.signal.aborted) return
 
@@ -232,6 +277,55 @@ export function useAudioAnalyser() {
 
   // Per-frame frequency analysis — writes to module-level exports
   useFrame(() => {
+    // Precomputed path: derive band values from the synced playback clock
+    // and the server-computed timeline. Reads the clock imperatively via
+    // getState() because subscribed hook values are stale inside this closure.
+    const analysis = analysisRef.current
+    if (analysis) {
+      const stream = useMusicStore.getState().stream
+      let pos = 0
+      if (stream.isPlaying && stream.startTime > 0) {
+        pos = (Date.now() - stream.startTime) / 1000
+      }
+
+      const fc = analysis.frameCount
+      const fr = analysis.frameRate
+      let rawBass: number
+      let rawMid: number
+      let rawHigh: number
+      let rawEnergy: number
+
+      if (pos < 0 || pos > analysis.duration + 0.5 || fc <= 0 || fr <= 0) {
+        // Past end / before start / not playing → decay target is 0 (the
+        // module-level lerp below handles the fade).
+        rawBass = 0
+        rawMid = 0
+        rawHigh = 0
+        rawEnergy = 0
+      } else {
+        // Frame index with linear interpolation between floor/ceil frames.
+        const exactFrame = pos * fr
+        const f0 = Math.max(0, Math.min(fc - 1, Math.floor(exactFrame)))
+        const f1 = Math.min(fc - 1, f0 + 1)
+        const frac = exactFrame - f0
+        const interp = (arr: number[], idx0: number, idx1: number) => {
+          const a = arr[idx0] ?? 0
+          const b = arr[idx1] ?? a
+          return (a + (b - a) * frac) / 255
+        }
+        rawBass = interp(analysis.bass, f0, f1)
+        rawMid = interp(analysis.mid, f0, f1)
+        rawHigh = interp(analysis.high, f0, f1)
+        rawEnergy = interp(analysis.energy, f0, f1)
+      }
+
+      audioBass = lerp(audioBass, rawBass, SMOOTHING)
+      audioMid = lerp(audioMid, rawMid, SMOOTHING)
+      audioHigh = lerp(audioHigh, rawHigh, SMOOTHING)
+      audioEnergy = lerp(audioEnergy, rawEnergy, SMOOTHING)
+      return
+    }
+
     const analyser = analyserRef.current
     const dataArray = dataArrayRef.current
     if (!analyser || !dataArray) return

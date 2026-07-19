@@ -402,6 +402,14 @@ interface ServerPlaylist {
   updatedAt: number
 }
 
+export interface ServerPlaylistMeta {
+  id: string
+  name: string
+  trackCount: number
+  createdAt: number
+  updatedAt: number
+}
+
 /**
  * Fetch all playlists from Nakama, paginating through all pages.
  */
@@ -420,6 +428,39 @@ export async function listServerPlaylists(): Promise<ServerPlaylist[]> {
   } while (cursor)
 
   return all
+}
+
+/**
+ * Fetch playlist metadata only (no items) — lightweight startup listing for
+ * lazy item loading. Requires the get_playlist/include_items Nakama module.
+ */
+export async function listServerPlaylistsMeta(): Promise<ServerPlaylistMeta[]> {
+  const session = await ensureSession()
+  const all: ServerPlaylistMeta[] = []
+  let cursor: string | null = null
+
+  do {
+    const params: Record<string, unknown> = { include_items: false }
+    if (cursor) params.cursor = cursor
+    const result = await getClient().rpc(session, 'list_playlists', params)
+    const data = result.payload as { playlists: ServerPlaylistMeta[]; cursor: string | null }
+    if (data.playlists) {
+      for (const p of data.playlists) all.push(p)
+    }
+    cursor = data.cursor || null
+  } while (cursor)
+
+  return all
+}
+
+/**
+ * Fetch one playlist with its full items list.
+ */
+export async function getServerPlaylist(id: string): Promise<ServerPlaylist> {
+  const session = await ensureSession()
+  const result = await getClient().rpc(session, 'get_playlist', { id })
+  const data = result.payload as { playlist: ServerPlaylist }
+  return data.playlist
 }
 
 /**
