@@ -30,10 +30,13 @@ export function KonpyuuTAShell() {
     return {
       getPlaylists: () => store().playlists,
       createPlaylist: (name: string) => store().createPlaylist(name),
+      importPlaylist: (name: string, tracks: PlaylistTrack[]) =>
+        store().importPlaylist(name, tracks),
       removePlaylist: (id: string) => store().removePlaylist(id),
       addTrack: (playlistId: string, track: PlaylistTrack) => store().addTrack(playlistId, track),
       removeTrack: (playlistId: string, trackId: string) =>
         store().removeTrack(playlistId, trackId),
+      ensureItemsLoaded: (playlistId: string) => store().ensureItemsLoaded(playlistId),
       loadFromServer: () => store().loadFromServer(),
     }
   }, [])

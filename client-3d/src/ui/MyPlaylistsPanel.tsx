@@ -5,7 +5,13 @@ import { useToastStore } from '../stores/toastStore'
 import { useGameStore } from '../stores/gameStore'
 import { useJukeboxStore } from '../stores/jukeboxStore'
 import { useBoothStore } from '../stores/boothStore'
-import { usePlaylistStore, type PlaylistTrack } from '../stores/playlistStore'
+import {
+  usePlaylistStore,
+  IMPORT_MAX_TRACKS,
+  MAX_PLAYLISTS,
+  type PlaylistTrack,
+} from '../stores/playlistStore'
+import { extractPlaylistId } from '../utils/youtubePlaylist'
 
 interface SearchResult {
   title: string
@@ -76,6 +82,11 @@ export function MyPlaylistsPanel() {
   // Playlist management
   const [newPlaylistName, setNewPlaylistName] = useState('')
   const [creating, setCreating] = useState(false)
+
+  // YouTube playlist import
+  const [importUrl, setImportUrl] = useState('')
+  const [importOpen, setImportOpen] = useState(false)
+  const [importing, setImporting] = useState(false)
 
   const [recentlyAdded, setRecentlyAdded] = useState<Set<string>>(new Set())
 
@@ -163,6 +174,50 @@ export function MyPlaylistsPanel() {
     setCreating(false)
   }
 
+  const handleImportPlaylist = async () => {
+    const toast = useToastStore.getState().addToast
+    const playlistId = extractPlaylistId(importUrl)
+    if (!playlistId) {
+      toast('invalid playlist url (mixes & private lists not supported)')
+      return
+    }
+    if (usePlaylistStore.getState().playlists.length >= MAX_PLAYLISTS) {
+      toast(`playlist limit reached (max ${MAX_PLAYLISTS})`)
+      return
+    }
+
+    setImporting(true)
+    try {
+      const data = await getNetwork().fetchYouTubePlaylist(playlistId)
+      if (data.items.length === 0) {
+        toast('playlist is empty or unavailable')
+        return
+      }
+      const tracks: PlaylistTrack[] = data.items.map((it) => ({
+        id: crypto.randomUUID(),
+        title: it.title,
+        link: `https://www.youtube.com/watch?v=${it.videoId}`,
+        duration: it.duration,
+        thumbnail: it.thumbnail,
+      }))
+      const imported = Math.min(tracks.length, IMPORT_MAX_TRACKS)
+      usePlaylistStore.getState().importPlaylist(data.title, tracks)
+
+      const total = data.declaredCount > imported ? data.declaredCount : tracks.length
+      if (data.truncated || tracks.length > IMPORT_MAX_TRACKS) {
+        toast(`imported first ${imported} of ${total} tracks`)
+      } else {
+        toast(`imported ${imported} tracks`)
+      }
+      setImportUrl('')
+      setImportOpen(false)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'playlist import failed')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const handleAddTrackToQueue = (track: PlaylistTrack) => {
     if (isJukeboxMode) {
       getNetwork().addToJukebox(track.title, track.link, track.duration)
@@ -245,11 +300,14 @@ export function MyPlaylistsPanel() {
                 : `+ add all to ${queueLabel}`}
             </button>
           )}
-          {viewingPlaylist.items.length === 0 && (
-            <p className="text-white/40 text-[12px] font-mono text-center mt-4">
-              no tracks yet — use Search or Link tabs to add
-            </p>
-          )}
+          {viewingPlaylist.items.length === 0 &&
+            (viewingPlaylist.itemsLoaded === false ? (
+              <p className="text-white/40 text-[12px] font-mono text-center mt-4">loading tracks…</p>
+            ) : (
+              <p className="text-white/40 text-[12px] font-mono text-center mt-4">
+                no tracks yet — use Search or Link tabs to add
+              </p>
+            ))}
           {viewingPlaylist.items.map((track, i) => (
             <div
               key={track.id}
@@ -426,12 +484,16 @@ export function MyPlaylistsPanel() {
             setViewingPlaylistId(pl.id)
             setDetailTab('tracks')
             usePlaylistStore.getState().setActivePlaylist(pl.id)
+            void usePlaylistStore.getState().ensureItemsLoaded(pl.id)
           }}
         >
           <div className="min-w-0 flex-1">
             <div className="text-[14px] font-mono text-white/90">{pl.name}</div>
             <div className="text-[11px] font-mono text-white/50">
-              {pl.items.length} track{pl.items.length !== 1 ? 's' : ''}
+              {(() => {
+                const count = pl.itemsLoaded === false ? (pl.trackCount ?? 0) : pl.items.length
+                return `${count} track${count !== 1 ? 's' : ''}`
+              })()}
             </div>
           </div>
           <div className="flex gap-1 flex-shrink-0">
@@ -496,6 +558,44 @@ export function MyPlaylistsPanel() {
           className="mt-2 w-full py-1 text-[12px] font-mono text-white/50 hover:text-white/80 border border-dashed border-white/10 hover:border-white/20 rounded transition-colors"
         >
           + new playlist
+        </button>
+      )}
+
+      {importOpen ? (
+        <div className="flex gap-1 mt-2">
+          <input
+            type="text"
+            value={importUrl}
+            onChange={(e) => setImportUrl(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !importing && handleImportPlaylist()}
+            placeholder="paste youtube playlist url..."
+            className="flex-1 bg-white/5 border border-white/10 rounded px-2.5 py-1 text-[13px] text-white placeholder-white/30 focus:border-red-400/50 focus:outline-none font-mono"
+            autoFocus
+            disabled={importing}
+          />
+          <button
+            onClick={handleImportPlaylist}
+            disabled={importing}
+            className="px-2.5 py-1 text-[13px] font-mono bg-red-500/20 border border-red-500/30 rounded text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+          >
+            {importing ? '...' : 'import'}
+          </button>
+          <button
+            onClick={() => {
+              setImportOpen(false)
+              setImportUrl('')
+            }}
+            className="px-2 py-1 text-[13px] font-mono text-white/50 hover:text-white transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setImportOpen(true)}
+          className="mt-1.5 w-full py-1 text-[12px] font-mono text-white/50 hover:text-white/80 border border-dashed border-white/10 hover:border-white/20 rounded transition-colors"
+        >
+          ⇩ import from youtube
         </button>
       )}
     </div>

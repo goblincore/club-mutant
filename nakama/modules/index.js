@@ -4,7 +4,9 @@
 // RPCs:
 //   update_profile    — merges validated fields into user metadata
 //   get_profile       — returns user profile with metadata
-//   list_playlists    — paginated list of user's playlists (cursor-based)
+//   list_playlists    — paginated list of user's playlists (cursor-based;
+//                       pass include_items: false for metadata + trackCount only)
+//   get_playlist      — full single playlist (id, name, items) by ID
 //   save_playlist     — create or update a playlist
 //   delete_playlist   — delete a playlist by ID
 //   send_message      — send a DM to another user
@@ -26,7 +28,7 @@
 // Playlist storage (collection: 'playlists', key: playlist UUID):
 // {
 //   name: string           (max 60 chars)
-//   items: PlaylistTrack[] (max 100 items)
+//   items: PlaylistTrack[] (max 500 items)
 //   createdAt: number      (epoch ms)
 //   updatedAt: number      (epoch ms)
 // }
@@ -192,8 +194,8 @@ var beforeAuthenticateEmail = function (ctx, logger, nk, data) {
 // ─── Playlist Persistence ───────────────────────────────────────────
 
 var PLAYLIST_COLLECTION = 'playlists';
-var MAX_PLAYLISTS = 50;
-var MAX_TRACKS_PER_PLAYLIST = 100;
+var MAX_PLAYLISTS = 100;
+var MAX_TRACKS_PER_PLAYLIST = 500;
 var MAX_PLAYLIST_NAME = 60;
 var PLAYLIST_PAGE_SIZE = 20;
 var MAX_TRACK_TITLE = 200;
@@ -242,6 +244,9 @@ var listPlaylistsRpc = function (ctx, logger, nk, payload) {
   }
 
   var cursor = input.cursor || '';
+  // include_items defaults to true for backward compatibility; pass false
+  // to get lightweight metadata (with trackCount) for lazy item loading.
+  var includeItems = input.include_items !== false;
   var result = nk.storageList(ctx.userId, PLAYLIST_COLLECTION, PLAYLIST_PAGE_SIZE, cursor);
   var objects = result.objects || result || [];
 
@@ -250,13 +255,19 @@ var listPlaylistsRpc = function (ctx, logger, nk, payload) {
     for (var i = 0; i < objects.length; i++) {
       var obj = objects[i];
       var val = obj.value || {};
-      playlists.push({
+      var items = val.items || [];
+      var entry = {
         id: obj.key,
         name: val.name || '',
-        items: val.items || [],
         createdAt: val.createdAt || 0,
         updatedAt: val.updatedAt || 0
-      });
+      };
+      if (includeItems) {
+        entry.items = items;
+      } else {
+        entry.trackCount = items.length;
+      }
+      playlists.push(entry);
     }
   }
 
@@ -265,6 +276,38 @@ var listPlaylistsRpc = function (ctx, logger, nk, payload) {
   return JSON.stringify({
     playlists: playlists,
     cursor: nextCursor
+  });
+};
+
+var getPlaylistRpc = function (ctx, logger, nk, payload) {
+  var input;
+  try {
+    input = JSON.parse(payload);
+  } catch (e) {
+    throw 'Invalid JSON payload';
+  }
+
+  if (typeof input.id !== 'string' || !input.id) throw 'id is required';
+
+  var result = nk.storageRead([{
+    collection: PLAYLIST_COLLECTION,
+    key: input.id,
+    userId: ctx.userId
+  }]);
+
+  if (!result || result.length === 0 || !result[0].value) {
+    throw 'Playlist not found';
+  }
+
+  var val = result[0].value;
+  return JSON.stringify({
+    playlist: {
+      id: input.id,
+      name: val.name || '',
+      items: val.items || [],
+      createdAt: val.createdAt || 0,
+      updatedAt: val.updatedAt || 0
+    }
   });
 };
 
@@ -901,6 +944,7 @@ var InitModule = function (ctx, logger, nk, initializer) {
   initializer.registerRpc('update_profile', updateProfileRpc);
   initializer.registerRpc('get_profile', getProfileRpc);
   initializer.registerRpc('list_playlists', listPlaylistsRpc);
+  initializer.registerRpc('get_playlist', getPlaylistRpc);
   initializer.registerRpc('save_playlist', savePlaylistRpc);
   initializer.registerRpc('delete_playlist', deletePlaylistRpc);
   initializer.registerRpc('send_message', sendMessageRpc);
@@ -911,5 +955,5 @@ var InitModule = function (ctx, logger, nk, initializer) {
   initializer.registerRpc('get_wall_posts', getWallPostsRpc);
   initializer.registerRpc('delete_wall_post', deleteWallPostRpc);
   initializer.registerBeforeAuthenticateEmail(beforeAuthenticateEmail);
-  logger.info('Modules loaded: RPCs (update_profile, get_profile, list_playlists, save_playlist, delete_playlist, send_message, list_conversations, get_messages, mark_read, create_wall_post, get_wall_posts, delete_wall_post), hooks (beforeAuthenticateEmail)');
+  logger.info('Modules loaded: RPCs (update_profile, get_profile, list_playlists, get_playlist, save_playlist, delete_playlist, send_message, list_conversations, get_messages, mark_read, create_wall_post, get_wall_posts, delete_wall_post), hooks (beforeAuthenticateEmail)');
 };

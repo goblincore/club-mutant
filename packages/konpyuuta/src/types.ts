@@ -46,14 +46,23 @@ export interface Playlist {
   id: string
   name: string
   items: PlaylistTrack[]
+  // false when only metadata is loaded (lazy loading); trackCount then
+  // carries the server-declared size.
+  itemsLoaded?: boolean
+  trackCount?: number
 }
 
 export interface PlaylistService {
   getPlaylists: () => Playlist[]
   createPlaylist: (name: string) => void
+  // Atomically create a playlist with tracks (YouTube import). Returns the
+  // new playlist id. Optional for backward compatibility.
+  importPlaylist?: (name: string, tracks: PlaylistTrack[]) => string
   removePlaylist: (id: string) => void
   addTrack: (playlistId: string, track: PlaylistTrack) => void
   removeTrack: (playlistId: string, trackId: string) => void
+  // Fetch a lazily-listed playlist's items. Optional for backward compat.
+  ensureItemsLoaded?: (playlistId: string) => Promise<void>
   loadFromServer: () => Promise<void>
 }
 
