@@ -1,6 +1,22 @@
 version: '3.8'
 
 services:
+  # Holds an OUTBOUND connection to Cloudflare, so nothing has to connect
+  # inward to this box. Added 2026-08-17 after the Cloudflare->origin hop
+  # started dropping ~65-75% of inbound TCP handshakes (SYN-ACKs went
+  # unacknowledged; origin was provably healthy — 12/12 global regions and
+  # 0/76 direct requests OK). Traffic goes to Caddy, not to services directly,
+  # so per-site config (nakama CORS, yt flush_interval, api path allowlist)
+  # still applies. Public hostnames are configured in the Cloudflare
+  # dashboard: Zero Trust -> Networks -> Tunnels, each pointing at
+  # https://caddy:443 with originServerName set to that hostname.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    depends_on:
+      - caddy
+
   caddy:
     image: caddy:2
     restart: unless-stopped
