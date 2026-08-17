@@ -5,18 +5,24 @@
   Plain HTML. No build step, no framework, no CMS.
   Edit this file, commit, push to main — Cloudflare Pages deploys it.
 
-  TO ADD AN ENTRY: copy the block below to the top of <main>, above the
-  newest existing <article>. Tags are just text: [new] [fixed] [changed]
+  TWO COLUMNS: "Shipped" (left) and "In progress" (right) on desktop;
+  on mobile they stack, with "In progress" first so it isn't buried.
+
+  TO ADD A SHIPPED ENTRY: copy the block below to the top of <main>, above
+  the newest existing <article>. Tags are just text: [new] [fixed] [changed]
   Stick a kaomoji on the heading — house style.
 
   <article>
-    <h2>Short headline <span class="kao">ヽ(´▽`)/</span></h2>
+    <h3>Short headline <span class="kao">ヽ(´▽`)/</span></h3>
     <p class="date"><time datetime="2026-01-31">31 January 2026</time></p>
     <ul>
       <li><span class="tag">[new]</span> What got added.</li>
       <li><span class="tag">[fixed]</span> What got fixed.</li>
     </ul>
   </article>
+
+  TO UPDATE THE ROADMAP: edit the <ul> inside <aside>. Use [wip] for things
+  actively being built, [planned] for things not started yet.
 
   Kaomoji worth reusing:
     ┬─┬ノ( º _ ºノ)   putting things back
@@ -26,19 +32,52 @@
     ┌(・。・)┘♪        walking
     (・_・)ゞ          sheepish
     ٩(◕‿◕)۶          delighted
+    (๑•̀ㅂ•́)و✧       getting on with it
+    ヽ(・_・;)ノ        no idea when
 -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Club Mutant — Changelog</title>
-<meta name="description" content="Updates, fixes and notes from Club Mutant.">
+<meta name="description" content="Updates, fixes, and what's being built in Club Mutant.">
 <style>
   body {
-    max-width: 42em;
+    max-width: 62em;
     margin: 2em auto;
     padding: 0 1em;
     line-height: 1.5;
+  }
+  .intro {
+    max-width: 42em;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2.5em;
+  }
+  aside {
+    order: -1; /* on mobile, show the roadmap before the long changelog */
+  }
+  @media (min-width: 52em) {
+    .cols {
+      grid-template-columns: 1.6fr 1fr;
+      gap: 3.5em;
+    }
+    aside {
+      order: 0;
+      border-left: 1px solid #ccc;
+      padding-left: 2.5em;
+    }
+  }
+  h2 {
+    margin-top: 0;
+  }
+  article {
+    margin-bottom: 2.5em;
+  }
+  article h3 {
+    margin-bottom: 0.2em;
   }
   .date {
     margin: 0 0 0.5em;
@@ -54,14 +93,12 @@
     font-size: 0.8em;
     margin-left: 0.4em;
   }
-  article {
-    margin-bottom: 2.5em;
-  }
-  article h2 {
-    margin-bottom: 0.2em;
+  .note {
+    font-size: 0.9em;
+    font-style: italic;
   }
   li {
-    margin-bottom: 0.4em;
+    margin-bottom: 0.6em;
   }
   hr {
     margin: 2em 0;
@@ -74,64 +111,89 @@
 
 <h1>Changelog</h1>
 
-<p>What's new, what's fixed, and what broke on the way <span class="kao">(・_・)ゞ</span> Currently running v0.1.1.</p>
+<p class="intro">What's new, what's fixed, and what broke on the way <span class="kao">(・_・)ゞ</span> Currently running v0.1.1.</p>
 
 <hr>
 
-<main>
+<div class="cols">
 
-  <article>
-    <h2>Connection fixes <span class="kao">┬─┬ノ( º _ ºノ)</span></h2>
-    <p class="date"><time datetime="2026-08-17">17 August 2026</time></p>
+  <main>
+    <h2>Shipped</h2>
+
+    <article>
+      <h3>Connection fixes <span class="kao">┬─┬ノ( º _ ºノ)</span></h3>
+      <p class="date"><time datetime="2026-08-17">17 August 2026</time></p>
+      <ul>
+        <li><span class="tag">[fixed]</span> Logging in and joining rooms failed for most people — traffic between our CDN and the game server was quietly being dropped on the floor. Everything now runs over a direct tunnel instead.</li>
+        <li><span class="tag">[fixed]</span> The game server could be knocked offline by a single malformed request from the open internet. Those get turned away at the door now.</li>
+        <li><span class="tag">[changed]</span> Pages and music load quicker across the board — connections are made at the nearest edge instead of reaching all the way to the server every time.</li>
+        <li><span class="tag">[new]</span> This page. The version number tucked in the corner of the club links here now, instead of nowhere at all.</li>
+      </ul>
+    </article>
+
+    <article>
+      <h3>Playlists &amp; smoother music <span class="kao">┏(・o･)┛♪</span></h3>
+      <p class="date"><time datetime="2026-07-18">18 July 2026</time></p>
+      <ul>
+        <li><span class="tag">[new]</span> Import a whole YouTube playlist by pasting its URL — in My Playlists, or MutantTube on the desktop.</li>
+        <li><span class="tag">[changed]</span> Audio reactivity is worked out up front on the server, so the visuals stay locked to the beat without every machine in the room crunching audio.</li>
+        <li><span class="tag">[changed]</span> Scrubbing and skipping around a track is far quicker — cached audio serves partial requests properly now.</li>
+      </ul>
+    </article>
+
+    <article>
+      <h3>The resident DJ gets some manners <span class="kao">ヾ(⌐■_■)ノ♪</span></h3>
+      <p class="date"><time datetime="2026-07-11">11 July 2026</time></p>
+      <ul>
+        <li><span class="tag">[new]</span> The NPC DJ hands the booth over when a real person wants to play, and quietly picks it back up when the queue runs dry.</li>
+        <li><span class="tag">[new]</span> Room owners can flip the NPC DJ on and off without restarting the room.</li>
+        <li><span class="tag">[changed]</span> New default set — Mutant Rotation retires House Rotation.</li>
+      </ul>
+    </article>
+
+    <article>
+      <h3>NPC DJ presence <span class="kao">┌(・。・)┘♪</span></h3>
+      <p class="date"><time datetime="2026-07-10">10 July 2026</time></p>
+      <ul>
+        <li><span class="tag">[new]</span> The NPC DJ actually walks to the booth to play, and wanders the dancefloor between sets, rather than blinking into existence behind the decks.</li>
+        <li><span class="tag">[new]</span> Pick the NPC DJ mode when you create a room: off, fill-in, or resident.</li>
+        <li><span class="tag">[new]</span> They say something in chat when taking over or handing the decks back.</li>
+        <li><span class="tag">[fixed]</span> Other players no longer flicker into the wrong spot for a moment when you arrive.</li>
+      </ul>
+    </article>
+
+    <article>
+      <h3>Music sync <span class="kao">♪(´▽｀)</span></h3>
+      <p class="date"><time datetime="2026-07-06">6 July 2026</time></p>
+      <ul>
+        <li><span class="tag">[fixed]</span> Turning up mid-track now drops you at the right point in the song instead of slowly drifting out of sync with everyone else.</li>
+        <li><span class="tag">[fixed]</span> A pile of DJ queue gremlins — the rotation resetting itself, players stuck holding an empty turn, and tracks lying about how long they were.</li>
+      </ul>
+    </article>
+
+  </main>
+
+  <aside>
+    <h2>In progress <span class="kao">(๑•̀ㅂ•́)و✧</span></h2>
+    <p class="note">Half-built things you'll bump into. No dates, and the order changes constantly.</p>
     <ul>
-      <li><span class="tag">[fixed]</span> Logging in and joining rooms failed for most people — traffic between our CDN and the game server was quietly being dropped on the floor. Everything now runs over a direct tunnel instead.</li>
-      <li><span class="tag">[fixed]</span> The game server could be knocked offline by a single malformed request from the open internet. Those get turned away at the door now.</li>
-      <li><span class="tag">[changed]</span> Pages and music load quicker across the board — connections are made at the nearest edge instead of reaching all the way to the server every time.</li>
-      <li><span class="tag">[new]</span> This page. The version number tucked in the corner of the club links here now, instead of nowhere at all.</li>
+      <li>
+        <span class="tag">[wip]</span> <strong>The computer</strong> — the desktop OS you can sit down at in-world. The shell is there, but most of what's on it is scaffolding. <strong>MutantTube</strong> and the <strong>mail / messaging app</strong> are the roughest corners; expect them to be half-finished or to fall over.
+      </li>
+      <li>
+        <span class="tag">[wip]</span> <strong>Social bits</strong> — profiles, friends, and messaging between people. Some of it is wired up, none of it is finished, and it'll keep shifting around for a while yet.
+      </li>
+      <li>
+        <span class="tag">[wip]</span> <strong>Dreams</strong> — the video sequence when you sleep in a room. Very early and pretty strange. It works, in the sense that something definitely happens.
+      </li>
+      <li>
+        <span class="tag">[planned]</span> <strong>A proper UI/UX pass</strong> — the whole interface wants rethinking rather than patching. Not started, but it's coming.
+      </li>
     </ul>
-  </article>
+    <p class="note">Found something broken in one of these? That's expected — but do say. <span class="kao">ヽ(・_・;)ノ</span></p>
+  </aside>
 
-  <article>
-    <h2>Playlists &amp; smoother music <span class="kao">┏(・o･)┛♪</span></h2>
-    <p class="date"><time datetime="2026-07-18">18 July 2026</time></p>
-    <ul>
-      <li><span class="tag">[new]</span> Import a whole YouTube playlist by pasting its URL — in My Playlists, or MutantTube on the desktop.</li>
-      <li><span class="tag">[changed]</span> Audio reactivity is worked out up front on the server, so the visuals stay locked to the beat without every machine in the room crunching audio.</li>
-      <li><span class="tag">[changed]</span> Scrubbing and skipping around a track is far quicker — cached audio serves partial requests properly now.</li>
-    </ul>
-  </article>
-
-  <article>
-    <h2>The resident DJ gets some manners <span class="kao">ヾ(⌐■_■)ノ♪</span></h2>
-    <p class="date"><time datetime="2026-07-11">11 July 2026</time></p>
-    <ul>
-      <li><span class="tag">[new]</span> The NPC DJ hands the booth over when a real person wants to play, and quietly picks it back up when the queue runs dry.</li>
-      <li><span class="tag">[new]</span> Room owners can flip the NPC DJ on and off without restarting the room.</li>
-      <li><span class="tag">[changed]</span> New default set — Mutant Rotation retires House Rotation.</li>
-    </ul>
-  </article>
-
-  <article>
-    <h2>NPC DJ presence <span class="kao">┌(・。・)┘♪</span></h2>
-    <p class="date"><time datetime="2026-07-10">10 July 2026</time></p>
-    <ul>
-      <li><span class="tag">[new]</span> The NPC DJ actually walks to the booth to play, and wanders the dancefloor between sets, rather than blinking into existence behind the decks.</li>
-      <li><span class="tag">[new]</span> Pick the NPC DJ mode when you create a room: off, fill-in, or resident.</li>
-      <li><span class="tag">[new]</span> They say something in chat when taking over or handing the decks back.</li>
-      <li><span class="tag">[fixed]</span> Other players no longer flicker into the wrong spot for a moment when you arrive.</li>
-    </ul>
-  </article>
-
-  <article>
-    <h2>Music sync <span class="kao">♪(´▽｀)</span></h2>
-    <p class="date"><time datetime="2026-07-06">6 July 2026</time></p>
-    <ul>
-      <li><span class="tag">[fixed]</span> Turning up mid-track now drops you at the right point in the song instead of slowly drifting out of sync with everyone else.</li>
-      <li><span class="tag">[fixed]</span> A pile of DJ queue gremlins — the rotation resetting itself, players stuck holding an empty turn, and tracks lying about how long they were.</li>
-    </ul>
-  </article>
-
-</main>
+</div>
 
 <hr>
 
