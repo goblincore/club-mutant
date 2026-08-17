@@ -1,4 +1,6 @@
-const BLOG_URL = 'https://blog.mutante.club'
+// Served as a static page from client-3d/public/blog/ — see _redirects for the
+// rule that keeps the SPA catch-all from swallowing it.
+const BLOG_URL = '/blog'
 
 export function VersionTag() {
   return (
