@@ -5,7 +5,32 @@
 api.mutante.club {
   encode gzip
   # CORS handled by Colyseus server via matchMaker.controller.getCorsHeaders
-  reverse_proxy server:2567
+
+  # Only proxy the paths Colyseus actually serves; 404 everything else here.
+  #
+  # Why: @colyseus/uwebsockets-transport registers an abort handler ONLY for
+  # requests that do NOT match a Colyseus route (the Express fallback branch).
+  # That handler assigns to res.writableEnded, which is a getter-only property,
+  # and the transport is ESM (always strict) — so it THROWS. Uncaught, it kills
+  # the process. Net effect: any aborted request to an unknown path is a remote
+  # DoS. Confirmed present in 0.17.18 / 0.17.20 / 0.17.21 / 0.18.1, so there is
+  # no version to upgrade to. Internet scanners trip it a few times a day
+  # (e.g. POST /wordpress/wp-json/batch/v1 with a truncated body).
+  #
+  # Colyseus needs: /matchmake/* (HTTP matchmaking) and the WebSocket room
+  # route, which is /{processId}/{roomId} — arbitrary-looking, so it is matched
+  # by the Upgrade header rather than by path. /health is our own Express route.
+  @websocket {
+    header Connection *Upgrade*
+    header Upgrade websocket
+  }
+
+  route {
+    reverse_proxy @websocket server:2567
+    reverse_proxy /matchmake/* server:2567
+    reverse_proxy /health server:2567
+    respond "Not Found" 404
+  }
 }
 
 yt.mutante.club {
