@@ -97,7 +97,12 @@ services:
       - '4001'
 
   pot-provider:
-    image: ghcr.io/jim60105/bgutil-pot:latest
+    # Official provider, versioned in lockstep with the yt-dlp plugin. The
+    # plugin refuses to request a token when major versions differ, so this tag
+    # MUST match the bgutil-ytdlp-pot-provider pin in youtube-api/Dockerfile.
+    # (The previous ghcr.io/jim60105/bgutil-pot is a Rust port on its own 0.x
+    # line, so it always tripped that check.)
+    image: brainicism/bgutil-ytdlp-pot-provider:1.3.1
     restart: unless-stopped
     expose:
       - '4416'
