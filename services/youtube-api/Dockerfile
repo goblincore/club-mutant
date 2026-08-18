@@ -29,7 +29,7 @@ FROM alpine:latest
 # its major version differs from the server's.
 RUN apk add --no-cache ca-certificates python3 py3-pip ffmpeg nodejs && \
     pip3 install --break-system-packages --pre \
-        'yt-dlp==2026.08.17.073947' \
+        'yt-dlp==2026.8.17.73947.dev0' \
         'bgutil-ytdlp-pot-provider==1.3.1'
 
 # Copy Go binary
