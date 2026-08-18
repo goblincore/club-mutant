@@ -94,26 +94,63 @@ func TestBuildYtDlpArgsProxyPathOmitsPOTokenFlags(t *testing.T) {
 	}
 }
 
+// Since late July 2026 YouTube gates android_vr https formats behind a GVS PO
+// token, and yt-dlp's default client selection lands on clients YouTube forces
+// to SABR (no https URLs at all). The android client still serves format 18
+// over plain https through the ISP proxy, so the tokenless path must ask for
+// it explicitly rather than taking whatever client yt-dlp picks.
+func TestBuildYtDlpArgsProxyPathPinsAndroidClient(t *testing.T) {
+	args := buildYtDlpArgs(ytdlpArgsConfig{
+		videoID:  "abc123",
+		proxyURL: "http://isp-proxy:8888",
+	})
+
+	got := extractorArg(args, "youtube:player_client=")
+	want := "youtube:player_client=android"
+	if got != want {
+		t.Errorf("player_client extractor arg = %q, want %q", got, want)
+	}
+}
+
+// The PO token path negotiates its own client; pinning android there would
+// discard the formats the token unlocks.
+func TestBuildYtDlpArgsPOTokenPathDoesNotPinClient(t *testing.T) {
+	args := buildYtDlpArgs(ytdlpArgsConfig{
+		videoID:        "abc123",
+		usePOToken:     true,
+		potProviderURL: "http://pot-provider:4416",
+	})
+
+	if got := extractorArg(args, "youtube:player_client="); got != "" {
+		t.Errorf("PO token path must not pin a client, got %q", got)
+	}
+}
+
 func TestBuildYtDlpArgsFormatSelection(t *testing.T) {
 	cases := []struct {
 		name string
 		cfg  ytdlpArgsConfig
 		want string
 	}{
+		// The DASH itags (139/160/...) still *resolve* on the proxy path but
+		// googlevideo then refuses to serve them without a GVS PO token, so
+		// listing them as fallbacks would hand out URLs that 403 mid-stream.
+		// Format 18 is the only one the android client offers and the only one
+		// that streams, so the proxy path must ask for it alone.
 		{
-			"proxy_audio_only_uses_itags",
+			"proxy_audio_only_uses_18",
 			ytdlpArgsConfig{proxyURL: "http://p", audioOnly: true},
-			"139/249/140",
+			"18",
 		},
 		{
-			"proxy_video_only_excludes_combined_18",
+			"proxy_video_only_uses_18",
 			ytdlpArgsConfig{proxyURL: "http://p", videoOnly: true},
-			"160/133/134",
+			"18",
 		},
 		{
-			"proxy_default_prefers_combined_18",
+			"proxy_default_uses_18",
 			ytdlpArgsConfig{proxyURL: "http://p"},
-			"18/160/133/134",
+			"18",
 		},
 		{
 			"po_token_audio_only_uses_selector",
