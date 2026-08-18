@@ -629,6 +629,25 @@ func (s *Server) resolveVideo(videoID string, videoOnly bool, audioOnly bool) (*
 	return s.resolveWithYtDlp(videoID, videoOnly, audioOnly)
 }
 
+// resolveAfterUpstream403 re-resolves after YouTube refused the media URL.
+//
+// A tokenless URL resolves fine and is only refused at fetch time: since late
+// July 2026 YouTube gates android_vr https formats behind a GVS PO token, so
+// such a URL is good for only a small slice of the file. Retrying the same
+// tokenless path just reproduces the 403, so escalate to the PO token path
+// when a provider is configured.
+func (s *Server) resolveAfterUpstream403(videoID string, videoOnly bool, audioOnly bool) (*ResolveResponse, error) {
+	if os.Getenv("POT_PROVIDER_URL") != "" {
+		resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, audioOnly, true)
+		if err == nil {
+			resp.ResolvedViaProxy = false
+			return resp, nil
+		}
+		log.Printf("[resolve] PO token escalation failed for %s, falling back: %v", videoID, err)
+	}
+	return s.resolveWithYtDlp(videoID, videoOnly, audioOnly)
+}
+
 // resolveWithYtDlp calls yt-dlp - tries ISP proxy first (faster), falls back to PO token
 func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool, audioOnly bool) (*ResolveResponse, error) {
 	proxyURL := os.Getenv("PROXY_URL")
@@ -674,80 +693,20 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, audioO
 	semToUse <- struct{}{}
 	defer func() { <-semToUse }()
 
-	ytURL := "https://www.youtube.com/watch?v=" + videoID
-
-	// Format selection depends on whether using proxy or PO token
-	// - Proxy path: use specific itags (no JS runtime needed)
-	// - PO token path: use selectors (JS runtime available)
-	proxyURL := os.Getenv("PROXY_URL")
-	var formatArg string
-	if audioOnly {
-		// Audio-only: prefer lowest bitrate for frequency analysis (48kbps is plenty)
-		if proxyURL != "" && !usePOToken {
-			// Proxy path itags: 139=48kbps AAC, 140=128kbps AAC, 249=50kbps Opus
-			formatArg = "139/249/140"
-		} else {
-			// PO token path: best audio ≤64kbps, fallback to any audio
-			formatArg = "ba[abr<=64]/ba"
-		}
-		log.Printf("[yt-dlp] Using audio-only format: %s", formatArg)
-	} else if proxyURL != "" && !usePOToken {
-		// Proxy path - use itags: 160=144p, 133=240p, 134=360p, 18=360p combined
-		// Prefer lowest resolution first (144p) — video wall renders through PSX shader at reduced res
-		formatArg = "18/160/133/134"
-		if videoOnly {
-			formatArg = "160/133/134"
-		}
-		log.Printf("[yt-dlp] Using proxy path with format: %s", formatArg)
-	} else {
-		// PO token path - use selectors (JS runtime available)
-		// Prefer lowest resolution for video-only (wall texture doesn't need high res)
-		formatArg = "best[height<=360]/best"
-		if videoOnly {
-			formatArg = "bv[height<=144]/bv[height<=240]/bv[height<=360]/bv"
-		}
-		log.Printf("[yt-dlp] Using PO token path with format: %s", formatArg)
+	cfg := ytdlpArgsConfig{
+		videoID:        videoID,
+		videoOnly:      videoOnly,
+		audioOnly:      audioOnly,
+		usePOToken:     usePOToken,
+		proxyURL:       os.Getenv("PROXY_URL"),
+		potProviderURL: os.Getenv("POT_PROVIDER_URL"),
 	}
-
-	args := []string{
-		ytURL,
-		"-f", formatArg,
-		"-g",
-		"--no-playlist",
-		"--no-warnings",
-		"--quiet",
-		"--no-cache-dir",
-	}
-
-	// Add proxy if configured AND we're not using PO token
-	// (PO token path doesn't use proxy - it uses the PO provider directly)
-	if proxyURL != "" && !usePOToken {
-		args = append(args, "--proxy", proxyURL)
-	}
-
-	// Add PO token args if requested
 	if usePOToken {
-		// Use localhost to hit our caching proxy instead of the remote provider
-		// This allows us to cache PO tokens and avoid regenerating on every call
-		port := os.Getenv("PORT")
-		if port == "" {
-			port = "8081"
-		}
-		localPotURL := "http://127.0.0.1:" + port
-
-		args = append(args,
-			"--js-runtimes", "node",
-			"--remote-components", "ejs:github",
-			"--extractor-args", "youtubepot-bgutilhttp:base_url="+localPotURL,
-		)
+		cfg.cookiesPath = usableCookiesPath(cookiesFilePath)
 	}
 
-	// Add cookies if available (only for PO token path - cookies can interfere with proxy)
-	if usePOToken {
-		if _, err := os.Stat(cookiesFilePath); err == nil {
-			args = append(args, "--cookies", cookiesFilePath)
-		}
-	}
+	args := buildYtDlpArgs(cfg)
+	log.Printf("[yt-dlp] Format %s (usePOToken=%v, proxyPath=%v)", cfg.formatSelector(), usePOToken, cfg.useProxyPath())
 
 	// Shorter timeout without PO (15s), longer with PO (60s)
 	timeout := 15 * time.Second
@@ -1036,7 +995,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		// Re-resolve with fresh cache key to bypass any cached result
 		result, err, _ := resolveGroup.Do(cacheKey+":retry", func() (interface{}, error) {
 			log.Printf("[proxy] Re-resolving %s via yt-dlp after 403", videoID)
-			return s.resolveWithYtDlp(videoID, videoOnly, audioOnly)
+			return s.resolveAfterUpstream403(videoID, videoOnly, audioOnly)
 		})
 
 		if err != nil {
@@ -1539,10 +1498,12 @@ func prewarmPOToken() {
 		return
 	}
 
-	// The provider caches tokens, so hitting it once warms the cache
-	url := potProviderURL + "/pot?client=WEB"
+	// /ping is the bgutil provider's own health/version endpoint — the same one
+	// the yt-dlp plugin probes before requesting a token, so a 200 here means
+	// the token path will actually work.
+	url := potProviderURL + "/ping"
 
-	log.Printf("[prewarm] Warming up PO token provider at %s", potProviderURL)
+	log.Printf("[prewarm] Checking PO token provider at %s", potProviderURL)
 	start := time.Now()
 
 	client := &http.Client{Timeout: 30 * time.Second}
