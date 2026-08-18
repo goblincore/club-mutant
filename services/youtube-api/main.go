@@ -945,9 +945,21 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	req.Header.Set("Origin", "https://www.youtube.com")
 	req.Header.Set("Referer", "https://www.youtube.com/")
 
+	// Always request a bounded range upstream. An unbounded GET against
+	// googlevideo answers 200 and then truncates mid-transfer, so the fetch is
+	// split into chunks; this first one also tells us the resource total via
+	// Content-Range.
+	fetchStart := int64(0)
+	clientEnd := int64(-1)
 	if rangeHeader != "" {
-		req.Header.Set("Range", rangeHeader)
+		if s, e, hasEnd, ok := rangeStartOffset(rangeHeader); ok {
+			fetchStart = s
+			if hasEnd {
+				clientEnd = e
+			}
+		}
 	}
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", fetchStart, fetchStart+upstreamChunkSize-1))
 
 	// Use shared client with connection pooling for better performance
 	// If URL was resolved via proxy, use proxy for streaming too
@@ -956,16 +968,13 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	useProxyForStream := resolved.ResolvedViaProxy && os.Getenv("PROXY_URL") != ""
 	log.Printf("[proxy] Streaming %s (resolvedViaProxy=%v, usingProxy=%v)", videoID, resolved.ResolvedViaProxy, useProxyForStream)
 
-	var resp *http.Response
-	if useProxyForStream {
-		resp, err = httpClient.Do(req)
-	} else {
-		// Use a client without proxy
-		directClient := &http.Client{
-			Timeout: 5 * time.Minute,
-		}
-		resp, err = directClient.Do(req)
+	streamClient := httpClient
+	if !useProxyForStream {
+		streamClient = &http.Client{Timeout: 5 * time.Minute}
 	}
+
+	var resp *http.Response
+	resp, err = streamClient.Do(req)
 	if err != nil {
 		log.Printf("[proxy] Upstream request failed for %s: %v", videoID, err)
 		http.Error(w, "Upstream request failed", http.StatusBadGateway)
@@ -1019,12 +1028,10 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 		req.Header.Set("Origin", "https://www.youtube.com")
 		req.Header.Set("Referer", "https://www.youtube.com/")
-		if rangeHeader != "" {
-			req.Header.Set("Range", rangeHeader)
-		}
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", fetchStart, fetchStart+upstreamChunkSize-1))
 
 		// Try again with new URL
-		resp, err = httpClient.Do(req)
+		resp, err = streamClient.Do(req)
 		if err != nil {
 			log.Printf("[proxy] Upstream request failed for %s on retry: %v", videoID, err)
 			http.Error(w, "Upstream request failed", http.StatusBadGateway)
@@ -1047,18 +1054,59 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", contentType)
 
-	if cl := resp.Header.Get("Content-Length"); cl != "" {
-		w.Header().Set("Content-Length", cl)
-	}
-	if cr := resp.Header.Get("Content-Range"); cr != "" {
-		w.Header().Set("Content-Range", cr)
+	// Splice the first chunk together with a retrying reader for the rest, so
+	// the caller sees one continuous body. Falls back to the raw response when
+	// upstream didn't report a usable total.
+	upstreamBody := resp.Body
+	respStatus := resp.StatusCode
+	total, haveTotal := parseContentRangeTotal(resp.Header.Get("Content-Range"))
+
+	if haveTotal && resp.StatusCode == http.StatusPartialContent {
+		last := total - 1
+		if clientEnd >= 0 && clientEnd < last {
+			last = clientEnd
+		}
+
+		first, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if readErr != nil {
+			log.Printf("[proxy] First chunk read failed for %s: %v", videoID, readErr)
+			http.Error(w, "Upstream read failed", http.StatusBadGateway)
+			return
+		}
+		if int64(len(first)) > last-fetchStart+1 {
+			first = first[:last-fetchStart+1]
+		}
+
+		readers := []io.Reader{bytes.NewReader(first)}
+		if next := fetchStart + int64(len(first)); next <= last {
+			readers = append(readers, newChunkedBody(
+				streamClient, resolved.URL, req.Header, next, last,
+				upstreamChunkSize, upstreamChunkRetries))
+		}
+		upstreamBody = io.NopCloser(io.MultiReader(readers...))
+
+		w.Header().Set("Content-Length", strconv.FormatInt(last-fetchStart+1, 10))
+		if rangeHeader != "" {
+			w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", fetchStart, last, total))
+			respStatus = http.StatusPartialContent
+		} else {
+			respStatus = http.StatusOK
+		}
+	} else {
+		if cl := resp.Header.Get("Content-Length"); cl != "" {
+			w.Header().Set("Content-Length", cl)
+		}
+		if cr := resp.Header.Get("Content-Range"); cr != "" {
+			w.Header().Set("Content-Range", cr)
+		}
 	}
 	w.Header().Set("Accept-Ranges", "bytes")
 
 	// Allow browser to cache video for 1 hour (avoids re-fetching on replay)
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 
-	w.WriteHeader(resp.StatusCode)
+	w.WriteHeader(respStatus)
 
 	// Cache the response when it represents the full resource:
 	//   - bare GET with HTTP 200, or
@@ -1066,9 +1114,9 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	// In both cases the response body is the complete resource, so we can
 	// accumulate it and store the same way we would for a plain 200.
 	shouldCache := false
-	if rangeHeader == "" && resp.StatusCode == http.StatusOK {
+	if rangeHeader == "" && respStatus == http.StatusOK {
 		shouldCache = true
-	} else if rangeHeader == "bytes=0-" && resp.StatusCode == http.StatusPartialContent {
+	} else if rangeHeader == "bytes=0-" && respStatus == http.StatusPartialContent {
 		if cr := resp.Header.Get("Content-Range"); contentRangeCoversFull(cr) {
 			shouldCache = true
 		}
@@ -1083,7 +1131,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	bytesWritten := int64(0)
 
 	for {
-		n, readErr := resp.Body.Read(buf)
+		n, readErr := upstreamBody.Read(buf)
 		if n > 0 {
 			_, writeErr := w.Write(buf[:n])
 			if writeErr != nil {
