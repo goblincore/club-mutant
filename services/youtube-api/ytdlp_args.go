@@ -43,17 +43,19 @@ func (cfg ytdlpArgsConfig) useProxyPath() bool {
 // directly (no JS runtime needed); the PO token path has a JS runtime and can
 // use selectors.
 func (cfg ytdlpArgsConfig) formatSelector() string {
-	if cfg.useProxyPath() {
-		// 18 (360p H.264 + AAC, pre-merged) is the only format the android
-		// client offers and the only one googlevideo still streams without a
-		// GVS PO token. The DASH itags (139/249/140/160/133/134) resolve fine
-		// but are then refused mid-stream, so they must not appear even as
-		// fallbacks — a resolve that "succeeds" into a dead URL is worse than
-		// a failure, which at least escalates to the PO token path.
-		return "18"
-	}
 	if cfg.audioOnly {
+		if cfg.useProxyPath() {
+			// 139=48kbps AAC, 249=50kbps Opus, 140=128kbps AAC
+			return "139/249/140"
+		}
 		return "ba[abr<=64]/ba"
+	}
+	if cfg.useProxyPath() {
+		// 18=360p combined, 160=144p, 133=240p, 134=360p
+		if cfg.videoOnly {
+			return "160/133/134"
+		}
+		return "18/160/133/134"
 	}
 	if cfg.videoOnly {
 		return "bv[height<=144]/bv[height<=240]/bv[height<=360]/bv"
@@ -73,12 +75,7 @@ func buildYtDlpArgs(cfg ytdlpArgsConfig) []string {
 	}
 
 	if cfg.useProxyPath() {
-		// Pin the android client: yt-dlp's default selection lands on clients
-		// YouTube forces to SABR, which expose no plain https URLs at all.
-		args = append(args,
-			"--proxy", cfg.proxyURL,
-			"--extractor-args", "youtube:player_client=android",
-		)
+		args = append(args, "--proxy", cfg.proxyURL)
 	}
 
 	if cfg.usePOToken {
