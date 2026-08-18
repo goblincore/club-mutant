@@ -65,6 +65,10 @@ services:
       - ADMIN_TOKEN=${ADMIN_TOKEN}
     volumes:
       - ./cookies.txt:/etc/youtube-api/cookies.txt:ro
+      # Without this the disk cache lives in the container layer and every
+      # rebuild/recreate wipes it, forcing a cold yt-dlp resolve for every
+      # video again. DefaultDiskCacheDir in disk_cache.go.
+      - youtube_cache:/var/cache/youtube-api
     expose:
       - '8081'
     depends_on:
@@ -154,3 +158,4 @@ volumes:
   caddy_data:
   caddy_config:
   pgdata:
+  youtube_cache:
