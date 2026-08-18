@@ -1,6 +1,6 @@
 {
   "name": "club-mutant",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Server for Club Mutant",
   "packageManager": "pnpm@10.25.0",
   "main": ".eslintrc.js",

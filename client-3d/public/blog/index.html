@@ -114,7 +114,7 @@
 <!-- NOTE: this version is hand-written. The one shown in-game comes from the ROOT
      package.json (client-3d/vite.config.ts imports '../package.json'), NOT from
      client-3d/package.json. Bump the root one and update this line together. -->
-<p class="intro">What's new, what's fixed, and what broke on the way <span class="kao">(・_・)ゞ</span> Currently running v0.1.1.</p>
+<p class="intro">What's new, what's fixed, and what broke on the way <span class="kao">(・_・)ゞ</span> Currently running v0.2.0.</p>
 
 <hr>
 
@@ -122,6 +122,18 @@
 
   <main>
     <h2>Shipped</h2>
+
+    <article>
+      <h3>Music &amp; video playback, rescued <span class="kao">(ノ◕ヮ◕)ノ*:･ﾟ✧</span></h3>
+      <p class="date"><time datetime="2026-08-18">18 August 2026</time></p>
+      <ul>
+        <li><span class="tag">[fixed]</span> Anything that wasn't already played recently refused to load — YouTube changed how it hands out video, and our end kept asking the old way. New tracks and video walls work again.</li>
+        <li><span class="tag">[fixed]</span> Video would sometimes stop partway through and never recover. It's now fetched in small pieces that retry on their own, so a hiccup no longer kills the whole stream.</li>
+        <li><span class="tag">[changed]</span> The video wall pulls roughly a tenth of what it used to — same picture, far less waiting, much kinder to phone data.</li>
+        <li><span class="tag">[changed]</span> Tracks you've played stay cached when the server restarts, instead of being thrown away every deploy.</li>
+        <li><span class="tag">[new]</span> A "view changelog" link next to the version in the corner, so this page isn't quite so hidden.</li>
+      </ul>
+    </article>
 
     <article>
       <h3>Connection fixes <span class="kao">┬─┬ノ( º _ ºノ)</span></h3>
