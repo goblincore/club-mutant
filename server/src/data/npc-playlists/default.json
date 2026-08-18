@@ -3,6 +3,12 @@
   "name": "Mutant Rotation",
   "tracks": [
     {
+      "id": "1P13-Hblu6c",
+      "title": "DJ LOSTBOI — IF I SHOULD DIE",
+      "link": "https://www.youtube.com/watch?v=1P13-Hblu6c",
+      "duration": 234
+    },
+    {
       "id": "BPKf3Wu3xHs",
       "title": "DJ LOSTBOI — I AM REAL",
       "link": "https://www.youtube.com/watch?v=BPKf3Wu3xHs",
@@ -13,6 +19,18 @@
       "title": "dj lostboi - See Inside",
       "link": "https://www.youtube.com/watch?v=4Q2FU-b8keM",
       "duration": 341
+    },
+    {
+      "id": "z3Ua3ZiLHTA",
+      "title": "DJ LOSTBOI — PET SHOP B",
+      "link": "https://www.youtube.com/watch?v=z3Ua3ZiLHTA",
+      "duration": 169
+    },
+    {
+      "id": "DIjIbooTAaE",
+      "title": "DJ LOSTBOI — LIFE INTERLUDE (2015)",
+      "link": "https://www.youtube.com/watch?v=DIjIbooTAaE",
+      "duration": 141
     },
     {
       "id": "y8tRQQH1QyE",
@@ -27,76 +45,64 @@
       "duration": 121
     },
     {
-      "id": "Hmg78T5tPOA",
-      "title": "Tuning Circuits - We Rule The World",
-      "link": "https://www.youtube.com/watch?v=Hmg78T5tPOA",
-      "duration": 610
+      "id": "w3b4IFN6oR0",
+      "title": "avril23 - what's good",
+      "link": "https://www.youtube.com/watch?v=w3b4IFN6oR0",
+      "duration": 155
     },
     {
-      "id": "bG0SsofxwR4",
-      "title": "Tuning Circuits - It's In My Brain Too (Screaming Oscillator Version)",
-      "link": "https://www.youtube.com/watch?v=bG0SsofxwR4",
-      "duration": 426
+      "id": "r12p8t1Mypc",
+      "title": "Himera - You Make It Look So Easy (Reverbed by Malibu)",
+      "link": "https://www.youtube.com/watch?v=r12p8t1Mypc",
+      "duration": 240
     },
     {
-      "id": "uaYyMaQnqzA",
-      "title": "Merzbow - Woodpecker No. 1",
-      "link": "https://www.youtube.com/watch?v=uaYyMaQnqzA",
-      "duration": 409
+      "id": "L1sYaa2DLpM",
+      "title": "Himera & Petal Supply & Gupi - Snow Globe",
+      "link": "https://www.youtube.com/watch?v=L1sYaa2DLpM",
+      "duration": 238
     },
     {
-      "id": "QDI5rg4ggyc",
-      "title": "Pharmakon - Crawling on Bruised Knees",
-      "link": "https://www.youtube.com/watch?v=QDI5rg4ggyc",
-      "duration": 396
+      "id": "qa_NkpWk2T8",
+      "title": "Malibu - Atlantic Diva",
+      "link": "https://www.youtube.com/watch?v=qa_NkpWk2T8",
+      "duration": 264
     },
     {
-      "id": "xc7atbM0k6g",
-      "title": "Biosphere - Poa Alpina",
-      "link": "https://www.youtube.com/watch?v=xc7atbM0k6g",
-      "duration": 252
+      "id": "m2T4PE4S7us",
+      "title": "Malibu - One Life",
+      "link": "https://www.youtube.com/watch?v=m2T4PE4S7us",
+      "duration": 431
     },
     {
-      "id": "2EaE0_gQLw0",
-      "title": "Tiësto - Adagio For Strings",
-      "link": "https://www.youtube.com/watch?v=2EaE0_gQLw0",
-      "duration": 206
+      "id": "dTXUKdUI_oY",
+      "title": "Malibu - One Life (Evian Christ Remix)",
+      "link": "https://www.youtube.com/watch?v=dTXUKdUI_oY",
+      "duration": 330
     },
     {
-      "id": "UItJn_4do88",
-      "title": "Tiësto - Traffic",
-      "link": "https://www.youtube.com/watch?v=UItJn_4do88",
-      "duration": 177
-    },
-    {
-      "id": "bn1ycNxQMvk",
-      "title": "Armin van Buuren - Communication",
-      "link": "https://www.youtube.com/watch?v=bn1ycNxQMvk",
-      "duration": 251
-    },
-    {
-      "id": "-pVswvngu9Y",
-      "title": "Ferry Corsten - Punk (Album Version)",
-      "link": "https://www.youtube.com/watch?v=-pVswvngu9Y",
-      "duration": 291
-    },
-    {
-      "id": "QFGMQZyvnmY",
-      "title": "ATB - 9PM (Till I Come)",
-      "link": "https://www.youtube.com/watch?v=QFGMQZyvnmY",
+      "id": "vBpyaD4bJMw",
+      "title": "Torus - Summer Of Love ft. Malibu",
+      "link": "https://www.youtube.com/watch?v=vBpyaD4bJMw",
       "duration": 194
     },
     {
-      "id": "Qgx_V0So0qk",
-      "title": "System F - Out Of The Blue",
-      "link": "https://www.youtube.com/watch?v=Qgx_V0So0qk",
-      "duration": 249
+      "id": "G9KH6UkNAho",
+      "title": "Torus - Feeel",
+      "link": "https://www.youtube.com/watch?v=G9KH6UkNAho",
+      "duration": 260
     },
     {
-      "id": "CC5ca6Hsb2Q",
-      "title": "Robert Miles - Children (Dream Version)",
-      "link": "https://www.youtube.com/watch?v=CC5ca6Hsb2Q",
-      "duration": 453
+      "id": "xmeCDEg0zU0",
+      "title": "Aquatic Ambiance [Nightcore]",
+      "link": "https://www.youtube.com/watch?v=xmeCDEg0zU0",
+      "duration": 110
+    },
+    {
+      "id": "nZIaVlqh0sg",
+      "title": "bbborttt - Jumpscare (nightcore/sped up)",
+      "link": "https://www.youtube.com/watch?v=nZIaVlqh0sg",
+      "duration": 130
     }
   ]
 }
