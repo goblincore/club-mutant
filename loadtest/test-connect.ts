@@ -2,8 +2,6 @@
  * Minimal connection test — isolates the "fetch failed" issue.
  * Run: cd loadtest && npx tsx test-connect.ts
  */
-import './patch-fetch'
-
 import { Client } from '@colyseus/sdk'
 
 async function main() {

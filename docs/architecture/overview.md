@@ -1,7 +1,18 @@
 # Club Mutant — Architecture Overview
 
 ## Overview
-Multiplayer virtual world: Colyseus 0.17 (real-time) + Nakama (auth/social sidecar). React + Three.js client, Go microservices, Node.js server, deployed on Hetzner VPS behind Caddy.
+Multiplayer virtual world: Colyseus 0.18 (real-time, Schema 5) + Nakama (auth/social sidecar). React + Three.js client, Go microservices, Node.js 22+ server, deployed on Hetzner VPS behind Caddy.
+
+### Colyseus 0.18 compatibility
+
+- Upgrade the server, browser SDK, shared schemas, and loadtest SDK together. Current versions: `colyseus` 0.18.9, core 0.18.18, SDK 0.18.5, schema 5.0.36, uWebSockets transport 0.18.4.
+- The root manifest explicitly declares the umbrella package's auth, WebSocket, Redis driver, and Redis presence peers. Without those declarations, pnpm 10 reused installed 0.17 peers even after updating `colyseus`, leaving incompatible packages and duplicate core versions.
+- Schema decorators remain supported. Shared schema definitions stay in `types/RoomState.ts`; all classes are below the new 63-field limit. `setMetadata()` now replaces metadata, but our only call initializes the complete object in `onCreate()`.
+- Authentication remains Nakama JWT verification. The Colyseus auth password-hashing migration does not apply to our account store.
+- Transport 0.18.4 filters duplicate `Content-Length` headers, so loadtests use native fetch. Keep the Caddy path allowlist: the Express fallback still assigns the read-only `writableEnded` property when a request aborts.
+- Room integration tests exercise the production uWebSockets transport, decoded client state, and reconnect resync preserving schema objects and callbacks. Prediction and lag compensation are available but require a separate movement-system change.
+
+See the [upstream migration guide](https://docs.colyseus.io/migrating/0.18) and [release notes](https://github.com/colyseus/colyseus/releases).
 
 ## System Diagram
 
@@ -11,7 +22,7 @@ client-3d (React/R3F/Vite, port 5173+)
   └─ LobbyScreen → NetworkManager → Colyseus rooms
   └─ GameScene (Three.js / @react-three/fiber)
 
-server (Colyseus 0.17, Node.js, port 2567)
+server (Colyseus 0.18, Node.js 22+, port 2567)
   └─ ClubMutant.ts — onAuth verifies Nakama JWT → onJoin uses uid as playerId
   └─ lib/verifyNakamaToken.ts — HS256 JWT verification
 
