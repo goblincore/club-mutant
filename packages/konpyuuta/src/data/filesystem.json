@@ -1,5 +1,5 @@
 {
-  "/home/victxrlarixs/": {
+  "/home/{{username}}/": {
     "type": "folder",
     "children": {
       "README.md": {

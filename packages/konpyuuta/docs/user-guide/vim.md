@@ -157,7 +157,7 @@ Vim operates in different modes:
 5. Type your content
 6. Press `ESC` to return to Normal mode
 7. Type `:w` and press Enter to save
-8. File is saved to `/home/victxrlarixs/Desktop/myfile.txt`
+8. File is saved to `/home/<username>/Desktop/myfile.txt`
 
 ### Editing an Existing File
 
@@ -189,9 +189,9 @@ Vim operates in different modes:
 
 All files are saved in the Virtual File System (VFS):
 
-- Default location: `/home/victxrlarixs/Desktop/`
+- Default location: `/home/<username>/Desktop/`
 - Files persist in browser localStorage
-- Use full paths like `/home/victxrlarixs/Desktop/notes.txt`
+- Use full paths like `/home/<username>/Desktop/notes.txt`
 - Or relative names like `notes.txt` (saves to Desktop)
 
 ## Advanced Features

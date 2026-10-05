@@ -28,12 +28,9 @@ export function NetscapeNavigator() {
   const [historyIndex, setHistoryIndex] = useState(0)
   const [menu, setMenu] = useState<MenuState>({ open: null })
   const [statusText, setStatusText] = useState('Document: Done')
-  const [stars, setStars] = useState<{ id: number; x: number; delay: number }[]>([])
   const urlInputRef = useRef<HTMLInputElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const loadTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const starTimerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
-  const starIdRef = useRef(0)
 
   const page = pages[currentPageId] ?? pages['whats-new']
 
@@ -120,28 +117,9 @@ export function NetscapeNavigator() {
     }
   }, [currentPageId])
 
-  // Spawn/stop falling stars with loading state
-  useEffect(() => {
-    if (isLoading) {
-      starTimerRef.current = setInterval(() => {
-        const id = ++starIdRef.current
-        const x = Math.random() * 90 + 5
-        const delay = Math.random() * 0.3
-        setStars((prev) => [...prev.slice(-8), { id, x, delay }])
-        // Remove star after animation completes
-        setTimeout(() => setStars((prev) => prev.filter((s) => s.id !== id)), 900)
-      }, 150)
-    } else {
-      clearInterval(starTimerRef.current)
-      setStars([])
-    }
-    return () => clearInterval(starTimerRef.current)
-  }, [isLoading])
-
   // Cleanup timers on unmount
   useEffect(() => () => {
     clearTimeout(loadTimerRef.current)
-    clearInterval(starTimerRef.current)
   }, [])
 
   const canBack = historyIndex > 0
@@ -320,11 +298,11 @@ export function NetscapeNavigator() {
           <img className="ns-logo-img" src="/icons/apps/netscape_classic.png" alt="Netscape" />
           {isLoading && (
             <div className="ns-n-stars" aria-hidden="true">
-              {stars.map((s) => (
+              {[0, 1, 2, 3, 4, 5].map((s) => (
                 <div
-                  key={s.id}
+                  key={s}
                   className="ns-n-star"
-                  style={{ left: `${s.x}%`, animationDelay: `${s.delay}s` }}
+                  style={{ left: `${10 + s * 15}%`, animationDelay: `${s * -0.19}s` }}
                 />
               ))}
             </div>

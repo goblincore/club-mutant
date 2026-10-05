@@ -2,7 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestParseDurationText(t *testing.T) {
@@ -34,8 +40,14 @@ func TestParseViewCount(t *testing.T) {
 		{"972,406,124 views", 972406124}, // regression: must not stop at first comma
 		{"42 views", 42},
 		{"No views", 0},
-		{"", 0},
-		{"1,024 watching", 1024}, // live style
+		{"", -1},
+		{"1,024 watching", -1},
+		{"1.2K views", 1200},
+		{"2.5M views", 2500000},
+		{"1 view", 1},
+		{"99 views", 99},
+		{"100 views", 100},
+		{"hidden", -1}, // live style
 	}
 	for _, c := range cases {
 		if got := parseViewCount(c.in); got != c.want {
@@ -185,7 +197,7 @@ func TestParseSearchResponse(t *testing.T) {
 	}
 
 	// Live stream: duration 0
-	if videos[2].DurationSeconds != 0 || videos[2].ViewCount != 1024 {
+	if videos[2].DurationSeconds != 0 || videos[2].ViewCount != -1 {
 		t.Errorf("unexpected live video: %+v", videos[2])
 	}
 }
@@ -222,6 +234,93 @@ func TestFormatDuration(t *testing.T) {
 	for _, c := range cases {
 		if got := formatDuration(c.in); got != c.want {
 			t.Errorf("formatDuration(%d) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+// Guard against mistaking missing counts/live viewers for zero-view uploads.
+func TestSmallVideosStrictBoundary(t *testing.T) {
+	videos := []searchVideo{
+		{ID: "99", ViewCount: 99, DurationSeconds: 10},
+		{ID: "100", ViewCount: 100, DurationSeconds: 10},
+		{ID: "unknown", ViewCount: -1, DurationSeconds: 10},
+		{ID: "live", ViewCount: 0},
+		{ID: "zero", ViewCount: 0, DurationSeconds: 10},
+		{ID: "99", ViewCount: 99, DurationSeconds: 10},
+	}
+	result := filterSmallVideos(videos, 99)
+	if len(result) != 2 || result[0].ID != "zero" || result[1].ID != "99" {
+		t.Fatalf("unexpected small results: %+v", result)
+	}
+}
+
+type searchRoundTrip func(*http.Request) (*http.Response, error)
+
+func (f searchRoundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestSmallSearchPagesAndCacheIsolation(t *testing.T) {
+	oldClient := innertubeClient
+	t.Cleanup(func() { innertubeClient = oldClient })
+	var calls atomic.Int32
+	innertubeClient = &http.Client{Transport: searchRoundTrip(func(r *http.Request) (*http.Response, error) {
+		calls.Add(1)
+		var payload map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			return nil, err
+		}
+		var data map[string]interface{}
+		if token, _ := payload["continuation"].(string); token != "" {
+			data = map[string]interface{}{"onResponseReceivedCommands": []interface{}{map[string]interface{}{"appendContinuationItemsAction": map[string]interface{}{"continuationItems": []interface{}{
+				makeVideoRenderer("zero0000001", "Unseen upload", "Tiny", "1:00", "No views"),
+				makeVideoRenderer("hundred0001", "Boundary", "Tiny", "1:00", "100 views"),
+			}}}}}
+		} else {
+			data = fixtureResponse()
+			sections := dig(data, "contents", "twoColumnSearchResultsRenderer", "primaryContents", "sectionListRenderer").(map[string]interface{})
+			sections["contents"] = []interface{}{
+				map[string]interface{}{"itemSectionRenderer": map[string]interface{}{"contents": []interface{}{
+					makeVideoRenderer("popular0001", "Popular", "Big", "1:00", "1.2M views"),
+					makeVideoRenderer("small000001", "Small", "Tiny", "1:00", "99 views"),
+					makeVideoRenderer("hidden00001", "Hidden", "Tiny", "1:00", ""),
+				}}},
+				map[string]interface{}{"continuationItemRenderer": map[string]interface{}{"continuationEndpoint": map[string]interface{}{"continuationCommand": map[string]interface{}{"token": "next"}}}},
+			}
+		}
+		body, err := json.Marshal(data)
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(string(body))), Header: make(http.Header)}, err
+	})}
+	s := &Server{searchCache: NewCache(time.Minute)}
+	request := func(path string) SearchResponse {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		s.handleSearch(rec, httptest.NewRequest("GET", path, nil))
+		if rec.Code != 200 {
+			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+		}
+		var response SearchResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		return response
+	}
+	tiny := request("/search?q=home+video&limit=2&maxViews=99")
+	if len(tiny.Items) != 2 || tiny.Items[0].ID != "zero0000001" || tiny.Items[1].ID != "small000001" {
+		t.Fatalf("unexpected tiny response: %+v", tiny)
+	}
+	before := calls.Load()
+	cached := request("/search?q=home+video&limit=2&maxViews=99")
+	if !cached.Cached || calls.Load() != before {
+		t.Fatal("filtered result was not cached")
+	}
+	all := request("/search?q=home+video&limit=2")
+	if all.Cached || all.Items[0].ID != "popular0001" || *all.Items[0].ViewCount != 1200000 {
+		t.Fatalf("cache leaked filtered results or misparsed count: %+v", all)
+	}
+	for _, value := range []string{"-1", "abc", "1000001"} {
+		rec := httptest.NewRecorder()
+		s.handleSearch(rec, httptest.NewRequest("GET", "/search?q=x&maxViews="+value, nil))
+		if rec.Code != 400 {
+			t.Fatalf("invalid maxViews %q accepted", value)
 		}
 	}
 }

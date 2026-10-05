@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useDesktopStore } from '../stores/desktopStore'
 import { useWindowStore } from '../stores/windowStore'
 import { useSettingsStore } from '../stores/settingsStore'
@@ -45,9 +45,9 @@ export function KonpyuuTADesktop({ onShutdown }: KonpyuuTADesktopProps) {
     Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v))
   }, [fontPreset])
 
-  const handleBootComplete = () => {
+  const handleBootComplete = useCallback(() => {
     setBootStatus('ready')
-  }
+  }, [setBootStatus])
 
   // Apply CDE palette as CSS custom properties using the original variable names
   const paletteVars: React.CSSProperties = {
@@ -82,7 +82,7 @@ export function KonpyuuTADesktop({ onShutdown }: KonpyuuTADesktopProps) {
       {/* Render all visible windows */}
       {visibleWindows.map((win) => (
         <Window key={win.id} id={win.id}>
-          <AppRouter app={win.app} props={win.props} />
+          <AppRouter windowId={win.id} app={win.app} props={win.props} />
         </Window>
       ))}
       <NotificationPopup />

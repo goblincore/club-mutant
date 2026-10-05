@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
+import { useCurrentUsername } from '../../context/KonpyuuTAContext'
 
 interface Process {
   pid: number
-  user: string
+  // null denotes the current desktop user; system owners keep their names.
+  user: string | null
   cpu: number
   mem: number
   command: string
@@ -11,13 +13,13 @@ interface Process {
 const INITIAL_PROCESSES: Process[] = [
   { pid: 1,   user: 'root',           cpu: 0.1,  mem: 0.5,  command: 'init' },
   { pid: 2,   user: 'root',           cpu: 0.0,  mem: 0.1,  command: 'kthreadd' },
-  { pid: 234, user: 'victxrlarixs',   cpu: 1.2,  mem: 3.4,  command: 'cde-session' },
-  { pid: 235, user: 'victxrlarixs',   cpu: 0.4,  mem: 1.2,  command: 'panel' },
-  { pid: 236, user: 'victxrlarixs',   cpu: 0.8,  mem: 2.1,  command: 'filemanager' },
-  { pid: 237, user: 'victxrlarixs',   cpu: 0.2,  mem: 0.8,  command: 'dtwm' },
-  { pid: 238, user: 'victxrlarixs',   cpu: 5.4,  mem: 8.2,  command: 'netscape' },
-  { pid: 239, user: 'victxrlarixs',   cpu: 0.0,  mem: 0.4,  command: 'dtcm' },
-  { pid: 312, user: 'victxrlarixs',   cpu: 12.3, mem: 15.6, command: 'konpyuuta' },
+  { pid: 234, user: null,             cpu: 1.2,  mem: 3.4,  command: 'cde-session' },
+  { pid: 235, user: null,             cpu: 0.4,  mem: 1.2,  command: 'panel' },
+  { pid: 236, user: null,             cpu: 0.8,  mem: 2.1,  command: 'filemanager' },
+  { pid: 237, user: null,             cpu: 0.2,  mem: 0.8,  command: 'dtwm' },
+  { pid: 238, user: null,             cpu: 5.4,  mem: 8.2,  command: 'netscape' },
+  { pid: 239, user: null,             cpu: 0.0,  mem: 0.4,  command: 'dtcm' },
+  { pid: 312, user: null,             cpu: 12.3, mem: 15.6, command: 'konpyuuta' },
   { pid: 400, user: 'www-data',       cpu: 0.1,  mem: 2.8,  command: 'apache2' },
 ]
 
@@ -26,6 +28,7 @@ function fluctuate(value: number, delta: number, min = 0, max = 100): number {
 }
 
 export function ProcessMonitor() {
+  const username = useCurrentUsername()
   const [processes, setProcesses] = useState<Process[]>(INITIAL_PROCESSES)
   const [selectedPid, setSelectedPid] = useState<number | null>(null)
 
@@ -103,7 +106,7 @@ export function ProcessMonitor() {
               onClick={() => setSelectedPid(p.pid === selectedPid ? null : p.pid)}
             >
               <span className="pm-col-pid">{p.pid}</span>
-              <span className="pm-col-user">{p.user}</span>
+              <span className="pm-col-user">{p.user ?? username}</span>
               <span className="pm-col-cpu">{p.cpu.toFixed(1)}</span>
               <span className="pm-col-mem">{p.mem.toFixed(1)}</span>
               <span className="pm-col-cmd">{p.command}</span>

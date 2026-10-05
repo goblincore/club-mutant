@@ -1,26 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-  <defs>
-    <linearGradient id="rustGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#B7410E"/>
-      <stop offset="100%" style="stop-color:#8B4513"/>
-    </linearGradient>
-    <linearGradient id="slimeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#9ACD32"/>
-      <stop offset="100%" style="stop-color:#556B2F"/>
-    </linearGradient>
-  </defs>
-  <!-- Background -->
-  <rect x="2" y="2" width="44" height="44" rx="4" fill="#0a0a0a" stroke="#2F4F4F" stroke-width="2"/>
-  <!-- Decaying envelope body -->
-  <rect x="8" y="14" width="32" height="22" rx="2" fill="url(#rustGrad)" stroke="#B7410E" stroke-width="1"/>
-  <!-- Envelope flap -->
-  <polygon points="8,15 24,27 40,15" fill="none" stroke="#9ACD32" stroke-width="2"/>
-  <!-- Slime drips from the bottom edge -->
-  <path d="M14 36 Q14 41 12 41 Q10 41 11 36 Z" fill="url(#slimeGrad)"/>
-  <path d="M30 36 Q30 43 28 43 Q26 43 27 36 Z" fill="url(#slimeGrad)"/>
-  <!-- Rot spot -->
-  <circle cx="34" cy="30" r="2.5" fill="url(#slimeGrad)"/>
-  <!-- Corner accents -->
-  <rect x="4" y="4" width="6" height="2" fill="#B7410E"/>
-  <rect x="38" y="42" width="6" height="2" fill="#9ACD32"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" shape-rendering="crispEdges" role="img" aria-label="Postbox">
+<path d="M7 16h34v2h3v22h-3v3H7v-3H4V18h3z" fill="#34344f"/>
+<path d="M7 18h34v21h-2v2H9v-2H7z" fill="#fff7d9"/>
+<path d="M7 19h3v2h3v2h3v2h3v2h10v-2h3v-2h3v-2h3v-2h3v3h-3v2h-3v2h-3v2h-3v2H19v-2h-3v-2h-3v-2h-3v-2H7z" fill="#a899a9"/>
+<path d="M8 36h3v-3h3v-3h3v-2h2v3h-3v3h-3v3h-3v2H8zm32 0h-3v-3h-3v-3h-3v-2h-2v3h3v3h3v3h3v2h2z" fill="#ebc66e"/>
+<path d="M20 9h3V6h5v3h3v6h-3v2h-5v-2h-3z" fill="#34344f"/><path d="M23 8h4v3h2v3h-2v1h-4v-1h-1v-3h1z" fill="#9aafe0"/>
+<path d="M21 28h6v2h-6v3h6v2h-6z" fill="#c9788c"/>
+<path d="M6 10h2V8h2v2h2v2h-2v2H8v-2H6zm32-5h2V3h2v2h2v2h-2v2h-2V7h-2z" fill="#ebc66e"/>
 </svg>

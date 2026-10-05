@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useWindowStore } from '../stores/windowStore'
+import { SOCIAL_ICONS } from '../lib/socialIcons'
 
 type SubpanelId = 'utilities' | 'style' | 'browser' | null
 
@@ -166,9 +167,9 @@ export function Panel() {
                 <img src="/icons/apps/Lynx.svg" alt="" />
                 <span>Lynx Text Browser</span>
               </div>
-              <div className="cde-subpanel-item" onClick={() => openApp('mutanttube', { title: 'MutantTube', size: { width: 900, height: 650 } })}>
-                <img src="/icons/apps/mutanttube.svg" alt="" />
-                <span>MutantTube</span>
+              <div className="cde-subpanel-item" onClick={() => openApp('mutanttube', { title: 'TinyTubes', size: { width: 900, height: 650 } })}>
+                <img src={SOCIAL_ICONS.mutanttube} alt="" />
+                <span>TinyTubes</span>
               </div>
             </div>
           )}

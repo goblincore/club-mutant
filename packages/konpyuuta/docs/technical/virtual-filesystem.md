@@ -64,15 +64,15 @@ interface VFSMetadata {
 const fsMap: Record<string, VFSNode> = {};
 ```
 
-- Key: Full path (e.g., `/home/victxrlarixs/Desktop/file.txt`)
+- Key: Full path (e.g., `/home/<username>/Desktop/file.txt`)
 - Value: VFSNode (file or folder)
 - O(1) lookup performance
 - Flat structure for fast access
 
 **Path Format:**
 
-- Absolute paths: `/home/victxrlarixs/file.txt`
-- Folders end with `/`: `/home/victxrlarixs/Desktop/`
+- Absolute paths: `/home/<username>/file.txt`
+- Folders end with `/`: `/home/<username>/Desktop/`
 - Root: `/`
 
 ## Core Components
@@ -83,7 +83,7 @@ Resolves relative paths to absolute paths with Unix-style path handling.
 
 **Features:**
 
-- Tilde expansion: `~/file.txt` → `/home/victxrlarixs/file.txt`
+- Tilde expansion: `~/file.txt` → `/home/<username>/file.txt`
 - Relative paths: `../folder/file.txt`
 - Current directory: `./file.txt`
 - Parent directory: `..`
@@ -97,11 +97,11 @@ resolvePath(cwd: string, path: string): string
 **Examples:**
 
 ```typescript
-resolvePath('/home/victxrlarixs/', '~/Desktop/file.txt');
-// → '/home/victxrlarixs/Desktop/file.txt'
+resolvePath('/home/<username>/', '~/Desktop/file.txt');
+// → '/home/<username>/Desktop/file.txt'
 
-resolvePath('/home/victxrlarixs/Desktop/', '../Documents/file.txt');
-// → '/home/victxrlarixs/Documents/file.txt'
+resolvePath('/home/<username>/Desktop/', '../Documents/file.txt');
+// → '/home/<username>/Documents/file.txt'
 ```
 
 ### VFSNodeAccessor
@@ -120,12 +120,12 @@ getSize(path: string): number
 **Usage:**
 
 ```typescript
-const node = VFS.getNode('/home/victxrlarixs/file.txt');
+const node = VFS.getNode('/home/<username>/file.txt');
 if (node?.type === 'file') {
   console.log(node.content);
 }
 
-const children = VFS.getChildren('/home/victxrlarixs/Desktop/');
+const children = VFS.getChildren('/home/<username>/Desktop/');
 // Returns: { 'file.txt': VFSFile, 'folder': VFSFolder, ... }
 ```
 
@@ -144,21 +144,21 @@ rm(path: string, name: string): Promise<boolean>
 **File Creation:**
 
 ```typescript
-await VFS.touch('/home/victxrlarixs/Desktop/', 'newfile.txt');
+await VFS.touch('/home/<username>/Desktop/', 'newfile.txt');
 // Creates empty file with default metadata
 ```
 
 **File Writing:**
 
 ```typescript
-await VFS.writeFile('/home/victxrlarixs/Desktop/file.txt', 'Hello World');
+await VFS.writeFile('/home/<username>/Desktop/file.txt', 'Hello World');
 // Updates content and metadata (size, mtime)
 ```
 
 **File Deletion:**
 
 ```typescript
-const deleted = await VFS.rm('/home/victxrlarixs/Desktop/', 'file.txt');
+const deleted = await VFS.rm('/home/<username>/Desktop/', 'file.txt');
 // Returns true if successful, moves to trash
 ```
 
@@ -175,7 +175,7 @@ mkdir(path: string, name: string): Promise<void>
 **Folder Creation:**
 
 ```typescript
-await VFS.mkdir('/home/victxrlarixs/Desktop/', 'NewFolder');
+await VFS.mkdir('/home/<username>/Desktop/', 'NewFolder');
 // Creates folder with empty children object
 ```
 
@@ -199,21 +199,21 @@ rename(path: string, oldName: string, newName: string): Promise<void>
 **Move:**
 
 ```typescript
-await VFS.move('/home/victxrlarixs/Desktop/file.txt', '/home/victxrlarixs/Documents/file.txt');
+await VFS.move('/home/<username>/Desktop/file.txt', '/home/<username>/Documents/file.txt');
 // Moves file, updates fsMap keys
 ```
 
 **Copy:**
 
 ```typescript
-await VFS.copy('/home/victxrlarixs/Desktop/file.txt', '/home/victxrlarixs/Documents/file.txt');
+await VFS.copy('/home/<username>/Desktop/file.txt', '/home/<username>/Documents/file.txt');
 // Deep copy for folders (recursive)
 ```
 
 **Rename:**
 
 ```typescript
-await VFS.rename('/home/victxrlarixs/Desktop/', 'oldname.txt', 'newname.txt');
+await VFS.rename('/home/<username>/Desktop/', 'oldname.txt', 'newname.txt');
 // Renames file/folder in place
 ```
 
@@ -221,7 +221,7 @@ await VFS.rename('/home/victxrlarixs/Desktop/', 'oldname.txt', 'newname.txt');
 
 Implements trash/recycle bin functionality.
 
-**Trash Location:** `/home/victxrlarixs/.Trash/`
+**Trash Location:** `/home/<username>/.Trash/`
 
 **Methods:**
 
@@ -233,15 +233,15 @@ restoreFromTrash(name: string): Promise<void>
 **Move to Trash:**
 
 ```typescript
-await VFS.moveToTrash('/home/victxrlarixs/Desktop/file.txt');
-// Moves to /home/victxrlarixs/.Trash/file.txt
+await VFS.moveToTrash('/home/<username>/Desktop/file.txt');
+// Moves to /home/<username>/.Trash/file.txt
 ```
 
 **Restore:**
 
 ```typescript
 await VFS.restoreFromTrash('file.txt');
-// Moves back to /home/victxrlarixs/Desktop/file.txt
+// Moves back to /home/<username>/Desktop/file.txt
 ```
 
 **Trash Behavior:**
@@ -270,8 +270,8 @@ search(basePath: string, query: string, recursive?: boolean): Promise<string[]>
 **Usage:**
 
 ```typescript
-const results = await VFS.search('/home/victxrlarixs/', 'document', true);
-// Returns: ['/home/victxrlarixs/Documents/', '/home/victxrlarixs/Desktop/document.txt']
+const results = await VFS.search('/home/<username>/', 'document', true);
+// Returns: ['/home/<username>/Documents/', '/home/<username>/Desktop/document.txt']
 ```
 
 ### VFSEventDispatcher
@@ -334,7 +334,7 @@ Bootstraps the filesystem with initial structure and content.
 ├── var/
 ├── tmp/
 └── home/
-    └── victxrlarixs/
+    └── <username>/
         ├── Desktop/
         ├── Documents/
         ├── Downloads/
@@ -396,19 +396,19 @@ interface IVFS {
 
 ```typescript
 // Create folder
-await VFS.mkdir('/home/victxrlarixs/Desktop/', 'MyFolder');
+await VFS.mkdir('/home/<username>/Desktop/', 'MyFolder');
 
 // Create file
-await VFS.touch('/home/victxrlarixs/Desktop/MyFolder/', 'file.txt');
+await VFS.touch('/home/<username>/Desktop/MyFolder/', 'file.txt');
 
 // Write content
-await VFS.writeFile('/home/victxrlarixs/Desktop/MyFolder/file.txt', 'Hello World');
+await VFS.writeFile('/home/<username>/Desktop/MyFolder/file.txt', 'Hello World');
 ```
 
 ### Reading Files
 
 ```typescript
-const node = VFS.getNode('/home/victxrlarixs/Desktop/file.txt');
+const node = VFS.getNode('/home/<username>/Desktop/file.txt');
 if (node?.type === 'file') {
   console.log('Content:', node.content);
   console.log('Size:', node.metadata?.size);
@@ -419,7 +419,7 @@ if (node?.type === 'file') {
 ### Listing Directory Contents
 
 ```typescript
-const children = VFS.getChildren('/home/victxrlarixs/Desktop/');
+const children = VFS.getChildren('/home/<username>/Desktop/');
 if (children) {
   Object.entries(children).forEach(([name, node]) => {
     console.log(`${name} (${node.type})`);
@@ -431,20 +431,20 @@ if (children) {
 
 ```typescript
 // Move file
-await VFS.move('/home/victxrlarixs/Desktop/file.txt', '/home/victxrlarixs/Documents/file.txt');
+await VFS.move('/home/<username>/Desktop/file.txt', '/home/<username>/Documents/file.txt');
 
 // Copy folder (recursive)
-await VFS.copy('/home/victxrlarixs/Desktop/MyFolder/', '/home/victxrlarixs/Documents/MyFolder/');
+await VFS.copy('/home/<username>/Desktop/MyFolder/', '/home/<username>/Documents/MyFolder/');
 ```
 
 ### Trash Operations
 
 ```typescript
 // Delete to trash
-await VFS.moveToTrash('/home/victxrlarixs/Desktop/file.txt');
+await VFS.moveToTrash('/home/<username>/Desktop/file.txt');
 
 // List trash contents
-const trash = VFS.getChildren('/home/victxrlarixs/.Trash/');
+const trash = VFS.getChildren('/home/<username>/.Trash/');
 
 // Restore file
 await VFS.restoreFromTrash('file.txt');
@@ -480,7 +480,7 @@ Using a flat Map with full paths as keys provides constant-time access:
 
 ```typescript
 // Fast lookup
-const node = fsMap['/home/victxrlarixs/Desktop/file.txt'];
+const node = fsMap['/home/<username>/Desktop/file.txt'];
 ```
 
 ### Memory Usage
@@ -508,9 +508,9 @@ Key configuration values from `CONFIG`:
 
 ```typescript
 FS: {
-  HOME: '/home/victxrlarixs/',
-  DESKTOP: '/home/victxrlarixs/Desktop/',
-  TRASH: '/home/victxrlarixs/.Trash/',
+  HOME: '/home/<username>/',
+  DESKTOP: '/home/<username>/Desktop/',
+  TRASH: '/home/<username>/.Trash/',
 }
 ```
 

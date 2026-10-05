@@ -13,11 +13,12 @@ import { Messenger } from './apps/Messenger'
 import { MutantMail } from './apps/MutantMail'
 
 interface AppRouterProps {
+  windowId?: string
   app: string
   props?: Record<string, unknown>
 }
 
-export function AppRouter({ app, props: _props }: AppRouterProps) {
+export function AppRouter({ app, windowId, props: _props }: AppRouterProps) {
   switch (app) {
     case 'settings':
       return <Settings />
@@ -53,7 +54,7 @@ export function AppRouter({ app, props: _props }: AppRouterProps) {
       return <MutantBook />
 
     case 'messenger':
-      return <Messenger />
+      return <Messenger windowId={windowId} />
 
     case 'mutantmail':
       return <MutantMail />

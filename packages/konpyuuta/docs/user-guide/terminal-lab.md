@@ -29,7 +29,7 @@ Terminal Lab teaches you Unix/Linux commands through hands-on practice. Each les
 ### The Prompt
 
 ```
-victxrlarixs@debian:~$ _
+<username>@debian:~$ _
 ```
 
 The `$` symbol means the terminal is ready for your command. The cursor (`_`) shows where you'll type.
@@ -210,10 +210,10 @@ $ unalias ll
 ```bash
 # Use predefined variables
 $ echo $HOME
-/home/victxrlarixs
+/home/<username>
 
 $ echo $USER
-victxrlarixs
+<username>
 
 # Set new variable
 $ export MY_VAR='Hello'

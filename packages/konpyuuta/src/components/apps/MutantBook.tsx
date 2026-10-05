@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useKonpyuuTA } from '../../context/KonpyuuTAContext'
+import { SOCIAL_ICONS } from '../../lib/socialIcons'
+import { AppWordmark, DoodleStar } from './AnalogAccents'
+import { WeeBeastie } from './WeeBeastie'
 import type { UserProfile, WallPost } from '../../types'
 
 type Tab = 'wall' | 'info' | 'friends'
@@ -23,6 +26,19 @@ function timeAgo(timestamp: number): string {
 
 function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+function GuestbookHeader() {
+  return (
+    <header className="mb-brand">
+      <img src={SOCIAL_ICONS.mutantbook} alt="" />
+      <div>
+        <AppWordmark label="Guestbook" />
+        <span>LEAVE A LITTLE TRACE OF YOURSELF</span>
+      </div>
+      <span className="mb-brand-sticker" aria-hidden="true"><DoodleStar />hello<br />friend!</span>
+    </header>
+  )
 }
 
 export function MutantBook() {
@@ -171,6 +187,7 @@ export function MutantBook() {
   if (loading) {
     return (
       <div className="mb-root">
+        <GuestbookHeader />
         <div className="mb-loading">Loading profile...</div>
       </div>
     )
@@ -179,6 +196,7 @@ export function MutantBook() {
   if (error) {
     return (
       <div className="mb-root">
+        <GuestbookHeader />
         <div className="mb-error">{error}</div>
       </div>
     )
@@ -187,6 +205,7 @@ export function MutantBook() {
   if (!profileData) {
     return (
       <div className="mb-root">
+        <GuestbookHeader />
         <div className="mb-error">Profile not found</div>
       </div>
     )
@@ -194,6 +213,7 @@ export function MutantBook() {
 
   return (
     <div className="mb-root">
+        <GuestbookHeader />
       {/* Lookup bar */}
       <div className="mb-lookup">
         {!isSelf && (
@@ -221,7 +241,7 @@ export function MutantBook() {
               (e.target as HTMLImageElement).style.display = 'none'
             }} />
           ) : (
-            <span>{(profileData.username || '?').charAt(0).toUpperCase()}</span>
+            <WeeBeastie seed={profileData.user_id} />
           )}
         </div>
         <div className="mb-header-info">
@@ -297,7 +317,7 @@ export function MutantBook() {
               wallPosts.map((post) => (
                 <div key={post.postId} className="mb-post">
                   <div className="mb-post-avatar">
-                    {post.authorUsername.charAt(0).toUpperCase()}
+                    <WeeBeastie seed={post.authorId} />
                   </div>
                   <div className="mb-post-body">
                     <div
@@ -384,7 +404,7 @@ export function MutantBook() {
                   onClick={() => goToProfile(friend.userId)}
                 >
                   <div className="mb-friend-avatar">
-                    {friend.displayName.charAt(0).toUpperCase()}
+                    <WeeBeastie seed={friend.userId} />
                   </div>
                   <div className="mb-friend-name">
                     {friend.displayName || friend.username}

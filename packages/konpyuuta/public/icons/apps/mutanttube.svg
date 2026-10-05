@@ -1,22 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-  <defs>
-    <linearGradient id="rustGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#B7410E"/>
-      <stop offset="100%" style="stop-color:#8B4513"/>
-    </linearGradient>
-    <linearGradient id="slimeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#9ACD32"/>
-      <stop offset="100%" style="stop-color:#556B2F"/>
-    </linearGradient>
-  </defs>
-  <!-- Background -->
-  <rect x="2" y="2" width="44" height="44" rx="4" fill="#0a0a0a" stroke="#2F4F4F" stroke-width="2"/>
-  <!-- Play button triangle -->
-  <polygon points="16,12 16,36 36,24" fill="url(#slimeGrad)" stroke="#9ACD32" stroke-width="1"/>
-  <!-- Skull overlay hint -->
-  <circle cx="16" cy="20" r="3" fill="url(#rustGrad)"/>
-  <circle cx="16" cy="28" r="2" fill="url(#rustGrad)"/>
-  <!-- Corner accents -->
-  <rect x="4" y="4" width="6" height="2" fill="#B7410E"/>
-  <rect x="38" y="42" width="6" height="2" fill="#9ACD32"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="TinyTubes">
+  <ellipse cx="24" cy="45" rx="21" ry="2" fill="#58494e" opacity=".16"/>
+  <g stroke="#58494e" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M11 43V14h6v5h6v-5h6v5h6v-5h5v29Z" fill="#e3cfa3"/>
+    <path d="M10 23h31v4H10Z" fill="#f3dfb4"/>
+    <path d="M23 31q6-2 12 0v9H23Z" fill="#7a8d85"/><path d="M26 33h6v5h-6Z" fill="#c4d6bc" stroke-width="1"/>
+    <path d="M25 14V5m-5 5 5-5 5 5" fill="none"/><circle cx="25" cy="4" r="2" fill="#edbd79"/>
+    <path d="M38 13V3l8 2-4 3 3 2-7-1" fill="#c88372"/>
+    <path d="M4 32l-3-6 7 2m7 3 7-4-3 7" fill="#b6ca93"/>
+    <path d="M6 29q6-4 11 1v8l-5 4-6-4Z" fill="#b6ca93"/>
+    <path d="M5 29q0-8 10-8l-2 4 6 2v4Z" fill="#8799b3"/>
+    <path d="M12 32l-2 4 6-1" fill="#b6ca93"/><path d="M7 39l-2 5h13l-2-5" fill="#c88372"/>
+    <path d="M8 32v2m8-1v1" fill="none"/><path d="M11 38h3" fill="none"/>
+  </g>
+  <path d="M15 4q-5 3-5 7M33 4q3 3 3 7" stroke="#8799b3" stroke-width="1.5" fill="none" stroke-linecap="round"/>
 </svg>

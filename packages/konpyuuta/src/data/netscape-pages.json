@@ -35,14 +35,14 @@
     "content": "<div class=\"ns-page\">\n  <h1>Newsgroups</h1>\n  <p>USENET newsgroups are a collection of discussion forums. Netscape Navigator includes a built-in newsgroup reader. To use it, you need access to a news server.</p>\n  <h2>Popular Newsgroups</h2>\n  <ul class=\"ns-links\">\n    <li><a class=\"ns-link\" href=\"#\" onclick=\"return false;\">comp.infosystems.www.announce</a></li>\n    <li><a class=\"ns-link\" href=\"#\" onclick=\"return false;\">comp.infosystems.www.browsers.x</a></li>\n    <li><a class=\"ns-link\" href=\"#\" onclick=\"return false;\">comp.infosystems.www.misc</a></li>\n    <li><a class=\"ns-link\" href=\"#\" onclick=\"return false;\">alt.internet.services</a></li>\n    <li><a class=\"ns-link\" href=\"#\" onclick=\"return false;\">news.announce.newusers</a></li>\n    <li><a class=\"ns-link\" href=\"#\" onclick=\"return false;\">rec.humor</a></li>\n    <li><a class=\"ns-link\" href=\"#\" onclick=\"return false;\">sci.astro</a></li>\n  </ul>\n</div>"
   },
   "mutanttube": {
-    "title": "MutantTube - Club Mutant",
+    "title": "TinyTubes - Club Mutant",
     "url": "http://mutanttube.clubmutant.net/",
     "type": "local-iframe",
     "localPath": "/konpyuuta/mutanttube/",
     "content": ""
   },
   "mutantbook": {
-    "title": "MutantBook - Club Mutant",
+    "title": "Guestbook - Club Mutant",
     "url": "http://mutantbook.clubmutant.net/",
     "type": "local-iframe",
     "localPath": "/konpyuuta/mutantbook/",

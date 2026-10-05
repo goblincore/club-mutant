@@ -1,6 +1,11 @@
 import { useWindowStore } from '../../stores/windowStore'
+import { SOCIAL_ICONS } from '../../lib/socialIcons'
 
 const APPS = [
+  { id: 'mutanttube', label: 'TinyTubes', icon: SOCIAL_ICONS.mutanttube },
+  { id: 'mutantbook', label: 'Guestbook', icon: SOCIAL_ICONS.mutantbook },
+  { id: 'messenger', label: 'Messenger', icon: SOCIAL_ICONS.messenger },
+  { id: 'mutantmail', label: 'Postbox', icon: SOCIAL_ICONS.mutantmail },
   { id: 'netscape', label: 'Netscape Navigator', icon: '/icons/apps/netscape_classic.png' },
   { id: 'filemanager', label: 'File Manager', icon: '/icons/apps/filemanager.png' },
   { id: 'lynx', label: 'Lynx Browser', icon: '/icons/apps/Lynx.svg' },

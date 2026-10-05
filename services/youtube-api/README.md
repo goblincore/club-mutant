@@ -25,6 +25,12 @@ The service runs on port `8081` by default.
 
 ## API Endpoints
 
+### GET /featured
+
+Returns TinyTubes’ shared “Unpopular video of the day”: `{ date, checkedAt, video }`. The date is UTC; the pick remains stable across reloads and service restarts. Every request rechecks the selected video's count through watch-page metadata. A count of 100+, missing metadata, or hidden views cannot be served as an eligible feature. Picks that reach 100 are replaced; an empty eligible pool returns `video: null` and verification failures return 503. Responses use `Cache-Control: no-store`.
+
+`FEATURED_STATE_FILE` optionally sets the atomic daily state file. By default it is `<DISK_CACHE_DIR>/daily/featured.json`, outside the video eviction pool. Persist that directory across deployments. Concurrent requests share one bounded 24-second selection/verification job; an individual canceled request does not cancel other visitors’ work.
+
 ### GET /search
 
 Search YouTube for videos.
@@ -33,6 +39,7 @@ Search YouTube for videos.
 
 - `q` (required): Search query
 - `limit` (optional): Max results (1-50, default: 10)
+- `maxViews` (optional): Inclusive maximum view count (0–1,000,000). TinyTubes uses `99` for fewer than 100 views. This mode scans up to three pages each of ordinary video search and this month's uploads, filters before limiting, excludes hidden/unknown counts and live streams, and sorts lowest first. Results may be sparse or empty; popular videos are never substituted. Requests have a 24-second search budget and filtered cache entries expire within five minutes. Unfiltered searches retain relevance ordering and the configured cache TTL.
 
 **Example:**
 
@@ -174,7 +181,7 @@ docker run -p 8081:8081 youtube-api
 
 ### Libraries
 
-- **Search**: `github.com/raitonoberu/ytsearch` - scrapes YouTube's web interface
+- **Search**: `innertube.go` - bounded YouTube InnerTube searches and continuation parsing
 - **Resolve/Proxy**: `github.com/kkdai/youtube/v2` - pure Go YouTube client (no yt-dlp needed)
 
 ### Caching

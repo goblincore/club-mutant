@@ -1,5 +1,9 @@
 import { useState } from 'react'
 import filesystemData from '../../data/filesystem.json'
+import tutorialData from '../../data/tutorial.json'
+import bootMessages from '../../data/boot-messages.json'
+import { useCurrentUsername } from '../../context/KonpyuuTAContext'
+import { personalizeUsername, personalizeUserJson } from '../../lib/userIdentity'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,21 +23,21 @@ const filesystem = filesystemData as Record<string, FsFolder>
 
 // ── Filesystem helpers ────────────────────────────────────────────────────────
 
-function getNode(path: string): FsNode | null {
+function getNode(path: string, homePath: string): FsNode | null {
   // Normalise: ensure trailing slash for folders
   const normPath = path.endsWith('/') ? path : path + '/'
 
-  // The root is "/home/victxrlarixs/"
-  if (normPath === '/home/victxrlarixs/') {
-    return filesystem['/home/victxrlarixs/'] ?? null
+  // The bundled home tree is shared; its displayed path belongs to this user.
+  if (normPath === homePath) {
+    return filesystem['/home/{{username}}/'] ?? null
   }
 
   // Walk from root
-  const root = filesystem['/home/victxrlarixs/']
+  const root = filesystem['/home/{{username}}/']
   if (!root) return null
 
   // Strip the root prefix and split remaining segments
-  const prefix = '/home/victxrlarixs/'
+  const prefix = homePath
   if (!normPath.startsWith(prefix)) return null
 
   const relative = normPath.slice(prefix.length).replace(/\/$/, '')
@@ -50,18 +54,18 @@ function getNode(path: string): FsNode | null {
   return node
 }
 
-function getParentPath(path: string): string {
+function getParentPath(path: string, homePath: string): string {
   const normalised = path.endsWith('/') ? path.slice(0, -1) : path
   const lastSlash = normalised.lastIndexOf('/')
-  if (lastSlash <= 0) return '/home/victxrlarixs/'
+  if (lastSlash <= 0) return homePath
   const parent = normalised.slice(0, lastSlash + 1)
   // Don't go above root
-  if (!parent.startsWith('/home/victxrlarixs/')) return '/home/victxrlarixs/'
+  if (!parent.startsWith(homePath)) return homePath
   return parent
 }
 
-function getChildren(path: string): Record<string, FsNode> {
-  const node = getNode(path)
+function getChildren(path: string, homePath: string): Record<string, FsNode> {
+  const node = getNode(path, homePath)
   if (!node || node.type !== 'folder') return {}
   return node.children
 }
@@ -80,11 +84,11 @@ function getIconSrc(name: string, nodeType: 'file' | 'folder'): string {
 
 // ── Breadcrumbs ───────────────────────────────────────────────────────────────
 
-function buildBreadcrumbs(path: string): Array<{ label: string; path: string }> {
+function buildBreadcrumbs(path: string, homePath: string, username: string): Array<{ label: string; path: string }> {
   const crumbs: Array<{ label: string; path: string }> = []
-  const prefix = '/home/victxrlarixs/'
+  const prefix = homePath
 
-  crumbs.push({ label: 'victxrlarixs', path: prefix })
+  crumbs.push({ label: username, path: prefix })
 
   if (!path.startsWith(prefix)) return crumbs
 
@@ -103,31 +107,35 @@ function buildBreadcrumbs(path: string): Array<{ label: string; path: string }> 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function FileManager() {
-  const [currentPath, setCurrentPath] = useState('/home/victxrlarixs/')
+  const username = useCurrentUsername()
+  const homePath = `/home/${username}/`
+  // Keep navigation relative so an account change immediately rebases the path.
+  const [relativePath, setRelativePath] = useState('')
+  const currentPath = homePath + relativePath
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
   const [viewContent, setViewContent] = useState<string | null>(null)
   const [viewFileName, setViewFileName] = useState<string | null>(null)
 
-  const children = getChildren(currentPath)
+  const children = getChildren(currentPath, homePath)
   const childEntries = Object.entries(children)
   const childCount = childEntries.length
 
-  const breadcrumbs = buildBreadcrumbs(currentPath)
+  const breadcrumbs = buildBreadcrumbs(currentPath, homePath, username)
 
   // Top-level home children for sidebar
-  const homeChildren = getChildren('/home/victxrlarixs/')
+  const homeChildren = getChildren(homePath, homePath)
   const homeChildEntries = Object.entries(homeChildren)
 
   function navigateTo(path: string) {
-    setCurrentPath(path)
+    setRelativePath(path.startsWith(homePath) ? path.slice(homePath.length) : '')
     setSelectedItem(null)
     setViewContent(null)
     setViewFileName(null)
   }
 
   function goUp() {
-    if (currentPath === '/home/victxrlarixs/') return
-    navigateTo(getParentPath(currentPath))
+    if (currentPath === homePath) return
+    navigateTo(getParentPath(currentPath, homePath))
   }
 
   function handleItemClick(name: string, node: FsNode) {
@@ -145,10 +153,10 @@ export function FileManager() {
 
   function handleSidebarClick(name: string, node: FsNode) {
     if (node.type === 'folder') {
-      const path = '/home/victxrlarixs/' + name + '/'
+      const path = homePath + name + '/'
       navigateTo(path)
     } else {
-      navigateTo('/home/victxrlarixs/')
+      navigateTo(homePath)
       setSelectedItem(name)
       setViewContent(node.content)
       setViewFileName(name)
@@ -177,7 +185,7 @@ export function FileManager() {
           className="fm-btn"
           onClick={goUp}
           title="Go Up"
-          disabled={currentPath === '/home/victxrlarixs/'}
+          disabled={currentPath === homePath}
         >
           <img src="/icons/actions/go-up.png" alt="Up" onError={(e) => {
             (e.currentTarget as HTMLImageElement).style.display = 'none'
@@ -228,7 +236,7 @@ export function FileManager() {
           <div className="fm-section">Places</div>
           <div
             className="fm-item"
-            onClick={() => navigateTo('/home/victxrlarixs/')}
+            onClick={() => navigateTo(homePath)}
           >
             <img
               src={FOLDER_ICON}
@@ -236,7 +244,7 @@ export function FileManager() {
               className="fm-icon"
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
             />
-            <span>victxrlarixs</span>
+            <span>{username}</span>
           </div>
 
           {homeChildEntries.map(([name, node]) => (
@@ -266,7 +274,11 @@ export function FileManager() {
                 </button>
                 <span className="fm-text-filename">{viewFileName}</span>
               </div>
-              <pre className="fm-text-content">{viewContent}</pre>
+              <pre className="fm-text-content">{viewFileName === 'tutorial.json'
+                ? personalizeUserJson(tutorialData, username)
+                : viewFileName === 'boot-messages.json'
+                ? personalizeUserJson(bootMessages, username)
+                : personalizeUsername(viewContent, username)}</pre>
             </div>
           ) : (
             <div className="fm-icon-grid">
