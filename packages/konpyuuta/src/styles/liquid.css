@@ -10,6 +10,9 @@
   --border-dark: #101b0e !important; --topbar-color: #0c150ff0 !important;
   font-family: Arial, Helvetica, sans-serif; -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility; color: var(--signal-ink);
+  --signal-cursor: url('../assets/cursors/sword.png') 5 5, default;
+  --signal-link-cursor: url('../assets/cursors/sword-link.png') 5 5, pointer;
+  cursor: var(--signal-cursor);
 }
 .cde-root.liquid-signal::after { opacity: .07 !important; }
 .cde-root.liquid-signal .cde-desktop[data-liquid-wallpaper] { background: #041008 url('../assets/liquid-signal.jpg') center / cover no-repeat !important; }
@@ -377,3 +380,12 @@
   .cde-root.liquid-signal .neet-directory-grid { grid-template-columns: 1fr; }
   .cde-root.liquid-signal .neet-section-label > span:last-child { display: none; }
 }
+
+/* Native sword cursors keep the blade-tip hotspot and familiar editing states.
+   No mouse-following DOM layer: the OS handles movement and pointer capture. */
+.cde-root.liquid-signal :is(button:not(:disabled),a[href],[role="button"],input[type="checkbox"],input[type="radio"],input[type="range"],select,
+  .cde-subpanel-item,.font-item,.fm-menubar span,.fm-breadcrumb-segment,.fm-item,.fm-dropdown-item,.fm-context-item,
+  .pm-process-row,.cal-day,.man-example,.man-link,.mb-post-author,.mb-friend-card) { cursor: var(--signal-link-cursor); }
+.cde-root.liquid-signal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(:disabled),textarea:not(:disabled),[contenteditable="true"]) { cursor: text; }
+.cde-root.liquid-signal :is(.mt-root,.mm-root,.mb-root,.ml-root,.neet-root) button:disabled,
+.cde-root.liquid-signal :is(input:disabled,textarea:disabled,select:disabled,[aria-disabled="true"]) { cursor: not-allowed; }
