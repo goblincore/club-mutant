@@ -3,12 +3,13 @@ import { usePortalStore } from '../stores/portalStore'
 import { SOCIAL_ICONS } from '../lib/socialIcons'
 import { Messenger } from './apps/Messenger'
 import { PanelResizeHandle, usePanelSize } from './PanelResizeHandle'
+import '../styles/buddy.css'
 
 export function PortalMessenger({ visible, onWidthChange }: { visible: boolean; onWidthChange: (width: number) => void }) {
   const focused = usePortalStore((s) => s.messengerFocused)
   const panel = useRef<HTMLElement>(null)
   const wasFocused = useRef(false)
-  const { style, resize } = usePanelSize(panel, { width: 280, height: 300 }, true, 540)
+  const { style, resize } = usePanelSize(panel, { width: 280, height: 360 }, true, 540)
   useEffect(() => {
     const element = panel.current
     if (!element || !visible) return
