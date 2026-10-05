@@ -51,7 +51,7 @@ export function Window({ id, children }: WindowProps) {
 
   return (
     <div
-      className={`cde-window${opening ? ' cde-window-opening' : ''}${win.maximized ? ' cde-window-maximized' : ''}`}
+      className={`cde-window${opening ? ' cde-window-opening' : ''}${win.maximized ? ' cde-window-maximized' : ''}${win.shaded ? ' cde-window-shaded' : ''}`}
       style={windowStyle}
       onPointerDown={focus}
     >
@@ -79,7 +79,7 @@ export function Window({ id, children }: WindowProps) {
       )}
 
       {/* Resize handles (not shown when maximized) */}
-      {!win.maximized && RESIZE_EDGES.map((edge) => (
+      {!win.maximized && !win.shaded && RESIZE_EDGES.map((edge) => (
         <div
           key={edge}
           className={`cde-resize cde-resize-${edge}`}

@@ -1,433 +1,256 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { IncomingMessageText } from './IncomingMessageText'
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
 import { useKonpyuuTA } from '../../context/KonpyuuTAContext'
-import { useMessengerStore, type Message } from '../../stores/messengerStore'
+import { useMessengerStore, type Message, type Conversation } from '../../stores/messengerStore'
+import { useWindowStore } from '../../stores/windowStore'
+import { SOCIAL_ICONS } from '../../lib/socialIcons'
+import { SignalAvatar } from './SignalOrgan'
+import { AppWordmark } from './AnalogAccents'
+import { PixelSymbol } from './PixelSymbol'
 import type { DmMessage } from '../../types'
 
-function timeAgo(timestamp: number): string {
-  const diff = Math.floor((Date.now() - timestamp) / 1000)
-  if (diff < 60) return 'just now'
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-  return `${Math.floor(diff / 86400)}d ago`
+const formatTime = (timestamp: number) => new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+function sendError(error: unknown): string {
+  if (error instanceof Error) return error.message.slice(0, 180)
+  if (error && typeof error === 'object' && 'error' in error && typeof error.error === 'string') return error.error.slice(0, 180)
+  return 'Could not reach the server. Please try again.'
 }
+const dayLabel = (timestamp: number) => new Date(timestamp).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+const toMessage = (m: DmMessage): Message => ({ id: m.messageId, senderId: m.senderId, senderUsername: m.senderUsername, content: m.body, createdAt: m.createdAt, isPreview: m.isPreview })
+interface HistoryState { loading?: boolean; loaded?: boolean; error?: string }
 
-
-
-export function Messenger() {
-  const { socialService, messengerService } = useKonpyuuTA()
-  const {
-    conversations,
-    activeConversationId,
-    messages,
-    typing,
-    buddyListOpen,
-    loaded,
-    loadingMessages,
-    setConversations,
-    addConversation,
-    setActiveConversation,
-    addMessage,
-    setMessages,
-    setTyping,
-    setBuddyListOpen,
-    clearUnread,
-    incrementUnread,
-    setLoaded,
-    setLoadingMessages,
-    updateConversationPreview,
-    markMessageFailed,
-  } = useMessengerStore()
-
+export function Messenger({ windowId }: { windowId?: string }) {
+  const { socialService: social, messengerService: service } = useKonpyuuTA()
+  const store = useMessengerStore()
+  const ownerId = social?.getCurrentUserId() ?? null
+  const focused = useWindowStore((s) => !windowId || s.activeWindowId === windowId)
+  const [visible, setVisible] = useState(() => !document.hidden && document.hasFocus())
+  const [connected, setConnected] = useState(!service?.onConnectionChanged)
+  const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [composeText, setComposeText] = useState('')
-  const [sending, setSending] = useState(false)
-
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [error, setError] = useState('')
+  const [readError, setReadError] = useState('')
+  const [refresh, setRefresh] = useState(0)
+  const [history, setHistory] = useState<Record<string, HistoryState>>({})
+  const [visibleCount, setVisibleCount] = useState(80)
+  const [jumpToLatest, setJumpToLatest] = useState(false)
+  const pendingLoads = useRef(new Map<string, Promise<void>>())
+  const mounted = useRef(false)
+  const listRef = useRef<HTMLDivElement>(null)
   const composeRef = useRef<HTMLTextAreaElement>(null)
+  const nearBottom = useRef(true)
+  const previousScroll = useRef({ channel: '', count: 0, height: 0, visibleCount: 80 })
+  const owned = store.ownerId === ownerId
+  const conversations = owned ? store.conversations : []
+  const activeId = owned ? store.activeConversationId : null
+  const active = conversations.find((c) => c.channelId === activeId)
+  const messages = activeId ? store.messages[activeId] ?? [] : []
+  const draft = activeId ? store.drafts[activeId] ?? '' : ''
 
-  const activeConv = conversations.find((c) => c.channelId === activeConversationId)
-  const activeMessages = activeConversationId ? messages[activeConversationId] || [] : []
-
-  // ── Initialize: load conversations from Nakama + merge friend presence ──
   useEffect(() => {
-    if (!socialService) {
-      setError('Social service not available')
-      setLoading(false)
-      return
+    mounted.current = true
+    const update = () => setVisible(!document.hidden && document.hasFocus())
+    document.addEventListener('visibilitychange', update)
+    window.addEventListener('focus', update)
+    window.addEventListener('blur', update)
+    return () => {
+      mounted.current = false
+      document.removeEventListener('visibilitychange', update)
+      window.removeEventListener('focus', update)
+      window.removeEventListener('blur', update)
     }
+  }, [])
 
+  useEffect(() => {
+    store.resetForUser(ownerId)
+    setHistory({})
+    pendingLoads.current.clear()
+    setReadError('')
+    setQuery('')
+  }, [ownerId, store.resetForUser])
+
+  useEffect(() => service?.onConnectionChanged?.((online) => {
+    setConnected(online)
+    if (online) setRefresh((r) => r + 1)
+  }), [service])
+
+  useEffect(() => {
+    let cancelled = false
+    setError('')
     setLoading(true)
-
-    const loadData = async () => {
-      try {
-        const [friends, serverConvos] = await Promise.all([
-          socialService.listFriends(),
-          messengerService?.listConversations() ?? Promise.resolve([]),
-        ])
-
-        const serverMap = new Map(serverConvos.map((c) => [c.otherUserId, c]))
-
-        const convs = friends.map((f) => {
-          const server = serverMap.get(f.userId)
-          return {
-            channelId: `dm:${f.userId}`,
-            userId: f.userId,
-            username: f.username,
-            displayName: f.displayName,
-            online: f.online,
-            unread: server?.unreadCount ?? 0,
-            lastMessage: server?.lastMessagePreview,
-            lastMessageAt: server?.lastMessageAt,
-          }
-        })
-
-        for (const sc of serverConvos) {
-          if (!friends.some((f) => f.userId === sc.otherUserId)) {
-            convs.push({
-              channelId: `dm:${sc.otherUserId}`,
-              userId: sc.otherUserId,
-              username: sc.otherUsername,
-              displayName: sc.otherUsername,
-              online: false,
-              unread: sc.unreadCount,
-              lastMessage: sc.lastMessagePreview,
-              lastMessageAt: sc.lastMessageAt,
-            })
-          }
-        }
-
-        convs.sort((a, b) => {
-          if (a.unread > 0 && b.unread === 0) return -1
-          if (a.unread === 0 && b.unread > 0) return 1
-          return (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0)
-        })
-
-        setConversations(convs)
-        setLoading(false)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load contacts')
-        setLoading(false)
+    if (!ownerId || !social || !service) { setLoading(false); return }
+    Promise.allSettled([social.listFriends(), service.listConversations()]).then(([friendsResult, conversationResult]) => {
+      if (cancelled || useMessengerStore.getState().ownerId !== ownerId) return
+      const friends = friendsResult.status === 'fulfilled' ? friendsResult.value : []
+      const summaries = conversationResult.status === 'fulfilled' ? conversationResult.value : []
+      const contacts = new Map<string, Conversation>()
+      for (const c of summaries) contacts.set(c.otherUserId, {
+        channelId: `dm:${c.otherUserId}`, userId: c.otherUserId, username: c.otherUsername,
+        displayName: c.otherUsername, online: false, unread: c.unreadCount,
+        lastMessage: c.lastMessagePreview, lastMessageAt: c.lastMessageAt,
+      })
+      for (const friend of friends) contacts.set(friend.userId, {
+        channelId: `dm:${friend.userId}`, unread: 0, ...contacts.get(friend.userId), ...friend,
+        displayName: friend.displayName || friend.username,
+      })
+      store.mergeConversations([...contacts.values()])
+      if (friendsResult.status === 'rejected' || conversationResult.status === 'rejected') {
+        setError('Some contacts or conversations could not load. Try again.')
       }
-    }
-
-    loadData()
-  }, [socialService, messengerService, setConversations])
-
-  // ── Real-time message listener ──
-  useEffect(() => {
-    if (!messengerService) return
-
-    const unsub = messengerService.onMessageReceived((msg: DmMessage) => {
-      const channelId = `dm:${msg.senderId}`
-      const storeMsg: Message = {
-        id: msg.messageId,
-        senderId: msg.senderId,
-        senderUsername: msg.senderUsername,
-        content: msg.body,
-        createdAt: msg.createdAt,
-      }
-      addMessage(channelId, storeMsg)
-      updateConversationPreview(channelId, msg.body.substring(0, 80), msg.createdAt)
-
-      const active = useMessengerStore.getState().activeConversationId
-      if (active !== channelId) {
-        incrementUnread(channelId)
-      }
-
-      const exists = useMessengerStore.getState().conversations.some((c) => c.channelId === channelId)
-      if (!exists) {
-        addConversation({
-          channelId,
-          userId: msg.senderId,
-          username: msg.senderUsername,
-          displayName: msg.senderUsername,
-          online: true,
-          unread: 1,
-          lastMessage: msg.body.substring(0, 80),
-          lastMessageAt: msg.createdAt,
-        })
-      }
+      setLoading(false)
     })
+    return () => { cancelled = true }
+  }, [social, service, ownerId, refresh, store.mergeConversations])
 
-    return unsub
-  }, [messengerService, addMessage, incrementUnread, addConversation, updateConversationPreview])
+  useEffect(() => social?.onPresenceChanged?.(store.setPresence), [social, store.setPresence])
 
-  // ── Typing indicator listener ──
-  useEffect(() => {
-    if (!messengerService) return
-
-    const unsub = messengerService.onTypingIndicator((userId: string, isTyping: boolean) => {
-      setTyping(`dm:${userId}`, isTyping)
+  const loadHistory = useCallback((channelId: string): Promise<void> => {
+    if (!service || !ownerId) return Promise.resolve()
+    const pending = pendingLoads.current.get(channelId)
+    if (pending) return pending
+    setHistory((h) => ({ ...h, [channelId]: { ...h[channelId], loading: true, error: '' } }))
+    const request = service.getMessages(channelId.slice(3)).then((result) => {
+      if (!mounted.current || useMessengerStore.getState().ownerId !== ownerId) return
+      store.mergeMessages(channelId, result.messages.map(toMessage))
+      setHistory((h) => ({ ...h, [channelId]: { loaded: true, loading: false } }))
+    }).catch(() => {
+      if (!mounted.current || useMessengerStore.getState().ownerId !== ownerId) return
+      setHistory((h) => ({ ...h, [channelId]: { ...h[channelId], loading: false, error: 'History could not load. Your draft is safe.' } }))
+    }).finally(() => {
+      if (pendingLoads.current.get(channelId) === request) pendingLoads.current.delete(channelId)
     })
+    pendingLoads.current.set(channelId, request)
+    return request
+  }, [service, ownerId, store.mergeMessages])
 
-    return unsub
-  }, [messengerService, setTyping])
-
-  // Scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [activeMessages.length])
+    if (!service || !ownerId) return
+    const unsubMessages = service.onMessageReceived((message) => {
+      if (useMessengerStore.getState().ownerId !== ownerId) return
+      // Mark read only after the visible thread has synchronized successfully.
+      store.receiveMessage(toMessage(message), false)
+      if (message.isPreview && useMessengerStore.getState().activeConversationId === `dm:${message.senderId}`) void loadHistory(`dm:${message.senderId}`)
+    })
+    const unsubTyping = service.onTypingIndicator((id, typing) => store.setTyping(`dm:${id}`, typing))
+    return () => { unsubMessages(); unsubTyping() }
+  }, [service, ownerId, loadHistory, store.receiveMessage, store.setTyping])
 
-  // ── Open conversation: fetch history + join channel + mark read ──
   useEffect(() => {
-    if (!activeConversationId || !messengerService) return
+    if (!activeId || !service) return
+    void loadHistory(activeId)
+    service.joinConversationChannel(activeId.slice(3)).catch(() => {})
+  }, [activeId, service, refresh, loadHistory])
 
-    clearUnread(activeConversationId)
+  const unread = active?.unread ?? 0
+  const loaded = activeId ? history[activeId]?.loaded : false
+  const historyLoading = activeId ? history[activeId]?.loading : false
+  useEffect(() => {
+    if (!activeId || !service || !loaded || historyLoading || !focused || !visible || !unread) return
+    let cancelled = false
+    const count = unread
+    setReadError('')
+    service.markRead(activeId.slice(3)).then(() => {
+      if (cancelled || useMessengerStore.getState().ownerId !== ownerId) return
+      const current = useMessengerStore.getState().conversations.find((c) => c.channelId === activeId)
+      if (current?.unread === count) store.clearUnread(activeId)
+    }).catch(() => { if (!cancelled) setReadError('Could not sync read status. Reopen this chat to retry.') })
+    return () => { cancelled = true }
+  }, [activeId, service, ownerId, loaded, historyLoading, focused, visible, unread, refresh, store.clearUnread])
 
-    const partnerId = activeConversationId.replace('dm:', '')
+  useLayoutEffect(() => {
+    const element = listRef.current
+    if (!element || !activeId) return
+    const previous = previousScroll.current
+    if (previous.channel !== activeId) {
+      nearBottom.current = true
+      setVisibleCount(80)
+      setJumpToLatest(false)
+      setReadError('')
+      element.scrollTop = element.scrollHeight
+    } else if (visibleCount > previous.visibleCount) {
+      element.scrollTop += element.scrollHeight - previous.height
+    } else if (nearBottom.current) {
+      element.scrollTop = element.scrollHeight
+    } else if (messages.length > previous.count) setJumpToLatest(true)
+    previousScroll.current = { channel: activeId, count: messages.length, height: element.scrollHeight, visibleCount }
+  }, [activeId, messages, visibleCount, historyLoading])
 
-    messengerService.markRead(partnerId).catch((err) =>
-      console.warn('[messenger] Failed to mark read:', err)
-    )
-
-    messengerService.joinConversationChannel(partnerId).catch((err) =>
-      console.warn('[messenger] Failed to join channel:', err)
-    )
-
-    if (!loaded[activeConversationId]) {
-      setLoadingMessages(true)
-      messengerService.getMessages(partnerId)
-        .then((result) => {
-          const historyMsgs: Message[] = result.messages.map((m) => ({
-            id: m.messageId,
-            senderId: m.senderId,
-            senderUsername: m.senderUsername,
-            content: m.body,
-            createdAt: m.createdAt,
-          }))
-          // Merge: keep any real-time messages not in history (by id), append after history
-          const existing = useMessengerStore.getState().messages[activeConversationId] || []
-          const historyIds = new Set(historyMsgs.map((m) => m.id))
-          const realtimeOnly = existing.filter((m) => !historyIds.has(m.id) && !m.id.startsWith('temp-'))
-          setMessages(activeConversationId, [...historyMsgs, ...realtimeOnly])
-          setLoaded(activeConversationId)
-          setLoadingMessages(false)
-        })
-        .catch((err) => {
-          console.warn('[messenger] Failed to load messages:', err)
-          setLoadingMessages(false)
-        })
+  async function sendMessage(retry?: Message) {
+    if (!activeId || !service || !ownerId) return
+    const channel = activeId
+    const content = retry?.content ?? draft.trim()
+    if (!content || content.length > 2000 || (useMessengerStore.getState().messages[channel] ?? []).some((m) => m.pending)) return
+    const id = retry?.id ?? `temp-${crypto.randomUUID()}`
+    if (retry) store.updateMessage(channel, id, { pending: true, failed: false, error: undefined })
+    else {
+      store.setDraft(channel, '')
+      store.mergeMessages(channel, [{ id, senderId: ownerId, content, createdAt: Date.now(), pending: true }])
     }
-  }, [activeConversationId, messengerService, loaded, clearUnread, setMessages, setLoaded, setLoadingMessages])
-
-  const handleSelectConversation = useCallback((channelId: string) => {
-    setActiveConversation(channelId)
-    setBuddyListOpen(false)
-  }, [setActiveConversation, setBuddyListOpen])
-
-  // ── Send message ──
-  const handleSend = useCallback(async () => {
-    if (!activeConversationId || !composeText.trim() || sending || !messengerService) return
-
-    const content = composeText.trim()
-    const partnerId = activeConversationId.replace('dm:', '')
-    setComposeText('')
-    setSending(true)
-
-    const tempId = `temp-${Date.now()}`
-    const currentUserId = socialService?.getCurrentUserId() ?? 'me'
-    const tempMessage: Message = {
-      id: tempId,
-      senderId: currentUserId,
-      content,
-      createdAt: Date.now(),
-    }
-    addMessage(activeConversationId, tempMessage)
-    updateConversationPreview(activeConversationId, content.substring(0, 80), Date.now())
-
+    nearBottom.current = true
+    composeRef.current?.focus()
     try {
-      await messengerService.sendMessage(partnerId, content)
-      setSending(false)
-    } catch (err) {
-      console.error('[messenger] Failed to send message:', err)
-      markMessageFailed(activeConversationId, tempId)
-      setSending(false)
+      const sent = await service.sendMessage(channel.slice(3), content)
+      if (useMessengerStore.getState().ownerId !== ownerId) return
+      store.updateMessage(channel, id, { id: sent.messageId, createdAt: sent.createdAt, pending: false, failed: false, error: undefined })
+      store.updateConversationPreview(channel, content.slice(0, 80), sent.createdAt)
+    } catch (error) {
+      if (useMessengerStore.getState().ownerId === ownerId) store.updateMessage(channel, id, { pending: false, failed: true, error: sendError(error) })
     }
-  }, [activeConversationId, composeText, sending, messengerService, socialService, addMessage, updateConversationPreview, markMessageFailed])
-
-  // ── Typing indicator on input ──
-  const handleComposeChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setComposeText(e.target.value)
-    if (activeConversationId && messengerService && e.target.value.length > 0) {
-      const partnerId = activeConversationId.replace('dm:', '')
-      messengerService.sendTypingIndicator(partnerId)
-    }
-  }, [activeConversationId, messengerService])
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }, [handleSend])
-
-  const handleBack = useCallback(() => {
-    setBuddyListOpen(true)
-  }, [setBuddyListOpen])
-
-  const totalUnread = conversations.reduce((sum, c) => sum + c.unread, 0)
-  const currentUserId = socialService?.getCurrentUserId()
-
-  if (loading) {
-    return (
-      <div className="mm-root">
-        <div className="mm-loading">Loading contacts...</div>
-      </div>
-    )
   }
 
-  if (error) {
-    return (
-      <div className="mm-root">
-        <div className="mm-error">{error}</div>
-      </div>
-    )
-  }
+  const contacts = conversations.filter((c) => `${c.displayName} ${c.username}`.toLowerCase().includes(query.toLowerCase())).sort((a, b) =>
+    (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0) || Number(b.online) - Number(a.online) || (a.displayName || a.username).localeCompare(b.displayName || b.username))
+  const onlineCount = conversations.filter((c) => c.online).length
+  const shownMessages = messages.slice(-visibleCount)
+  const inputId = `mm-message-${windowId ?? 'standalone'}`
+  const sending = messages.some((m) => m.pending)
 
-  return (
-    <div className="mm-root">
-      {buddyListOpen ? (
-        <div className="mm-buddy-list">
-          <div className="mm-header">
-            <div className="mm-flower">✿</div>
-            <div className="mm-title">Mutant Messenger</div>
-            {totalUnread > 0 && (
-              <div className="mm-unread-badge">{totalUnread}</div>
-            )}
-          </div>
+  if (!ownerId || !social || !service) return <div className="mm-root mm-sign-in"><AppWordmark label="Messenger" /><p>Sign in to send messages.</p></div>
 
-          <div className="mm-status-bar">
-            {conversations.filter((c) => c.online).length} online
-          </div>
-
-          <div className="mm-contacts">
-            {conversations
-              .filter((c) => c.online)
-              .sort((a, b) => a.displayName.localeCompare(b.displayName))
-              .map((conv) => (
-                <div
-                  key={conv.channelId}
-                  className={`mm-contact${conv.unread > 0 ? ' unread' : ''}`}
-                  onClick={() => handleSelectConversation(conv.channelId)}
-                >
-                  <div className="mm-contact-avatar">
-                    {conv.displayName.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="mm-contact-info">
-                    <div className="mm-contact-name">{conv.displayName}</div>
-                    <div className="mm-contact-status online">Online</div>
-                    {conv.lastMessage && (
-                      <div className="mm-contact-preview">{conv.lastMessage}</div>
-                    )}
-                  </div>
-                  {conv.unread > 0 && (
-                    <div className="mm-contact-unread">{conv.unread}</div>
-                  )}
-                </div>
-              ))}
-
-            {conversations.some((c) => c.online) && conversations.some((c) => !c.online) && (
-              <div className="mm-separator">Offline</div>
-            )}
-
-            {conversations
-              .filter((c) => !c.online)
-              .sort((a, b) => a.displayName.localeCompare(b.displayName))
-              .map((conv) => (
-                <div
-                  key={conv.channelId}
-                  className={`mm-contact offline${conv.unread > 0 ? ' unread' : ''}`}
-                  onClick={() => handleSelectConversation(conv.channelId)}
-                >
-                  <div className="mm-contact-avatar">
-                    {conv.displayName.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="mm-contact-info">
-                    <div className="mm-contact-name">{conv.displayName}</div>
-                    <div className="mm-contact-status">Offline</div>
-                    {conv.lastMessage && (
-                      <div className="mm-contact-preview">{conv.lastMessage}</div>
-                    )}
-                  </div>
-                  {conv.unread > 0 && (
-                    <div className="mm-contact-unread">{conv.unread}</div>
-                  )}
-                </div>
-              ))}
-
-            {conversations.length === 0 && (
-              <div className="mm-empty">No contacts yet</div>
-            )}
-          </div>
+  return <div className={`mm-root${active ? ' mm-has-chat' : ''}`}>
+    <header className="mm-toolbar"><img src={SOCIAL_ICONS.messenger} alt="" /><div><AppWordmark label="Messenger" /></div><span className={`mm-connection${connected ? ' mm-connected' : ''}`}><i />{connected ? 'Connected' : 'Disconnected'}{!connected && <button onClick={() => service.connect()}>Reconnect</button>}</span></header>
+    {error && <div className="mm-notice" role="alert">{error}<button onClick={() => setRefresh((r) => r + 1)}>Retry</button></div>}
+    <div className="mm-layout">
+      <aside className="mm-contacts" aria-label="Conversations">
+        <div className="mm-contacts-heading"><strong lang="ja" title="Contacts">連絡先</strong><span>{onlineCount} online</span></div>
+        <label className="mm-search"><span className="mm-sr-only">Find a friend</span><input type="search" placeholder="Find a friend…" value={query} onChange={(e) => setQuery(e.target.value)} /></label>
+        <div className="mm-contact-list">
+          {loading && !contacts.length && <p className="mm-list-note" role="status">Loading contacts…</p>}
+          {!loading && !contacts.length && <p className="mm-list-note">{query ? 'No matching friends.' : 'No conversations. Add friends in Guestbook.'}</p>}
+          {contacts.map((c) => <button key={c.channelId} className={`mm-contact${activeId === c.channelId ? ' mm-selected' : ''}`} aria-pressed={activeId === c.channelId} onClick={() => store.setActiveConversation(c.channelId)}>
+            <span className="mm-avatar" aria-hidden="true"><SignalAvatar seed={c.userId} /><i className={c.online ? 'mm-online' : ''} /></span>
+            <span className="mm-contact-text"><strong>{c.displayName || c.username}</strong><span>{c.lastMessage || (c.online ? 'Online' : 'Offline')}</span></span>
+            {!!c.unread && <span className="mm-unread" aria-label={`${c.unread} unread messages`}>{c.unread > 99 ? '99+' : c.unread}</span>}
+          </button>)}
         </div>
-      ) : (
-        <div className="mm-chat">
-          <div className="mm-chat-header">
-            <button className="mm-back-btn" onClick={handleBack}>
-              ◀
-            </button>
-            <div className="mm-chat-avatar">
-              {activeConv?.displayName.charAt(0).toUpperCase()}
-            </div>
-            <div className="mm-chat-info">
-              <div className="mm-chat-name">{activeConv?.displayName}</div>
-              <div className={`mm-chat-status ${activeConv?.online ? 'online' : ''}`}>
-                {activeConv?.online ? 'Online' : 'Offline'}
-              </div>
-            </div>
+        <footer className="mm-self"><i />Signed in as <strong>{social.getCurrentUsername() || 'you'}</strong></footer>
+      </aside>
+      <main className="mm-chat">
+        {!active ? <div className="mm-welcome"><p>Select a conversation.</p></div> : <>
+          <header className="mm-chat-heading"><button className="mm-back" onClick={() => store.setActiveConversation(null)} aria-label="Back to conversations">←</button><span className="mm-avatar" aria-hidden="true"><SignalAvatar seed={active.userId} /></span><div><strong>{active.displayName || active.username}</strong><span><i className={active.online ? 'mm-online' : ''} />{active.online ? 'Online now' : 'Offline'}</span></div><button className="mm-refresh" onClick={() => { void loadHistory(activeId!); setRefresh((r) => r + 1) }} aria-label="Refresh conversation" title="Refresh conversation">↻</button></header>
+          <div className="mm-messages" ref={listRef} role="log" aria-label={`Messages with ${active.displayName || active.username}`} aria-live="polite" aria-relevant="additions text" onScroll={() => {
+            const el = listRef.current!
+            nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 50
+            if (nearBottom.current) setJumpToLatest(false)
+          }}>
+            {historyLoading && <p className="mm-history-status" role="status">Loading messages…</p>}
+            {activeId && history[activeId]?.error && <div className="mm-history-error" role="alert">{history[activeId].error}<button onClick={() => void loadHistory(activeId)}>Retry history</button></div>}
+            {readError && <p className="mm-history-error" role="alert">{readError}</p>}
+            {messages.length > visibleCount && <button className="mm-earlier" onClick={() => setVisibleCount((n) => n + 80)}>Show earlier messages</button>}
+            {shownMessages.map((message, index) => {
+              const mine = message.senderId === ownerId
+              const previous = shownMessages[index - 1]
+              const newDay = !previous || new Date(previous.createdAt).toDateString() !== new Date(message.createdAt).toDateString()
+              return <div key={message.id}>{newDay && <div className="mm-date"><span>{dayLabel(message.createdAt)}</span></div>}<div className={`mm-message${mine ? ' mm-mine' : ''}${message.failed ? ' mm-failed' : ''}`}><div className="mm-bubble"><p>{mine || message.isPreview ? message.content : <IncomingMessageText key={`${message.id}:full`} text={message.content} messageId={message.id} receivedAt={store.incomingSignals[message.id]} />}</p>{message.isPreview && <small>Preview · refresh to load the full message</small>}</div><div className="mm-message-meta"><time dateTime={new Date(message.createdAt).toISOString()}>{formatTime(message.createdAt)}</time>{message.pending ? <span>Sending…</span> : message.failed ? <><span role="alert">Not sent{message.error ? ` · ${message.error}` : ''}</span><button disabled={sending} onClick={() => void sendMessage(message)}>Retry</button></> : mine ? <span>Sent</span> : null}</div></div></div>
+            })}
           </div>
-
-          <div className="mm-messages">
-            {loadingMessages ? (
-              <div className="mm-messages-empty">Loading messages...</div>
-            ) : activeMessages.length === 0 ? (
-              <div className="mm-messages-empty">
-                Start a conversation with {activeConv?.displayName}
-              </div>
-            ) : (
-              activeMessages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`mm-message ${msg.senderId === currentUserId ? 'outgoing' : 'incoming'}${msg.failed ? ' failed' : ''}`}
-                >
-                  <div className="mm-message-content">
-                    {msg.content}
-                  </div>
-                  <div className="mm-message-time">
-                    {msg.failed ? 'Failed to send' : timeAgo(msg.createdAt)}
-                  </div>
-                </div>
-              ))
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {typing[activeConversationId || ''] && (
-            <div className="mm-typing">
-              {activeConv?.displayName} is typing...
-            </div>
-          )}
-
-          <div className="mm-compose">
-            <textarea
-              ref={composeRef}
-              placeholder="Type a message..."
-              value={composeText}
-              onChange={handleComposeChange}
-              onKeyDown={handleKeyDown}
-              disabled={sending}
-            />
-            <button
-              className="mm-send-btn"
-              onClick={handleSend}
-              disabled={!composeText.trim() || sending}
-            >
-              Send
-            </button>
-          </div>
-        </div>
-      )}
+          {jumpToLatest && <button className="mm-jump" onClick={() => { nearBottom.current = true; listRef.current?.scrollTo({ top: listRef.current.scrollHeight }); setJumpToLatest(false) }}>↓ New messages · jump to latest</button>}
+          <div className="mm-typing" role="status">{activeId && store.typing[activeId] ? <><span className="mm-typing-dots" aria-hidden="true">•••</span> {active.displayName || active.username} is typing</> : null}</div>
+          <form className="mm-compose" onSubmit={(event) => { event.preventDefault(); void sendMessage() }}><label className="mm-sr-only" htmlFor={inputId}>Message {active.displayName || active.username}</label><textarea id={inputId} ref={composeRef} value={draft} maxLength={2000} rows={2} placeholder={`Message ${active.displayName || active.username}…`} onChange={(e) => { store.setDraft(activeId!, e.target.value); if (e.target.value.trim()) service.sendTypingIndicator(active.userId) }} onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); void sendMessage() }
+          }} /><div className="mm-compose-bottom"><span>Enter to send · Shift + Enter for a new line</span><span className={draft.length >= 1900 ? 'mm-limit' : ''}>{draft.length}/2000</span><button type="submit" disabled={!draft.trim() || sending}><PixelSymbol kind="send" />{sending ? 'Sending…' : 'Send'}</button></div></form>
+        </>}
+      </main>
     </div>
-  )
+  </div>
 }

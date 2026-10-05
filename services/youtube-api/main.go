@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"regexp"
 	"runtime/debug"
 	"strconv"
@@ -37,7 +38,7 @@ type VideoResult struct {
 	Duration     string `json:"duration"`
 	IsLive       bool   `json:"isLive"`
 	Thumbnail    string `json:"thumbnail"`
-	ViewCount    int    `json:"viewCount"`
+	ViewCount    *int   `json:"viewCount,omitempty"`
 }
 
 type SearchResponse struct {
@@ -86,12 +87,16 @@ func (c *Cache) Get(key string) (SearchResponse, bool) {
 }
 
 func (c *Cache) Set(key string, response SearchResponse) {
+	c.setFor(key, response, c.ttl)
+}
+
+func (c *Cache) setFor(key string, response SearchResponse, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.entries[key] = CacheEntry{
 		Response:  response,
-		ExpiresAt: time.Now().Add(c.ttl),
+		ExpiresAt: time.Now().Add(ttl),
 	}
 }
 
@@ -194,6 +199,7 @@ func (c *ResolveCache) cleanupLoop() {
 }
 
 type Server struct {
+	featured              *dailyFeature
 	searchCache           *Cache
 	resolveCache          *ResolveCache
 	videoCache            *VideoCache
@@ -1250,7 +1256,16 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	cacheKey := query + ":" + strconv.Itoa(limit)
+	maxViews := -1
+	if value := r.URL.Query().Get("maxViews"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 0 || parsed > 1000000 {
+			http.Error(w, "maxViews must be between 0 and 1000000", http.StatusBadRequest)
+			return
+		}
+		maxViews = parsed
+	}
+	cacheKey := query + ":" + strconv.Itoa(limit) + ":" + strconv.Itoa(maxViews)
 
 	// Check cache first
 	if cached, found := s.searchCache.Get(cacheKey); found {
@@ -1266,7 +1281,13 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[search] CACHE MISS query='%s' (fetching from YouTube)", rawQuery)
 		searchStart := time.Now()
 
-		videos, err := innertubeSearch(query)
+		var videos []searchVideo
+		var err error
+		if maxViews >= 0 {
+			videos, err = innertubeSmallSearch(r.Context(), query, maxViews, limit)
+		} else {
+			videos, err = innertubeSearch(query)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -1277,6 +1298,11 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 
+			var count *int
+			if video.ViewCount >= 0 {
+				value := video.ViewCount
+				count = &value
+			}
 			items = append(items, VideoResult{
 				ID:           video.ID,
 				Type:         "video",
@@ -1285,7 +1311,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 				Duration:     formatDuration(video.DurationSeconds),
 				IsLive:       video.DurationSeconds == 0,
 				Thumbnail:    video.Thumbnail,
-				ViewCount:    video.ViewCount,
+				ViewCount:    count,
 			})
 		}
 
@@ -1311,7 +1337,12 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := result.(SearchResponse)
-	s.searchCache.Set(cacheKey, response)
+	if maxViews >= 0 {
+		// Small channels can cross the threshold quickly; don't reuse a day-old count.
+		s.searchCache.setFor(cacheKey, response, min(s.searchCache.ttl, 5*time.Minute))
+	} else {
+		s.searchCache.Set(cacheKey, response)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
@@ -1790,7 +1821,12 @@ func main() {
 		log.Printf("[disk-cache] Failed to initialize, running without disk cache: %v", err)
 	}
 
+	featuredPath := os.Getenv("FEATURED_STATE_FILE")
+	if featuredPath == "" {
+		featuredPath = filepath.Join(diskCacheDir, "daily", "featured.json")
+	}
 	server := &Server{
+		featured:              newDailyFeature(featuredPath),
 		searchCache:           NewCache(time.Duration(cacheTTLSeconds) * time.Second),
 		resolveCache:          NewResolveCache(),
 		videoCache:            NewVideoCache(videoCacheSize),
@@ -1806,6 +1842,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /search", server.handleSearch)
+	mux.HandleFunc("GET /featured", server.handleFeatured)
 	mux.HandleFunc("GET /playlist/{playlistId}", server.handlePlaylist)
 	mux.HandleFunc("GET /resolve/{videoId}", server.handleResolve)
 	mux.HandleFunc("GET /analysis/{videoId}", server.handleAnalysis)

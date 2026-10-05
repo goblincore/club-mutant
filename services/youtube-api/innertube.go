@@ -13,11 +13,15 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -46,64 +50,170 @@ type searchVideo struct {
 // across every itemSectionRenderer section, including those nested in
 // shelves, deduplicated by video ID in encounter order.
 func innertubeSearch(query string) ([]searchVideo, error) {
-	payload := map[string]interface{}{
-		"query": query,
-		"context": map[string]interface{}{
-			"client": map[string]interface{}{
-				"clientName":       "WEB",
-				"clientVersion":    innertubeClientVersion,
-				"newVisitorCookie": true,
-				"hl":               "en",
-				"gl":               "US",
-			},
-			"user": map[string]interface{}{"lockedSafetyMode": false},
-		},
-		"params": innertubeVideoParams,
+	data, err := innertubeSearchPage(context.Background(), query, innertubeVideoParams, "")
+	if err != nil {
+		return nil, err
 	}
+	return parseSearchResponse(data), nil
+}
 
+func innertubeSearchPage(ctx context.Context, query, params, continuation string) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"context": map[string]interface{}{
+			"client": map[string]interface{}{"clientName": "WEB", "clientVersion": innertubeClientVersion, "newVisitorCookie": true, "hl": "en", "gl": "US"},
+			"user":   map[string]interface{}{"lockedSafetyMode": false},
+		},
+	}
+	if continuation == "" {
+		payload["query"] = query
+		payload["params"] = params
+	} else {
+		payload["continuation"] = continuation
+	}
+	return innertubeRequest(ctx, innertubeSearchURL, payload)
+}
+
+func innertubeWatchInfo(ctx context.Context, id string) (map[string]interface{}, error) {
+	payload := map[string]interface{}{"videoId": id, "context": map[string]interface{}{"client": map[string]interface{}{"clientName": "WEB", "clientVersion": innertubeClientVersion, "hl": "en", "gl": "US"}}}
+	return innertubeRequest(ctx, "https://www.youtube.com/youtubei/v1/next", payload)
+}
+
+func innertubeRequest(ctx context.Context, endpoint string, payload map[string]interface{}) (map[string]interface{}, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
-
-	req, err := http.NewRequest(http.MethodPost, innertubeSearchURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("User-Agent", innertubeUserAgent)
-
 	resp, err := innertubeClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("innertube search returned status %d", resp.StatusCode)
 	}
-
 	var data map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, fmt.Errorf("innertube search decode failed: %w", err)
 	}
+	return data, nil
+}
 
-	return parseSearchResponse(data), nil
+// Small-channel discovery searches both the archive and this month's uploads.
+// Each lane scans at most three pages; the shared deadline bounds total work.
+// Filtering happens BEFORE limiting, never substituting popular/unknown videos.
+func innertubeSmallSearch(ctx context.Context, query string, maxViews, limit int) ([]searchVideo, error) {
+	ctx, cancel := context.WithTimeout(ctx, 24*time.Second)
+	defer cancel()
+	params := []string{innertubeVideoParams, "CAASBAgEEAE="} // video + this month
+	type laneResult struct {
+		videos     []searchVideo
+		err        error
+		successful bool
+	}
+	lanes := make([]laneResult, len(params))
+	var wg sync.WaitGroup
+	for index, filter := range params {
+		wg.Add(1)
+		go func(i int, params string) {
+			defer wg.Done()
+			token := ""
+			seenTokens := make(map[string]bool)
+			for page := 0; page < 3; page++ {
+				data, err := innertubeSearchPage(ctx, query, params, token)
+				if err != nil {
+					lanes[i].err = err
+					break
+				}
+				lanes[i].successful = true
+				videos := filterSmallVideos(parseSearchResponse(data), maxViews)
+				lanes[i].videos = append(lanes[i].videos, videos...)
+				if len(lanes[i].videos) >= limit {
+					break
+				}
+				token = searchContinuation(data)
+				if token == "" || seenTokens[token] {
+					break
+				}
+				seenTokens[token] = true
+			}
+		}(index, filter)
+	}
+	wg.Wait()
+	var videos []searchVideo
+	successful := false
+	var lastErr error
+	for _, lane := range lanes {
+		videos = append(videos, lane.videos...)
+		successful = successful || lane.successful
+		if lane.err != nil {
+			lastErr = lane.err
+		}
+	}
+	if !successful {
+		return nil, lastErr
+	}
+	return filterSmallVideos(videos, maxViews), nil
+}
+
+func filterSmallVideos(videos []searchVideo, maxViews int) []searchVideo {
+	result := make([]searchVideo, 0)
+	seen := make(map[string]bool)
+	for _, video := range videos {
+		if video.ViewCount < 0 || video.ViewCount > maxViews || video.DurationSeconds == 0 || seen[video.ID] {
+			continue
+		}
+		seen[video.ID] = true
+		result = append(result, video)
+	}
+	sort.SliceStable(result, func(i, j int) bool { return result[i].ViewCount < result[j].ViewCount })
+	return result
+}
+
+// Only section-list continuation tokens are used, never shelf/carousel tokens.
+func searchContinuation(data map[string]interface{}) string {
+	for _, items := range searchItemLists(data) {
+		for _, item := range items {
+			if token, ok := dig(item, "continuationItemRenderer", "continuationEndpoint", "continuationCommand", "token").(string); ok && token != "" {
+				return token
+			}
+		}
+	}
+	return ""
+}
+
+func searchItemLists(data map[string]interface{}) [][]interface{} {
+	sections, _ := dig(data, "contents", "twoColumnSearchResultsRenderer", "primaryContents", "sectionListRenderer", "contents").([]interface{})
+	lists := [][]interface{}{sections}
+	for _, key := range []string{"onResponseReceivedCommands", "onResponseReceivedActions"} {
+		commands, _ := data[key].([]interface{})
+		for _, command := range commands {
+			if items, ok := dig(command, "appendContinuationItemsAction", "continuationItems").([]interface{}); ok {
+				lists = append(lists, items)
+			}
+		}
+	}
+	return lists
 }
 
 // parseSearchResponse walks every itemSectionRenderer section of an
 // InnerTube search response, collecting videoRenderer results (including
 // those nested in shelves), deduplicated by ID in encounter order.
 func parseSearchResponse(data map[string]interface{}) []searchVideo {
-	sections, _ := dig(data, "contents", "twoColumnSearchResultsRenderer", "primaryContents", "sectionListRenderer", "contents").([]interface{})
-
 	var videos []searchVideo
 	seen := make(map[string]bool)
-	for _, section := range sections {
-		items, _ := dig(section, "itemSectionRenderer", "contents").([]interface{})
+	for _, items := range searchItemLists(data) {
 		collectVideos(items, seen, &videos)
+		for _, section := range items {
+			nested, _ := dig(section, "itemSectionRenderer", "contents").([]interface{})
+			collectVideos(nested, seen, &videos)
+		}
 	}
-
 	return videos
 }
 
@@ -218,25 +328,29 @@ func parseDurationText(s string) int {
 	return total
 }
 
-// parseViewCount extracts the leading number from strings like
-// "1,234,567 views". Returns 0 if there are no digits ("No views", live).
+// Unknown/hidden counts and concurrent live viewers are not zero-view videos.
+var viewCountPattern = regexp.MustCompile(`(?i)^([0-9][0-9,]*(?:\.[0-9]+)?)\s*([KMB]?)\s+views?$`)
+
 func parseViewCount(s string) int {
-	var digits strings.Builder
-	for _, r := range s {
-		if r >= '0' && r <= '9' {
-			digits.WriteRune(r)
-		} else if r == ',' && digits.Len() > 0 {
-			continue // thousands separator inside the number
-		} else if digits.Len() > 0 {
-			break // stop at the end of the first number
-		}
-	}
-	if digits.Len() == 0 {
+	s = strings.TrimSpace(s)
+	if strings.EqualFold(s, "No views") {
 		return 0
 	}
-	n, err := strconv.Atoi(digits.String())
+	match := viewCountPattern.FindStringSubmatch(s)
+	if match == nil {
+		return -1
+	}
+	count, err := strconv.ParseFloat(strings.ReplaceAll(match[1], ",", ""), 64)
 	if err != nil {
-		return 0
+		return -1
 	}
-	return n
+	switch strings.ToUpper(match[2]) {
+	case "K":
+		count *= 1000
+	case "M":
+		count *= 1000000
+	case "B":
+		count *= 1000000000
+	}
+	return int(count)
 }

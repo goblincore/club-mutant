@@ -1,5 +1,5 @@
 import { Client, Session } from '@heroiclabs/nakama-js'
-import type { Socket, Presence } from '@heroiclabs/nakama-js'
+import type { Socket, Presence, ChannelMessage } from '@heroiclabs/nakama-js'
 import { useAuthStore } from '../stores/authStore'
 import { usePresenceStore } from '../stores/presenceStore'
 
@@ -11,6 +11,8 @@ const NAKAMA_USE_SSL = import.meta.env.VITE_NAKAMA_USE_SSL === 'true'
 let _client: Client | null = null
 let _session: Session | null = null
 let _socket: Socket | null = null
+let _socketConnect: Promise<void> | null = null
+let _socketEpoch = 0
 let _reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let _reconnectAttempts = 0
 const RECONNECT_DELAY_MS = 3000
@@ -29,6 +31,24 @@ export function onNotification(listener: NotificationListener): () => void {
   return () => {
     const idx = _notificationListeners.indexOf(listener)
     if (idx >= 0) _notificationListeners.splice(idx, 1)
+  }
+}
+
+// Registries survive socket replacement; consumers never own socket callbacks.
+const channelListeners = new Set<(message: ChannelMessage) => void>()
+const socketListeners = new Set<(socket: Socket | null) => void>()
+export function onChannelMessage(listener: (message: ChannelMessage) => void): () => void {
+  channelListeners.add(listener)
+  return () => { channelListeners.delete(listener) }
+}
+export function onSocketChange(listener: (socket: Socket | null) => void): () => void {
+  socketListeners.add(listener)
+  listener(_socket)
+  return () => { socketListeners.delete(listener) }
+}
+function notifySocketChange() {
+  for (const listener of socketListeners) {
+    try { listener(_socket) } catch (err) { console.warn('[nakama] Socket listener error:', err) }
   }
 }
 
@@ -121,14 +141,16 @@ export async function authenticateEmail(
   username?: string,
 ): Promise<Session> {
   const client = getClient()
-  _session = await client.authenticateEmail(email, password, create, username)
+  const authenticated = await client.authenticateEmail(email, password, create, username)
 
   useAuthStore.getState().setAuth(
-    _session.token,
-    _session.refresh_token,
-    _session.username ?? username ?? '',
-    _session.user_id ?? '',
+    authenticated.token,
+    authenticated.refresh_token,
+    authenticated.username ?? username ?? '',
+    authenticated.user_id ?? '',
   )
+
+  _session = authenticated
 
   connectSocket().catch((err) =>
     console.warn('[nakama] Socket connect failed after auth:', err),
@@ -211,49 +233,74 @@ function scheduleReconnect(): void {
  */
 export async function connectSocket(): Promise<void> {
   if (_socket) return
-  const session = await ensureSession()
-  const socket = getClient().createSocket(NAKAMA_USE_SSL)
+  if (_socketConnect) return _socketConnect
+  const epoch = _socketEpoch
+  const attempt = Promise.resolve().then(async () => {
+    const session = await ensureSession()
+    if (epoch !== _socketEpoch) return
+    const socket = getClient().createSocket(NAKAMA_USE_SSL)
 
-  socket.ondisconnect = () => {
-    console.warn('[nakama] Socket disconnected')
-    _socket = null
-    usePresenceStore.getState().clear()
-    scheduleReconnect()
-  }
-
-  socket.onstatuspresence = (event) => {
-    const store = usePresenceStore.getState()
-    if (event.joins?.length) {
-      const ids = event.joins.map((p: Presence) => p.user_id)
-      store.addOnline(ids)
+    socket.ondisconnect = () => {
+      if (socket !== _socket) return
+      console.warn('[nakama] Socket disconnected')
+      _socket = null
+      usePresenceStore.getState().clear()
+      notifySocketChange()
+      scheduleReconnect()
     }
-    if (event.leaves?.length) {
-      const ids = event.leaves.map((p: Presence) => p.user_id)
-      store.removeOnline(ids)
-    }
-  }
 
-  socket.onnotification = (notification) => {
-    for (const listener of _notificationListeners) {
-      try {
-        listener(notification as { code: number; content: unknown; sender_id: string })
-      } catch (err) {
-        console.warn('[nakama] Notification listener error:', err)
+    socket.onstatuspresence = (event) => {
+      if (epoch !== _socketEpoch || (_socket && socket !== _socket)) return
+      const store = usePresenceStore.getState()
+      if (event.joins?.length) {
+        const ids = event.joins.map((p: Presence) => p.user_id)
+        store.addOnline(ids)
+      }
+      if (event.leaves?.length) {
+        const ids = event.leaves.map((p: Presence) => p.user_id)
+        store.removeOnline(ids)
       }
     }
-  }
 
-  await socket.connect(session, true)
-  _socket = socket
-  _reconnectAttempts = 0
-  if (_reconnectTimer) {
-    clearTimeout(_reconnectTimer)
-    _reconnectTimer = null
-  }
-  console.log('[nakama] Socket connected, presence active')
+    socket.onnotification = (notification) => {
+      if (epoch !== _socketEpoch || (_socket && socket !== _socket)) return
+      for (const listener of _notificationListeners) {
+        try {
+          listener(notification as { code: number; content: unknown; sender_id: string })
+        } catch (err) {
+          console.warn('[nakama] Notification listener error:', err)
+        }
+      }
+    }
+
+    socket.onchannelmessage = (message) => {
+      if (epoch !== _socketEpoch || (_socket && socket !== _socket)) return
+      for (const listener of channelListeners) {
+        try { listener(message) } catch (err) { console.warn('[nakama] Channel listener error:', err) }
+      }
+    }
+    await socket.connect(session, true)
+    if (epoch !== _socketEpoch) {
+      socket.ondisconnect = () => {}
+      socket.disconnect(false)
+      return
+    }
+    _socket = socket
+    notifySocketChange()
+    _reconnectAttempts = 0
+    if (_reconnectTimer) {
+      clearTimeout(_reconnectTimer)
+      _reconnectTimer = null
+    }
+    console.log('[nakama] Socket connected, presence active')
+  }).finally(() => { if (_socketConnect === attempt) _socketConnect = null })
+  _socketConnect = attempt
+  return attempt
 }
 
 export function disconnectSocket(): void {
+  _socketEpoch++
+  _socketConnect = null
   if (_reconnectTimer) {
     clearTimeout(_reconnectTimer)
     _reconnectTimer = null
@@ -264,6 +311,7 @@ export function disconnectSocket(): void {
     _socket = null
   }
   usePresenceStore.getState().clear()
+  notifySocketChange()
 }
 
 /**
@@ -291,6 +339,13 @@ export async function followFriends(userIds: string[]): Promise<void> {
     console.warn('[nakama] followFriends failed:', err)
   }
 }
+
+useAuthStore.subscribe((state, previous) => {
+  if (state.userId !== previous.userId) {
+    disconnectSocket()
+    _session = null
+  }
+})
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -547,6 +602,12 @@ export async function getDirectMessages(
 export async function markMessagesRead(otherUserId: string): Promise<void> {
   const session = await ensureSession()
   await getClient().rpc(session, 'mark_read', { other_user_id: otherUserId })
+}
+
+// Postbox shares authentication and the socket, while keeping letters separate from DMs.
+export async function postboxRpc<T>(name: 'send_letter' | 'list_letters' | 'update_letter', payload: object): Promise<T> {
+  const result = await getClient().rpc(await ensureSession(), name, payload)
+  return result.payload as T
 }
 
 // ── Wall Posts ────────────────────────────────────────────────────────

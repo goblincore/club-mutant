@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import bootMessages from '../data/boot-messages.json'
 import { AudioManager } from '../lib/audioManager'
+import { useCurrentUsername } from '../context/KonpyuuTAContext'
+import { personalizeUsername } from '../lib/userIdentity'
 
 const DEVIL_LOGO = `#>
 #>  _______________________________________________________
@@ -62,6 +64,7 @@ interface BootSequenceProps {
 }
 
 export function BootSequence({ onComplete }: BootSequenceProps) {
+  const username = useCurrentUsername()
   const [lines, setLines] = useState<BootLine[]>([])
   const [progress, setProgress] = useState(0)
   const [done, setDone] = useState(false)
@@ -76,6 +79,9 @@ export function BootSequence({ onComplete }: BootSequenceProps) {
 
   useEffect(() => {
     const timeouts: ReturnType<typeof setTimeout>[] = []
+    setLines([])
+    setProgress(0)
+    setDone(false)
 
     // Build sequence: pick messages from each phase, add timestamps where needed
     let totalTime = 0
@@ -84,12 +90,12 @@ export function BootSequence({ onComplete }: BootSequenceProps) {
     for (const phase of bootMessages.phases) {
       const msgs = pickRandom(phase.messages, phase.min, phase.max)
       for (const msg of msgs) {
-        let text = msg.text
+        let text = personalizeUsername(msg.text, username)
         if (TIMESTAMP_TYPES.has(msg.type)) {
           const inc = Math.random() * 0.3 + 0.05
           totalTime += inc
           const ts = totalTime.toFixed(6).padStart(12, ' ')
-          text = `[ ${ts} ] ${msg.text}`
+          text = `[ ${ts} ] ${text}`
         }
         sequence.push({ text, cls: typeToClass(msg.type) })
       }
@@ -116,7 +122,7 @@ export function BootSequence({ onComplete }: BootSequenceProps) {
     // After last line: show login prompt, play chime, call onComplete
     const loginDelay = elapsed + 400
     timeouts.push(setTimeout(() => {
-      setLines((prev) => [...prev, { text: 'Login: [USER]', cls: 'boot-default' }])
+      setLines((prev) => [...prev, { text: `Login: ${username}`, cls: 'boot-default' }])
     }, loginDelay))
 
     const startDelay = loginDelay + 200
@@ -131,7 +137,7 @@ export function BootSequence({ onComplete }: BootSequenceProps) {
     }, startDelay + 600))
 
     return () => timeouts.forEach(clearTimeout)
-  }, [onComplete])
+  }, [onComplete, username])
 
   return (
     <div className="cde-boot-screen">

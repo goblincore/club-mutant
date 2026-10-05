@@ -17,117 +17,116 @@ export interface Message {
   senderUsername?: string
   content: string
   createdAt: number
+  pending?: boolean
   failed?: boolean
+  error?: string
+  isPreview?: boolean
 }
 
+export function mergeMessages(existing: Message[], incoming: Message[]): Message[] {
+  const byId = new Map(existing.map((message) => [message.id, message]))
+  for (const message of incoming) {
+    const previous = byId.get(message.id)
+    // An old-server notification preview must never replace the full history body.
+    if (message.isPreview && previous && !previous.isPreview) continue
+    byId.set(message.id, { ...previous, ...message, isPreview: !!message.isPreview })
+  }
+  return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
+}
+
+const initial = () => ({
+  ownerId: null as string | null,
+  conversations: [] as Conversation[],
+  activeConversationId: null as string | null,
+  messages: {} as Record<string, Message[]>,
+  typing: {} as Record<string, boolean>,
+  drafts: {} as Record<string, string>,
+  incomingSignals: {} as Record<string, number>,
+})
+
 interface MessengerStoreState {
+  ownerId: string | null
   conversations: Conversation[]
   activeConversationId: string | null
   messages: Record<string, Message[]>
   typing: Record<string, boolean>
-  buddyListOpen: boolean
-  /** Tracks which conversations have had history fetched from server */
-  loaded: Record<string, boolean>
-  loadingMessages: boolean
-
-  setConversations: (conversations: Conversation[]) => void
-  addConversation: (conv: Conversation) => void
+  drafts: Record<string, string>
+  incomingSignals: Record<string, number>
+  consumeIncomingSignal: (messageId: string, receivedAt: number) => void
+  resetForUser: (userId: string | null) => void
+  mergeConversations: (conversations: Conversation[]) => void
   setActiveConversation: (channelId: string | null) => void
-  addMessage: (channelId: string, message: Message) => void
-  setMessages: (channelId: string, messages: Message[]) => void
-  setTyping: (channelId: string, isTyping: boolean) => void
-  setBuddyListOpen: (open: boolean) => void
-  incrementUnread: (channelId: string) => void
+  mergeMessages: (channelId: string, messages: Message[]) => void
+  updateMessage: (channelId: string, messageId: string, update: Partial<Message>) => void
+  receiveMessage: (message: Message, read: boolean) => void
+  setTyping: (channelId: string, typing: boolean) => void
+  setDraft: (channelId: string, draft: string) => void
+  setPresence: (onlineIds: string[]) => void
   clearUnread: (channelId: string) => void
-  setLoaded: (channelId: string) => void
-  setLoadingMessages: (loading: boolean) => void
   updateConversationPreview: (channelId: string, preview: string, timestamp: number) => void
-  markMessageFailed: (channelId: string, messageId: string) => void
 }
 
 export const useMessengerStore = create<MessengerStoreState>((set) => ({
-  conversations: [],
-  activeConversationId: null,
-  messages: {},
-  typing: {},
-  buddyListOpen: true,
-  loaded: {},
-  loadingMessages: false,
-
-  setConversations: (conversations) => set({ conversations }),
-
-  addConversation: (conv) =>
-    set((state) => ({
-      conversations: state.conversations.some((c) => c.channelId === conv.channelId)
-        ? state.conversations
-        : [...state.conversations, conv],
-    })),
-
-  setActiveConversation: (channelId) => set({ activeConversationId: channelId }),
-
-  addMessage: (channelId, message) =>
-    set((state) => ({
-      messages: {
-        ...state.messages,
-        [channelId]: [...(state.messages[channelId] || []), message],
-      },
-    })),
-
-  setMessages: (channelId, messages) =>
-    set((state) => ({
-      messages: {
-        ...state.messages,
-        [channelId]: messages,
-      },
-    })),
-
-  setTyping: (channelId, isTyping) =>
-    set((state) => ({
-      typing: {
-        ...state.typing,
-        [channelId]: isTyping,
-      },
-    })),
-
-  setBuddyListOpen: (open) => set({ buddyListOpen: open }),
-
-  incrementUnread: (channelId) =>
-    set((state) => ({
-      conversations: state.conversations.map((c) =>
-        c.channelId === channelId ? { ...c, unread: c.unread + 1 } : c
-      ),
-    })),
-
-  clearUnread: (channelId) =>
-    set((state) => ({
-      conversations: state.conversations.map((c) =>
-        c.channelId === channelId ? { ...c, unread: 0 } : c
-      ),
-    })),
-
-  setLoaded: (channelId) =>
-    set((state) => ({
-      loaded: { ...state.loaded, [channelId]: true },
-    })),
-
-  setLoadingMessages: (loading) => set({ loadingMessages: loading }),
-
-  updateConversationPreview: (channelId, preview, timestamp) =>
-    set((state) => ({
-      conversations: state.conversations.map((c) =>
-        c.channelId === channelId
-          ? { ...c, lastMessage: preview, lastMessageAt: timestamp }
-          : c
-      ),
-    })),
-
-  markMessageFailed: (channelId, messageId) =>
-    set((state) => ({
-      messages: {
-        ...state.messages,
-        [channelId]: (state.messages[channelId] || []).map((m) =>
-          m.id === messageId ? { ...m, failed: true } : m
-        ),
-      },
-    })),
+  ...initial(),
+  resetForUser: (ownerId) => set((s) => s.ownerId === ownerId ? {} : { ...initial(), ownerId }),
+  mergeConversations: (conversations) => set((s) => {
+    const byId = new Map(s.conversations.map((c) => [c.channelId, c]))
+    for (const conversation of conversations) {
+      const previous = byId.get(conversation.channelId)
+      // Keep notifications received while the contact request was in flight.
+      byId.set(conversation.channelId, previous && (previous.lastMessageAt ?? 0) > (conversation.lastMessageAt ?? 0)
+        ? { ...conversation, ...previous, displayName: conversation.displayName, username: conversation.username }
+        : conversation)
+    }
+    return { conversations: [...byId.values()] }
+  }),
+  setActiveConversation: (activeConversationId) => set({ activeConversationId }),
+  mergeMessages: (channelId, incoming) => set((s) => ({
+    messages: { ...s.messages, [channelId]: mergeMessages(s.messages[channelId] ?? [], incoming) },
+  })),
+  updateMessage: (channelId, messageId, update) => set((s) => ({
+    messages: { ...s.messages, [channelId]: mergeMessages([], (s.messages[channelId] ?? []).map((m) => m.id === messageId ? { ...m, ...update } : m)) },
+  })),
+  receiveMessage: (message, read) => set((s) => {
+    const channelId = `dm:${message.senderId}`
+    const existing = s.messages[channelId] ?? []
+    const previousMessage = existing.find((m) => m.id === message.id)
+    const now = Date.now()
+    // Only a new full notification earns a visual arrival, never loaded history,
+    // our own sends, or duplicate/replayed notifications. Preview hydration can
+    // earn it once when the complete live body arrives.
+    const signal = !message.isPreview && message.senderId !== s.ownerId && (!previousMessage || previousMessage.isPreview)
+    const incomingSignals = signal ? {
+      ...Object.fromEntries(Object.entries(s.incomingSignals).filter(([, at]) => now - at < 3000).slice(-79)),
+      [message.id]: now,
+    } : s.incomingSignals
+    if (previousMessage) {
+      return { messages: { ...s.messages, [channelId]: mergeMessages(existing, [message]) }, incomingSignals }
+    }
+    const previous = s.conversations.find((c) => c.channelId === channelId)
+    const conversation: Conversation = previous ?? {
+      channelId, userId: message.senderId, username: message.senderUsername ?? 'Friend',
+      displayName: message.senderUsername ?? 'Friend', online: false, unread: 0,
+    }
+    return {
+      incomingSignals,
+      messages: { ...s.messages, [channelId]: mergeMessages(existing, [message]) },
+      conversations: [...s.conversations.filter((c) => c.channelId !== channelId), {
+        ...conversation, unread: read ? 0 : conversation.unread + 1,
+        ...((conversation.lastMessageAt ?? 0) <= message.createdAt ? { lastMessage: message.content.slice(0, 80), lastMessageAt: message.createdAt } : {}),
+      }],
+    }
+  }),
+  consumeIncomingSignal: (messageId, receivedAt) => set((s) => {
+    if (s.incomingSignals[messageId] !== receivedAt) return {}
+    const incomingSignals = { ...s.incomingSignals }
+    delete incomingSignals[messageId]
+    return { incomingSignals }
+  }),
+  setTyping: (channelId, typing) => set((s) => ({ typing: { ...s.typing, [channelId]: typing } })),
+  setDraft: (channelId, draft) => set((s) => ({ drafts: { ...s.drafts, [channelId]: draft } })),
+  setPresence: (onlineIds) => set((s) => ({ conversations: s.conversations.map((c) => ({ ...c, online: onlineIds.includes(c.userId) })) })),
+  clearUnread: (channelId) => set((s) => ({ conversations: s.conversations.map((c) => c.channelId === channelId ? { ...c, unread: 0 } : c) })),
+  updateConversationPreview: (channelId, preview, timestamp) => set((s) => ({ conversations: s.conversations.map((c) =>
+    c.channelId === channelId && (c.lastMessageAt ?? 0) <= timestamp ? { ...c, lastMessage: preview, lastMessageAt: timestamp } : c) })),
 }))

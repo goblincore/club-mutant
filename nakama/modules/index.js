@@ -13,6 +13,9 @@
 //   list_conversations — list conversation partners with last message info
 //   get_messages      — get messages for a conversation
 //   mark_read         — mark a conversation as read
+//   send_letter       — deliver a Postbox letter by username (idempotent draft ID)
+//   list_letters      — list the caller’s letters (cursor-based)
+//   update_letter     — read/trash/restore/delete the caller’s copy
 //   create_wall_post  — post on a user's wall (friends-only)
 //   get_wall_posts    — get posts on a user's wall (newest first)
 //   delete_wall_post  — delete a wall post (author only)
@@ -512,14 +515,16 @@ var sendMessageRpc = function (ctx, logger, nk, payload) {
     nk.notificationSend(
       recipientId,
       'New message from ' + senderUsername,
-      DM_NOTIFICATION_CODE,
       {
         messageId: messageId,
         senderId: ctx.userId,
         senderUsername: senderUsername,
         subject: subject,
+        body: body,
+        createdAt: now,
         preview: preview
       },
+      DM_NOTIFICATION_CODE,
       ctx.userId,
       false
     );
@@ -544,9 +549,7 @@ function updateConversationIndex(nk, userId, otherUserId, otherUsername, preview
 
   var unreadCount = incrementUnread;
   if (existing && existing.length > 0 && existing[0].value) {
-    if (incrementUnread > 0) {
-      unreadCount = (existing[0].value.unreadCount || 0) + incrementUnread;
-    }
+    unreadCount = (existing[0].value.unreadCount || 0) + incrementUnread;
   }
 
   nk.storageWrite([{
@@ -610,7 +613,8 @@ var listConversationsRpc = function (ctx, logger, nk, payload) {
 
 /**
  * get_messages RPC — get messages for a conversation with a specific user.
- * Uses key prefix scanning since keys are "{timestamp}_{messageId}".
+ * Scans owner storage pages and filters by partner. Keys are timestamp-based.
+ * The cursor advances through the owner collection, including empty filtered pages.
  *
  * Input: { other_user_id, cursor? }
  * Output: { messages: MailMessage[], cursor? }
@@ -664,10 +668,8 @@ var getMessagesRpc = function (ctx, logger, nk, payload) {
   // Reverse so newest first
   allMessages.reverse();
 
-  // Trim to page size
-  if (allMessages.length > DM_PAGE_SIZE) {
-    allMessages = allMessages.slice(0, DM_PAGE_SIZE);
-  }
+  // Return every match scanned: trimming here would skip messages forever,
+  // because nextCursor already points past the entire storage page.
 
   return JSON.stringify({
     messages: allMessages,
@@ -811,13 +813,13 @@ var createWallPostRpc = function (ctx, logger, nk, payload) {
       nk.notificationSend(
         targetUserId,
         authorUsername + ' posted on your wall',
-        WALL_NOTIFICATION_CODE,
         {
           postId: postId,
           authorId: ctx.userId,
           authorUsername: authorUsername,
           preview: content.substring(0, 80)
         },
+        WALL_NOTIFICATION_CODE,
         ctx.userId,
         false
       );
@@ -938,6 +940,100 @@ var deleteWallPostRpc = function (ctx, logger, nk, payload) {
   return JSON.stringify({ success: true });
 };
 
+// ─── Postbox letters (independent from Messenger conversations) ──────
+var LETTER_COLLECTION = 'postbox_letters';
+var LETTER_RECEIPTS = 'postbox_receipts';
+var LETTER_MAX_BODY = 10000;
+
+function letterInput(ctx, payload) {
+  if (!ctx.userId) throw 'Sign in to use Postbox';
+  var input;
+  try { input = JSON.parse(payload || '{}'); } catch (e) { throw 'Invalid JSON payload'; }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw 'Invalid payload';
+  return input;
+}
+function letterObject(nk, owner, id) {
+  var objects = nk.storageRead([{ collection: LETTER_COLLECTION, key: id, userId: owner }]);
+  return objects && objects.length ? objects[0] : null;
+}
+function savedLetterResponse(letter, input) {
+  if (!letter) throw 'This letter was already delivered. Start a new letter.';
+  if (letter.subject !== input.subject.trim() || letter.body !== input.body.trim() || letter.to !== input.to.trim().replace(/^@/, '')) throw 'An earlier version was already delivered. Your edits are still saved; start a new letter to send them.';
+  return JSON.stringify({ letter: letter });
+}
+var sendLetterRpc = function (ctx, logger, nk, payload) {
+  var input = letterInput(ctx, payload);
+  if (typeof input.request_id !== 'string' || !/^[a-f0-9-]{36}$/.test(input.request_id)) throw 'Invalid letter request';
+  if (typeof input.to !== 'string' || !input.to.trim() || input.to.length > 128) throw 'Enter a Club Mutant username';
+  if (typeof input.subject !== 'string' || !input.subject.trim() || input.subject.length > 100) throw 'Subject must be between 1 and 100 characters';
+  if (typeof input.body !== 'string' || !input.body.trim() || input.body.length > LETTER_MAX_BODY) throw 'Letter must be between 1 and 10000 characters';
+  var id = ctx.userId + '_' + input.request_id;
+  // A separate receipt survives deleting the sender's copy, so retries never deliver twice.
+  var receipts = nk.storageRead([{ collection: LETTER_RECEIPTS, key: input.request_id, userId: ctx.userId }]);
+  if (receipts && receipts.length) {
+    var sent = letterObject(nk, ctx.userId, id);
+    return savedLetterResponse(sent ? sent.value : null, input);
+  }
+  var users = nk.usersGetUsername([input.to.trim().replace(/^@/, '')]);
+  if (!users || !users.length) throw 'That username could not be found';
+  var recipient = users[0];
+  if (!recipient.userId) throw 'Recipient not found';
+  if (recipient.userId === ctx.userId) throw 'Choose someone other than yourself';
+  if (!checkRateLimit(nk, logger, ctx.userId, 'postbox_send', 60, 10)) throw 'Too many letters. Please wait a little before sending more.';
+  var sender = nk.accountGetId(ctx.userId).user;
+  var now = Date.now();
+  var senderCopy = { id: id, from: sender.username, to: recipient.username, subject: input.subject.trim(), body: input.body.trim(), read: true, folder: 'sent', originalFolder: 'sent', createdAt: now, delivered: true };
+  var recipientCopy = {};
+  for (var k in senderCopy) if (senderCopy.hasOwnProperty(k)) recipientCopy[k] = senderCopy[k];
+  recipientCopy.read = false;
+  recipientCopy.folder = 'inbox';
+  recipientCopy.originalFolder = 'inbox';
+  try {
+    nk.storageWrite([
+      { collection: LETTER_COLLECTION, key: id, userId: ctx.userId, value: senderCopy, version: '*', permissionRead: 1, permissionWrite: 0 },
+      { collection: LETTER_COLLECTION, key: id, userId: recipient.userId, value: recipientCopy, version: '*', permissionRead: 1, permissionWrite: 0 },
+      { collection: LETTER_RECEIPTS, key: input.request_id, userId: ctx.userId, value: { id: id, createdAt: now }, version: '*', permissionRead: 0, permissionWrite: 0 }
+    ]);
+  } catch (e) {
+    // Two concurrent retries can race the create-only write. Return the winner.
+    var winner = letterObject(nk, ctx.userId, id);
+    if (winner) return savedLetterResponse(winner.value, input);
+    throw e;
+  }
+  try {
+    nk.notificationSend(recipient.userId, 'A letter from ' + sender.username, { letterId: id }, 101, ctx.userId, false);
+  } catch (e) { logger.warn('Postbox notification failed: %s', String(e)); }
+  return JSON.stringify({ letter: senderCopy });
+};
+var listLettersRpc = function (ctx, logger, nk, payload) {
+  var input = letterInput(ctx, payload);
+  if (input.cursor !== undefined && typeof input.cursor !== 'string') throw 'Invalid cursor';
+  var result = nk.storageList(ctx.userId, LETTER_COLLECTION, 50, input.cursor || '');
+  var objects = result.objects || [];
+  var letters = [];
+  for (var i = 0; i < objects.length; i++) letters.push(objects[i].value);
+  return JSON.stringify({ letters: letters, cursor: result.cursor || '' });
+};
+var updateLetterRpc = function (ctx, logger, nk, payload) {
+  var input = letterInput(ctx, payload);
+  if (typeof input.id !== 'string' || input.id.length > 100) throw 'Invalid letter';
+  var object = letterObject(nk, ctx.userId, input.id);
+  if (!object) throw 'Letter not found';
+  var letter = object.value;
+  if (input.action === 'read') letter.read = true;
+  else if (input.action === 'trash') letter.folder = 'trash';
+  else if (input.action === 'restore') {
+    if (letter.folder !== 'trash') throw 'This letter is not in Trash';
+    letter.folder = letter.originalFolder;
+  } else if (input.action === 'delete') {
+    if (letter.folder !== 'trash') throw 'Move the letter to Trash before deleting it';
+    nk.storageDelete([{ collection: LETTER_COLLECTION, key: input.id, userId: ctx.userId, version: object.version }]);
+    return JSON.stringify({ letter: null });
+  } else throw 'Unknown letter action';
+  nk.storageWrite([{ collection: LETTER_COLLECTION, key: input.id, userId: ctx.userId, value: letter, version: object.version, permissionRead: 1, permissionWrite: 0 }]);
+  return JSON.stringify({ letter: letter });
+};
+
 // ─── InitModule ─────────────────────────────────────────────────────
 
 var InitModule = function (ctx, logger, nk, initializer) {
@@ -951,9 +1047,12 @@ var InitModule = function (ctx, logger, nk, initializer) {
   initializer.registerRpc('list_conversations', listConversationsRpc);
   initializer.registerRpc('get_messages', getMessagesRpc);
   initializer.registerRpc('mark_read', markReadRpc);
+  initializer.registerRpc('send_letter', sendLetterRpc);
+  initializer.registerRpc('list_letters', listLettersRpc);
+  initializer.registerRpc('update_letter', updateLetterRpc);
   initializer.registerRpc('create_wall_post', createWallPostRpc);
   initializer.registerRpc('get_wall_posts', getWallPostsRpc);
   initializer.registerRpc('delete_wall_post', deleteWallPostRpc);
   initializer.registerBeforeAuthenticateEmail(beforeAuthenticateEmail);
-  logger.info('Modules loaded: RPCs (update_profile, get_profile, list_playlists, get_playlist, save_playlist, delete_playlist, send_message, list_conversations, get_messages, mark_read, create_wall_post, get_wall_posts, delete_wall_post), hooks (beforeAuthenticateEmail)');
+  logger.info('Modules loaded: RPCs (update_profile, get_profile, list_playlists, get_playlist, save_playlist, delete_playlist, send_message, list_conversations, get_messages, mark_read, send_letter, list_letters, update_letter, create_wall_post, get_wall_posts, delete_wall_post), hooks (beforeAuthenticateEmail)');
 };

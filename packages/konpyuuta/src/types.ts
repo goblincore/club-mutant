@@ -54,7 +54,11 @@ export interface Playlist {
 
 export interface PlaylistService {
   getPlaylists: () => Playlist[]
-  createPlaylist: (name: string) => void
+  createPlaylist: (name: string) => string
+  subscribe?: (listener: () => void) => () => void
+  getSyncError?: () => string | null
+  renamePlaylist?: (id: string, name: string) => void
+  reorderTrack?: (id: string, fromIndex: number, toIndex: number) => void
   // Atomically create a playlist with tracks (YouTube import). Returns the
   // new playlist id. Optional for backward compatibility.
   importPlaylist?: (name: string, tracks: PlaylistTrack[]) => string
@@ -98,12 +102,15 @@ export interface SocialService {
   getWallPosts: (targetUserId: string, cursor?: string) => Promise<{ posts: WallPost[]; cursor?: string }>
   createWallPost: (targetUserId: string, content: string) => Promise<WallPost>
   deleteWallPost: (postId: string, targetUserId: string) => Promise<void>
+  onPresenceChanged?: (callback: (onlineUserIds: string[]) => void) => () => void
   listFriends: () => Promise<Array<{ userId: string; username: string; displayName: string; online: boolean }>>
 }
 
 // ── Messenger Service Interface ───────────────────────────────────────────
 
 export interface DmMessage {
+  /** True only for notifications sent by the legacy preview-only backend. */
+  isPreview?: boolean
   messageId: string
   senderId: string
   senderUsername: string
@@ -133,6 +140,8 @@ export interface MessengerService {
   onMessageReceived(cb: (msg: DmMessage) => void): () => void
   /** Register callback for typing indicators. Returns unsubscribe function. */
   onTypingIndicator(cb: (userId: string, typing: boolean) => void): () => void
+  /** Current socket availability, including reconnects. */
+  onConnectionChanged?: (callback: (connected: boolean) => void) => () => void
   /** Join the DM channel for a partner (enables typing indicators). */
   joinConversationChannel(partnerId: string): Promise<void>
   /** Send a typing indicator to the partner. Debounced internally. */
@@ -145,10 +154,34 @@ export interface MessengerService {
 }
 
 export interface KonpyuuTAContextValue {
+  /** Reactive account username supplied by the host (guests use "guest"). */
+  username?: string | null
+  userId?: string | null
   playlistService?: PlaylistService
   socialService?: SocialService
   messengerService?: MessengerService
+  mailService?: MailService
   env: {
     youtubeApiUrl?: string
   }
+}
+
+export interface MailLetter {
+  id: string
+  from: string
+  to: string
+  subject: string
+  body: string
+  read: boolean
+  folder: 'inbox' | 'sent' | 'trash'
+  originalFolder: 'inbox' | 'sent'
+  createdAt: number
+  delivered: true
+}
+
+export interface MailService {
+  listLetters(): Promise<MailLetter[]>
+  sendLetter(input: { requestId: string; to: string; subject: string; body: string }): Promise<MailLetter>
+  updateLetter(id: string, action: 'read' | 'trash' | 'restore' | 'delete'): Promise<MailLetter | null>
+  onMailChanged(callback: () => void): () => void
 }

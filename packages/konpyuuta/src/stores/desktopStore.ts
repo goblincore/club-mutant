@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { PORTAL_ICONS } from '../lib/socialIcons'
+import { PORTAL_APPS } from '../lib/portalApps'
 import type { DesktopIcon, NotificationItem } from '../types'
 
 type BootStatus = 'booting' | 'ready'
@@ -18,16 +20,7 @@ interface DesktopStoreState {
   clearNotifications: () => void
 }
 
-const DEFAULT_ICONS: DesktopIcon[] = [
-  { id: 'netscape', label: 'Netscape', icon: '/icons/apps/netscape_classic.png', app: 'netscape' },
-  { id: 'lynx', label: 'Lynx', icon: '/icons/apps/Lynx.svg', app: 'lynx' },
-  { id: 'mutanttube', label: 'MutantTube', icon: '/icons/apps/mutanttube.svg', app: 'mutanttube' },
-  { id: 'mutantbook', label: 'MutantBook', icon: '/icons/apps/mutantbook.svg', app: 'mutantbook' },
-  { id: 'messenger', label: 'Messenger', icon: '/icons/apps/messenger.svg', app: 'messenger' },
-  { id: 'mutantmail', label: 'MutantMail', icon: '/icons/apps/mutantmail.svg', app: 'mutantmail' },
-  { id: 'settings', label: 'Style Manager', icon: '/icons/apps/org.xfce.settings.manager.png', app: 'settings' },
-  { id: 'filemanager', label: 'File Manager', icon: '/icons/apps/filemanager.png', app: 'filemanager' },
-]
+const DEFAULT_ICONS: DesktopIcon[] = PORTAL_APPS.map(({app, name}) => ({id:app, label:name, app, icon:PORTAL_ICONS[app]}))
 
 export const useDesktopStore = create<DesktopStoreState>()(
   persist(

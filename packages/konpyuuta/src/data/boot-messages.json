@@ -53,7 +53,7 @@
         },
         { "text": "dtwm: Window manager initialized (Motif 1.2)", "type": "desktop" },
         { "text": "Loading CDE Panel assets: FrontPanel, WorkspaceManager", "type": "desktop" },
-        { "text": "Loading user profile: victxrlarixs", "type": "desktop" },
+        { "text": "Loading user profile: {{username}}", "type": "desktop" },
         { "text": "Desktop icons registered and aligned to grid", "type": "desktop" },
         { "text": "Starting File Manager: dtfile", "type": "desktop" },
         { "text": "System Ready - Workspace One active", "type": "desktop" }

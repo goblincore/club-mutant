@@ -20,3 +20,8 @@ export function useKonpyuuTA(): KonpyuuTAContextValue {
   if (!ctx) throw new Error('useKonpyuuTA must be used within KonpyuuTAProvider')
   return ctx
 }
+
+export function useCurrentUsername(): string {
+  const { username, socialService } = useKonpyuuTA()
+  return username || socialService?.getCurrentUsername() || 'guest'
+}

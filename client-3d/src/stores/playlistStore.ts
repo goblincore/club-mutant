@@ -41,7 +41,7 @@ interface PlaylistState {
   syncing: boolean
   lastSyncError: string | null
 
-  createPlaylist: (name: string) => void
+  createPlaylist: (name: string) => string
   importPlaylist: (name: string, tracks: PlaylistTrack[]) => string
   removePlaylist: (id: string) => void
   renamePlaylist: (id: string, name: string) => void
@@ -169,11 +169,14 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
   lastSyncError: null,
 
   createPlaylist: (name) => {
+    if (get().playlists.length >= MAX_PLAYLISTS) throw new Error('Playlist limit reached (100).')
     const id = crypto.randomUUID()
+    const trimmedName = name.trim().slice(0, MAX_PLAYLIST_NAME)
+    if (!trimmedName) throw new Error('Please enter a playlist name.')
 
     set((s) => {
       const next = {
-        playlists: [...s.playlists, { id, name, items: [] }],
+        playlists: [...s.playlists, { id, name: trimmedName, items: [] }],
         activePlaylistId: s.activePlaylistId ?? id,
       }
 
@@ -182,9 +185,11 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
     })
 
     scheduleSyncPlaylist(id)
+    return id
   },
 
   importPlaylist: (name, tracks) => {
+    if (get().playlists.length >= MAX_PLAYLISTS) throw new Error('Playlist limit reached (100).')
     const id = crypto.randomUUID()
     const trimmedName = (name || 'YouTube Playlist').trim().substring(0, MAX_PLAYLIST_NAME)
     const items = tracks.slice(0, IMPORT_MAX_TRACKS)
@@ -221,9 +226,11 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
   },
 
   renamePlaylist: (id, name) => {
+    const trimmedName = name.trim().slice(0, MAX_PLAYLIST_NAME)
+    if (!trimmedName) throw new Error('Please enter a playlist name.')
     set((s) => {
       const next = {
-        playlists: s.playlists.map((p) => (p.id === id ? { ...p, name } : p)),
+        playlists: s.playlists.map((p) => (p.id === id ? { ...p, name: trimmedName } : p)),
         activePlaylistId: s.activePlaylistId,
       }
 
@@ -241,7 +248,10 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
   },
 
   addTrack: (playlistId, track) => {
-    if (!itemsMutationAllowed(playlistId, 'addTrack')) return
+    const playlist = get().playlists.find((p) => p.id === playlistId)
+    if (!playlist) throw new Error('Playlist not found.')
+    if (!itemsMutationAllowed(playlistId, 'addTrack')) throw new Error('Playlist is still loading. Please try again.')
+    if (playlist.items.length >= IMPORT_MAX_TRACKS) throw new Error('Playlist limit reached (500 videos).')
     set((s) => {
       const next = {
         playlists: s.playlists.map((p) =>
@@ -258,7 +268,7 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
   },
 
   removeTrack: (playlistId, trackId) => {
-    if (!itemsMutationAllowed(playlistId, 'removeTrack')) return
+    if (!itemsMutationAllowed(playlistId, 'removeTrack')) throw new Error('Playlist is still loading. Please try again.')
     set((s) => {
       const next = {
         playlists: s.playlists.map((p) =>
@@ -275,11 +285,12 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
   },
 
   reorderTrack: (playlistId, fromIndex, toIndex) => {
-    if (!itemsMutationAllowed(playlistId, 'reorderTrack')) return
+    if (!itemsMutationAllowed(playlistId, 'reorderTrack')) throw new Error('Playlist is still loading. Please try again.')
     set((s) => {
       const next = {
         playlists: s.playlists.map((p) => {
           if (p.id !== playlistId) return p
+          if (fromIndex < 0 || toIndex < 0 || fromIndex >= p.items.length || toIndex >= p.items.length) return p
 
           const items = [...p.items]
           const [moved] = items.splice(fromIndex, 1)

@@ -1,849 +1,381 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { SignalTransition } from './SignalTransition'
+import { useState, useEffect, useCallback, useRef, useId } from 'react'
 import { useKonpyuuTA } from '../../context/KonpyuuTAContext'
 import type { Playlist, PlaylistTrack } from '../../types'
+import {
+  DISCOVERY_TERMS, TUBE_CATEGORIES, pickRandom, normalizeVideos, selectTinyVideos, normalizeDailyFeature, type DailyFeature, extractPlaylistId,
+  videoFromTrack, durationSeconds, tubeRequest, type TubeVideo,
+} from '../../lib/mutantTube'
+import { SOCIAL_ICONS } from '../../lib/socialIcons'
 import { usePopup } from './MutantTubePopup'
+import { TubeMascot } from './TubeMascot'
+import { TinyTubesWordmark } from './TinyTubesWordmark'
+import { PixelSymbol } from './PixelSymbol'
 
-type View = 'homepage' | 'playlists' | 'watch' | 'playlist-detail'
+type View = 'browse' | 'playlists' | 'playlist' | 'watch'
+type Browse = { kind: 'home' | 'search' | 'category'; title: string; query?: string; category?: string; under100: boolean }
+const HOME: Browse = { kind: 'home', title: '映像', under100: true }
+const PAGE_SIZE = 12
 
-interface YouTubeVideo {
-  id?: string
-  videoId?: string
-  title: string
-  thumbnail?: string
-  viewCount?: number
-  publishedAt?: string
-}
-
-interface YouTubeSearchResult {
-  videoId: string
-  title: string
-  thumbnail?: string
-  viewCount?: number
-  publishedAt?: string
-}
-
-interface Video {
-  id: string
-  title: string
-  thumbnail?: string
-  viewCount?: number
-  publishedAt?: string
-}
-
-const ITEMS_PER_PAGE = 12
-
-const WEIRD_TERMS = [
-  '1996 local TV commercial',
-  'forgotten VHS home video 1993',
-  'obscure public access show 1998',
-  'weird internet video 2002',
-  'rare 90s cartoon pilot',
-  'lost TV special 1995',
-  'public access cable 1997',
-  'strange music video 1994',
-]
-
-const CATEGORY_TERMS: Record<string, string[]> = {
-  'home-videos': ['home video 1990', 'family VHS 1995', 'amateur recording 1998'],
-  'music': ['music video 1994', 'live performance 1996', 'MTV underground'],
-  'comedy': ['stand up 1995', 'comedy sketch 1990s', 'funny home video'],
-  'tv-shows': ['90s TV show', 'pilot episode rare', 'public access TV'],
-  'weird': ['weird video', 'strange footage', 'bizarre clip'],
-  'vintage': ['vintage footage', 'old film', 'retro video'],
-  'public-access': ['public access', 'cable access', 'community TV'],
-  'corrupted': ['corrupted video', 'glitch footage', 'damaged VHS'],
-}
-
-function pickRandom(arr: string[], n: number): string[] {
-  const copy = arr.slice()
-  const result: string[] = []
-  for (let i = 0; i < n && copy.length > 0; i++) {
-    const idx = Math.floor(Math.random() * copy.length)
-    result.push(copy.splice(idx, 1)[0]!)
-  }
-  return result
-}
-
-function formatTimeAgo(dateString: string): string {
-  try {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diff = Math.floor((now.getTime() - date.getTime()) / 1000)
-
-    if (diff < 60) return `${diff} SECONDS AGO`
-    if (diff < 3600) return `${Math.floor(diff / 60)} MINUTES AGO`
-    if (diff < 86400) return `${Math.floor(diff / 3600)} HOURS AGO`
-    if (diff < 2592000) return `${Math.floor(diff / 86400)} DAYS AGO`
-    if (diff < 31536000) return `${Math.floor(diff / 2592000)} MONTHS AGO`
-    return `${Math.floor(diff / 31536000)} YEARS AGO`
-  } catch {
-    return 'UNKNOWN DATE'
-  }
-}
-
-function extractYouTubeId(item: PlaylistTrack): string {
-  if (item.id && /^[a-zA-Z0-9_-]{11}$/.test(item.id)) return item.id
-  if (item.link) {
-    const m = item.link.match(/[?&]v=([a-zA-Z0-9_-]{11})/)
-    if (m) return m[1]!
-  }
-  return item.id
+function Thumbnail({ video }: { video: TubeVideo }) {
+  const [failed, setFailed] = useState(false)
+  useEffect(() => setFailed(false), [video.id, video.thumbnail])
+  return <div className="mt-thumbnail">
+    {failed ? <span className="mt-thumbnail-fallback">▶</span> : <img
+      src={video.thumbnail || `https://i.ytimg.com/vi/${video.id}/mqdefault.jpg`}
+      alt="" loading="lazy" onError={() => setFailed(true)}
+    />}
+    {video.duration && <span className="mt-duration">{video.duration}</span>}
+  </div>
 }
 
 export function MutantTube() {
-  const { playlistService, env } = useKonpyuuTA()
+  const { playlistService: service, env } = useKonpyuuTA()
   const popup = usePopup()
-
-  const [view, setView] = useState<View>('homepage')
-  const [loading, setLoading] = useState(true)
-  const [loadingMessage, setLoadingMessage] = useState('INITIALIZING...')
+  const featureTitleId = useId()
+  const [view, setView] = useState<View>('browse')
+  const [browse, setBrowse] = useState<Browse>(HOME)
+  const [query, setQuery] = useState('')
+  const [videos, setVideos] = useState<TubeVideo[]>([])
+  const [page, setPage] = useState(1)
+  const [featured, setFeatured] = useState<DailyFeature | null>(null)
+  const [featureLoading, setFeatureLoading] = useState(false)
+  const [featureError, setFeatureError] = useState(false)
+  const [featureRetry, setFeatureRetry] = useState(0)
+  const [playlists, setPlaylists] = useState<Playlist[]>(() => service?.getPlaylists() ?? [])
+  const [playlistId, setPlaylistId] = useState<string | null>(null)
+  const [video, setVideo] = useState<TubeVideo | null>(null)
+  const [trackId, setTrackId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [status, setStatus] = useState('')
+  const request = useRef<{ id: number; controller: AbortController }>({ id: 0, controller: new AbortController() })
+  const mutation = useRef(false)
+  const libraryLoad = useRef<Promise<void> | null>(null)
+  const currentPlaylist = playlists.find((item) => item.id === playlistId)
+  const pageCount = Math.max(1, Math.ceil(videos.length / PAGE_SIZE))
+  const trackIndex = currentPlaylist?.items.findIndex((track) => track.id === trackId) ?? -1
 
-  const [searchQuery, setSearchQuery] = useState('')
-  const [currentCategory, setCurrentCategory] = useState<string | null>(null)
-  const [results, setResults] = useState<Video[]>([])
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
+  const refresh = useCallback(() => {
+    setPlaylists(service?.getPlaylists() ?? [])
+    setSyncError(service?.getSyncError?.() ?? null)
+  }, [service])
+  useEffect(() => {
+    refresh()
+    return service?.subscribe?.(refresh)
+  }, [service, refresh])
 
-  const [playlists, setPlaylists] = useState<Playlist[]>([])
-  const [currentPlaylist, setCurrentPlaylist] = useState<Playlist | null>(null)
-  const [currentVideo, setCurrentVideo] = useState<Video | null>(null)
+  const ensureLibrary = async () => {
+    if (!service) return
+    // Fetch metadata once per app session; repeat reads can race pending
+    // local saves/deletes. Store subscriptions keep edits current afterward.
+    libraryLoad.current ??= service.loadFromServer()
+    try {
+      await libraryLoad.current
+      refresh()
+      if (service.getSyncError?.()) libraryLoad.current = null
+    } catch (err) { libraryLoad.current = null; throw err }
+  }
 
-  const [sidebarHidden, setSidebarHidden] = useState(false)
-  const [statusText, setStatusText] = useState('Ready')
-
-  const youtubeApiUrl = env.youtubeApiUrl
-
-  const searchYouTube = useCallback(async (q: string, limit: number): Promise<YouTubeSearchResult[]> => {
-    if (!youtubeApiUrl) throw new Error('YouTube API URL not configured')
-    const res = await fetch(`${youtubeApiUrl}/search?q=${encodeURIComponent(q)}&limit=${limit}`)
-    if (!res.ok) throw new Error(`YouTube search failed: ${res.status}`)
-    const data = await res.json()
-    const items = (data.items || []) as YouTubeVideo[]
-    return items
-      .filter((v) => v.id || v.videoId)
-      .map((v) => ({
-        videoId: (v.id ?? v.videoId) as string,
-        title: v.title,
-        thumbnail: v.thumbnail,
-        viewCount: v.viewCount,
-        publishedAt: v.publishedAt,
-      }))
-  }, [youtubeApiUrl])
-
-  const loadHomepage = useCallback(async () => {
-    setLoading(true)
-    setLoadingMessage('LOADING...')
-    setStatusText('Retrieving data fragments...')
+  const beginRequest = useCallback(() => {
+    request.current.controller.abort()
+    const next = { id: request.current.id + 1, controller: new AbortController() }
+    request.current = next
     setError(null)
-
-    try {
-      const terms = pickRandom(WEIRD_TERMS, 3)
-      setStatusText(`Querying: ${terms[0]!.substring(0, 20)}...`)
-
-      const searchResults = await Promise.all(terms.map(t => searchYouTube(t, 8)))
-      const seen = new Set<string>()
-      const all: Video[] = []
-
-      searchResults.forEach(results => {
-        results.forEach(v => {
-          if (v.videoId && !seen.has(v.videoId)) {
-            seen.add(v.videoId)
-            all.push({
-              id: v.videoId,
-              title: v.title,
-              thumbnail: v.thumbnail,
-              viewCount: v.viewCount,
-              publishedAt: v.publishedAt,
-            })
-          }
-        })
-      })
-
-      all.sort((a, b) => (a.viewCount || 0) - (b.viewCount || 0))
-      setResults(all)
-      setCurrentPage(1)
-      setTotalPages(Math.ceil(all.length / ITEMS_PER_PAGE))
-      setLoading(false)
-      setStatusText(`${all.length} fragments recovered`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setLoading(false)
-    }
-  }, [searchYouTube])
-
-  const loadCategory = useCallback(async (category: string, categoryName: string) => {
     setLoading(true)
-    setLoadingMessage('LOADING...')
-    setStatusText('Decrypting category data...')
-    setError(null)
-    setCurrentCategory(category)
-    setSearchQuery('')
-    setSidebarHidden(false)
-
-    try {
-      const terms = CATEGORY_TERMS[category] || WEIRD_TERMS
-      const selectedTerms = pickRandom(terms, 2)
-      const searchResults = await Promise.all(selectedTerms.map(t => searchYouTube(t, 15)))
-
-      const seen = new Set<string>()
-      const all: Video[] = []
-
-      searchResults.forEach(results => {
-        results.forEach(v => {
-          if (v.videoId && !seen.has(v.videoId)) {
-            seen.add(v.videoId)
-            all.push({
-              id: v.videoId,
-              title: v.title,
-              thumbnail: v.thumbnail,
-              viewCount: v.viewCount,
-              publishedAt: v.publishedAt,
-            })
-          }
-        })
-      })
-
-      all.sort((a, b) => (a.viewCount || 0) - (b.viewCount || 0))
-      setResults(all)
-      setCurrentPage(1)
-      setTotalPages(Math.ceil(all.length / ITEMS_PER_PAGE))
-      setLoading(false)
-      setStatusText(`${all.length} fragments in ${categoryName}`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setLoading(false)
-    }
-  }, [searchYouTube])
-
-  const doSearch = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault()
-    const q = searchQuery.trim()
-    if (!q) return
-
-    setLoading(true)
-    setLoadingMessage('EXECUTING SEARCH QUERY...')
-    setStatusText('Executing search query...')
-    setError(null)
-    setCurrentCategory(null)
-    setSidebarHidden(true)
-
-    try {
-      const searchResults = await searchYouTube(q, 50)
-      const videos: Video[] = searchResults.map(v => ({
-        id: v.videoId,
-        title: v.title,
-        thumbnail: v.thumbnail,
-        viewCount: v.viewCount,
-        publishedAt: v.publishedAt,
-      }))
-
-      setResults(videos)
-      setCurrentPage(1)
-      setTotalPages(Math.ceil(videos.length / ITEMS_PER_PAGE))
-      setLoading(false)
-      setStatusText(`Scan complete: ${videos.length} matches`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setLoading(false)
-    }
-  }, [searchQuery, searchYouTube])
-
-  const loadPlaylists = useCallback(async () => {
-    if (!playlistService) return
-
-    setLoading(true)
-    setLoadingMessage('ACCESSING PLAYLIST DATABASE...')
-    setStatusText('Connecting to storage...')
-    setError(null)
-
-    try {
-      await playlistService.loadFromServer()
-      const lists = playlistService.getPlaylists()
-      setPlaylists(lists)
-      setLoading(false)
-      setStatusText(`${lists.length} playlists loaded`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setLoading(false)
-    }
-  }, [playlistService])
-
-  const createPlaylist = useCallback(async () => {
-    if (!playlistService) return
-
-    const name = await popup.prompt('Enter playlist name:', '', 'Playlist name...', 'Create Playlist')
-    if (!name?.trim()) return
-
-    setStatusText('Creating playlist...')
-    try {
-      playlistService.createPlaylist(name.trim())
-      await loadPlaylists()
-      setStatusText('Playlist created')
-    } catch (err) {
-      await popup.alert(`Failed to create playlist: ${err instanceof Error ? err.message : 'Unknown error'}`, 'Error')
-      setStatusText('Creation failed')
-    }
-  }, [playlistService, loadPlaylists, popup])
-
-  const deletePlaylist = useCallback(async (id: string) => {
-    if (!playlistService) return
-    const confirmed = await popup.confirm('Delete this playlist?', 'Confirm Delete')
-    if (!confirmed) return
-
-    setStatusText('Deleting playlist...')
-    try {
-      playlistService.removePlaylist(id)
-      await loadPlaylists()
-      setStatusText('Playlist deleted')
-    } catch (err) {
-      await popup.alert(`Failed to delete playlist: ${err instanceof Error ? err.message : 'Unknown error'}`, 'Error')
-      setStatusText('Delete failed')
-    }
-  }, [playlistService, loadPlaylists, popup])
-
-  const openPlaylist = useCallback((pl: Playlist) => {
-    setCurrentPlaylist(pl)
-    setView('playlist-detail')
-    setStatusText(`${pl.items.length} videos in playlist`)
-    // Lazily-listed playlists carry only metadata until opened.
-    if (pl.itemsLoaded === false && playlistService?.ensureItemsLoaded) {
-      playlistService
-        .ensureItemsLoaded(pl.id)
-        .then(() => {
-          const fresh = playlistService.getPlaylists().find((p) => p.id === pl.id)
-          if (fresh) {
-            setCurrentPlaylist(fresh)
-            setPlaylists(playlistService.getPlaylists())
-            setStatusText(`${fresh.items.length} videos in playlist`)
-          }
-        })
-        .catch(() => setStatusText('Failed to load playlist tracks'))
-    }
-  }, [playlistService])
-
-  // Local copy of the playlist-URL parser (konpyuuta cannot import from
-  // client-3d; cf. extractYouTubeId above). Rejects mixes (RD*) and
-  // auth-required lists (WL/LL), which cannot be fetched anonymously.
-  const extractPlaylistId = useCallback((input: string): string | null => {
-    const trimmed = input.trim()
-    if (!trimmed) return null
-    const idRegex = /^[A-Za-z0-9_-]{10,64}$/
-    const importable = (id: string) =>
-      idRegex.test(id) && id !== 'WL' && id !== 'LL' && !id.startsWith('RD')
-    if (idRegex.test(trimmed) && trimmed.length !== 11) {
-      return importable(trimmed) ? trimmed : null
-    }
-    try {
-      const url = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`)
-      const hosts = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be']
-      if (!hosts.includes(url.hostname)) return null
-      const list = url.searchParams.get('list')
-      return list && importable(list) ? list : null
-    } catch {
-      return null
-    }
+    return next
   }, [])
+  const cancelRequest = () => {
+    request.current.controller.abort()
+    request.current.id += 1
+    setError(null)
+    setLoading(false)
+  }
 
-  const importFromYouTube = useCallback(async () => {
-    if (!playlistService?.importPlaylist) return
-
-    const input = await popup.prompt(
-      'Paste a YouTube playlist URL:',
-      '',
-      'https://www.youtube.com/playlist?list=...',
-      'Import From YouTube'
-    )
-    if (!input?.trim()) return
-
-    const playlistId = extractPlaylistId(input)
-    if (!playlistId) {
-      await popup.alert('Invalid playlist URL. Mixes and private lists cannot be imported.', 'Error')
-      return
-    }
-
-    setLoading(true)
-    setLoadingMessage('SIPHONING PLAYLIST DATA...')
-    setStatusText('Contacting the tube...')
+  const loadBrowse = useCallback(async (next: Browse) => {
+    const job = beginRequest()
+    setView('browse')
+    setBrowse(next)
+    setPlaylistId(null)
+    setTrackId(null)
+    setPage(1)
+    setStatus(next.kind === 'search' ? `Searching for “${next.query}”…` : 'Loading videos…')
     try {
-      const res = await fetch(`${youtubeApiUrl}/playlist/${encodeURIComponent(playlistId)}`)
-      if (res.status === 404) throw new Error('Playlist not found (is it public?)')
-      if (res.status === 400) throw new Error('This playlist type cannot be imported')
-      if (!res.ok) throw new Error(`Fetch failed (${res.status})`)
-      const data: {
-        title: string
-        items: { videoId: string; title: string; duration: number; thumbnail?: string }[]
-        declaredCount: number
-        truncated: boolean
-      } = await res.json()
-
-      const items = data.items ?? []
-      if (items.length === 0) throw new Error('Playlist is empty or unavailable')
-
-      const tracks: PlaylistTrack[] = items.map((it) => ({
-        id: crypto.randomUUID(),
-        title: it.title,
-        link: `https://www.youtube.com/watch?v=${it.videoId}`,
-        duration: it.duration,
-        thumbnail: it.thumbnail,
-      }))
-      playlistService.importPlaylist(data.title || 'YouTube Playlist', tracks)
-      await loadPlaylists()
-
-      const total = data.declaredCount > tracks.length ? data.declaredCount : tracks.length
-      const summary = data.truncated
-        ? `Imported first ${tracks.length} of ${total} fragments.`
-        : `Imported ${tracks.length} fragments.`
-      setStatusText(summary)
-      await popup.alert(summary, 'Import Complete')
-    } catch (err) {
-      setLoading(false)
-      setStatusText('Import failed')
-      await popup.alert(
-        `Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
-        'Error'
+      const terms = next.kind === 'search' ? [next.query!] : pickRandom(
+        TUBE_CATEGORIES.find((category) => category.id === next.category)?.terms ?? DISCOVERY_TERMS,
+        next.kind === 'home' ? 3 : 2,
       )
-    }
-  }, [playlistService, popup, youtubeApiUrl, extractPlaylistId, loadPlaylists])
-
-  const removeFromPlaylist = useCallback(async (playlistId: string, videoId: string) => {
-    if (!playlistService || !currentPlaylist) return
-
-    setStatusText('Removing from playlist...')
-    try {
-      playlistService.removeTrack(playlistId, videoId)
-      const updated = { ...currentPlaylist, items: currentPlaylist.items.filter(v => v.id !== videoId) }
-      setCurrentPlaylist(updated)
-      setStatusText('Removed from playlist')
+      const responses = await Promise.allSettled(terms.map(async (term) => {
+        const data = await tubeRequest(env.youtubeApiUrl, `/search?q=${encodeURIComponent(term)}&limit=50${next.under100 ? '&maxViews=99' : ''}`, job.controller.signal) as { items?: unknown }
+        if (!Array.isArray(data.items)) throw new Error('The video service returned an unexpected response. Please try again.')
+        return normalizeVideos(data.items)
+      }))
+      if (request.current.id !== job.id) return
+      const successful = responses.filter((result) => result.status === 'fulfilled')
+      if (!successful.length) throw (responses[0] as PromiseRejectedResult).reason
+      const seen = new Set<string>()
+      const results = successful.flatMap((result) => result.value).filter((item) => {
+        if (seen.has(item.id)) return false
+        seen.add(item.id)
+        return true
+      })
+      const selected = selectTinyVideos(results, next.under100)
+      if (next.kind !== 'search' && !next.under100) selected.sort((a, b) => (a.viewCount ?? Infinity) - (b.viewCount ?? Infinity))
+      setVideos(selected)
+      setStatus(`${selected.length} videos found${next.under100 ? ' with fewer than 100 views' : ''}.${successful.length < responses.length ? ' Some results could not load. Try again.' : ''}`)
     } catch (err) {
-      await popup.alert(`Failed to remove: ${err instanceof Error ? err.message : 'Unknown error'}`, 'Error')
-      setStatusText('Operation failed')
+      if (request.current.id === job.id) setError(err instanceof Error ? err.message : 'Could not load videos. Please try again.')
+    } finally {
+      if (request.current.id === job.id) setLoading(false)
     }
-  }, [playlistService, currentPlaylist, popup])
-
-  const watchVideo = useCallback((video: Video) => {
-    setCurrentVideo(video)
-    setView('watch')
-    setStatusText('SIGNAL ACQUIRED')
-  }, [])
-
-  const watchTrack = useCallback((track: PlaylistTrack) => {
-    const ytId = extractYouTubeId(track)
-    setCurrentVideo({
-      id: ytId,
-      title: track.title,
-    })
-    setView('watch')
-    setStatusText('SIGNAL ACQUIRED')
-  }, [])
-
-  const addCurrentToPlaylist = useCallback(async () => {
-    if (!currentVideo || !playlistService) return
-
-    setStatusText('Processing...')
-
-    try {
-      const lists = playlistService.getPlaylists()
-
-      if (lists.length === 0) {
-        const createNew = await popup.confirm('No playlists exist. Create a new one?', 'Add to Playlist')
-        if (!createNew) {
-          setStatusText('Operation cancelled')
-          return
-        }
-
-        const name = await popup.prompt('Enter playlist name:', '', 'Playlist name...', 'Create Playlist')
-        if (!name?.trim()) {
-          setStatusText('Operation cancelled')
-          return
-        }
-
-        const newPl: Playlist = {
-          id: crypto.randomUUID(),
-          name: name.trim(),
-          items: [{
-            id: currentVideo.id,
-            title: currentVideo.title,
-            link: `https://www.youtube.com/watch?v=${currentVideo.id}`,
-            duration: 0,
-          }],
-        }
-
-        playlistService.createPlaylist(newPl.name)
-        playlistService.addTrack(newPl.id, newPl.items[0]!)
-        await popup.alert(`Added to "${name.trim()}"`, 'Success')
-        setStatusText('Added to playlist')
-        return
-      }
-
-      const options = lists.map((pl) => ({ label: pl.name, value: pl.id }))
-      const selectedId = await popup.select('Select playlist:', options, lists[0]!.id, 'Add to Playlist')
-
-      if (!selectedId) {
-        setStatusText('Operation cancelled')
-        return
-      }
-
-      const pl = lists.find((l) => l.id === selectedId)
-      if (!pl) {
-        await popup.alert('Invalid selection.', 'Error')
-        setStatusText('Invalid selection')
-        return
-      }
-
-      const track: PlaylistTrack = {
-        id: currentVideo.id,
-        title: currentVideo.title,
-        link: `https://www.youtube.com/watch?v=${currentVideo.id}`,
-        duration: 0,
-      }
-
-      playlistService.addTrack(pl.id, track)
-      await popup.alert(`Added to "${pl.name}"`, 'Success')
-      setStatusText('Added to playlist')
-    } catch (err) {
-      await popup.alert(`Failed to add: ${err instanceof Error ? err.message : 'Unknown error'}`, 'Error')
-      setStatusText('Add failed')
-    }
-  }, [currentVideo, playlistService, popup])
-
-  const goBack = useCallback(() => {
-    if (view === 'watch') {
-      if (currentPlaylist) {
-        setView('playlist-detail')
-      } else if (currentCategory) {
-        setView('homepage')
-      } else {
-        setView('homepage')
-      }
-    } else if (view === 'playlist-detail') {
-      setView('playlists')
-      setCurrentPlaylist(null)
-    }
-  }, [view, currentPlaylist, currentCategory])
-
-  const showView = useCallback((v: View) => {
-    setView(v)
-    if (v === 'homepage') {
-      setCurrentCategory(null)
-      setSearchQuery('')
-      setSidebarHidden(false)
-      loadHomepage()
-    } else if (v === 'playlists') {
-      setCurrentCategory(null)
-      setSearchQuery('')
-      setSidebarHidden(false)
-      loadPlaylists()
-    }
-  }, [loadHomepage, loadPlaylists])
+  }, [beginRequest, env.youtubeApiUrl])
 
   useEffect(() => {
-    loadHomepage()
-  }, [loadHomepage])
+    void loadBrowse(HOME)
+    return () => { request.current.controller.abort(); request.current.id += 1 }
+  }, [loadBrowse])
 
-  const paginatedResults = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE
-    return results.slice(start, start + ITEMS_PER_PAGE)
-  }, [results, currentPage])
+  useEffect(() => {
+    if (view !== 'browse' || browse.kind !== 'home') return
+    const controller = new AbortController()
+    let running = false
+    setFeatured(null)
+    const loadFeature = async () => {
+      if (running || controller.signal.aborted) return
+      running = true
+      setFeatureLoading(true)
+      try {
+        const data = await tubeRequest(env.youtubeApiUrl, '/featured', controller.signal)
+        if (controller.signal.aborted) return
+        setFeatured(normalizeDailyFeature(data))
+        setFeatureError(false)
+      } catch {
+        if (!controller.signal.aborted) { setFeatured(null); setFeatureError(true) }
+      } finally {
+        running = false
+        if (!controller.signal.aborted) setFeatureLoading(false)
+      }
+    }
+    void loadFeature()
+    // Recheck counts and the UTC date while Home remains open; no background
+    // polling while another app view or a hidden browser tab is active.
+    const timer = setInterval(() => { if (!document.hidden) void loadFeature() }, 60_000)
+    const onVisible = () => { if (!document.hidden) void loadFeature() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { controller.abort(); clearInterval(timer); document.removeEventListener('visibilitychange', onVisible) }
+  }, [view, browse.kind, env.youtubeApiUrl, featureRetry])
 
-  const corruptionLevel = useMemo(() => Math.floor(Math.random() * 87 + 13), [])
-  const signalStrength = useMemo(() => Math.floor(Math.random() * 40 + 60), [])
-  const distortion = useMemo(() => (Math.random() * 15).toFixed(1), [])
+  const showPlaylists = async () => {
+    const job = beginRequest()
+    setView('playlists')
+    setPlaylistId(null)
+    setStatus('Loading playlists…')
+    try {
+      await ensureLibrary()
+      if (request.current.id !== job.id) return
+      refresh()
+      setStatus(service ? 'Playlists loaded.' : 'Playlists are unavailable in this session.')
+    } catch (err) {
+      if (request.current.id === job.id) setError(err instanceof Error ? err.message : 'Could not load playlists.')
+    } finally {
+      if (request.current.id === job.id) setLoading(false)
+    }
+  }
 
-  return (
-    <div className="mt-root">
-      {popup.PopupComponent}
-      {/* Header */}
-      <div id="mt-header">
-        <div className="logo"></div>
-        <form id="mt-search-form" onSubmit={doSearch}>
-          <input
-            id="mt-search-input"
-            type="text"
-            placeholder="SEARCH VIDEOS..."
-            autoComplete="off"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <button type="submit" id="mt-search-btn">
-            <span>SEARCH</span>
-          </button>
-        </form>
-        <div className="header-status">
-          <div className="status-item">
-            <div className="status-indicator" />
-            <span>SYSTEM: ONLINE</span>
+  const openPlaylist = async (id: string) => {
+    const job = beginRequest()
+    setPlaylistId(id)
+    setView('playlist')
+    try {
+      await service?.ensureItemsLoaded?.(id)
+      if (request.current.id !== job.id) return
+      refresh()
+      const list = service?.getPlaylists().find((item) => item.id === id)
+      if (!list) throw new Error('This playlist is no longer available.')
+      if (list.itemsLoaded === false) throw new Error('Sign in to load this playlist’s videos.')
+      setStatus(`${list.items.length} videos in “${list.name}”.`)
+    } catch (err) {
+      if (request.current.id === job.id) setError(err instanceof Error ? err.message : 'Could not load playlist videos.')
+    } finally {
+      if (request.current.id === job.id) setLoading(false)
+    }
+  }
+
+  // Read playlist edits from the local store immediately. A server reload here
+  // races its debounced save/delete and can restore old names or deleted lists.
+  const mutate = async (operation: () => Promise<void> | void) => {
+    if (mutation.current) return
+    mutation.current = true
+    setBusy(true)
+    try { await operation(); refresh() }
+    catch (err) { await popup.alert(err instanceof Error ? err.message : 'Something went wrong. Please try again.', 'Could not save') }
+    finally { mutation.current = false; setBusy(false) }
+  }
+
+  const createPlaylist = () => mutate(async () => {
+    if (!service) return
+    const name = await popup.prompt('Give your new playlist a name.', '', 'Playlist name', 'New playlist')
+    if (!name?.trim()) return
+    service.createPlaylist(name)
+    setStatus('Playlist created.')
+  })
+
+  const importPlaylist = () => mutate(async () => {
+    if (!service?.importPlaylist) return
+    const input = await popup.prompt('Paste a public YouTube playlist URL. Up to 500 videos can be imported.', '', 'https://www.youtube.com/playlist?list=…', 'Import playlist')
+    if (!input?.trim()) return
+    const id = extractPlaylistId(input)
+    if (!id) throw new Error('Use a public YouTube playlist URL or playlist ID. Mixes, Watch Later, and private playlists cannot be imported.')
+    setStatus('Importing your playlist…')
+    const data = await tubeRequest(env.youtubeApiUrl, `/playlist/${encodeURIComponent(id)}`) as {
+      title?: string; items?: { videoId: string; title: string; duration: number; thumbnail?: string }[]; truncated?: boolean; declaredCount?: number
+    }
+    const items = Array.isArray(data.items) ? data.items : []
+    const validItems = items.filter((item) => item && /^[\w-]{11}$/.test(item.videoId)).slice(0, 500)
+    if (!validItems.length) throw new Error('This playlist is empty or unavailable. Check that it is public.')
+    const tracks: PlaylistTrack[] = validItems.map((item) => ({
+      id: crypto.randomUUID(), title: item.title || 'Untitled video',
+      link: `https://www.youtube.com/watch?v=${item.videoId}`, duration: item.duration || 0, thumbnail: item.thumbnail,
+    }))
+    const newId = service.importPlaylist(data.title || 'YouTube playlist', tracks)
+    refresh()
+    await openPlaylist(newId)
+    const partial = data.truncated || items.length > 500 || (data.declaredCount ?? 0) > tracks.length
+    const message = partial
+      ? `Imported ${tracks.length} available videos${data.declaredCount ? ` of ${data.declaredCount}` : ''}. Some videos may be unavailable; the import limit is 500.`
+      : `Imported ${tracks.length} videos. Enjoy your new playlist!`
+    setStatus(message)
+    await popup.alert(message, 'Playlist imported')
+  })
+
+  const saveVideo = () => mutate(async () => {
+    if (!service || !video) return
+    await ensureLibrary()
+    const lists = service.getPlaylists()
+    const options = [...lists.map((list) => ({ label: list.name, value: list.id })), { label: '+ Create a new playlist', value: '__new__' }]
+    let id = await popup.select('Where would you like to save this video?', options, lists[0]?.id ?? '__new__', 'Save to playlist')
+    if (!id) return
+    if (id === '__new__') {
+      const name = await popup.prompt('Give your new playlist a name.', '', 'Playlist name', 'New playlist')
+      if (!name?.trim()) return
+      id = service.createPlaylist(name)
+    }
+    await service.ensureItemsLoaded?.(id)
+    const list = service.getPlaylists().find((item) => item.id === id)
+    if (!list || list.itemsLoaded === false) throw new Error('Could not load this playlist. Sign in and try again.')
+    if (list.items.some((item) => videoFromTrack(item)?.id === video.id)) {
+      setStatus(`Already saved in “${list.name}”.`)
+      return
+    }
+    service.addTrack(id, {
+      id: crypto.randomUUID(), title: video.title, link: `https://www.youtube.com/watch?v=${video.id}`,
+      duration: durationSeconds(video.duration), thumbnail: video.thumbnail,
+    })
+    setStatus(`Saved to “${list.name}”.`)
+  })
+
+  const watch = (next: TubeVideo, track?: PlaylistTrack) => {
+    cancelRequest()
+    setVideo(next)
+    setTrackId(track?.id ?? null)
+    if (!track) setPlaylistId(null)
+    setView('watch')
+    setStatus('Now playing.')
+  }
+  const watchTrack = (track: PlaylistTrack) => {
+    const next = videoFromTrack(track)
+    if (next) watch(next, track)
+    else void popup.alert('This saved video does not have a valid YouTube link.', 'Video unavailable')
+  }
+  const back = () => {
+    cancelRequest()
+    if (playlistId) setView('playlist')
+    else setView('browse')
+  }
+
+  return <div className="mt-root" aria-busy={loading || busy}>
+    <SignalTransition selective enabled={!loading} trigger={`${view}:${browse.kind}:${browse.query || browse.category || ''}`} />
+    {popup.PopupComponent}
+    <header className="mt-header">
+      <button className="mt-brand" onClick={() => void loadBrowse({ ...HOME, under100: browse.under100 })} disabled={busy} aria-label="TinyTubes home">
+        <img className="mt-brand-toy" src={SOCIAL_ICONS.mutanttube} alt="" /><span><TinyTubesWordmark /></span>
+      </button>
+      <form className="mt-search" onSubmit={(event) => {
+        event.preventDefault()
+        if (query.trim() && !busy) void loadBrowse({ kind: 'search', query: query.trim(), title: `Results for “${query.trim()}”`, under100: browse.under100 })
+      }}>
+        <input aria-label="Search videos" placeholder="Search videos…" value={query} onChange={(event) => setQuery(event.target.value)} />
+        <button disabled={!query.trim() || busy}>Search</button>
+      </form>
+    </header>
+    <nav className="mt-nav" aria-label="Video library">
+      <button aria-current={view === 'browse' && browse.kind === 'home' ? 'page' : undefined} onClick={() => { setQuery(''); void loadBrowse({ ...HOME, under100: browse.under100 }) }} disabled={busy}><PixelSymbol kind="home" /> Home</button>
+      <button aria-current={view === 'playlists' || view === 'playlist' || (view === 'watch' && playlistId) ? 'page' : undefined} onClick={() => void showPlaylists()} disabled={busy}><PixelSymbol kind="tape" /> My playlists <span>{playlists.length}</span></button>
+      <button className="mt-surprise" onClick={() => { setQuery(''); void loadBrowse({ ...HOME, title: 'Random videos', under100: browse.under100 }) }} disabled={busy}><PixelSymbol kind="shuffle" /> Random</button>
+      <button className="mt-audience" aria-pressed={browse.under100} title={browse.under100 ? 'Showing only videos with 0–99 views. Click to show all videos.' : 'Showing all videos. Click to show only videos with fewer than 100 views.'} disabled={busy} onClick={() => void loadBrowse({ ...browse, under100: !browse.under100 })}>{browse.under100 ? '✓ Under 100 views' : 'All videos'}</button>
+    </nav>
+    {syncError && <div className="mt-sync-note" role="status">Your playlists are saved on this device, but couldn’t sync online. Check your connection and reopen My playlists to retry.</div>}
+    <div className="mt-layout">
+      <aside className="mt-sidebar">
+        <h2 lang="ja" title="Categories">分類</h2>
+        {TUBE_CATEGORIES.map((category, channelIndex) => <button key={category.id} disabled={busy}
+          aria-current={view === 'browse' && browse.category === category.id ? 'page' : undefined}
+          onClick={() => { setQuery(''); void loadBrowse({ kind: 'category', title: category.label, category: category.id, under100: browse.under100 }) }}>
+          <span className="mt-channel-number" aria-hidden="true">{String(channelIndex + 1).padStart(2, '0')}</span>{category.label}
+        </button>)}
+      </aside>
+      <main className="mt-content">
+        {view === 'browse' && browse.kind === 'home' && <section className="mt-feature" aria-labelledby={featureTitleId}>
+          <div className="mt-feature-kicker"><h2 id={featureTitleId} lang="ja" title="Unpopular video of the day">今日の一本</h2></div>
+          {featured ? <button className="mt-feature-video" onClick={() => watch(featured.video)} disabled={busy} aria-label={`Watch today's featured video: ${featured.video.title}`}>
+            <div className="mt-feature-screen"><Thumbnail video={featured.video} /><span className="mt-feature-play" aria-hidden="true">▶</span></div>
+            <div className="mt-feature-info"><h3>{featured.video.title}</h3><p>{featured.video.channel || 'Unknown channel'}</p><span className="mt-feature-views">{featured.video.viewCount} {featured.video.viewCount === 1 ? 'view' : 'views'} · fewer than 100</span><span className="mt-feature-watch">Watch video ↗</span><time dateTime={featured.checkedAt}>Checked {new Date(featured.checkedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · changes daily at midnight UTC</time></div>
+          </button> : <div className="mt-feature-status" role="status"><p>{featureLoading ? 'Loading featured video…' : featureError ? 'Could not verify the featured video.' : 'No verified video under 100 views is available.'}</p>{!featureLoading && <button onClick={() => setFeatureRetry((value) => value + 1)}>Check again</button>}</div>}
+        </section>}
+        {loading ? <div className="mt-empty" role="status" aria-label="Loading videos"><TubeMascot loading /><h2 lang="ja">読込中</h2></div>
+        : error ? <div className="mt-empty" role="alert"><span className="mt-empty-icon">☁</span><h2>Could not load</h2><p>{error}</p><button onClick={() => void (view === 'playlist' && playlistId ? openPlaylist(playlistId) : view === 'playlists' ? showPlaylists() : loadBrowse(browse))}>Try again</button></div>
+        : view === 'browse' ? <>
+          <div className="mt-section-heading"><div><h1 data-signal-text lang={browse.title === HOME.title ? 'ja' : undefined} title={browse.title === HOME.title ? 'Videos' : undefined}>{browse.title}</h1></div></div>
+          {!videos.length ? <div className="mt-empty"><h2>No videos found</h2><p>{browse.under100 ? 'No results with a known count below 100. Try another search or category, or switch to All videos.' : 'Try another search or category.'}</p>{browse.under100 && <button onClick={() => void loadBrowse({ ...browse, under100: false })}>Show all videos</button>}</div> : <>
+            <div className="mt-video-grid">{videos.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((item) => <button className="mt-video-card" key={item.id} onClick={() => watch(item)}>
+              <Thumbnail video={item} /><div className="mt-card-info"><h2>{item.title}</h2><p>{item.channel || 'Unknown channel'}</p><small>{item.viewCount === undefined ? 'Views unavailable' : `${item.viewCount.toLocaleString()} views`}</small></div>
+            </button>)}</div>
+            {pageCount > 1 && <nav className="mt-pagination" aria-label="Results pages"><button disabled={page === 1} onClick={() => setPage(page - 1)}>← Previous</button><span>Page {page} of {pageCount}</span><button disabled={page === pageCount} onClick={() => setPage(page + 1)}>Next →</button></nav>}
+          </>}
+        </> : view === 'playlists' ? <>
+          <div className="mt-section-heading"><div><h1 data-signal-text>My playlists</h1></div><span className="mt-heading-star" aria-hidden="true"><PixelSymbol kind="tape" /></span></div>
+          <div className="mt-actions"><button className="mt-primary" disabled={!service || busy} onClick={createPlaylist}>+ New playlist</button>{service?.importPlaylist && <button disabled={busy} onClick={importPlaylist}>↓ Import from YouTube</button>}</div>
+          {!playlists.length && <div className="mt-empty"><span className="mt-empty-icon" aria-hidden="true"><PixelSymbol kind="tape" /></span><h2>{service ? 'No playlists' : 'Playlists are unavailable'}</h2><p>{service ? 'Create a playlist or import one from YouTube.' : 'Open TinyTubes from Club Mutant to use your library.'}</p></div>}
+          <div className="mt-playlists">{playlists.map((list) => <div className="mt-playlist-row" key={list.id}>
+            <button className="mt-playlist-open" onClick={() => void openPlaylist(list.id)} disabled={busy}><span className="mt-folder"><PixelSymbol kind="tape" /></span><span><strong>{list.name}</strong><small>{list.itemsLoaded === false ? list.trackCount ?? 0 : list.items.length} videos</small></span><span className="mt-row-arrow">→</span></button>
+            <button className="mt-delete" aria-label={`Delete ${list.name}`} disabled={busy} onClick={() => void mutate(async () => { if (await popup.confirm(`Delete “${list.name}” and its saved videos?`, 'Delete playlist')) { service?.removePlaylist(list.id); setStatus('Playlist deleted.') } })}>Delete</button>
+          </div>)}</div>
+        </> : view === 'playlist' && currentPlaylist ? <>
+          <button className="mt-back" onClick={() => { cancelRequest(); setView('playlists'); setPlaylistId(null) }}>← My playlists</button>
+          <div className="mt-section-heading"><div><h1 data-signal-text>{currentPlaylist.name}</h1><p>{currentPlaylist.items.length} videos</p></div></div>
+          <div className="mt-actions">
+            <button className="mt-primary" disabled={!currentPlaylist.items.length || busy} onClick={() => watchTrack(currentPlaylist.items[0]!)}>▶ Play first video</button>
+            {service?.renamePlaylist && <button disabled={busy} onClick={() => void mutate(async () => { const name = await popup.prompt('Choose a new name.', currentPlaylist.name, 'Playlist name', 'Rename playlist'); if (name?.trim()) { service.renamePlaylist?.(currentPlaylist.id, name); setStatus('Playlist renamed.') } })}>Rename</button>}
           </div>
-          <div className="status-item">
-            <span>INTEGRITY: 87%</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div id="mt-tabs">
-        <button
-          className={`mt-tab${view === 'homepage' || view === 'watch' ? ' active' : ''}`}
-          onClick={() => showView('homepage')}
-        >
-          Home
-        </button>
-        <button
-          className={`mt-tab${view === 'playlists' || view === 'playlist-detail' ? ' active' : ''}`}
-          onClick={() => showView('playlists')}
-        >
-          Playlists
-        </button>
-      </div>
-
-      {/* Main */}
-      <div id="mt-main">
-        {/* Sidebar */}
-        <div id={`mt-sidebar${sidebarHidden ? ' hidden' : ''}`}>
-          <h3>Directories</h3>
-          {Object.entries(CATEGORY_TERMS).map(([key]) => (
-            <div
-              key={key}
-              className={`directory-item${currentCategory === key ? ' active' : ''}`}
-              onClick={() => loadCategory(key, key.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))}
-            >
-              {key.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-            </div>
-          ))}
-        </div>
-
-        {/* Content */}
-        <div id="mt-content">
-          {loading && (
-            <div className="loading-container">
-              <div className="loading-pulse">◈</div>
-              <div className="loading-text">LOADING</div>
-              <div className="loading-progress">
-                <div className="loading-progress-bar" />
-              </div>
-              <div className="loading-status">{loadingMessage}</div>
-            </div>
-          )}
-
-          {error && (
-            <div id="mt-error">Error: {error}</div>
-          )}
-
-          {!loading && !error && view === 'homepage' && (
-            <>
-              <div className="section-title">
-                ⚠ FRAGMENTED SIGNALS DETECTED ⚠
-              </div>
-              {results.length === 0 ? (
-                <div className="empty-state">
-                  No signals detected.<br />Initialize manual search.
-                </div>
-              ) : (
-                <>
-                  <div className="mt-masonry">
-                    {paginatedResults.map((v, i) => (
-                      <div
-                        key={v.id}
-                        className="mt-video-card"
-                        onClick={() => watchVideo(v)}
-                      >
-                        <div className="mt-thumb-container">
-                          {v.thumbnail ? (
-                            <img className="mt-thumb" src={v.thumbnail} alt="" loading="lazy" />
-                          ) : (
-                            <div className="mt-thumb-placeholder">▶</div>
-                          )}
-                        </div>
-                        <div className="mt-video-info">
-                          <div className="mt-video-title" data-index={i}>{v.title}</div>
-                          <div className="mt-video-meta">
-                            <span>{v.viewCount?.toLocaleString() ?? '???'}</span> VIEWS // {v.publishedAt ? formatTimeAgo(v.publishedAt) : 'UNKNOWN DATE'}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {totalPages > 1 && (
-                    <div className="pagination">
-                      <button
-                        className="pagination-btn"
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        disabled={currentPage <= 1}
-                      >
-                        &lt; PREV
-                      </button>
-                      <div className="pagination-info">
-                        PAGE <span>{currentPage}</span> / <span>{totalPages}</span> // {results.length} FRAGMENTS
-                      </div>
-                      <button
-                        className="pagination-btn"
-                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                        disabled={currentPage >= totalPages}
-                      >
-                        NEXT &gt;
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-            </>
-          )}
-
-          {!loading && !error && view === 'playlists' && (
-            <>
-              <div className="section-title">⚠ PLAYLISTS ⚠</div>
-              <button className="mt-btn-new" onClick={createPlaylist}>
-                + Create Playlist
-              </button>
-              {playlistService?.importPlaylist && (
-                <button className="mt-btn-new" onClick={importFromYouTube}>
-                  ⇩ Import From YouTube
-                </button>
-              )}
-              {playlists.length === 0 ? (
-                <div className="empty-state">
-                  No playlists found.<br />Create a new playlist.
-                </div>
-              ) : (
-                playlists.map(pl => (
-                  <div
-                    key={pl.id}
-                    className="mt-playlist-item"
-                    onClick={() => openPlaylist(pl)}
-                  >
-                    <div className="mt-playlist-info">
-                      <div className="mt-playlist-name">[ {pl.name} ]</div>
-                      <div className="mt-playlist-count">
-                        {(pl.itemsLoaded === false ? pl.trackCount ?? 0 : pl.items.length)} FRAGMENTS STORED
-                      </div>
-                    </div>
-                    <button
-                      className="mt-btn-delete"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        deletePlaylist(pl.id)
-                      }}
-                    >
-                      PURGE
-                    </button>
-                  </div>
-                ))
-              )}
-            </>
-          )}
-
-          {!loading && !error && view === 'playlist-detail' && currentPlaylist && (
-            <>
-              <button className="mt-btn-back" onClick={goBack}>
-                ← RETURN TO PLAYLISTS
-              </button>
-              <div className="section-title">PLAYLIST: [ {currentPlaylist.name} ]</div>
-              {currentPlaylist.items.length === 0 ? (
-                <div className="empty-state">
-                  Empty playlist.<br />Add videos to populate.
-                </div>
-              ) : (
-                currentPlaylist.items.map(v => {
-                  const ytId = extractYouTubeId(v)
-                  return (
-                    <div
-                      key={v.id}
-                      className="mt-track-item"
-                      onClick={() => watchTrack(v)}
-                    >
-                      <span className="mt-track-title">▶ {v.title || ytId}</span>
-                      <button
-                        className="mt-btn-delete"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          removeFromPlaylist(currentPlaylist.id, v.id)
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )
-                })
-              )}
-            </>
-          )}
-
-          {!loading && !error && view === 'watch' && currentVideo && (
-            <div id="mt-watch">
-              <button className="back-btn" onClick={goBack}>
-                ← RETURN
-              </button>
-              <div id="mt-watch-frame-container">
-                <div className="corner-decoration corner-tl" />
-                <div className="corner-decoration corner-tr" />
-                <div className="corner-decoration corner-bl" />
-                <div className="corner-decoration corner-br" />
-                <div className="video-warning">⚠ LIVE FEED</div>
-                <div className="video-scanlines" />
-                <iframe
-                  id="mt-watch-frame"
-                  src={`https://www.youtube-nocookie.com/embed/${currentVideo.id}?autoplay=1`}
-                  allowFullScreen
-                />
-              </div>
-              <div id="mt-watch-info">
-                <div id="mt-watch-title">&gt; {currentVideo.title}</div>
-                <div className="video-stats">
-                  <div className="stat-item">
-                    <div className="stat-label">Signal Strength</div>
-                    <div className="stat-value">{signalStrength}%</div>
-                  </div>
-                  <div className="stat-item">
-                    <div className="stat-label">Data Corruption</div>
-                    <div className="stat-value">{corruptionLevel}%</div>
-                  </div>
-                  <div className="stat-item">
-                    <div className="stat-label">Distortion</div>
-                    <div className="stat-value">{distortion}dB</div>
-                  </div>
-                  <div className="stat-item">
-                    <div className="stat-label">Source</div>
-                    <div className="stat-value">EXTERNAL</div>
-                  </div>
-                </div>
-                <div id="mt-watch-actions">
-                  <button className="action-btn primary" onClick={addCurrentToPlaylist}>
-                    ADD TO PLAYLIST
-                  </button>
-                  <button
-                    className="action-btn"
-                    onClick={async () => {
-                      navigator.clipboard.writeText(`https://youtube.com/watch?v=${currentVideo.id}`)
-                      await popup.alert('Link copied to clipboard', 'Copied')
-                    }}
-                  >
-                    COPY LINK
-                  </button>
-                </div>
-              </div>
-              <div className="glitch-decoration" style={{ top: '20%', left: '5%' }}>
-                ERR_{Math.floor(Math.random() * 999)}
-              </div>
-              <div className="glitch-decoration" style={{ top: '60%', right: '8%', animationDelay: '1s' }}>
-                SIG_LOSS
-              </div>
-              <div className="glitch-decoration" style={{ bottom: '30%', left: '10%', animationDelay: '2s' }}>
-                ◈ DATA ◈
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Status Bar */}
-      <div id="mt-status-bar">
-        <div className="status-text">{statusText}</div>
-        <div className="equalizer">
-          {[...Array(10)].map((_, i) => (
-            <div key={i} className="eq-bar" />
-          ))}
-        </div>
-      </div>
+          {!currentPlaylist.items.length && <div className="mt-empty"><h2>No videos</h2><p>Find a video, open it, and choose Save to playlist.</p></div>}
+          <ol className="mt-tracks">{currentPlaylist.items.map((track, index) => <li key={track.id}>
+            <span className="mt-track-number">{String(index + 1).padStart(2, '0')}</span>
+            <button className="mt-track-open" disabled={busy} onClick={() => watchTrack(track)}>{track.title || 'Untitled video'}</button>
+            {service?.reorderTrack && <><button aria-label={`Move ${track.title} up`} disabled={busy || index === 0} onClick={() => void mutate(() => service.reorderTrack?.(currentPlaylist.id, index, index - 1))}>↑</button><button aria-label={`Move ${track.title} down`} disabled={busy || index === currentPlaylist.items.length - 1} onClick={() => void mutate(() => service.reorderTrack?.(currentPlaylist.id, index, index + 1))}>↓</button></>}
+            <button className="mt-delete" aria-label={`Remove ${track.title}`} disabled={busy} onClick={() => void mutate(() => { service?.removeTrack(currentPlaylist.id, track.id); setStatus('Video removed from playlist.') })}>×</button>
+          </li>)}</ol>
+        </> : view === 'watch' && video ? <>
+          <button className="mt-back" onClick={back} disabled={busy}>← {playlistId ? currentPlaylist?.name || 'Playlist' : browse.kind === 'search' ? 'Search results' : 'Back to browsing'}</button>
+          <div className="mt-player"><iframe key={video.id} title={video.title} src={`https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1`} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen /></div>
+          <div className="mt-watch-info"><small>NOW PLAYING</small><h1>{video.title}</h1>{video.channel && <p>{video.channel}</p>}</div>
+          <div className="mt-actions"><button className="mt-primary" disabled={!service || busy} onClick={saveVideo}>+ Save to playlist</button><button disabled={busy} onClick={() => void mutate(async () => { await navigator.clipboard.writeText(`https://www.youtube.com/watch?v=${video.id}`); setStatus('Video link copied.') })}>Copy link</button><a href={`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noreferrer">Open on YouTube ↗</a></div>
+          {currentPlaylist && trackIndex >= 0 && <div className="mt-playlist-playback"><span>Playing {trackIndex + 1} of {currentPlaylist.items.length} · {currentPlaylist.name}</span><button disabled={busy || trackIndex === 0} onClick={() => watchTrack(currentPlaylist.items[trackIndex - 1]!)}>← Previous</button><button disabled={busy || trackIndex >= currentPlaylist.items.length - 1} onClick={() => watchTrack(currentPlaylist.items[trackIndex + 1]!)}>Next →</button></div>}
+          <p className="mt-player-note">If a video can’t play here, open it on YouTube.</p>
+        </> : <div className="mt-empty"><h2>Playlist unavailable</h2><button onClick={() => void showPlaylists()}>Back to playlists</button></div>}
+      </main>
     </div>
-  )
+    <footer className="mt-status"><span role="status" aria-live="polite">{busy ? 'Working…' : status}</span></footer>
+  </div>
 }

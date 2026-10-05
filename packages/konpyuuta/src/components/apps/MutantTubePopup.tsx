@@ -32,17 +32,27 @@ export function MutantTubePopup({
 }: PopupProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const selectRef = useRef<HTMLSelectElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus()
-      inputRef.current.select()
-    }
-  }, [isOpen])
+    if (!isOpen) return
+    const previousFocus = document.activeElement as HTMLElement | null
+    const target = inputRef.current ?? selectRef.current ?? dialogRef.current?.querySelector<HTMLButtonElement>('button')
+    target?.focus()
+    inputRef.current?.select()
+    return () => previousFocus?.focus()
+  }, [isOpen, type, title, defaultValue])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
+      e.stopPropagation()
+      if (e.key === 'Tab') {
+        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('input, select, button') ?? [])
+        const first = controls[0]
+        const last = controls[controls.length - 1]
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus() }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() }
+      } else if (e.key === 'Enter' && (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement)) {
         e.preventDefault()
         if (type === 'prompt') {
           onConfirm(inputRef.current?.value ?? '')
@@ -73,11 +83,7 @@ export function MutantTubePopup({
 
   return (
     <div className="mt-popup-overlay" onClick={onCancel}>
-      <div className="mt-popup" onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
-        <div className="mt-popup-corner mt-popup-corner-tl" />
-        <div className="mt-popup-corner mt-popup-corner-tr" />
-        <div className="mt-popup-corner mt-popup-corner-bl" />
-        <div className="mt-popup-corner mt-popup-corner-br" />
+      <div ref={dialogRef} className="mt-popup" role="dialog" aria-modal="true" aria-label={title || "TinyTubes"} onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
 
         {title && (
           <div className="mt-popup-header">
@@ -95,17 +101,13 @@ export function MutantTubePopup({
               className="mt-popup-input"
               placeholder={placeholder}
               defaultValue={defaultValue}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  handleConfirm()
-                }
-              }}
+              aria-label={title || "Playlist name"}
+              maxLength={type === 'prompt' && title?.toLowerCase().includes('import') ? 2048 : 60}
             />
           )}
 
           {type === 'select' && options && (
-            <select ref={selectRef} className="mt-popup-select" defaultValue={defaultValue}>
+            <select ref={selectRef} className="mt-popup-select" defaultValue={defaultValue} aria-label="Playlist">
               {options.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
@@ -117,22 +119,21 @@ export function MutantTubePopup({
           <div className="mt-popup-actions">
             {type === 'alert' ? (
               <button className="mt-popup-btn mt-popup-btn-primary" onClick={handleConfirm}>
-                ACKNOWLEDGE
+                OK
               </button>
             ) : (
               <>
                 <button className="mt-popup-btn mt-popup-btn-secondary" onClick={onCancel}>
-                  ABORT
+                  Cancel
                 </button>
                 <button className="mt-popup-btn mt-popup-btn-primary" onClick={handleConfirm}>
-                  CONFIRM
+                  Confirm
                 </button>
               </>
             )}
           </div>
         </div>
 
-        <div className="mt-popup-scanlines" />
       </div>
     </div>
   )
@@ -244,4 +245,3 @@ export function usePopup() {
     PopupComponent,
   }
 }
-
