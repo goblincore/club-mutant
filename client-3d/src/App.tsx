@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef } from 'react'
-import { KonpyuuTAShell } from './ui/konpyuuta/KonpyuuTAShell'
+import { KonpyuuTALauncher } from './ui/konpyuuta/KonpyuuTALauncher'
 import { Routes, Route } from 'react-router-dom'
 import { getNetwork } from './network/NetworkManager'
 import { useGameStore } from './stores/gameStore'
@@ -231,8 +231,8 @@ function MainApp() {
       <BoothPrompt />
       <NpcTakeoverPrompt />
 
-      {/* KonpyuuTA desktop OS (full-screen iframe, renders null when inactive) */}
-      <KonpyuuTAShell />
+      {/* OS code, styles and visual assets load only on the first desktop launch. */}
+      <KonpyuuTALauncher />
 
       {/* Lazy-loaded overlays */}
       <Suspense>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import swordLoop from '../assets/cursors/sword.apng?url'
+import swordLoop from '../assets/cursors/sword.webp?url'
 import swordStill from '../assets/cursors/sword.png?url'
 import swordLink from '../assets/cursors/sword-link.png?url'
 

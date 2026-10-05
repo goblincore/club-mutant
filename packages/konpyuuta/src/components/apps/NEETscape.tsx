@@ -82,7 +82,7 @@ export function NEETscape() {
         <NeetSignalScene />
         <div className="neet-floating-signals">{DESTINATIONS.map((destination) => <div key={destination.app} className="neet-signal-anchor">
           <button className="neet-floating-signal" onClick={() => visit(destination)} aria-label={'Open ' + destination.name}>
-            <picture><source media="(prefers-reduced-motion: reduce)" srcSet={DESKTOP_ICONS[destination.app]} /><img src={DESKTOP_ICON_LOOPS[destination.app]} alt="" /></picture>
+            <picture><source media="(prefers-reduced-motion: reduce)" srcSet={DESKTOP_ICONS[destination.app]} /><source type="image/webp" srcSet={DESKTOP_ICON_LOOPS[destination.app]} /><img src={DESKTOP_ICONS[destination.app]} alt="" /></picture>
             <span>{destination.name}</span>
           </button>
         </div>)}</div>

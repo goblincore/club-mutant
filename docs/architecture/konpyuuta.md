@@ -4,13 +4,16 @@ KonpyuuTA v2 is a React package consumed directly by `client-3d`. Its desktop, w
 
 ## Integration
 
-`client-3d/src/ui/konpyuuta/KonpyuuTAShell.tsx` renders when `panelStore.osActive` is true. It injects the reactive account username plus playlist, social, and messenger services through `KonpyuuTAProvider`, then renders `KonpyuuTADesktop`. Shutdown clears `osActive`.
+The main client imports only `client-3d/src/ui/konpyuuta/KonpyuuTALauncher.tsx`, a small gate around `React.lazy`. `panelStore.osActive` triggers the first dynamic import of `KonpyuuTAShell.tsx`; Vite loads its desktop JS and separate CSS at that point. Loading and failed imports have a return-to-club control; failed loads also offer retry. Club-only visits do not initialize OS stores or services. After first use, the shell remains mounted and renders null when closed, preserving its service lifecycle and existing windows for reopening. Shutdown clears `osActive`.
+
+`KonpyuuTAShell.tsx` injects the reactive account username plus playlist, social, messenger, and mail services through `KonpyuuTAProvider`, then renders `KonpyuuTADesktop`. The production build runs `tools/check-konpyuuta-bundle.mjs` against Vite's manifest to ensure desktop JS, CSS, and visual assets stay outside the main entry's static import graph. Shared host dependencies (React, networking, auth, playlists) remain shared.
 
 The desktop runs a boot sequence, then renders the top bar, desktop icons, windows, notifications, and CDE panel. `windowStore` owns positions, sizes, z-order, shading, minimization, and four workspaces. `AppRouter` resolves an app ID to its React component. Closing a window unmounts that app.
 
 | File | Responsibility |
 | --- | --- |
 | `packages/konpyuuta/src/types.ts` | App and injected service contracts |
+| `client-3d/src/ui/konpyuuta/KonpyuuTALauncher.tsx` | First-use lazy loading and loading/error recovery |
 | `packages/konpyuuta/src/context/KonpyuuTAContext.tsx` | Provider and service access |
 | `packages/konpyuuta/src/components/KonpyuuTADesktop.tsx` | Desktop composition and boot |
 | `packages/konpyuuta/src/components/AppRouter.tsx` | App routing |
@@ -117,16 +120,16 @@ For Messenger integration verification, start `docker compose -f docker-compose.
 
 ## Liquid signal visuals
 
-`styles/liquid.css` scopes the desktop and social theme under `.cde-root.liquid-signal`, retaining the existing layout/container queries in `cde.css`. The default desktop uses `src/assets/liquid-signal.jpg`; custom image wallpapers remain supported. The original wallpaper was generated with built-in imagegen: dark liquid glass, acid-green caustics, a dark upper-left void, violet edges, photographic bloom and fine grain, with no text or logos.
+`styles/liquid.css` scopes the desktop and social theme under `.cde-root.liquid-signal`, retaining the existing layout/container queries in `cde.css`. The default desktop uses `src/assets/liquid-signal.webp` (quality 92, 176KB); its original JPEG remains an authoring source and is not imported into the client. Custom image wallpapers remain supported. The original wallpaper was generated with built-in imagegen: dark liquid glass, acid-green caustics, a dark upper-left void, violet edges, photographic bloom and fine grain, with no text or logos.
 
-`tools/render-social-icons.py` authors seven Blender scenes: TinyTubes' glass tube/play symbol, Messenger's paired speech bubbles, Postbox's envelope, Guestbook's book, NEETscape's orbital sphere, Style Manager's gear, and File Manager's folder. `lib/socialIcons.ts` bundles their PNG posters and transparent APNG loops. Desktop icons animate; headers and dock use stills. A native `<picture>` media source selects the poster for reduced motion. Each loop is 24 frames at 6 fps (four seconds), rendered at 128px without runtime WebGL.
+`tools/render-social-icons.py` authors seven Blender scenes: TinyTubes' glass tube/play symbol, Messenger's paired speech bubbles, Postbox's envelope, Guestbook's book, NEETscape's orbital sphere, Style Manager's gear, and File Manager's folder. `lib/socialIcons.ts` bundles optimized PNG posters and transparent animated WebP loops. Desktop icons animate; headers and dock use stills. Native `<picture>` sources select the poster for reduced motion or lack of WebP support. Each loop is 24 frames at 6 fps (exactly four seconds), rendered at 128px without runtime WebGL. Quality-92 WebP keeps alpha exact and reduces the seven loops from 1.68MB to 418KB; PNG posters are losslessly recompressed. Original APNG delivery files are removed.
 
-Regenerate with Blender 5.x and ffmpeg:
+Regenerate with Blender 5.x and Python/Pillow with WebP support:
 
 ```sh
 blender -b --python tools/render-social-icons.py -- --frames 24
-# Repeat packaging for each scene name; its 000.png is the static poster.
-ffmpeg -framerate 6 -i /tmp/club-mutant-liquid-icons/mutanttube/%03d.png -plays 0 -f apng packages/konpyuuta/public/icons/apps/mutanttube.apng
+blender -b --python tools/render-sword-cursor.py
+python3 tools/optimize-konpyuuta-assets.py
 ```
 
 `SignalOrgan.tsx` supplies a slowly breathing refractive membrane and deterministic user-ID avatars; uploaded Guestbook profile pictures take precedence. `AnalogAccents.tsx` supplies serif wordmarks and small light flares, and `PixelSymbol.tsx` now draws smooth control symbols.
@@ -135,15 +138,13 @@ ffmpeg -framerate 6 -i /tmp/club-mutant-liquid-icons/mutanttube/%03d.png -plays 
 
 Messenger additionally uses `IncomingMessageText.tsx` for a 630ms corruption/resolve pass on a newly received full message. The store issues a short-lived, consumable visual arrival token only from `receiveMessage`, never history loading or optimistic sends. Duplicate notifications and reopened threads do not replay it. Pending tokens are capped at 80 and expire after three seconds; account changes clear them. The original message remains intact in the polite live log, while an `aria-hidden` visual copy animates. Reduced motion, pointer/keyboard/focus interaction, and hidden documents restore readable text. Store regression tests cover deduplication, preview upgrades, history isolation, token expiry/bounds, and account changes.
 
-The liquid desktop uses a gothic sword sprite rendered by `tools/render-sword-cursor.py` with Blender 5.x: worn metal, curled guard filigree, a faceted skull pommel, strong specular contrast, and a passing blade glint. Its 24-frame axial spin runs at 12fps; the 64px APNG is displayed at 48px with a fixed blade-tip hotspot `(6, 6)`. Static 48px PNG normal/link variants back up the animation.
+The liquid desktop uses a gothic sword sprite rendered by `tools/render-sword-cursor.py` with Blender 5.x: worn metal, curled guard filigree, a faceted skull pommel, strong specular contrast, and a passing blade glint. Its 24-frame axial spin runs at 12fps; the lossless 64px animated WebP (47KB) is displayed at 48px with a fixed blade-tip hotspot `(6, 6)`. Pixels, alpha and two-second timing are preserved; static 48px PNG normal/link variants back up the animation.
 
 `AnimatedSwordCursor.tsx` displays a pointer-transparent, `aria-hidden` sprite in a body portal. Mouse movement is coalesced through one animation frame; placement updates the element transform without React rerenders. Only the desktop's sword cursor states enable it. Text fields, disabled controls, pressed-button drags, resize, iframes, touch, reduced motion, hidden documents, keyboard navigation, and leaving the desktop restore native cursors. Native fallback stays visible until the sprite loads; asset errors and unmount also restore it. The sprite rolls around the blade axis, so the tip stays fixed through every frame. Asset identity checks use imported URLs, including Vite's inlined production PNGs.
 
-Regenerate renders and loops:
+The optimization command above packages the runtime sword loop. For an enlarged review APNG:
 
 ```bash
-blender -b --python tools/render-sword-cursor.py
-ffmpeg -framerate 12 -i /tmp/club-mutant-gothic-sword/cursor/%03d.png -plays 0 -f apng packages/konpyuuta/src/assets/cursors/sword.apng
 ffmpeg -framerate 12 -i /tmp/club-mutant-gothic-sword/review/%03d.png -plays 0 -f apng artifacts/liquid-social/sword-spin.png
 ```
 

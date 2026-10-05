@@ -15,7 +15,7 @@
   cursor: var(--signal-cursor);
 }
 .cde-root.liquid-signal::after { opacity: .07 !important; }
-.cde-root.liquid-signal .cde-desktop[data-liquid-wallpaper] { background: #041008 url('../assets/liquid-signal.jpg') center / cover no-repeat !important; }
+.cde-root.liquid-signal .cde-desktop[data-liquid-wallpaper] { background: #041008 url('../assets/liquid-signal.webp') center / cover no-repeat !important; }
 .cde-root.liquid-signal .cde-topbar { border: 0; border-bottom: 1px solid #a4d27533; background: #050b08df; color: #a5bd8b; box-shadow: none; font: 10px 'Courier New', monospace; }
 .cde-root.liquid-signal .cde-topbar-btn { border: 0; background: none; color: #b6ff62; box-shadow: none; }
 .cde-root.liquid-signal .cde-window { padding: 1px; border: 1px solid #7fa76870; border-radius: 16px 16px 5px 5px; background: #050b08f7; box-shadow: 0 24px 90px #000a, 0 0 28px #8cdb2c0b; overflow: hidden; }

@@ -27,7 +27,8 @@ export function DesktopIcon({ icon }: DesktopIconProps) {
       }}>
       {signalApp ? <picture>
         <source media="(prefers-reduced-motion: reduce)" srcSet={DESKTOP_ICONS[signalApp]} />
-        <img src={DESKTOP_ICON_LOOPS[signalApp]} alt="" className="cde-desktop-icon-img" draggable={false} />
+        <source type="image/webp" srcSet={DESKTOP_ICON_LOOPS[signalApp]} />
+        <img src={DESKTOP_ICONS[signalApp]} alt="" className="cde-desktop-icon-img" draggable={false} />
       </picture> : <img src={icon.icon} alt="" className="cde-desktop-icon-img" draggable={false} />}
       <span className="cde-desktop-icon-label">{icon.label}</span>
     </div>

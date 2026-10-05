@@ -11,6 +11,7 @@ function konpyuutaStaticPlugin(): Plugin {
   const konpyuutaPublic = resolve(__dirname, '../packages/konpyuuta/public')
   const mime: Record<string, string> = {
     '.png': 'image/png',
+    '.webp': 'image/webp',
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
     '.svg': 'image/svg+xml',
@@ -62,6 +63,7 @@ export default defineConfig({
 
   build: {
     sourcemap: false,
+    manifest: true,
   },
 
   server: {

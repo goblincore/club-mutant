@@ -4,19 +4,19 @@ import mutanttube from '../../public/icons/apps/mutanttube.png?url'
 import mutantbook from '../../public/icons/apps/mutantbook.png?url'
 import messenger from '../../public/icons/apps/messenger.png?url'
 import mutantmail from '../../public/icons/apps/mutantmail.png?url'
-import tubeLoop from '../../public/icons/apps/mutanttube.apng?url'
-import bookLoop from '../../public/icons/apps/mutantbook.apng?url'
-import messengerLoop from '../../public/icons/apps/messenger.apng?url'
-import mailLoop from '../../public/icons/apps/mutantmail.apng?url'
+import tubeLoop from '../../public/icons/apps/mutanttube.webp?url'
+import bookLoop from '../../public/icons/apps/mutantbook.webp?url'
+import messengerLoop from '../../public/icons/apps/messenger.webp?url'
+import mailLoop from '../../public/icons/apps/mutantmail.webp?url'
 
 export const SOCIAL_ICONS = { mutanttube, mutantbook, messenger, mutantmail }
 export const SOCIAL_ICON_LOOPS = { mutanttube: tubeLoop, mutantbook: bookLoop, messenger: messengerLoop, mutantmail: mailLoop }
 import netscape from '../../public/icons/apps/netscape.png?url'
-import netscapeLoop from '../../public/icons/apps/netscape.apng?url'
+import netscapeLoop from '../../public/icons/apps/netscape.webp?url'
 import settings from '../../public/icons/apps/settings.png?url'
-import settingsLoop from '../../public/icons/apps/settings.apng?url'
+import settingsLoop from '../../public/icons/apps/settings.webp?url'
 import filemanager from '../../public/icons/apps/filemanager.png?url'
-import filemanagerLoop from '../../public/icons/apps/filemanager.apng?url'
+import filemanagerLoop from '../../public/icons/apps/filemanager.webp?url'
 
 export const DESKTOP_ICONS = { ...SOCIAL_ICONS, netscape, settings, filemanager }
 export const DESKTOP_ICON_LOOPS = { ...SOCIAL_ICON_LOOPS, netscape: netscapeLoop, settings: settingsLoop, filemanager: filemanagerLoop }
