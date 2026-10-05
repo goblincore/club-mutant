@@ -1,11 +1,9 @@
-import { SignalTransition } from './SignalTransition'
 import { IncomingMessageText } from './IncomingMessageText'
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
 import { useKonpyuuTA } from '../../context/KonpyuuTAContext'
 import { useMessengerStore, type Message, type Conversation } from '../../stores/messengerStore'
 import { useWindowStore } from '../../stores/windowStore'
 import { SOCIAL_ICONS } from '../../lib/socialIcons'
-import { SignalOrgan } from './SignalOrgan'
 import { SignalAvatar } from './SignalOrgan'
 import { AppWordmark } from './AnalogAccents'
 import { PixelSymbol } from './PixelSymbol'
@@ -207,40 +205,38 @@ export function Messenger({ windowId }: { windowId?: string }) {
   const inputId = `mm-message-${windowId ?? 'standalone'}`
   const sending = messages.some((m) => m.pending)
 
-  if (!ownerId || !social || !service) return <div className="mm-root mm-sign-in"><SignalTransition selective trigger="sign-in" /><SignalOrgan /><span className="mm-eyebrow">MESSENGER / OFFLINE</span><h2 data-signal-text>Is anybody there?</h2><p>Sign in to chat with your Club Mutant friends.</p></div>
+  if (!ownerId || !social || !service) return <div className="mm-root mm-sign-in"><AppWordmark label="Messenger" /><p>Sign in to send messages.</p></div>
 
   return <div className={`mm-root${active ? ' mm-has-chat' : ''}`}>
-    <SignalTransition selective enabled={!loading && !activeId} trigger="welcome" />
-    <header className="mm-toolbar"><img src={SOCIAL_ICONS.messenger} alt="" /><div><AppWordmark label="Messenger" /><span>A CONNECTION ACROSS THE ETHER</span></div><span className={`mm-connection${connected ? ' mm-connected' : ''}`}><i />{connected ? 'Connected' : 'Disconnected'}{!connected && <button onClick={() => service.connect()}>Reconnect</button>}</span></header>
+    <header className="mm-toolbar"><img src={SOCIAL_ICONS.messenger} alt="" /><div><AppWordmark label="Messenger" /></div><span className={`mm-connection${connected ? ' mm-connected' : ''}`}><i />{connected ? 'Connected' : 'Disconnected'}{!connected && <button onClick={() => service.connect()}>Reconnect</button>}</span></header>
     {error && <div className="mm-notice" role="alert">{error}<button onClick={() => setRefresh((r) => r + 1)}>Retry</button></div>}
     <div className="mm-layout">
       <aside className="mm-contacts" aria-label="Conversations">
         <div className="mm-contacts-heading"><strong>CONTACTS</strong><span>{onlineCount} online</span></div>
         <label className="mm-search"><span className="mm-sr-only">Find a friend</span><input type="search" placeholder="Find a friend…" value={query} onChange={(e) => setQuery(e.target.value)} /></label>
         <div className="mm-contact-list">
-          {loading && !contacts.length && <p className="mm-list-note" role="status">Gathering your people…</p>}
-          {!loading && !contacts.length && <p className="mm-list-note">{query ? 'No matching friends.' : 'No conversations yet. Add a friend in Guestbook to say hello.'}</p>}
+          {loading && !contacts.length && <p className="mm-list-note" role="status">Loading contacts…</p>}
+          {!loading && !contacts.length && <p className="mm-list-note">{query ? 'No matching friends.' : 'No conversations. Add friends in Guestbook.'}</p>}
           {contacts.map((c) => <button key={c.channelId} className={`mm-contact${activeId === c.channelId ? ' mm-selected' : ''}`} aria-pressed={activeId === c.channelId} onClick={() => store.setActiveConversation(c.channelId)}>
             <span className="mm-avatar" aria-hidden="true"><SignalAvatar seed={c.userId} /><i className={c.online ? 'mm-online' : ''} /></span>
-            <span className="mm-contact-text"><strong>{c.displayName || c.username}</strong><span>{c.lastMessage || (c.online ? 'Online · say hello' : 'Leave a message')}</span></span>
+            <span className="mm-contact-text"><strong>{c.displayName || c.username}</strong><span>{c.lastMessage || (c.online ? 'Online' : 'Offline')}</span></span>
             {!!c.unread && <span className="mm-unread" aria-label={`${c.unread} unread messages`}>{c.unread > 99 ? '99+' : c.unread}</span>}
           </button>)}
         </div>
         <footer className="mm-self"><i />Signed in as <strong>{social.getCurrentUsername() || 'you'}</strong></footer>
       </aside>
       <main className="mm-chat">
-        {!active ? <div className="mm-welcome"><SignalOrgan /><span className="mm-eyebrow">CHANNEL OPEN / AWAITING CONTACT</span><h2 data-signal-text>Is anybody there?</h2><p>Choose a contact. Make a connection.<br />Offline friends will find it when they’re back.</p><div className="mm-welcome-stamps" aria-hidden="true"><SignalAvatar seed="imp" /><SignalAvatar seed="troll" /><SignalAvatar seed="moth" /></div></div> : <>
-          <header className="mm-chat-heading"><button className="mm-back" onClick={() => store.setActiveConversation(null)} aria-label="Back to conversations">←</button><span className="mm-avatar" aria-hidden="true"><SignalAvatar seed={active.userId} /></span><div><strong>{active.displayName || active.username}</strong><span><i className={active.online ? 'mm-online' : ''} />{active.online ? 'Online now' : 'Offline · messages will be waiting'}</span></div><button className="mm-refresh" onClick={() => { void loadHistory(activeId!); setRefresh((r) => r + 1) }} aria-label="Refresh conversation" title="Refresh conversation">↻</button></header>
+        {!active ? <div className="mm-welcome"><p>Select a conversation.</p></div> : <>
+          <header className="mm-chat-heading"><button className="mm-back" onClick={() => store.setActiveConversation(null)} aria-label="Back to conversations">←</button><span className="mm-avatar" aria-hidden="true"><SignalAvatar seed={active.userId} /></span><div><strong>{active.displayName || active.username}</strong><span><i className={active.online ? 'mm-online' : ''} />{active.online ? 'Online now' : 'Offline'}</span></div><button className="mm-refresh" onClick={() => { void loadHistory(activeId!); setRefresh((r) => r + 1) }} aria-label="Refresh conversation" title="Refresh conversation">↻</button></header>
           <div className="mm-messages" ref={listRef} role="log" aria-label={`Messages with ${active.displayName || active.username}`} aria-live="polite" aria-relevant="additions text" onScroll={() => {
             const el = listRef.current!
             nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 50
             if (nearBottom.current) setJumpToLatest(false)
           }}>
-            {historyLoading && <p className="mm-history-status" role="status">Fetching your conversation…</p>}
+            {historyLoading && <p className="mm-history-status" role="status">Loading messages…</p>}
             {activeId && history[activeId]?.error && <div className="mm-history-error" role="alert">{history[activeId].error}<button onClick={() => void loadHistory(activeId)}>Retry history</button></div>}
             {readError && <p className="mm-history-error" role="alert">{readError}</p>}
             {messages.length > visibleCount && <button className="mm-earlier" onClick={() => setVisibleCount((n) => n + 80)}>Show earlier messages</button>}
-            {!messages.length && loaded && !historyLoading && <div className="mm-first-note"><img src={SOCIAL_ICONS.mutantmail} alt="" /><p>The start of a little conversation.<br />Send a hello below.</p></div>}
             {shownMessages.map((message, index) => {
               const mine = message.senderId === ownerId
               const previous = shownMessages[index - 1]
@@ -249,8 +245,8 @@ export function Messenger({ windowId }: { windowId?: string }) {
             })}
           </div>
           {jumpToLatest && <button className="mm-jump" onClick={() => { nearBottom.current = true; listRef.current?.scrollTo({ top: listRef.current.scrollHeight }); setJumpToLatest(false) }}>↓ New messages · jump to latest</button>}
-          <div className="mm-typing" role="status">{activeId && store.typing[activeId] ? <><span className="mm-typing-dots" aria-hidden="true">•••</span> {active.displayName || active.username} is typing</> : <span><PixelSymbol kind="tape" /> Draft retained on this device.</span>}</div>
-          <form className="mm-compose" onSubmit={(event) => { event.preventDefault(); void sendMessage() }}><div className="mm-compose-label" aria-hidden="true"><span>OUTGOING SIGNAL</span><PixelSymbol kind="star" /></div><label className="mm-sr-only" htmlFor={inputId}>Message {active.displayName || active.username}</label><textarea id={inputId} ref={composeRef} value={draft} maxLength={2000} rows={2} placeholder={`Say hello to ${active.displayName || active.username}…`} onChange={(e) => { store.setDraft(activeId!, e.target.value); if (e.target.value.trim()) service.sendTypingIndicator(active.userId) }} onKeyDown={(event) => {
+          <div className="mm-typing" role="status">{activeId && store.typing[activeId] ? <><span className="mm-typing-dots" aria-hidden="true">•••</span> {active.displayName || active.username} is typing</> : null}</div>
+          <form className="mm-compose" onSubmit={(event) => { event.preventDefault(); void sendMessage() }}><label className="mm-sr-only" htmlFor={inputId}>Message {active.displayName || active.username}</label><textarea id={inputId} ref={composeRef} value={draft} maxLength={2000} rows={2} placeholder={`Message ${active.displayName || active.username}…`} onChange={(e) => { store.setDraft(activeId!, e.target.value); if (e.target.value.trim()) service.sendTypingIndicator(active.userId) }} onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); void sendMessage() }
           }} /><div className="mm-compose-bottom"><span>Enter to send · Shift + Enter for a new line</span><span className={draft.length >= 1900 ? 'mm-limit' : ''}>{draft.length}/2000</span><button type="submit" disabled={!draft.trim() || sending}><PixelSymbol kind="send" />{sending ? 'Sending…' : 'Send'}</button></div></form>
         </>}

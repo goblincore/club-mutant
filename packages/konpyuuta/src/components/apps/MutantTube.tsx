@@ -8,15 +8,13 @@ import {
 } from '../../lib/mutantTube'
 import { SOCIAL_ICONS } from '../../lib/socialIcons'
 import { usePopup } from './MutantTubePopup'
-import { SignalOrgan } from './SignalOrgan'
 import { TubeMascot } from './TubeMascot'
-import { DoodleStar } from './AnalogAccents'
 import { TinyTubesWordmark } from './TinyTubesWordmark'
 import { PixelSymbol } from './PixelSymbol'
 
 type View = 'browse' | 'playlists' | 'playlist' | 'watch'
 type Browse = { kind: 'home' | 'search' | 'category'; title: string; query?: string; category?: string; under100: boolean }
-const HOME: Browse = { kind: 'home', title: 'What’s on today?', under100: true }
+const HOME: Browse = { kind: 'home', title: 'Home', under100: true }
 const PAGE_SIZE = 12
 
 function Thumbnail({ video }: { video: TubeVideo }) {
@@ -52,7 +50,7 @@ export function MutantTube() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
-  const [status, setStatus] = useState('Welcome to your little video corner.')
+  const [status, setStatus] = useState('')
   const request = useRef<{ id: number; controller: AbortController }>({ id: 0, controller: new AbortController() })
   const mutation = useRef(false)
   const libraryLoad = useRef<Promise<void> | null>(null)
@@ -103,7 +101,7 @@ export function MutantTube() {
     setPlaylistId(null)
     setTrackId(null)
     setPage(1)
-    setStatus(next.kind === 'search' ? `Searching for “${next.query}”…` : 'Finding a few lovely little videos…')
+    setStatus(next.kind === 'search' ? `Searching for “${next.query}”…` : 'Loading videos…')
     try {
       const terms = next.kind === 'search' ? [next.query!] : pickRandom(
         TUBE_CATEGORIES.find((category) => category.id === next.category)?.terms ?? DISCOVERY_TERMS,
@@ -126,7 +124,7 @@ export function MutantTube() {
       const selected = selectTinyVideos(results, next.under100)
       if (next.kind !== 'search' && !next.under100) selected.sort((a, b) => (a.viewCount ?? Infinity) - (b.viewCount ?? Infinity))
       setVideos(selected)
-      setStatus(`${selected.length} videos found${next.under100 ? ' with fewer than 100 views' : ''}.${successful.length < responses.length ? ' Some shelves could not load; try refreshing.' : ''}`)
+      setStatus(`${selected.length} videos found${next.under100 ? ' with fewer than 100 views' : ''}.${successful.length < responses.length ? ' Some results could not load. Try again.' : ''}`)
     } catch (err) {
       if (request.current.id === job.id) setError(err instanceof Error ? err.message : 'Could not load videos. Please try again.')
     } finally {
@@ -173,12 +171,12 @@ export function MutantTube() {
     const job = beginRequest()
     setView('playlists')
     setPlaylistId(null)
-    setStatus('Opening your video library…')
+    setStatus('Loading playlists…')
     try {
       await ensureLibrary()
       if (request.current.id !== job.id) return
       refresh()
-      setStatus(service ? 'Your playlists are ready.' : 'Playlists are unavailable in this session.')
+      setStatus(service ? 'Playlists loaded.' : 'Playlists are unavailable in this session.')
     } catch (err) {
       if (request.current.id === job.id) setError(err instanceof Error ? err.message : 'Could not load playlists.')
     } finally {
@@ -218,10 +216,10 @@ export function MutantTube() {
 
   const createPlaylist = () => mutate(async () => {
     if (!service) return
-    const name = await popup.prompt('Give your new playlist a name.', '', 'e.g. Sunday afternoon', 'New playlist')
+    const name = await popup.prompt('Give your new playlist a name.', '', 'Playlist name', 'New playlist')
     if (!name?.trim()) return
     service.createPlaylist(name)
-    setStatus('Playlist created. Find a video and choose Save to playlist.')
+    setStatus('Playlist created.')
   })
 
   const importPlaylist = () => mutate(async () => {
@@ -284,7 +282,7 @@ export function MutantTube() {
     setTrackId(track?.id ?? null)
     if (!track) setPlaylistId(null)
     setView('watch')
-    setStatus('Now playing. Settle in!')
+    setStatus('Now playing.')
   }
   const watchTrack = (track: PlaylistTrack) => {
     const next = videoFromTrack(track)
@@ -302,68 +300,66 @@ export function MutantTube() {
     {popup.PopupComponent}
     <header className="mt-header">
       <button className="mt-brand" onClick={() => void loadBrowse({ ...HOME, under100: browse.under100 })} disabled={busy} aria-label="TinyTubes home">
-        <img className="mt-brand-toy" src={SOCIAL_ICONS.mutanttube} alt="" /><span><TinyTubesWordmark /><small>TRANSMISSIONS FROM THE OTHER SIDE</small></span>
+        <img className="mt-brand-toy" src={SOCIAL_ICONS.mutanttube} alt="" /><span><TinyTubesWordmark /></span>
       </button>
-      <span className="mt-club-badge" aria-hidden="true">TT<br />CH. 01</span>
       <form className="mt-search" onSubmit={(event) => {
         event.preventDefault()
         if (query.trim() && !busy) void loadBrowse({ kind: 'search', query: query.trim(), title: `Results for “${query.trim()}”`, under100: browse.under100 })
       }}>
-        <input aria-label="Search videos" placeholder="Search the signal…" value={query} onChange={(event) => setQuery(event.target.value)} />
-        <button disabled={!query.trim() || busy}>Find ↗</button>
+        <input aria-label="Search videos" placeholder="Search videos…" value={query} onChange={(event) => setQuery(event.target.value)} />
+        <button disabled={!query.trim() || busy}>Search</button>
       </form>
     </header>
     <nav className="mt-nav" aria-label="Video library">
       <button aria-current={view === 'browse' && browse.kind === 'home' ? 'page' : undefined} onClick={() => { setQuery(''); void loadBrowse({ ...HOME, under100: browse.under100 }) }} disabled={busy}><PixelSymbol kind="home" /> Home</button>
       <button aria-current={view === 'playlists' || view === 'playlist' || (view === 'watch' && playlistId) ? 'page' : undefined} onClick={() => void showPlaylists()} disabled={busy}><PixelSymbol kind="tape" /> My playlists <span>{playlists.length}</span></button>
-      <button className="mt-surprise" onClick={() => { setQuery(''); void loadBrowse({ ...HOME, title: 'Fresh finds, just for you', under100: browse.under100 }) }} disabled={busy}><PixelSymbol kind="shuffle" /> Surprise me</button>
+      <button className="mt-surprise" onClick={() => { setQuery(''); void loadBrowse({ ...HOME, title: 'Random videos', under100: browse.under100 }) }} disabled={busy}><PixelSymbol kind="shuffle" /> Random</button>
       <button className="mt-audience" aria-pressed={browse.under100} title={browse.under100 ? 'Showing only videos with 0–99 views. Click to show all videos.' : 'Showing all videos. Click to show only videos with fewer than 100 views.'} disabled={busy} onClick={() => void loadBrowse({ ...browse, under100: !browse.under100 })}>{browse.under100 ? '✓ Under 100 views' : 'All videos'}</button>
     </nav>
     {syncError && <div className="mt-sync-note" role="status">Your playlists are saved on this device, but couldn’t sync online. Check your connection and reopen My playlists to retry.</div>}
     <div className="mt-layout">
       <aside className="mt-sidebar">
-        <h2>CHOOSE A CHANNEL</h2>
+        <h2>Categories</h2>
         {TUBE_CATEGORIES.map((category, channelIndex) => <button key={category.id} disabled={busy}
           aria-current={view === 'browse' && browse.category === category.id ? 'page' : undefined}
           onClick={() => { setQuery(''); void loadBrowse({ kind: 'category', title: category.label, category: category.id, under100: browse.under100 }) }}>
           <span className="mt-channel-number" aria-hidden="true">{String(channelIndex + 1).padStart(2, '0')}</span>{category.label}
         </button>)}
-        <div className="mt-sidebar-note"><div className="mt-shelf-toy" aria-hidden="true"><SignalOrgan compact /></div><div><p>Weak signal.<br />Deep reception.</p><small>FREQUENCY / 00.01</small></div></div>
       </aside>
       <main className="mt-content">
         {view === 'browse' && browse.kind === 'home' && <section className="mt-feature" aria-labelledby={featureTitleId}>
-          <div className="mt-feature-kicker"><PixelSymbol kind="star" /><h2 id={featureTitleId}>Unpopular video of the day</h2><span>DAILY TRANSMISSION</span></div>
+          <div className="mt-feature-kicker"><PixelSymbol kind="star" /><h2 id={featureTitleId}>Unpopular video of the day</h2></div>
           {featured ? <button className="mt-feature-video" onClick={() => watch(featured.video)} disabled={busy} aria-label={`Watch today's featured video: ${featured.video.title}`}>
             <div className="mt-feature-screen"><Thumbnail video={featured.video} /><span className="mt-feature-play" aria-hidden="true">▶</span></div>
-            <div className="mt-feature-info"><small>LOW VISIBILITY / HIGH RESONANCE</small><h3>{featured.video.title}</h3><p>{featured.video.channel || 'A little internet find'}</p><span className="mt-feature-views">{featured.video.viewCount} {featured.video.viewCount === 1 ? 'view' : 'views'} · fewer than 100</span><span className="mt-feature-watch">Watch today’s pick ↗</span><time dateTime={featured.checkedAt}>Checked {new Date(featured.checkedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · changes daily at midnight UTC</time></div>
-          </button> : <div className="mt-feature-status" role="status"><p>{featureLoading ? 'Tuning today’s low-visibility transmission…' : featureError ? 'We couldn’t check today’s pick. The other shelves are still here.' : 'No verified video under 100 views is available just now.'}</p>{!featureLoading && <button onClick={() => setFeatureRetry((value) => value + 1)}>Check again</button>}</div>}
+            <div className="mt-feature-info"><h3>{featured.video.title}</h3><p>{featured.video.channel || 'Unknown channel'}</p><span className="mt-feature-views">{featured.video.viewCount} {featured.video.viewCount === 1 ? 'view' : 'views'} · fewer than 100</span><span className="mt-feature-watch">Watch video ↗</span><time dateTime={featured.checkedAt}>Checked {new Date(featured.checkedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · changes daily at midnight UTC</time></div>
+          </button> : <div className="mt-feature-status" role="status"><p>{featureLoading ? 'Loading featured video…' : featureError ? 'Could not verify the featured video.' : 'No verified video under 100 views is available.'}</p>{!featureLoading && <button onClick={() => setFeatureRetry((value) => value + 1)}>Check again</button>}</div>}
         </section>}
-        {loading ? <div className="mt-empty" role="status"><TubeMascot loading /><h2>Finding the good stuff…</h2><p>{browse.under100 ? 'Looking beyond the popular results for videos with 0–99 views.' : 'This may take a little moment.'}</p></div>
-        : error ? <div className="mt-empty" role="alert"><span className="mt-empty-icon">☁</span><h2>Signal interrupted</h2><p>{error}</p><button onClick={() => void (view === 'playlist' && playlistId ? openPlaylist(playlistId) : view === 'playlists' ? showPlaylists() : loadBrowse(browse))}>Try again</button></div>
+        {loading ? <div className="mt-empty" role="status"><TubeMascot loading /><h2>Loading videos…</h2></div>
+        : error ? <div className="mt-empty" role="alert"><span className="mt-empty-icon">☁</span><h2>Could not load</h2><p>{error}</p><button onClick={() => void (view === 'playlist' && playlistId ? openPlaylist(playlistId) : view === 'playlists' ? showPlaylists() : loadBrowse(browse))}>Try again</button></div>
         : view === 'browse' ? <>
-          <div className="mt-section-heading"><div><small>{browse.kind === 'home' ? 'TODAY’S PROGRAM GUIDE' : browse.kind === 'search' ? 'SEARCH RESULTS' : 'YOU’RE TUNED IN TO'}</small><h1 data-signal-text>{browse.title}</h1><p>{browse.kind === 'search' ? `${videos.length} videos found${browse.under100 ? ' with fewer than 100 views' : ''}` : browse.under100 ? 'Little-seen music, old tapes, and odd finds. Every video has fewer than 100 views.' : 'Music, old tapes, and odd little finds. See where the dial takes you.'}</p></div><span className="mt-finds-counter"><DoodleStar filled /><strong>{String(videos.length).padStart(2, '0')}</strong><small>FINDS</small></span></div>
-          {!videos.length ? <div className="mt-empty"><h2>{browse.under100 ? 'No tiny finds this time' : 'No videos this time'}</h2><p>{browse.under100 ? 'None of the videos we checked had a known count below 100. Try another search or channel, or switch to All videos.' : 'Try another search or pick a different shelf.'}</p>{browse.under100 && <button onClick={() => void loadBrowse({ ...browse, under100: false })}>Show all videos</button>}</div> : <>
+          <div className="mt-section-heading"><div><h1 data-signal-text>{browse.title}</h1></div></div>
+          {!videos.length ? <div className="mt-empty"><h2>No videos found</h2><p>{browse.under100 ? 'No results with a known count below 100. Try another search or category, or switch to All videos.' : 'Try another search or category.'}</p>{browse.under100 && <button onClick={() => void loadBrowse({ ...browse, under100: false })}>Show all videos</button>}</div> : <>
             <div className="mt-video-grid">{videos.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((item, videoIndex) => <button className="mt-video-card" key={item.id} onClick={() => watch(item)}>
-              <div className="mt-card-tuning" aria-hidden="true"><span>{String((page - 1) * PAGE_SIZE + videoIndex + 1).padStart(2, '0')}</span><i /><i /><i /></div><Thumbnail video={item} /><div className="mt-card-info"><h2>{item.title}</h2><p>{item.channel || 'A little internet find'}</p><small>{item.viewCount === undefined ? 'Views unavailable' : `${item.viewCount.toLocaleString()} views`}</small></div>
+              <div className="mt-card-tuning" aria-hidden="true"><span>{String((page - 1) * PAGE_SIZE + videoIndex + 1).padStart(2, '0')}</span><i /><i /><i /></div><Thumbnail video={item} /><div className="mt-card-info"><h2>{item.title}</h2><p>{item.channel || 'Unknown channel'}</p><small>{item.viewCount === undefined ? 'Views unavailable' : `${item.viewCount.toLocaleString()} views`}</small></div>
             </button>)}</div>
             {pageCount > 1 && <nav className="mt-pagination" aria-label="Results pages"><button disabled={page === 1} onClick={() => setPage(page - 1)}>← Previous</button><span>Page {page} of {pageCount}</span><button disabled={page === pageCount} onClick={() => setPage(page + 1)}>Next →</button></nav>}
           </>}
         </> : view === 'playlists' ? <>
-          <div className="mt-section-heading"><div><small>COLLECT YOUR FAVORITES</small><h1 data-signal-text>My playlists</h1><p>A home for all your internet treasures.</p></div><span className="mt-heading-star" aria-hidden="true"><PixelSymbol kind="tape" /></span></div>
+          <div className="mt-section-heading"><div><h1 data-signal-text>My playlists</h1></div><span className="mt-heading-star" aria-hidden="true"><PixelSymbol kind="tape" /></span></div>
           <div className="mt-actions"><button className="mt-primary" disabled={!service || busy} onClick={createPlaylist}>+ New playlist</button>{service?.importPlaylist && <button disabled={busy} onClick={importPlaylist}>↓ Import from YouTube</button>}</div>
-          {!playlists.length && <div className="mt-empty"><span className="mt-empty-icon" aria-hidden="true"><PixelSymbol kind="tape" /></span><h2>{service ? 'Your collection starts here' : 'Playlists are unavailable'}</h2><p>{service ? 'Create a playlist, then save videos as you explore. Or bring over a public YouTube playlist.' : 'Open TinyTubes from Club Mutant to use your library.'}</p></div>}
+          {!playlists.length && <div className="mt-empty"><span className="mt-empty-icon" aria-hidden="true"><PixelSymbol kind="tape" /></span><h2>{service ? 'No playlists' : 'Playlists are unavailable'}</h2><p>{service ? 'Create a playlist or import one from YouTube.' : 'Open TinyTubes from Club Mutant to use your library.'}</p></div>}
           <div className="mt-playlists">{playlists.map((list) => <div className="mt-playlist-row" key={list.id}>
             <button className="mt-playlist-open" onClick={() => void openPlaylist(list.id)} disabled={busy}><span className="mt-folder"><PixelSymbol kind="tape" /></span><span><strong>{list.name}</strong><small>{list.itemsLoaded === false ? list.trackCount ?? 0 : list.items.length} videos</small></span><span className="mt-row-arrow">→</span></button>
             <button className="mt-delete" aria-label={`Delete ${list.name}`} disabled={busy} onClick={() => void mutate(async () => { if (await popup.confirm(`Delete “${list.name}” and its saved videos?`, 'Delete playlist')) { service?.removePlaylist(list.id); setStatus('Playlist deleted.') } })}>Delete</button>
           </div>)}</div>
         </> : view === 'playlist' && currentPlaylist ? <>
           <button className="mt-back" onClick={() => { cancelRequest(); setView('playlists'); setPlaylistId(null) }}>← My playlists</button>
-          <div className="mt-section-heading"><div><small>YOUR VIDEO COLLECTION</small><h1 data-signal-text>{currentPlaylist.name}</h1><p>{currentPlaylist.items.length} videos · saved for later, loved forever</p></div></div>
+          <div className="mt-section-heading"><div><h1 data-signal-text>{currentPlaylist.name}</h1><p>{currentPlaylist.items.length} videos</p></div></div>
           <div className="mt-actions">
             <button className="mt-primary" disabled={!currentPlaylist.items.length || busy} onClick={() => watchTrack(currentPlaylist.items[0]!)}>▶ Play first video</button>
             {service?.renamePlaylist && <button disabled={busy} onClick={() => void mutate(async () => { const name = await popup.prompt('Choose a new name.', currentPlaylist.name, 'Playlist name', 'Rename playlist'); if (name?.trim()) { service.renamePlaylist?.(currentPlaylist.id, name); setStatus('Playlist renamed.') } })}>Rename</button>}
           </div>
-          {!currentPlaylist.items.length && <div className="mt-empty"><h2>A blank mixtape</h2><p>Find a video, open it, and choose Save to playlist.</p></div>}
+          {!currentPlaylist.items.length && <div className="mt-empty"><h2>No videos</h2><p>Find a video, open it, and choose Save to playlist.</p></div>}
           <ol className="mt-tracks">{currentPlaylist.items.map((track, index) => <li key={track.id}>
             <span className="mt-track-number">{String(index + 1).padStart(2, '0')}</span>
             <button className="mt-track-open" disabled={busy} onClick={() => watchTrack(track)}>{track.title || 'Untitled video'}</button>
@@ -380,6 +376,6 @@ export function MutantTube() {
         </> : <div className="mt-empty"><h2>Playlist unavailable</h2><button onClick={() => void showPlaylists()}>Back to playlists</button></div>}
       </main>
     </div>
-    <footer className="mt-status"><span role="status" aria-live="polite">{busy ? 'Working on your collection…' : status}</span><span aria-hidden="true"><PixelSymbol kind="star" /> KEEP RECEIVING</span></footer>
+    <footer className="mt-status"><span role="status" aria-live="polite">{busy ? 'Working…' : status}</span></footer>
   </div>
 }

@@ -49,15 +49,15 @@ TinyTubes uses the existing `mutanttube` app ID and `components/apps/MutantTube.
 
 ### Daily feature
 
-Home begins with a shared “Unpopular video of the day” card from `GET /featured`, independently of the audience toggle and random discovery shelves. `services/youtube-api/featured.go` keeps one UTC-day pick in `<DISK_CACHE_DIR>/daily/featured.json` (override with `FEATURED_STATE_FILE`). Each request verifies its current count through InnerTube watch-page metadata; counts of 100+, unknown counts, and failed verification never serve a cached eligible feature. The pick stays stable across refreshes, Surprise Me, and service restarts, unless it becomes ineligible. Selection uses a bounded, coalesced job and a small low-view candidate pool. No popular fallback is allowed.
+Home begins with a shared “Unpopular video of the day” card from `GET /featured`, independently of the audience toggle and random discovery shelves. `services/youtube-api/featured.go` keeps one UTC-day pick in `<DISK_CACHE_DIR>/daily/featured.json` (override with `FEATURED_STATE_FILE`). Each request verifies its current count through InnerTube watch-page metadata; counts of 100+, unknown counts, and failed verification never serve a cached eligible feature. The pick stays stable across refreshes, Random, and service restarts, unless it becomes ineligible. Selection uses a bounded, coalesced job and a small low-view candidate pool. No popular fallback is allowed.
 
 Home rechecks every minute while visible, on returning to Home, and when the browser tab becomes visible. Failed verification clears the card; `normalizeDailyFeature` rejects expired dates, stale checks, and counts outside 0–99. The card opens the existing watch view and playlist-saving flow. The featured route and client must be deployed together.
 
 ### Browsing
 
-- Home and Surprise Me select three random queries from the discovery term pool.
+- Home and Random select three random queries from the discovery term pool.
 - Category shelves select two queries from that shelf's terms.
-- Home, categories, Surprise Me, and search default to **Under 100 views**, requesting `maxViews=99&limit=50`. The Go service scans up to three pages of ordinary search and three of this month's uploads concurrently within 24 seconds, then deduplicates, excludes unknown/live counts, filters before limiting, and sorts lowest first. The client also enforces 0–99 known views. Empty searches stay empty, with an explicit All videos option.
+- Home, categories, Random, and search default to **Under 100 views**, requesting `maxViews=99&limit=50`. The Go service scans up to three pages of ordinary search and three of this month's uploads concurrently within 24 seconds, then deduplicates, excludes unknown/live counts, filters before limiting, and sorts lowest first. The client also enforces 0–99 known views. Empty searches stay empty, with an explicit All videos option.
 - The audience toggle preserves the active search/category. All videos retains API relevance for search and lowest-view ordering for discovery.
 - View parsing handles comma-separated and K/M/B counts correctly; missing or hidden counts stay unknown. Filtered caches expire within five minutes. Deploy the updated YouTube service along with the client for full low-view discovery.
 - If one discovery query fails, results from successful queries still render.
@@ -137,9 +137,9 @@ blender -b --python tools/render-sword-cursor.py
 python3 tools/optimize-konpyuuta-assets.py
 ```
 
-`SignalOrgan.tsx` supplies a slowly breathing refractive membrane and deterministic user-ID avatars; uploaded Guestbook profile pictures take precedence. `AnalogAccents.tsx` supplies serif wordmarks and small light flares, and `PixelSymbol.tsx` now draws smooth control symbols.
+`SignalOrgan.tsx` supplies the loading animation and deterministic user-ID avatars; uploaded Guestbook profile pictures take precedence. `AnalogAccents.tsx` supplies serif wordmarks and small light flares, and `PixelSymbol.tsx` now draws smooth control symbols.
 
-`SignalTransition.tsx` uses `lib/mojibake.ts` for a decorative 980ms corruption/resolve pass limited to explicitly marked headings (`data-signal-text`). TinyTubes marks its browse/collection heading after loading; Messenger and Guestbook mark their introductory heading; Postbox marks its folder heading. Controls, video titles, profile content, letter bodies, and wordmarks stay steady. TinyTubes uses custom SVG tubular lettering in `TinyTubesWordmark.tsx`. Inputs, stored data, live announcements, and alerts are never re-encoded. Interaction, scrolling, asynchronous content changes, resizing, and reduced-motion preferences restore readable originals immediately. `mojibake.test.ts` verifies Unicode resolution, whitespace, bounded progress, and changing noise.
+`SignalTransition.tsx` uses `lib/mojibake.ts` for a decorative 980ms corruption/resolve pass limited to explicitly marked headings (`data-signal-text`). TinyTubes marks its browse/collection heading after loading; Postbox marks its folder heading. Controls, video titles, profile content, letter bodies, and wordmarks stay steady. TinyTubes uses custom SVG tubular lettering in `TinyTubesWordmark.tsx`. Inputs, stored data, live announcements, and alerts are never re-encoded. Interaction, scrolling, asynchronous content changes, resizing, and reduced-motion preferences restore readable originals immediately. `mojibake.test.ts` verifies Unicode resolution, whitespace, bounded progress, and changing noise.
 
 Messenger additionally uses `IncomingMessageText.tsx` for a 630ms corruption/resolve pass on a newly received full message. The store issues a short-lived, consumable visual arrival token only from `receiveMessage`, never history loading or optimistic sends. Duplicate notifications and reopened threads do not replay it. Pending tokens are capped at 80 and expire after three seconds; account changes clear them. The original message remains intact in the polite live log, while an `aria-hidden` visual copy animates. Reduced motion, pointer/keyboard/focus interaction, and hidden documents restore readable text. Store regression tests cover deduplication, preview upgrades, history isolation, token expiry/bounds, and account changes.
 
@@ -162,3 +162,7 @@ ffmpeg -framerate 12 -i /tmp/club-mutant-gothic-sword/review/%03d.png -plays 0 -
 `styles/portal.css` adds a pointer-transparent CRT scanline/phosphor overlay, vignette, and rounded screen edge across home and apps. Fisheye refraction affects the wallpaper; text and click targets remain clear and aligned. Retired boot, panel, window, utility, and browser styling is removed from the runtime stylesheets.
 
 `TopBar.tsx` keeps power (return to Club Mutant), interface-sound toggle, and time. Sound is persisted in `settingsStore`; `AudioManager` respects it before creating/playing tones and mutes already-playing notes when switched off. This control does not change game music or embedded video volume.
+
+### UI copy
+
+Social apps use direct labels and brief functional status messages. Header slogans, decorative transmission/frequency text, sidebar pitches, welcome monologues, and duplicate empty-pane calls to action are removed. TinyTubes keeps categories, video metadata, the daily feature, search/filter feedback, and playlist instructions; its sidebar has no blob or tagline. Postbox leaves its reading pane blank until a letter or draft is selected. Messenger uses a short conversation-selection prompt and keeps connection/typing/send status. Sign-in requirements, errors, retry actions, local draft-save confirmation, and delivery warnings remain explicit.

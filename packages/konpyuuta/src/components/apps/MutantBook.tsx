@@ -1,9 +1,8 @@
-import { SignalTransition } from './SignalTransition'
 import { useState, useEffect, useCallback } from 'react'
 import { useKonpyuuTA } from '../../context/KonpyuuTAContext'
 import { SOCIAL_ICONS } from '../../lib/socialIcons'
-import { AppWordmark, DoodleStar } from './AnalogAccents'
-import { SignalAvatar, SignalOrgan } from './SignalOrgan'
+import { AppWordmark } from './AnalogAccents'
+import { SignalAvatar } from './SignalOrgan'
 import type { UserProfile, WallPost } from '../../types'
 
 type Tab = 'wall' | 'info' | 'friends'
@@ -35,9 +34,7 @@ function GuestbookHeader() {
       <img src={SOCIAL_ICONS.mutantbook} alt="" />
       <div>
         <AppWordmark label="Guestbook" />
-        <span>PROOF THAT YOU WERE HERE</span>
       </div>
-      <span className="mb-brand-sticker" aria-hidden="true"><DoodleStar />YOU<br />ARE HERE</span>
     </header>
   )
 }
@@ -195,8 +192,8 @@ export function MutantBook() {
   }
 
   if (error === 'Not logged in') {
-    return <div className="mb-root"><SignalTransition selective trigger="sign-in" /><GuestbookHeader />
-      <div className="mb-sign-in"><SignalOrgan /><h2 data-signal-text>Leave a trace.</h2><p>Sign in to visit profiles and leave a message on a friend's wall.</p></div>
+    return <div className="mb-root"><GuestbookHeader />
+      <div className="mb-sign-in"><p>Sign in to view profiles and posts.</p></div>
     </div>
   }
 
@@ -299,7 +296,7 @@ export function MutantBook() {
                 <textarea
                   placeholder={
                     isSelf
-                      ? "What's on your mind?"
+                      ? "Write a post…"
                       : `Write something on ${profileData.display_name || profileData.username}'s wall...`
                   }
                   value={composeText}
