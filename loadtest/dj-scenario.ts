@@ -13,11 +13,6 @@
  * First 3 clients become DJs, the rest are audience bots.
  */
 
-// Side-effect import: patches globalThis.fetch to use credentials:'omit'.
-// Must be the FIRST import — executed before @colyseus/sdk loads.
-// See patch-fetch.ts for details on why this is needed.
-import './patch-fetch'
-
 import { Client, Room } from '@colyseus/sdk'
 import { cli, Options } from '@colyseus/loadtest'
 import { Message } from '@club-mutant/types/Messages'
