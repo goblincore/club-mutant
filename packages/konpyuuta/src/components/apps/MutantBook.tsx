@@ -269,8 +269,9 @@ export function MutantBook() {
         <button
           className={`mb-tab${currentTab === 'wall' ? ' active' : ''}`}
           onClick={() => setCurrentTab('wall')}
+          title="Wall"
         >
-          Wall
+          <span lang="ja">掲示板</span>
         </button>
         <button
           className={`mb-tab${currentTab === 'info' ? ' active' : ''}`}

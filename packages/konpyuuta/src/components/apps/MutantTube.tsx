@@ -14,7 +14,7 @@ import { PixelSymbol } from './PixelSymbol'
 
 type View = 'browse' | 'playlists' | 'playlist' | 'watch'
 type Browse = { kind: 'home' | 'search' | 'category'; title: string; query?: string; category?: string; under100: boolean }
-const HOME: Browse = { kind: 'home', title: 'Home', under100: true }
+const HOME: Browse = { kind: 'home', title: '映像', under100: true }
 const PAGE_SIZE = 12
 
 function Thumbnail({ video }: { video: TubeVideo }) {
@@ -319,7 +319,7 @@ export function MutantTube() {
     {syncError && <div className="mt-sync-note" role="status">Your playlists are saved on this device, but couldn’t sync online. Check your connection and reopen My playlists to retry.</div>}
     <div className="mt-layout">
       <aside className="mt-sidebar">
-        <h2>Categories</h2>
+        <h2 lang="ja" title="Categories">分類</h2>
         {TUBE_CATEGORIES.map((category, channelIndex) => <button key={category.id} disabled={busy}
           aria-current={view === 'browse' && browse.category === category.id ? 'page' : undefined}
           onClick={() => { setQuery(''); void loadBrowse({ kind: 'category', title: category.label, category: category.id, under100: browse.under100 }) }}>
@@ -328,19 +328,19 @@ export function MutantTube() {
       </aside>
       <main className="mt-content">
         {view === 'browse' && browse.kind === 'home' && <section className="mt-feature" aria-labelledby={featureTitleId}>
-          <div className="mt-feature-kicker"><PixelSymbol kind="star" /><h2 id={featureTitleId}>Unpopular video of the day</h2></div>
+          <div className="mt-feature-kicker"><h2 id={featureTitleId} lang="ja" title="Unpopular video of the day">今日の一本</h2></div>
           {featured ? <button className="mt-feature-video" onClick={() => watch(featured.video)} disabled={busy} aria-label={`Watch today's featured video: ${featured.video.title}`}>
             <div className="mt-feature-screen"><Thumbnail video={featured.video} /><span className="mt-feature-play" aria-hidden="true">▶</span></div>
             <div className="mt-feature-info"><h3>{featured.video.title}</h3><p>{featured.video.channel || 'Unknown channel'}</p><span className="mt-feature-views">{featured.video.viewCount} {featured.video.viewCount === 1 ? 'view' : 'views'} · fewer than 100</span><span className="mt-feature-watch">Watch video ↗</span><time dateTime={featured.checkedAt}>Checked {new Date(featured.checkedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · changes daily at midnight UTC</time></div>
           </button> : <div className="mt-feature-status" role="status"><p>{featureLoading ? 'Loading featured video…' : featureError ? 'Could not verify the featured video.' : 'No verified video under 100 views is available.'}</p>{!featureLoading && <button onClick={() => setFeatureRetry((value) => value + 1)}>Check again</button>}</div>}
         </section>}
-        {loading ? <div className="mt-empty" role="status"><TubeMascot loading /><h2>Loading videos…</h2></div>
+        {loading ? <div className="mt-empty" role="status" aria-label="Loading videos"><TubeMascot loading /><h2 lang="ja">読込中</h2></div>
         : error ? <div className="mt-empty" role="alert"><span className="mt-empty-icon">☁</span><h2>Could not load</h2><p>{error}</p><button onClick={() => void (view === 'playlist' && playlistId ? openPlaylist(playlistId) : view === 'playlists' ? showPlaylists() : loadBrowse(browse))}>Try again</button></div>
         : view === 'browse' ? <>
-          <div className="mt-section-heading"><div><h1 data-signal-text>{browse.title}</h1></div></div>
+          <div className="mt-section-heading"><div><h1 data-signal-text lang={browse.title === HOME.title ? 'ja' : undefined} title={browse.title === HOME.title ? 'Videos' : undefined}>{browse.title}</h1></div></div>
           {!videos.length ? <div className="mt-empty"><h2>No videos found</h2><p>{browse.under100 ? 'No results with a known count below 100. Try another search or category, or switch to All videos.' : 'Try another search or category.'}</p>{browse.under100 && <button onClick={() => void loadBrowse({ ...browse, under100: false })}>Show all videos</button>}</div> : <>
-            <div className="mt-video-grid">{videos.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((item, videoIndex) => <button className="mt-video-card" key={item.id} onClick={() => watch(item)}>
-              <div className="mt-card-tuning" aria-hidden="true"><span>{String((page - 1) * PAGE_SIZE + videoIndex + 1).padStart(2, '0')}</span><i /><i /><i /></div><Thumbnail video={item} /><div className="mt-card-info"><h2>{item.title}</h2><p>{item.channel || 'Unknown channel'}</p><small>{item.viewCount === undefined ? 'Views unavailable' : `${item.viewCount.toLocaleString()} views`}</small></div>
+            <div className="mt-video-grid">{videos.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((item) => <button className="mt-video-card" key={item.id} onClick={() => watch(item)}>
+              <Thumbnail video={item} /><div className="mt-card-info"><h2>{item.title}</h2><p>{item.channel || 'Unknown channel'}</p><small>{item.viewCount === undefined ? 'Views unavailable' : `${item.viewCount.toLocaleString()} views`}</small></div>
             </button>)}</div>
             {pageCount > 1 && <nav className="mt-pagination" aria-label="Results pages"><button disabled={page === 1} onClick={() => setPage(page - 1)}>← Previous</button><span>Page {page} of {pageCount}</span><button disabled={page === pageCount} onClick={() => setPage(page + 1)}>Next →</button></nav>}
           </>}

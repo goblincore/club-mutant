@@ -10,6 +10,7 @@ import { usePopup } from './MutantTubePopup'
 
 const FOLDERS: MailFolder[] = ['inbox', 'sent', 'drafts', 'trash']
 const LABELS: Record<MailFolder, string> = { inbox: 'Inbox', sent: 'Sent letters', drafts: 'Drafts', trash: 'Trash' }
+const FOLDER_HEADINGS: Record<MailFolder, string> = { inbox: '受信', sent: '送信済み', drafts: '下書き', trash: 'ごみ箱' }
 const dateLabel = (time: number) => new Date(time).toLocaleDateString([], { month: 'short', day: 'numeric' })
 
 export function MutantMail() {
@@ -152,7 +153,7 @@ export function MutantMail() {
       </aside>
       <main className="ml-main">
         <section className="ml-list" aria-label={LABELS[store.currentFolder]}>
-          <div className="ml-list-header"><strong data-signal-text>{LABELS[store.currentFolder]}</strong><button aria-label="Refresh letters" disabled={!canDeliver || busy || loading} onClick={() => void refresh()}>↻</button></div>
+          <div className="ml-list-header"><strong data-signal-text lang="ja" title={LABELS[store.currentFolder]}>{FOLDER_HEADINGS[store.currentFolder]}</strong><button aria-label="Refresh letters" disabled={!canDeliver || busy || loading} onClick={() => void refresh()}>↻</button></div>
           <label className="ml-search"><span className="ml-sr-only">Search letters</span><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search letters…" /></label>
           <div className="ml-messages">{loading && <p className="ml-list-note" role="status">Loading letters…</p>}{!loading && !folderMessages.length && <div className="ml-empty">{query ? 'No matching letters.' : 'No letters.'}</div>}{folderMessages.map((message) => <button key={message.id} className={`ml-message-row${message.read ? '' : ' unread'}${selected?.id === message.id || draft?.id === message.id ? ' selected' : ''}`} aria-pressed={selected?.id === message.id || draft?.id === message.id} disabled={busy} onClick={() => selectMessage(message)}><span className="ml-message-from">{!message.read && <i aria-label="Unread" />}{message.originalFolder === 'sent' || message.folder === 'sent' || message.folder === 'drafts' ? `To: ${message.to || '…'}` : message.from}<time>{dateLabel(message.createdAt)}</time></span><strong>{message.subject || 'Untitled letter'}</strong><span className="ml-message-snippet">{message.body}</span></button>)}</div>
         </section>

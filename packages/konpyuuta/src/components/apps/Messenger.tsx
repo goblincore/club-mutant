@@ -212,7 +212,7 @@ export function Messenger({ windowId }: { windowId?: string }) {
     {error && <div className="mm-notice" role="alert">{error}<button onClick={() => setRefresh((r) => r + 1)}>Retry</button></div>}
     <div className="mm-layout">
       <aside className="mm-contacts" aria-label="Conversations">
-        <div className="mm-contacts-heading"><strong>CONTACTS</strong><span>{onlineCount} online</span></div>
+        <div className="mm-contacts-heading"><strong lang="ja" title="Contacts">連絡先</strong><span>{onlineCount} online</span></div>
         <label className="mm-search"><span className="mm-sr-only">Find a friend</span><input type="search" placeholder="Find a friend…" value={query} onChange={(e) => setQuery(e.target.value)} /></label>
         <div className="mm-contact-list">
           {loading && !contacts.length && <p className="mm-list-note" role="status">Loading contacts…</p>}
