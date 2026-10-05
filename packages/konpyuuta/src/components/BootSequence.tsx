@@ -1,3 +1,4 @@
+import '../styles/boot.css'
 import { useState, useEffect, useRef } from 'react'
 import bootMessages from '../data/boot-messages.json'
 import { AudioManager } from '../lib/audioManager'
@@ -78,6 +79,7 @@ export function BootSequence({ onComplete }: BootSequenceProps) {
   }, [lines])
 
   useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { onComplete(); return }
     const timeouts: ReturnType<typeof setTimeout>[] = []
     setLines([])
     setProgress(0)
@@ -102,7 +104,7 @@ export function BootSequence({ onComplete }: BootSequenceProps) {
     }
 
     // Final success line
-    sequence.push({ text: '[    OK    ] CDE Desktop ready ....', cls: 'boot-desktop' })
+    sequence.push({ text: '[    OK    ] NEETscape ready.', cls: 'boot-desktop' })
 
     const total = sequence.length
 
@@ -139,8 +141,15 @@ export function BootSequence({ onComplete }: BootSequenceProps) {
     return () => timeouts.forEach(clearTimeout)
   }, [onComplete, username])
 
+  useEffect(() => {
+    const skip = (event: KeyboardEvent) => { if (event.key === 'Escape' || event.key === 'Enter') onComplete() }
+    window.addEventListener('keydown', skip)
+    return () => window.removeEventListener('keydown', skip)
+  }, [onComplete])
+
   return (
-    <div className="cde-boot-screen">
+    <div className="cde-boot-screen" aria-label="KonpyuuTA startup">
+      <button className="portal-boot-skip" onClick={onComplete}>Skip ↵</button>
       <div className="cde-boot-output" ref={outputRef}>
         {/* Devil logo — always at top, red */}
         <pre className="boot-logo">{DEVIL_LOGO}</pre>

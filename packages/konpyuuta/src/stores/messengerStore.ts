@@ -37,6 +37,8 @@ export function mergeMessages(existing: Message[], incoming: Message[]): Message
 const initial = () => ({
   ownerId: null as string | null,
   conversations: [] as Conversation[],
+  friendIds: null as string[] | null,
+  connected: false,
   activeConversationId: null as string | null,
   messages: {} as Record<string, Message[]>,
   typing: {} as Record<string, boolean>,
@@ -47,6 +49,10 @@ const initial = () => ({
 interface MessengerStoreState {
   ownerId: string | null
   conversations: Conversation[]
+  friendIds: string[] | null
+  connected: boolean
+  setFriendIds: (ids: string[] | null) => void
+  setConnected: (connected: boolean) => void
   activeConversationId: string | null
   messages: Record<string, Message[]>
   typing: Record<string, boolean>
@@ -66,9 +72,19 @@ interface MessengerStoreState {
   updateConversationPreview: (channelId: string, preview: string, timestamp: number) => void
 }
 
+export function onlineFriendCount(state: Pick<MessengerStoreState, 'ownerId' | 'friendIds' | 'connected' | 'conversations'>): number | null {
+  if (!state.ownerId || !state.connected || !state.friendIds) return null
+  const friends = new Set(state.friendIds)
+  return state.conversations.filter((c) => c.online && friends.has(c.userId)).length
+}
+
 export const useMessengerStore = create<MessengerStoreState>((set) => ({
   ...initial(),
   resetForUser: (ownerId) => set((s) => s.ownerId === ownerId ? {} : { ...initial(), ownerId }),
+  setFriendIds: (friendIds) => set({ friendIds }),
+  setConnected: (connected) => set((s) => connected ? { connected } : {
+    connected, friendIds: null, conversations: s.conversations.map((c) => ({ ...c, online: false })),
+  }),
   mergeConversations: (conversations) => set((s) => {
     const byId = new Map(s.conversations.map((c) => [c.channelId, c]))
     for (const conversation of conversations) {
