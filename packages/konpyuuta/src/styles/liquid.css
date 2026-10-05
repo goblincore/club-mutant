@@ -62,7 +62,8 @@
 /* The decorative text layer never receives pointer events or accessibility focus. */
 .signal-layer { position: absolute; inset: 0; z-index: 19; pointer-events: none; overflow: hidden; }
 .signal-layer > span { position: absolute; display: block; white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; color: var(--fragment-color) !important; text-shadow: 0 0 5px #c9ff8b60; }
-.cde-root.liquid-signal [data-signal-active] *:not(input,textarea,select):not(.signal-layer,.signal-layer *):not([role="status"],[role="status"] *):not([role="alert"],[role="alert"] *):not([aria-live],[aria-live] *) { color: transparent !important; text-shadow: none !important; }
+.cde-root.liquid-signal [data-signal-active="true"] *:not(input,textarea,select):not(.signal-layer,.signal-layer *):not([role="status"],[role="status"] *):not([role="alert"],[role="alert"] *):not([aria-live],[aria-live] *),
+.cde-root.liquid-signal [data-signal-active="selected"] [data-signal-text] { color: transparent !important; text-shadow: none !important; }
 
 .cde-root.liquid-signal :is(.mt-header,.mm-toolbar,.mb-brand,.ml-header) { background: radial-gradient(ellipse at 12% 0,#54852642,transparent 65%),#0b160e; padding: 18px 20px; border-bottom: 1px solid var(--signal-line); box-shadow: inset 0 1px #c9ff6c15; }
 .cde-root.liquid-signal :is(.mt-brand-toy,.mm-toolbar > img,.mb-brand > img,.ml-header > img) { width: 52px; height: 52px; filter: drop-shadow(0 0 9px #c8ff511c); }
@@ -70,6 +71,9 @@
 .cde-root.liquid-signal .mt-root .mt-brand { gap: 11px; background: transparent; border: 0; border-radius: 0; padding: 0; box-shadow: none; }
 .cde-root.liquid-signal .mt-root .mt-brand > span { display: flex; flex-direction: column; gap: 8px; }
 .cde-root.liquid-signal .mt-root .mt-brand .app-wordmark { font-size: 34px; }
+.cde-root.liquid-signal .mt-root .mt-brand .tt-wordmark { width: 224px; max-width: 100%; line-height: 1; }
+.cde-root.liquid-signal .tt-wordmark-text { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.cde-root.liquid-signal .mt-root .tt-wordmark > svg { display: block; width: 100%; height: auto; margin: 0; fill: none; stroke: none; opacity: 1; filter: drop-shadow(0 0 8px #a5f45330); }
 .cde-root.liquid-signal .mt-root .mt-brand:hover:enabled { background: transparent; }
 .cde-root.liquid-signal :is(.mt-club-badge,.ml-postmark,.mb-brand-sticker) { color: #c0eca0; background: #1c2b1440; border: 1px solid #a1c07b66; border-radius: 50%; transform: none; font: 8px/1.5 'Courier New',monospace; box-shadow: inset 0 0 15px #93ce3310; }
 .cde-root.liquid-signal .mt-root .mt-search input { height: 36px; border-radius: 20px; padding: 8px 13px; }
