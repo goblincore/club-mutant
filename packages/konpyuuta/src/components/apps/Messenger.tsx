@@ -1,4 +1,5 @@
 import { SignalTransition } from './SignalTransition'
+import { IncomingMessageText } from './IncomingMessageText'
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
 import { useKonpyuuTA } from '../../context/KonpyuuTAContext'
 import { useMessengerStore, type Message, type Conversation } from '../../stores/messengerStore'
@@ -206,10 +207,10 @@ export function Messenger({ windowId }: { windowId?: string }) {
   const inputId = `mm-message-${windowId ?? 'standalone'}`
   const sending = messages.some((m) => m.pending)
 
-  if (!ownerId || !social || !service) return <div className="mm-root mm-sign-in"><SignalTransition trigger="sign-in" /><SignalOrgan /><span className="mm-eyebrow">MESSENGER / OFFLINE</span><h2>Is anybody there?</h2><p>Sign in to chat with your Club Mutant friends.</p></div>
+  if (!ownerId || !social || !service) return <div className="mm-root mm-sign-in"><SignalTransition selective trigger="sign-in" /><SignalOrgan /><span className="mm-eyebrow">MESSENGER / OFFLINE</span><h2 data-signal-text>Is anybody there?</h2><p>Sign in to chat with your Club Mutant friends.</p></div>
 
   return <div className={`mm-root${active ? ' mm-has-chat' : ''}`}>
-    <SignalTransition trigger={`${activeId || 'welcome'}:${loading}`} />
+    <SignalTransition selective enabled={!loading && !activeId} trigger="welcome" />
     <header className="mm-toolbar"><img src={SOCIAL_ICONS.messenger} alt="" /><div><AppWordmark label="Messenger" /><span>A CONNECTION ACROSS THE ETHER</span></div><span className={`mm-connection${connected ? ' mm-connected' : ''}`}><i />{connected ? 'Connected' : 'Disconnected'}{!connected && <button onClick={() => service.connect()}>Reconnect</button>}</span></header>
     {error && <div className="mm-notice" role="alert">{error}<button onClick={() => setRefresh((r) => r + 1)}>Retry</button></div>}
     <div className="mm-layout">
@@ -228,7 +229,7 @@ export function Messenger({ windowId }: { windowId?: string }) {
         <footer className="mm-self"><i />Signed in as <strong>{social.getCurrentUsername() || 'you'}</strong></footer>
       </aside>
       <main className="mm-chat">
-        {!active ? <div className="mm-welcome"><SignalOrgan /><span className="mm-eyebrow">CHANNEL OPEN / AWAITING CONTACT</span><h2>Is anybody there?</h2><p>Choose a contact. Make a connection.<br />Offline friends will find it when they’re back.</p><div className="mm-welcome-stamps" aria-hidden="true"><SignalAvatar seed="imp" /><SignalAvatar seed="troll" /><SignalAvatar seed="moth" /></div></div> : <>
+        {!active ? <div className="mm-welcome"><SignalOrgan /><span className="mm-eyebrow">CHANNEL OPEN / AWAITING CONTACT</span><h2 data-signal-text>Is anybody there?</h2><p>Choose a contact. Make a connection.<br />Offline friends will find it when they’re back.</p><div className="mm-welcome-stamps" aria-hidden="true"><SignalAvatar seed="imp" /><SignalAvatar seed="troll" /><SignalAvatar seed="moth" /></div></div> : <>
           <header className="mm-chat-heading"><button className="mm-back" onClick={() => store.setActiveConversation(null)} aria-label="Back to conversations">←</button><span className="mm-avatar" aria-hidden="true"><SignalAvatar seed={active.userId} /></span><div><strong>{active.displayName || active.username}</strong><span><i className={active.online ? 'mm-online' : ''} />{active.online ? 'Online now' : 'Offline · messages will be waiting'}</span></div><button className="mm-refresh" onClick={() => { void loadHistory(activeId!); setRefresh((r) => r + 1) }} aria-label="Refresh conversation" title="Refresh conversation">↻</button></header>
           <div className="mm-messages" ref={listRef} role="log" aria-label={`Messages with ${active.displayName || active.username}`} aria-live="polite" aria-relevant="additions text" onScroll={() => {
             const el = listRef.current!
@@ -244,7 +245,7 @@ export function Messenger({ windowId }: { windowId?: string }) {
               const mine = message.senderId === ownerId
               const previous = shownMessages[index - 1]
               const newDay = !previous || new Date(previous.createdAt).toDateString() !== new Date(message.createdAt).toDateString()
-              return <div key={message.id}>{newDay && <div className="mm-date"><span>{dayLabel(message.createdAt)}</span></div>}<div className={`mm-message${mine ? ' mm-mine' : ''}${message.failed ? ' mm-failed' : ''}`}><div className="mm-bubble"><p>{message.content}</p>{message.isPreview && <small>Preview · refresh to load the full message</small>}</div><div className="mm-message-meta"><time dateTime={new Date(message.createdAt).toISOString()}>{formatTime(message.createdAt)}</time>{message.pending ? <span>Sending…</span> : message.failed ? <><span role="alert">Not sent{message.error ? ` · ${message.error}` : ''}</span><button disabled={sending} onClick={() => void sendMessage(message)}>Retry</button></> : mine ? <span>Sent</span> : null}</div></div></div>
+              return <div key={message.id}>{newDay && <div className="mm-date"><span>{dayLabel(message.createdAt)}</span></div>}<div className={`mm-message${mine ? ' mm-mine' : ''}${message.failed ? ' mm-failed' : ''}`}><div className="mm-bubble"><p>{mine || message.isPreview ? message.content : <IncomingMessageText key={`${message.id}:full`} text={message.content} messageId={message.id} receivedAt={store.incomingSignals[message.id]} />}</p>{message.isPreview && <small>Preview · refresh to load the full message</small>}</div><div className="mm-message-meta"><time dateTime={new Date(message.createdAt).toISOString()}>{formatTime(message.createdAt)}</time>{message.pending ? <span>Sending…</span> : message.failed ? <><span role="alert">Not sent{message.error ? ` · ${message.error}` : ''}</span><button disabled={sending} onClick={() => void sendMessage(message)}>Retry</button></> : mine ? <span>Sent</span> : null}</div></div></div>
             })}
           </div>
           {jumpToLatest && <button className="mm-jump" onClick={() => { nearBottom.current = true; listRef.current?.scrollTo({ top: listRef.current.scrollHeight }); setJumpToLatest(false) }}>↓ New messages · jump to latest</button>}

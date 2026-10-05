@@ -62,8 +62,15 @@
 /* The decorative text layer never receives pointer events or accessibility focus. */
 .signal-layer { position: absolute; inset: 0; z-index: 19; pointer-events: none; overflow: hidden; }
 .signal-layer > span { position: absolute; display: block; white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; color: var(--fragment-color) !important; text-shadow: 0 0 5px #c9ff8b60; }
+.incoming-signal { display: block; position: relative; }
+.incoming-signal[data-incoming-signal="active"] .incoming-signal-original { color: transparent; text-shadow: none; }
+.incoming-signal-noise { position: absolute; inset: 0; overflow: hidden; pointer-events: none; user-select: none; text-shadow: 0 0 5px #c9ff8b60; }
+@media (prefers-reduced-motion: reduce) {
+  .incoming-signal[data-incoming-signal="active"] .incoming-signal-original { color: inherit; }
+  .incoming-signal-noise { display: none; }
+}
 .cde-root.liquid-signal [data-signal-active="true"] *:not(input,textarea,select):not(.signal-layer,.signal-layer *):not([role="status"],[role="status"] *):not([role="alert"],[role="alert"] *):not([aria-live],[aria-live] *),
-.cde-root.liquid-signal [data-signal-active="selected"] [data-signal-text] { color: transparent !important; text-shadow: none !important; }
+.cde-root.liquid-signal [data-signal-active="selected"] :is([data-signal-text],[data-signal-text] *) { color: transparent !important; text-shadow: none !important; }
 
 .cde-root.liquid-signal :is(.mt-header,.mm-toolbar,.mb-brand,.ml-header) { background: radial-gradient(ellipse at 12% 0,#54852642,transparent 65%),#0b160e; padding: 18px 20px; border-bottom: 1px solid var(--signal-line); box-shadow: inset 0 1px #c9ff6c15; }
 .cde-root.liquid-signal :is(.mt-brand-toy,.mm-toolbar > img,.mb-brand > img,.ml-header > img) { width: 52px; height: 52px; filter: drop-shadow(0 0 9px #c8ff511c); }
@@ -219,9 +226,6 @@
 
 .cde-root.liquid-signal .mt-root .mt-playlist-open, .cde-root.liquid-signal .mt-root .mt-track-open { border: 0; background: transparent; box-shadow: none; }
 
-.cde-root.liquid-signal .app-wordmark .signal-whisper { position: absolute; left: 45%; top: 1px; color: #edffc7; background: #081109; font: 20px 'Times New Roman',serif; opacity: 0; pointer-events: none; animation: encoding-whisper 37s step-end infinite; text-shadow: 2px 0 7px #aef866; }
-@keyframes encoding-whisper { 0%,96%,97%,100% { opacity: 0; } 96.3%,96.7% { opacity: .8; transform: translateX(2px); } }
-@media (prefers-reduced-motion: reduce) { .cde-root.liquid-signal .app-wordmark .signal-whisper { animation: none; display: none; } }
 
 .cde-root.liquid-signal .cde-workspace-area { background: none; border: 0; box-shadow: none; }
 .cde-root.liquid-signal .workspace-btn { background: #101c12; border: 1px solid #64834350; border-radius: 8px; color: #a4bb8f; box-shadow: none; font: 9px Arial, sans-serif; }

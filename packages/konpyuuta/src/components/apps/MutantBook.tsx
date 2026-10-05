@@ -188,22 +188,22 @@ export function MutantBook() {
   if (loading) {
     return (
       <div className="mb-root">
-        <SignalTransition trigger="guestbook" /><GuestbookHeader />
+        <GuestbookHeader />
         <div className="mb-loading">Loading profile...</div>
       </div>
     )
   }
 
   if (error === 'Not logged in') {
-    return <div className="mb-root"><SignalTransition trigger="sign-in" /><GuestbookHeader />
-      <div className="mb-sign-in"><SignalOrgan /><h2>Leave a trace.</h2><p>Sign in to visit profiles and leave a message on a friend's wall.</p></div>
+    return <div className="mb-root"><SignalTransition selective trigger="sign-in" /><GuestbookHeader />
+      <div className="mb-sign-in"><SignalOrgan /><h2 data-signal-text>Leave a trace.</h2><p>Sign in to visit profiles and leave a message on a friend's wall.</p></div>
     </div>
   }
 
   if (error) {
     return (
       <div className="mb-root">
-        <SignalTransition trigger="guestbook" /><GuestbookHeader />
+        <GuestbookHeader />
         <div className="mb-error">{error}</div>
       </div>
     )
@@ -212,7 +212,7 @@ export function MutantBook() {
   if (!profileData) {
     return (
       <div className="mb-root">
-        <SignalTransition trigger="guestbook" /><GuestbookHeader />
+        <GuestbookHeader />
         <div className="mb-error">Profile not found</div>
       </div>
     )
@@ -220,7 +220,7 @@ export function MutantBook() {
 
   return (
     <div className="mb-root">
-        <SignalTransition trigger="guestbook" /><GuestbookHeader />
+      <GuestbookHeader />
       {/* Lookup bar */}
       <div className="mb-lookup">
         {!isSelf && (

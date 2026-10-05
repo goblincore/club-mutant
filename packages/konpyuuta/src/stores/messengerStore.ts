@@ -29,7 +29,7 @@ export function mergeMessages(existing: Message[], incoming: Message[]): Message
     const previous = byId.get(message.id)
     // An old-server notification preview must never replace the full history body.
     if (message.isPreview && previous && !previous.isPreview) continue
-    byId.set(message.id, { ...previous, ...message })
+    byId.set(message.id, { ...previous, ...message, isPreview: !!message.isPreview })
   }
   return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
 }
@@ -41,6 +41,7 @@ const initial = () => ({
   messages: {} as Record<string, Message[]>,
   typing: {} as Record<string, boolean>,
   drafts: {} as Record<string, string>,
+  incomingSignals: {} as Record<string, number>,
 })
 
 interface MessengerStoreState {
@@ -50,6 +51,8 @@ interface MessengerStoreState {
   messages: Record<string, Message[]>
   typing: Record<string, boolean>
   drafts: Record<string, string>
+  incomingSignals: Record<string, number>
+  consumeIncomingSignal: (messageId: string, receivedAt: number) => void
   resetForUser: (userId: string | null) => void
   mergeConversations: (conversations: Conversation[]) => void
   setActiveConversation: (channelId: string | null) => void
@@ -87,8 +90,18 @@ export const useMessengerStore = create<MessengerStoreState>((set) => ({
   receiveMessage: (message, read) => set((s) => {
     const channelId = `dm:${message.senderId}`
     const existing = s.messages[channelId] ?? []
-    if (existing.some((m) => m.id === message.id)) {
-      return { messages: { ...s.messages, [channelId]: mergeMessages(existing, [message]) } }
+    const previousMessage = existing.find((m) => m.id === message.id)
+    const now = Date.now()
+    // Only a new full notification earns a visual arrival, never loaded history,
+    // our own sends, or duplicate/replayed notifications. Preview hydration can
+    // earn it once when the complete live body arrives.
+    const signal = !message.isPreview && message.senderId !== s.ownerId && (!previousMessage || previousMessage.isPreview)
+    const incomingSignals = signal ? {
+      ...Object.fromEntries(Object.entries(s.incomingSignals).filter(([, at]) => now - at < 3000).slice(-79)),
+      [message.id]: now,
+    } : s.incomingSignals
+    if (previousMessage) {
+      return { messages: { ...s.messages, [channelId]: mergeMessages(existing, [message]) }, incomingSignals }
     }
     const previous = s.conversations.find((c) => c.channelId === channelId)
     const conversation: Conversation = previous ?? {
@@ -96,12 +109,19 @@ export const useMessengerStore = create<MessengerStoreState>((set) => ({
       displayName: message.senderUsername ?? 'Friend', online: false, unread: 0,
     }
     return {
+      incomingSignals,
       messages: { ...s.messages, [channelId]: mergeMessages(existing, [message]) },
       conversations: [...s.conversations.filter((c) => c.channelId !== channelId), {
         ...conversation, unread: read ? 0 : conversation.unread + 1,
         ...((conversation.lastMessageAt ?? 0) <= message.createdAt ? { lastMessage: message.content.slice(0, 80), lastMessageAt: message.createdAt } : {}),
       }],
     }
+  }),
+  consumeIncomingSignal: (messageId, receivedAt) => set((s) => {
+    if (s.incomingSignals[messageId] !== receivedAt) return {}
+    const incomingSignals = { ...s.incomingSignals }
+    delete incomingSignals[messageId]
+    return { incomingSignals }
   }),
   setTyping: (channelId, typing) => set((s) => ({ typing: { ...s.typing, [channelId]: typing } })),
   setDraft: (channelId, draft) => set((s) => ({ drafts: { ...s.drafts, [channelId]: draft } })),

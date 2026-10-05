@@ -134,7 +134,7 @@ export function MutantMail() {
   }
 
   return <div className={`ml-root${draft || selected ? ' ml-has-detail' : ''}`}>
-    <SignalTransition trigger={`${store.currentFolder}:${draft?.id || selected?.id || 'idle'}`} />
+    <SignalTransition selective trigger={store.currentFolder} />
     {popup.PopupComponent}
     <header className="ml-header"><img src={SOCIAL_ICONS.mutantmail} alt="" /><div><AppWordmark label="Postbox" /><small>ASYNCHRONOUS TRANSMISSIONS</small></div><span className="ml-postmark" aria-hidden="true"><DoodleStar />CLUB<br />POST</span></header>
     {!canDeliver && <div className="ml-notice">{userId ? 'Letter delivery isn’t available here. Open Postbox from Club Mutant.' : 'Sign in to send and receive letters. You can keep a draft here.'}</div>}
@@ -153,7 +153,7 @@ export function MutantMail() {
       </aside>
       <main className="ml-main">
         <section className="ml-list" aria-label={LABELS[store.currentFolder]}>
-          <div className="ml-list-header"><strong>{LABELS[store.currentFolder]}</strong><button aria-label="Refresh letters" disabled={!canDeliver || busy || loading} onClick={() => void refresh()}>↻</button></div>
+          <div className="ml-list-header"><strong data-signal-text>{LABELS[store.currentFolder]}</strong><button aria-label="Refresh letters" disabled={!canDeliver || busy || loading} onClick={() => void refresh()}>↻</button></div>
           <label className="ml-search"><span className="ml-sr-only">Search letters</span><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search transmissions…" /></label>
           <div className="ml-messages">{loading && <p className="ml-list-note" role="status">Checking the post…</p>}{!loading && !folderMessages.length && <div className="ml-empty">{query ? 'No matching letters.' : `Nothing in ${LABELS[store.currentFolder].toLowerCase()} yet.`}</div>}{folderMessages.map((message) => <button key={message.id} className={`ml-message-row${message.read ? '' : ' unread'}${selected?.id === message.id || draft?.id === message.id ? ' selected' : ''}`} aria-pressed={selected?.id === message.id || draft?.id === message.id} disabled={busy} onClick={() => selectMessage(message)}><span className="ml-message-from">{!message.read && <i aria-label="Unread" />}{message.originalFolder === 'sent' || message.folder === 'sent' || message.folder === 'drafts' ? `To: ${message.to || '…'}` : message.from}<time>{dateLabel(message.createdAt)}</time></span><strong>{message.subject || 'Untitled letter'}</strong><span className="ml-message-snippet">{message.body || 'A blank piece of paper.'}</span></button>)}</div>
         </section>
