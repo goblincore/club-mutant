@@ -17,7 +17,7 @@ const INITIAL_PROCESSES: Process[] = [
   { pid: 235, user: null,             cpu: 0.4,  mem: 1.2,  command: 'panel' },
   { pid: 236, user: null,             cpu: 0.8,  mem: 2.1,  command: 'filemanager' },
   { pid: 237, user: null,             cpu: 0.2,  mem: 0.8,  command: 'dtwm' },
-  { pid: 238, user: null,             cpu: 5.4,  mem: 8.2,  command: 'netscape' },
+  { pid: 238, user: null,             cpu: 5.4,  mem: 8.2,  command: 'neetscape' },
   { pid: 239, user: null,             cpu: 0.0,  mem: 0.4,  command: 'dtcm' },
   { pid: 312, user: null,             cpu: 12.3, mem: 15.6, command: 'konpyuuta' },
   { pid: 400, user: 'www-data',       cpu: 0.1,  mem: 2.8,  command: 'apache2' },

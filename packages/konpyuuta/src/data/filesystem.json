@@ -33,14 +33,6 @@
             "type": "file",
             "content": "[Dinamic content: docs/user-guide/file-manager.md]"
           },
-          "Netscape.md": {
-            "type": "file",
-            "content": "[Dinamic content: docs/user-guide/netscape.md]"
-          },
-          "Lynx.md": {
-            "type": "file",
-            "content": "[Dinamic content: docs/user-guide/lynx.md]"
-          },
           "Man-Viewer.md": {
             "type": "file",
             "content": "[Dinamic content: docs/user-guide/man-viewer.md]"
@@ -64,6 +56,10 @@
           "Tips-and-Tricks.md": {
             "type": "file",
             "content": "[Dinamic content: docs/user-guide/tips-and-tricks.md]"
+          },
+          "NEETscape.md": {
+            "type": "file",
+            "content": "NEETscape\n\nA local portal into Club Mutant. Start and Directory open TinyTubes, Messenger, Guestbook, and Postbox in desktop windows.\n\nAddresses: neet://home, neet://directory, neet://guide, neet://about. Back and Forward retrace your route.\n\nFor a web address, enter http(s)://... and select Open website to visit it in your web browser."
           }
         }
       },

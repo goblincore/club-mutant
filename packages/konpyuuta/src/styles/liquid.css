@@ -285,3 +285,87 @@
   .cde-root.liquid-signal .signal-shortcuts .signal-dock-tip { display: none; }
 }
 .cde-root.liquid-signal .signal-tools-button[aria-expanded="true"] .signal-dock-tip { opacity: 0; visibility: hidden; }
+
+/* NEETscape: a local network portal, with an explicit door to the wider web. */
+.cde-root.liquid-signal .neet-root { position: relative; height: 100%; min-width: 0; display: flex; flex-direction: column; background: #070e09; color: #dfebce; font: 12px Arial,sans-serif; container: neetscape / inline-size; isolation: isolate; }
+.cde-root.liquid-signal .neet-root button { color: #c9e5a9; background: #1a2916; border: 1px solid #88a85c55; border-radius: 20px; padding: 7px 12px; font: 11px Arial,sans-serif; cursor: pointer; box-shadow: none; }
+.cde-root.liquid-signal .neet-root button:hover:enabled { color: #efffdd; background: #2a3c1e; border-color: #b9ea76; }
+.cde-root.liquid-signal .neet-root button:disabled { opacity: .3; cursor: default; }
+.cde-root.liquid-signal .neet-root :focus-visible { outline: 2px solid #cbff85; outline-offset: 3px; }
+.cde-root.liquid-signal .neet-root input { box-sizing: border-box; min-width: 0; background: #030906; color: #e3efcf; border: 1px solid #94b56b55; border-radius: 22px; padding: 10px 13px; font: 12px Arial,sans-serif; }
+.cde-root.liquid-signal .neet-root input::placeholder { color: #8ea67b; }
+.cde-root.liquid-signal .neet-header { display: flex; align-items: center; gap: 9px; padding: 12px 20px 10px; border-bottom: 1px solid #789a4140; background: radial-gradient(ellipse at 0 0,#52733342,transparent 70%),#0c170e; }
+.cde-root.liquid-signal .neet-header > img { width: 44px; height: 44px; }
+.cde-root.liquid-signal .neet-header .app-wordmark { display: block; font: normal 33px/1.1 'Times New Roman',serif; letter-spacing: -1.5px; color: #e1f6c8; text-shadow: 0 0 17px #b8ff3c25; }
+.cde-root.liquid-signal .neet-header small { display: block; margin-top: 7px; color: #9abf78; font: 8px 'Courier New',monospace; letter-spacing: 1.4px; }
+.cde-root.liquid-signal .neet-frequency { margin-left: auto; display: flex; align-items: center; gap: 15px; color: #8ba270; font: 8px 'Courier New',monospace; letter-spacing: 1px; }
+.cde-root.liquid-signal .neet-frequency .doodle-star { width: 27px; height: 27px; }
+.cde-root.liquid-signal .neet-navigation { display: flex; gap: 13px; padding: 9px 17px; background: #101c10; }
+.cde-root.liquid-signal .neet-controls { display: flex; gap: 4px; align-items: center; }
+.cde-root.liquid-signal .neet-controls button { width: 30px; height: 30px; padding: 5px; border-radius: 50%; background: transparent; border-color: transparent; }
+.cde-root.liquid-signal .neet-controls svg { width: 19px; height: 19px; }
+.cde-root.liquid-signal .neet-address { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; padding: 3px 4px 3px 12px; background: #020805; border: 1px solid #7c9c5355; border-radius: 25px; box-shadow: inset 0 2px 5px #0006; }
+.cde-root.liquid-signal .neet-address > span { color: #779e54; font-size: 16px; }
+.cde-root.liquid-signal .neet-address input { flex: 1; border: 0; background: transparent; padding: 6px 5px; font: 11px 'Courier New',monospace; }
+.cde-root.liquid-signal .neet-address button { border: 0; padding: 7px 14px; background: #314822; }
+.cde-root.liquid-signal .neet-tabs { display: flex; gap: 6px; padding: 0 18px 7px; border-bottom: 1px solid #7c9c5330; background: #101c10; }
+.cde-root.liquid-signal .neet-tabs button { background: transparent; border-color: transparent; padding: 5px 10px; color: #93ac7c; font-size: 10px; }
+.cde-root.liquid-signal .neet-tabs button[aria-current] { color: #d7ff9e; background: #283b1b; border-color: #7f9f4840; }
+.cde-root.liquid-signal .neet-content { flex: 1; min-height: 0; overflow: auto; scrollbar-color: #537235 #080f09; background: radial-gradient(ellipse at 80% 10%,#2b3b2325,transparent 65%); }
+.cde-root.liquid-signal .neet-hero { position: relative; display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; padding: 14px 32px; overflow: hidden; border-bottom: 1px solid #668b3530; background: radial-gradient(ellipse at 75% 60%,#436b252e,transparent 50%),radial-gradient(ellipse at 95% 0,#56356a22,transparent 55%); }
+.cde-root.liquid-signal .neet-hero-copy > small,.cde-root.liquid-signal .neet-eyebrow { color: #93b86c; font: 8px 'Courier New',monospace; letter-spacing: 1.3px; }
+.cde-root.liquid-signal .neet-hero h1 { margin: 12px 0 10px; font: normal 42px/.95 'Times New Roman',serif; letter-spacing: -2px; color: #e7f3d7; }
+.cde-root.liquid-signal .neet-hero h1 em { font-weight: normal; color: #c7ff78; text-shadow: 0 0 22px #afff3e30; }
+.cde-root.liquid-signal .neet-hero p { color: #a4bb8d; font: 11px/1.5 Arial,sans-serif; margin: 0 0 12px; }
+.cde-root.liquid-signal .neet-root .neet-primary { display: inline-flex; gap: 15px; align-items: center; padding: 9px 15px; border: 1px solid #b7d78699; border-radius: 22px; color: #122107; background: #b0d982; text-decoration: none; font: 11px Arial,sans-serif; }
+.cde-root.liquid-signal .neet-orbit { position: relative; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 16px; }
+.cde-root.liquid-signal .neet-orbit i { position: absolute; top: 50%; left: 50%; width: 250px; height: 110px; border: 1px solid #a7d76840; border-radius: 50%; transform: translate(-50%,-65%) rotate(-28deg); box-shadow: 0 0 30px #84c43113,inset 0 0 20px #7ac03009; }
+.cde-root.liquid-signal .neet-orbit img { position: relative; width: 136px; height: 136px; image-rendering: auto; filter: drop-shadow(0 0 25px #a4ff4722); }
+.cde-root.liquid-signal .neet-orbit > span { position: relative; color: #8dad6d; font: 7px 'Courier New',monospace; letter-spacing: 1.5px; }
+.cde-root.liquid-signal .neet-section-label { display: flex; justify-content: space-between; color: #8dab73; font: 8px 'Courier New',monospace; letter-spacing: 1.2px; padding: 18px 24px 10px; }
+.cde-root.liquid-signal .neet-destinations { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; padding: 0 20px 22px; }
+.cde-root.liquid-signal .neet-root .neet-destination { display: flex; align-items: center; text-align: left; gap: 8px; background: linear-gradient(140deg,#22331a80,#0e180d); border: 1px solid #7b9c4640; border-radius: 16px 5px 16px 5px; padding: 10px; min-width: 0; }
+.cde-root.liquid-signal .neet-destination > img { width: 36px; height: 36px; flex-shrink: 0; }
+.cde-root.liquid-signal .neet-destination small { display: block; color: #8caa6c; font: 6px 'Courier New',monospace; letter-spacing: .7px; margin-bottom: 5px; }
+.cde-root.liquid-signal .neet-destination strong { color: #d9edbb; font: normal 17px 'Times New Roman',serif; }
+.cde-root.liquid-signal .neet-link-arrow { margin-left: auto; color: #a0c66c; font: 14px Arial,sans-serif; }
+.cde-root.liquid-signal .neet-directory { padding: 28px; }
+.cde-root.liquid-signal .neet-directory h1,.cde-root.liquid-signal .neet-reading h1 { color: #dfedcd; font: normal 34px 'Times New Roman',serif; margin: 14px 0; letter-spacing: -.8px; overflow-wrap: anywhere; }
+.cde-root.liquid-signal .neet-directory > p { color: #a4b98d; line-height: 1.6; }
+.cde-root.liquid-signal .neet-filter { width: 100%; margin: 15px 0 22px; }
+.cde-root.liquid-signal .neet-directory-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cde-root.liquid-signal .neet-directory-grid .neet-destination { align-items: flex-start; padding: 20px 14px; }
+.cde-root.liquid-signal .neet-directory-grid .neet-destination > img { width: 48px; height: 48px; }
+.cde-root.liquid-signal .neet-directory-grid .neet-destination strong { font-size: 23px; }
+.cde-root.liquid-signal .neet-directory-grid .neet-destination p { color: #a3b58c; font: 11px/1.6 Arial,sans-serif; margin-bottom: 0; }
+.cde-root.liquid-signal .neet-reading { padding: 36px; max-width: 600px; }
+.cde-root.liquid-signal .neet-reading dl { margin: 28px 0; }
+.cde-root.liquid-signal .neet-reading dt { color: #cfebaa; font: 20px 'Times New Roman',serif; margin-top: 23px; }
+.cde-root.liquid-signal .neet-reading dd { color: #a8bc94; font: 12px/1.8 Arial,sans-serif; margin: 8px 0; }
+.cde-root.liquid-signal .neet-reading code { font-size: 11px; color: #d2f5b6; }
+.cde-root.liquid-signal .neet-about { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 30px; }
+.cde-root.liquid-signal .neet-about > img { width: 128px; height: 128px; margin-bottom: 20px; }
+.cde-root.liquid-signal .neet-about h1 { font: normal 42px 'Times New Roman',serif; color: #dfffbd; letter-spacing: -1.5px; margin: 14px 0; }
+.cde-root.liquid-signal .neet-about p { color: #abc494; line-height: 1.6; }
+.cde-root.liquid-signal .neet-about .neet-about-note { color: #8ca274; max-width: 240px; margin-bottom: 25px; }
+.cde-root.liquid-signal .neet-external-url { overflow-wrap: anywhere; color: #8eab74; font: 11px/1.7 'Courier New',monospace; margin: 22px 0; }
+.cde-root.liquid-signal .neet-external > button { margin-left: 10px; }
+.cde-root.liquid-signal .neet-error { background: #2c2230; color: #e6c3da; padding: 10px 18px; margin: 0; font: 11px/1.5 Arial,sans-serif; }
+.cde-root.liquid-signal .neet-status { display: flex; justify-content: space-between; gap: 10px; padding: 8px 17px; border-top: 1px solid #809f4430; background: #101b0d; color: #8dac6c; font: 8px 'Courier New',monospace; letter-spacing: .8px; }
+.cde-root.liquid-signal .neet-status > span:last-child { display: flex; align-items: center; gap: 8px; color: #b3cc96; }
+.cde-root.liquid-signal .neet-status i { width: 3px; height: 3px; background: #caff7b; border-radius: 50%; box-shadow: 0 0 6px #bcff6660; }
+@container neetscape (max-width: 650px) {
+  .cde-root.liquid-signal .neet-destinations { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .cde-root.liquid-signal .neet-hero { padding: 28px 23px; gap: 5px; }
+  .cde-root.liquid-signal .neet-orbit i { width: 185px; height: 80px; }
+  .cde-root.liquid-signal .neet-orbit img { width: 130px; height: 130px; }
+}
+@container neetscape (max-width: 450px) {
+  .cde-root.liquid-signal .neet-frequency { display: none; }
+  .cde-root.liquid-signal .neet-navigation { flex-wrap: wrap; gap: 6px; }
+  .cde-root.liquid-signal .neet-address { flex-basis: 100%; }
+  .cde-root.liquid-signal .neet-hero { grid-template-columns: 1fr; }
+  .cde-root.liquid-signal .neet-orbit { display: none; }
+  .cde-root.liquid-signal .neet-directory-grid { grid-template-columns: 1fr; }
+  .cde-root.liquid-signal .neet-section-label > span:last-child { display: none; }
+}

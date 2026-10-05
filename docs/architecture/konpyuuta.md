@@ -31,7 +31,7 @@ Package exports point at TypeScript source; Vite compiles it with the client. Ru
 
 `konpyuutaStaticPlugin` in `client-3d/vite.config.ts` serves `packages/konpyuuta/public/` in development and copies its contents to the production output. Existing desktop chrome uses paths such as `/icons/` and `/backdrops/`. Social app icons are imported through `lib/socialIcons.ts` so Vite includes their assets in the bundle and supplies the URLs consistently. Desktop, panel, and Application Manager use these shared URLs.
 
-The development-only `/__social-toy-review.html?app=mutanttube` entry mounts the real `KonpyuuTAShell` and opens the requested social app (`mutanttube`, `messenger`, `mutantbook`, or `mutantmail`). Search/import responses come from `VITE_YOUTUBE_SERVICE_URL` or the local YouTube service on port 8081 (run `go run .` from `services/youtube-api`). It does not substitute sample results or bypass authentication; Messenger, Guestbook, and delivery use the current signed-in session. Vite’s production entry remains `index.html`.
+The development-only `/__social-toy-review.html?app=mutanttube` entry mounts the real `KonpyuuTAShell` and opens the requested app (`mutanttube`, `messenger`, `mutantbook`, `mutantmail`, or `netscape` for NEETscape). Search/import responses come from `VITE_YOUTUBE_SERVICE_URL` or the local YouTube service on port 8081 (run `go run .` from `services/youtube-api`). It does not substitute sample results or bypass authentication; Messenger, Guestbook, and delivery use the current signed-in session. Vite’s production entry remains `index.html`.
 
 ## TinyTubes
 
@@ -119,7 +119,7 @@ For Messenger integration verification, start `docker compose -f docker-compose.
 
 `styles/liquid.css` scopes the desktop and social theme under `.cde-root.liquid-signal`, retaining the existing layout/container queries in `cde.css`. The default desktop uses `src/assets/liquid-signal.jpg`; custom image wallpapers remain supported. The original wallpaper was generated with built-in imagegen: dark liquid glass, acid-green caustics, a dark upper-left void, violet edges, photographic bloom and fine grain, with no text or logos.
 
-`tools/render-social-icons.py` authors eight Blender scenes: TinyTubes' glass tube/play symbol, Messenger's paired speech bubbles, Postbox's envelope, Guestbook's book, Netscape's orbital sphere, Lynx's terminal, Style Manager's gear, and File Manager's folder. `lib/socialIcons.ts` bundles their PNG posters and transparent APNG loops. Desktop icons animate; headers and dock use stills. A native `<picture>` media source selects the poster for reduced motion. Each loop is 24 frames at 6 fps (four seconds), rendered at 128px without runtime WebGL.
+`tools/render-social-icons.py` authors seven Blender scenes: TinyTubes' glass tube/play symbol, Messenger's paired speech bubbles, Postbox's envelope, Guestbook's book, NEETscape's orbital sphere, Style Manager's gear, and File Manager's folder. `lib/socialIcons.ts` bundles their PNG posters and transparent APNG loops. Desktop icons animate; headers and dock use stills. A native `<picture>` media source selects the poster for reduced motion. Each loop is 24 frames at 6 fps (four seconds), rendered at 128px without runtime WebGL.
 
 Regenerate with Blender 5.x and ffmpeg:
 
@@ -138,3 +138,11 @@ ffmpeg -framerate 6 -i /tmp/club-mutant-liquid-icons/mutanttube/%03d.png -plays 
 `Panel.tsx` renders a single floating glass rail: Applications, six shared glass app posters, four numbered workspace selectors, and a Desktop tools tray. Smooth vector symbols replace the old camera/activity bitmaps and duplicate gears. Running apps show a small light; the active app has a brighter underline. Tooltips also appear on keyboard focus. The tools tray contains Style Manager, Screenshot, Calendar, and Process Monitor; outside clicks and Escape dismiss it, with Escape restoring focus to the trigger.
 
 App shortcuts reuse the most recent matching window in the current workspace, restoring minimized or shaded windows before focusing them. Other workspaces keep their own windows. On narrow screens the shortcut group scrolls horizontally while the launcher, workspaces, and tools stay available.
+
+### NEETscape
+
+`components/apps/NEETscape.tsx` replaces the Netscape imitation while retaining the `netscape` app ID for existing callers. Its orbital glass identity is shared by the desktop, taskbar, and Application Manager. Lynx has been removed from the active router, desktop, launcher, and bundled data/assets.
+
+NEETscape is a local network portal. Start, Directory, Field guide, and About are real React pages at `neet://home`, `neet://directory`, `neet://guide`, and `neet://about`; navigation supports Back/Forward, branch replacement, Home, Reload, and address selection with Ctrl/Command+L while focused inside the app. Directory filtering and its four app destinations use current social windows rather than stale iframe paths.
+
+`lib/neetNavigation.ts` validates addresses. HTTP(S) destinations display an explicit Open website link to the user's web browser; they are not embedded or claimed to be loaded within KonpyuuTA. Executable protocols, credential-bearing URLs, unknown local routes, and malformed addresses are rejected. Parser tests cover those boundaries. The dev review accepts `?app=netscape`.

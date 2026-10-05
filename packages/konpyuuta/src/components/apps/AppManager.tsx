@@ -1,18 +1,17 @@
 import { useWindowStore } from '../../stores/windowStore'
-import { SOCIAL_ICONS } from '../../lib/socialIcons'
+import { DESKTOP_ICONS } from '../../lib/socialIcons'
 
 const APPS = [
-  { id: 'mutanttube', label: 'TinyTubes', icon: SOCIAL_ICONS.mutanttube },
-  { id: 'mutantbook', label: 'Guestbook', icon: SOCIAL_ICONS.mutantbook },
-  { id: 'messenger', label: 'Messenger', icon: SOCIAL_ICONS.messenger },
-  { id: 'mutantmail', label: 'Postbox', icon: SOCIAL_ICONS.mutantmail },
-  { id: 'netscape', label: 'Netscape Navigator', icon: '/icons/apps/netscape_classic.png' },
-  { id: 'filemanager', label: 'File Manager', icon: '/icons/apps/filemanager.png' },
-  { id: 'lynx', label: 'Lynx Browser', icon: '/icons/apps/Lynx.svg' },
+  { id: 'mutanttube', label: 'TinyTubes', icon: DESKTOP_ICONS.mutanttube },
+  { id: 'mutantbook', label: 'Guestbook', icon: DESKTOP_ICONS.mutantbook },
+  { id: 'messenger', label: 'Messenger', icon: DESKTOP_ICONS.messenger },
+  { id: 'mutantmail', label: 'Postbox', icon: DESKTOP_ICONS.mutantmail },
+  { id: 'netscape', label: 'NEETscape', icon: DESKTOP_ICONS.netscape },
+  { id: 'filemanager', label: 'File Manager', icon: DESKTOP_ICONS.filemanager },
   { id: 'processmonitor', label: 'Process Monitor', icon: '/icons/apps/org.xfce.taskmanager.png' },
   { id: 'calendar', label: 'Calendar', icon: '/icons/apps/calendar.svg' },
   { id: 'manviewer', label: 'Man Viewer', icon: '/icons/apps/man.png' },
-  { id: 'settings', label: 'Style Manager', icon: '/icons/apps/org.xfce.settings.manager.png' },
+  { id: 'settings', label: 'Style Manager', icon: DESKTOP_ICONS.settings },
 ]
 
 const MENU_ITEMS = ['Application', 'Edit', 'View', 'Help']

@@ -9,7 +9,7 @@ if (import.meta.env.DEV) {
   useDesktopStore.getState().setBootStatus('ready')
   usePanelStore.setState({ osActive: true })
   const requested = new URLSearchParams(window.location.search).get('app')
-  const choices = { mutanttube: 'TinyTubes', mutantbook: 'Guestbook', messenger: 'Messenger', mutantmail: 'Postbox' }
+  const choices = { netscape: 'NEETscape', mutanttube: 'TinyTubes', mutantbook: 'Guestbook', messenger: 'Messenger', mutantmail: 'Postbox' }
   const app = requested && requested in choices ? requested as keyof typeof choices : 'mutanttube'
   if (!Object.values(useWindowStore.getState().windows).some((win) => win.app === app)) useWindowStore.getState().openWindow(app, {
     title: choices[app], position: { x: 20, y: 64 },

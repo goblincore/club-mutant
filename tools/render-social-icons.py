@@ -12,7 +12,7 @@ from mathutils import Vector
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--frames', type=int, default=24)
-parser.add_argument('--kind', choices=['mutanttube', 'messenger', 'mutantmail', 'mutantbook', 'netscape', 'lynx', 'settings', 'filemanager'])
+parser.add_argument('--kind', choices=['mutanttube', 'messenger', 'mutantmail', 'mutantbook', 'netscape', 'settings', 'filemanager'])
 parser.add_argument('--output', default='/tmp/club-mutant-liquid-icons')
 args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else [])
 
@@ -56,7 +56,7 @@ def tube(points, radius, mat, parent):
     obj = bpy.data.objects.new('filament', curve); bpy.context.collection.objects.link(obj)
     return finish(obj, mat, parent)
 
-for kind in ([args.kind] if args.kind else ['mutanttube', 'messenger', 'mutantmail', 'mutantbook', 'netscape', 'lynx', 'settings', 'filemanager']):
+for kind in ([args.kind] if args.kind else ['mutanttube', 'messenger', 'mutantmail', 'mutantbook', 'netscape', 'settings', 'filemanager']):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene; scene.render.engine = 'CYCLES'
     scene.cycles.samples = 24; scene.cycles.use_denoising = True
@@ -105,12 +105,6 @@ for kind in ([args.kind] if args.kind else ['mutanttube', 'messenger', 'mutantma
         bpy.ops.mesh.primitive_torus_add(major_radius=.88,minor_radius=.075,major_segments=48,minor_segments=12,rotation=(.4,.4,0))
         finish(bpy.context.object,green,root)
         tube([(-.43,-.50,-.1),(-.1,-.64,.22),(.44,-.48,.3)],.045,violet,root)
-    elif kind == 'lynx':
-        slab((0,0,0),(.9,.2,.64),silver,root)
-        dark=material('terminal glass',(.01,.04,.008))
-        slab((0,-.22,0),(.78,.045,.49),dark,root)
-        tube([(-.47,-.29,.24),(-.22,-.31,0),(-.47,-.29,-.22)],.046,light,root)
-        tube([(.12,-.29,-.22),(.40,-.29,-.22)],.042,light,root)
     elif kind == 'settings':
         bpy.ops.mesh.primitive_torus_add(major_radius=.49,minor_radius=.25,major_segments=48,minor_segments=16,rotation=(math.pi/2,0,0))
         finish(bpy.context.object,green,root)

@@ -17,7 +17,7 @@ function PanelSymbol({ kind }: { kind: ToolSymbol }) {
 
 const WORKSPACE_LABELS = ['One', 'Two', 'Three', 'Four']
 const SHORTCUTS = [
-  { app: 'netscape', label: 'Netscape', title: 'Netscape Navigator', size: { width: 780, height: 580 } },
+  { app: 'netscape', label: 'NEETscape', title: 'NEETscape', size: { width: 780, height: 580 } },
   { app: 'filemanager', label: 'Files', title: 'File Manager', size: { width: 680, height: 500 } },
   { app: 'mutanttube', label: 'TinyTubes', title: 'TinyTubes', size: { width: 900, height: 650 } },
   { app: 'messenger', label: 'Messenger', title: 'Messenger', size: { width: 800, height: 600 } },

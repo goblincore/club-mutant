@@ -1,7 +1,6 @@
 import { Settings } from './apps/Settings'
-import { NetscapeNavigator } from './apps/NetscapeNavigator'
+import { NEETscape } from './apps/NEETscape'
 import { FileManager } from './apps/FileManager'
-import { Lynx } from './apps/Lynx'
 import { ProcessMonitor } from './apps/ProcessMonitor'
 import { Calendar } from './apps/Calendar'
 import { AppManager } from './apps/AppManager'
@@ -24,13 +23,10 @@ export function AppRouter({ app, windowId, props: _props }: AppRouterProps) {
       return <Settings />
 
     case 'netscape':
-      return <NetscapeNavigator />
+      return <NEETscape />
 
     case 'filemanager':
       return <FileManager />
-
-    case 'lynx':
-      return <Lynx />
 
     case 'processmonitor':
       return <ProcessMonitor />

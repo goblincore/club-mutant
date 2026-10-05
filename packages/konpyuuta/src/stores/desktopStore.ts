@@ -20,8 +20,7 @@ interface DesktopStoreState {
 }
 
 const DEFAULT_ICONS: DesktopIcon[] = [
-  { id: 'netscape', label: 'Netscape', icon: DESKTOP_ICONS.netscape, app: 'netscape' },
-  { id: 'lynx', label: 'Lynx', icon: DESKTOP_ICONS.lynx, app: 'lynx' },
+  { id: 'netscape', label: 'NEETscape', icon: DESKTOP_ICONS.netscape, app: 'netscape' },
   { id: 'mutanttube', label: 'TinyTubes', icon: DESKTOP_ICONS.mutanttube, app: 'mutanttube' },
   { id: 'mutantbook', label: 'Guestbook', icon: DESKTOP_ICONS.mutantbook, app: 'mutantbook' },
   { id: 'messenger', label: 'Messenger', icon: DESKTOP_ICONS.messenger, app: 'messenger' },
