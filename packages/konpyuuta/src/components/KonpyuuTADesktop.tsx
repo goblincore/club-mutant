@@ -1,95 +1,38 @@
 import '../styles/liquid.css'
-import { useCallback, useEffect, useRef } from 'react'
-import { useDesktopStore } from '../stores/desktopStore'
+import '../styles/portal.css'
+import { useEffect, useRef } from 'react'
 import { useWindowStore } from '../stores/windowStore'
-import { useSettingsStore } from '../stores/settingsStore'
-import fontsData from '../data/fonts.json'
-import { BootSequence } from './BootSequence'
-import { Desktop } from './Desktop'
+import { PORTAL_APPS } from '../lib/portalApps'
 import { TopBar } from './TopBar'
-import { Panel } from './Panel'
-import { Window } from './Window'
+import { PortalHome } from './PortalHome'
+import { PortalWallpaper } from './PortalWallpaper'
+import { PortalAppFrame } from './PortalAppFrame'
 import { NotificationPopup } from './NotificationPopup'
 import { AppRouter } from './AppRouter'
-import { AudioManager } from '../lib/audioManager'
 import { AnimatedSwordCursor } from './AnimatedSwordCursor'
+import { AudioManager } from '../lib/audioManager'
 
-interface KonpyuuTADesktopProps {
-  onShutdown: () => void
-}
+interface KonpyuuTADesktopProps { onShutdown: () => void }
 
+// Public export retained for the host; this is now a portal, with no OS boot,
+// utilities, workspaces, taskbar, or draggable window chrome.
 export function KonpyuuTADesktop({ onShutdown }: KonpyuuTADesktopProps) {
-  const bootStatus = useDesktopStore((s) => s.bootStatus)
-  const setBootStatus = useDesktopStore((s) => s.setBootStatus)
-  const windows = useWindowStore((s) => s.windows)
-  const currentWorkspace = useWindowStore((s) => s.currentWorkspace)
-  const palette = useSettingsStore((s) => s.palette)
-  const fontPreset = useSettingsStore((s) => s.fontPreset)
-  const prevWindowIds = useRef<Set<string>>(new Set())
-
-  // Play window-open sound when a new window appears
+  const windows = useWindowStore((state) => state.windows)
+  const activeId = useWindowStore((state) => state.activeWindowId)
+  const active = activeId ? windows[activeId] : null
+  const app = active && PORTAL_APPS.find((entry) => entry.app === active.app)
+  const lastApp = useRef<string | null>(null)
   useEffect(() => {
-    const currentIds = new Set(Object.keys(windows))
-    for (const id of currentIds) {
-      if (!prevWindowIds.current.has(id)) {
-        AudioManager.windowOpen()
-        break // one sound per batch
-      }
-    }
-    prevWindowIds.current = currentIds
-  }, [windows])
+    if (app) { lastApp.current = app.app; AudioManager.windowOpen() }
+  }, [activeId, app])
 
-  useEffect(() => {
-    const root = document.querySelector('.cde-root') as HTMLElement | null
-    if (!root) return
-    const fonts = fontsData as Record<string, Record<string, string>>
-    const vars = fonts[fontPreset] ?? fonts['__default__'] ?? {}
-    Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v))
-  }, [fontPreset])
-
-  const handleBootComplete = useCallback(() => {
-    setBootStatus('ready')
-  }, [setBootStatus])
-
-  // Apply CDE palette as CSS custom properties using the original variable names
-  const paletteVars: React.CSSProperties = {
-    '--titlebar-color': palette.titlebar,
-    '--titlebar-text-color': palette.titlebarText,
-    '--window-color': palette.background,
-    '--topbar-color': palette.background,
-    '--dock-color': palette.background,
-    '--button-bg': palette.background,
-    '--button-active': palette.shadow,
-    '--border-light': palette.highlight,
-    '--border-dark': palette.shadow,
-  } as React.CSSProperties
-
-  if (bootStatus === 'booting') {
-    return (
-      <div className="cde-root liquid-signal" style={paletteVars}>
-        <BootSequence onComplete={handleBootComplete} />
-      </div>
-    )
-  }
-
-  // Get windows visible in current workspace
-  const visibleWindows = Object.values(windows).filter(
-    (w) => w.workspace === currentWorkspace
-  )
-
-  return (
-    <div className="cde-root liquid-signal" style={paletteVars}>
-      <TopBar onShutdown={onShutdown} />
-      <Desktop />
-      {/* Render all visible windows */}
-      {visibleWindows.map((win) => (
-        <Window key={win.id} id={win.id}>
-          <AppRouter windowId={win.id} app={win.app} props={win.props} />
-        </Window>
-      ))}
-      <NotificationPopup />
-      <Panel />
-      <AnimatedSwordCursor />
-    </div>
-  )
+  return <div className="cde-root liquid-signal portal-shell">
+    <PortalWallpaper animate={!app} />
+    <TopBar onShutdown={onShutdown} />
+    {app && active ? <PortalAppFrame id={active.id} title={app.name}>
+      <AppRouter windowId={active.id} app={app.app} props={active.props} />
+    </PortalAppFrame> : <PortalHome returnTo={lastApp.current} />}
+    <NotificationPopup />
+    <AnimatedSwordCursor />
+  </div>
 }

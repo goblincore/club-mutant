@@ -1,6 +1,6 @@
 """Blender 5.x: blender -b --python tools/render-social-icons.py -- --frames 24
 
-Transparent 128px sequences and stills; package sequences as APNG with ffmpeg.
+Transparent 128px sequences and stills; package sequences as WebP with tools/optimize-konpyuuta-assets.py.
 All geometry and materials are authored here so assets can be re-rendered.
 """
 import argparse
@@ -12,7 +12,7 @@ from mathutils import Vector
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--frames', type=int, default=24)
-parser.add_argument('--kind', choices=['mutanttube', 'messenger', 'mutantmail', 'mutantbook', 'netscape', 'settings', 'filemanager'])
+parser.add_argument('--kind', choices=['mutanttube', 'messenger', 'mutantmail', 'mutantbook', 'netscape', 'settings', 'filemanager', 'help', 'guides'])
 parser.add_argument('--output', default='/tmp/club-mutant-liquid-icons')
 args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else [])
 
@@ -56,7 +56,7 @@ def tube(points, radius, mat, parent):
     obj = bpy.data.objects.new('filament', curve); bpy.context.collection.objects.link(obj)
     return finish(obj, mat, parent)
 
-for kind in ([args.kind] if args.kind else ['mutanttube', 'messenger', 'mutantmail', 'mutantbook', 'netscape', 'settings', 'filemanager']):
+for kind in ([args.kind] if args.kind else ['mutanttube', 'messenger', 'mutantmail', 'mutantbook', 'netscape', 'settings', 'filemanager', 'help', 'guides']):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene; scene.render.engine = 'CYCLES'
     scene.cycles.samples = 24; scene.cycles.use_denoising = True
@@ -100,6 +100,20 @@ for kind in ([args.kind] if args.kind else ['mutanttube', 'messenger', 'mutantma
         tube([(0, -.25, -.67), (0, -.34, 0), (0, -.25, .65)], .065, violet, root)
         for z in [-.24, .02, .28]: tube([(.18, -.27, z), (.42, -.30, z+.04), (.68, -.25, z)], .025, light, root)
 
+    elif kind == 'help':
+        bpy.ops.mesh.primitive_torus_add(major_radius=.77, minor_radius=.12, major_segments=48, minor_segments=16, rotation=(math.pi/2,0,0))
+        finish(bpy.context.object,green,root)
+        tube([(-.29,-.18,.30),(-.19,-.22,.55),(.22,-.24,.54),(.30,-.24,.26),(.02,-.25,.02),(.02,-.25,-.18)],.095,silver,root)
+        bubble((.02,-.25,-.48),(.11,.11,.11),light,root)
+        bubble((.68,.03,.53),(.19,.19,.19),violet,root)
+    elif kind == 'guides':
+        for x, angle in [(-.54,-.23),(0,.23),(.54,-.23)]:
+            panel=slab((x,0,0),(.29,.10,.65),silver if x==0 else green,root)
+            panel.rotation_euler.z=angle
+        tube([(-.64,-.17,-.37),(-.36,-.21,-.13),(.05,-.23,-.20),(.33,-.21,.22),(.59,-.17,.35)],.04,violet,root)
+        for position in [(-.64,-.17,-.37),(.05,-.23,-.20),(.59,-.17,.35)]:
+            bubble(position,(.075,.06,.075),light,root)
+        bubble((.66,0,.57),(.20,.16,.20),violet,root)
     elif kind == 'netscape':
         bubble((0,0,0),(.65,.65,.65),silver,root)
         bpy.ops.mesh.primitive_torus_add(major_radius=.88,minor_radius=.075,major_segments=48,minor_segments=12,rotation=(.4,.4,0))

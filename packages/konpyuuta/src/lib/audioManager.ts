@@ -3,6 +3,8 @@
  * AudioContext is created lazily on first user gesture (browser autoplay policy).
  */
 
+import { useSettingsStore } from '../stores/settingsStore'
+
 let audioCtx: AudioContext | null = null
 let masterGain: GainNode | null = null
 
@@ -21,6 +23,7 @@ function init(): void {
 }
 
 async function ensureRunning(): Promise<boolean> {
+  if (!useSettingsStore.getState().soundEnabled) return false
   if (!audioCtx) init()
   if (!audioCtx) return false
   if (audioCtx.state === 'suspended') {
@@ -35,7 +38,7 @@ function playTone(
   type: OscillatorType = 'sine',
   volume = 1.0
 ): void {
-  if (!audioCtx || !masterGain || audioCtx.state !== 'running') return
+  if (!useSettingsStore.getState().soundEnabled || !audioCtx || !masterGain || audioCtx.state !== 'running') return
   const osc = audioCtx.createOscillator()
   const gain = audioCtx.createGain()
   osc.type = type
@@ -58,9 +61,12 @@ async function playMelody(
   }
 }
 
+useSettingsStore.subscribe(state => { if (masterGain && audioCtx) masterGain.gain.setValueAtTime(state.soundEnabled ? 0.6 : 0, audioCtx.currentTime) })
+
 // Unlock AudioContext on first user gesture (required by browser autoplay policy)
 if (typeof window !== 'undefined') {
   const unlock = () => {
+    if (!useSettingsStore.getState().soundEnabled) return
     if (!audioCtx) init()
     if (audioCtx && audioCtx.state === 'suspended') {
       audioCtx.resume().catch(() => {})

@@ -27,7 +27,7 @@ for (const file of initialCss) {
   assert(!source.includes('.cde-root'), `OS styles leaked into initial CSS: ${file}`)
 }
 assert([...desktopCss].some((file) => !initialCss.has(file)), 'Desktop needs its own deferred stylesheet')
-const osAsset = /(?:mutanttube|mutantbook|mutantmail|messenger|netscape|filemanager|settings|liquid-signal|sword)-.*\.(?:png|webp|apng)$/
+const osAsset = /(?:mutanttube|mutantbook|mutantmail|messenger|netscape|filemanager|settings|help|guides|liquid-signal|sword)-.*\.(?:png|webp|apng)$/
 for (const key of initial) for (const asset of manifest[key].assets || []) {
   assert(!osAsset.test(asset), `OS visual asset leaked into initial graph: ${asset}`)
 }

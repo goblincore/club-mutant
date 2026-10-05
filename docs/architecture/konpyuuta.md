@@ -1,40 +1,45 @@
-# KonpyuuTA — In-World Operating System
+# KonpyuuTA — In-World Social Portal
 
-KonpyuuTA v2 is a React package consumed directly by `client-3d`. Its desktop, window manager, and apps run in the same React tree as the game. There is no package build step, app iframe bridge, or postMessage API. Embedded video and external browser content still use iframes inside their respective apps.
+KonpyuuTA v2 is a React package consumed directly by `client-3d`. Its NEETscape home and social apps run in the same React tree as the game. There is no package build step, app iframe bridge, or postMessage API. Embedded YouTube video still uses an iframe inside TinyTubes.
 
 ## Integration
 
-The main client imports only `client-3d/src/ui/konpyuuta/KonpyuuTALauncher.tsx`, a small gate around `React.lazy`. `panelStore.osActive` triggers the first dynamic import of `KonpyuuTAShell.tsx`; Vite loads its desktop JS and separate CSS at that point. Loading and failed imports have a return-to-club control; failed loads also offer retry. Club-only visits do not initialize OS stores or services. After first use, the shell remains mounted and renders null when closed, preserving its service lifecycle and existing windows for reopening. Shutdown clears `osActive`.
+The main client imports only `client-3d/src/ui/konpyuuta/KonpyuuTALauncher.tsx`, a small gate around `React.lazy`. `panelStore.osActive` triggers the first dynamic import of `KonpyuuTAShell.tsx`; Vite loads its desktop JS and separate CSS at that point. Loading and failed imports have a return-to-club control; failed loads also offer retry. Club-only visits do not initialize OS stores or services. After first use, the shell remains mounted and renders null when closed, preserving its service lifecycle and app identities for reopening. Shutdown clears `osActive`.
 
 `KonpyuuTAShell.tsx` injects the reactive account username plus playlist, social, messenger, and mail services through `KonpyuuTAProvider`, then renders `KonpyuuTADesktop`. The production build runs `tools/check-konpyuuta-bundle.mjs` against Vite's manifest to ensure desktop JS, CSS, and visual assets stay outside the main entry's static import graph. Shared host dependencies (React, networking, auth, playlists) remain shared.
 
-The desktop runs a boot sequence, then renders the top bar, desktop icons, windows, notifications, and CDE panel. `windowStore` owns positions, sizes, z-order, shading, minimization, and four workspaces. `AppRouter` resolves an app ID to its React component. Closing a window unmounts that app.
+`KonpyuuTADesktop` now renders NEETscape as the full-screen home, with six floating shortcuts and the liquid wallpaper. There is no boot screen, taskbar, workspace switcher, browser address bar, desktop utility launcher, or draggable window chrome. Only power, interface sound, and time remain in the upper bar. An app opens in one reading surface with a Home control.
+
+`lib/portalApps.ts` owns the six app IDs and labels. `openPortalApp` reuses an existing app identity in `windowStore`; `showHome` clears the active identity without deleting it. The active app unmounts on returning home, stopping embedded playback and its view subscriptions; Messenger drafts/history and Postbox drafts live in their stores. `windowStore` retains its older position/workspace APIs for compatibility with existing consumers, but the portal does not render those controls. Messenger still uses the active identity to gate read acknowledgment.
 
 | File | Responsibility |
 | --- | --- |
 | `packages/konpyuuta/src/types.ts` | App and injected service contracts |
 | `client-3d/src/ui/konpyuuta/KonpyuuTALauncher.tsx` | First-use lazy loading and loading/error recovery |
 | `packages/konpyuuta/src/context/KonpyuuTAContext.tsx` | Provider and service access |
-| `packages/konpyuuta/src/components/KonpyuuTADesktop.tsx` | Desktop composition and boot |
-| `packages/konpyuuta/src/components/AppRouter.tsx` | App routing |
-| `packages/konpyuuta/src/stores/windowStore.ts` | Window/workspace state |
-| `packages/konpyuuta/src/stores/desktopStore.ts` | Desktop icons, wallpaper, notifications |
-| `packages/konpyuuta/src/lib/xpmParser.ts` | Converts `.pm` XPM wallpaper to browser images |
-| `packages/konpyuuta/src/styles/cde.css` | Desktop chrome and scoped app styles |
+| `packages/konpyuuta/src/components/KonpyuuTADesktop.tsx` | Portal composition and active app |
+| `packages/konpyuuta/src/components/AppRouter.tsx` | Social apps, Help, and Guides routing |
+| `packages/konpyuuta/src/components/PortalHome.tsx` | Floating shortcuts and return focus |
+| `packages/konpyuuta/src/components/PortalAppFrame.tsx` | One app surface with Home navigation |
+| `packages/konpyuuta/src/components/PortalWallpaper.tsx` | Animated wallpaper texture refraction |
+| `packages/konpyuuta/src/stores/windowStore.ts` | App identities and active app; legacy window APIs |
+| `packages/konpyuuta/src/stores/desktopStore.ts` | Notifications; legacy desktop settings |
+| `packages/konpyuuta/src/lib/xpmParser.ts` | Legacy XPM wallpaper helper (not in the portal) |
+| `packages/konpyuuta/src/styles/cde.css` | Root, top bar, notifications, and social app layouts |
 
 ## Account identity
 
 The host subscribes to `authStore.username` and supplies it through the provider. `useCurrentUsername()` resolves this value, falls back to the injected social service for older consumers, and uses `guest` when no account is available. The development preview follows the same auth store.
 
-Boot/profile messages and login text, File Manager home labels/breadcrumbs, and user-owned Process Monitor rows use this identity. System process owners retain their service names. File Manager navigation is stored relative to the home directory, so changing accounts rebases `/home/<username>/` without breaking folder lookup. Bundled tutorial and boot JSON use `{{username}}` placeholders and are personalized when viewed; replacement preserves literal usernames and valid JSON.
+Social profile and account labels use this identity. Retired boot/File Manager/Process Monitor sources also resolve the account rather than a hardcoded name. System process owners retain their service names. File Manager navigation is stored relative to the home directory, so changing accounts rebases `/home/<username>/` without breaking folder lookup. Bundled tutorial and boot JSON use `{{username}}` placeholders and are personalized when viewed; replacement preserves literal usernames and valid JSON.
 
 ## Assets and development
 
 Package exports point at TypeScript source; Vite compiles it with the client. Run `pnpm --filter club-mutant-3d dev` or `pnpm --filter club-mutant-3d build`. Do not run a KonpyuuTA build prerequisite: the package has no build script.
 
-`konpyuutaStaticPlugin` in `client-3d/vite.config.ts` serves `packages/konpyuuta/public/` in development and copies its contents to the production output. Existing desktop chrome uses paths such as `/icons/` and `/backdrops/`. Social app icons are imported through `lib/socialIcons.ts` so Vite includes their assets in the bundle and supplies the URLs consistently. Desktop, panel, and Application Manager use these shared URLs.
+`konpyuutaStaticPlugin` in `client-3d/vite.config.ts` serves `packages/konpyuuta/public/` in development and copies its contents to the production output. Legacy assets remain available under `/icons/` and `/backdrops/`, but the portal does not request utility icons or XPM backdrops. Social app icons are imported through `lib/socialIcons.ts` so Vite includes their assets in the bundle and supplies the URLs consistently. The portal and social app headers use these shared URLs; retired utility icons are excluded from the runtime import graph.
 
-The development-only `/__social-toy-review.html?app=mutanttube` entry mounts the real `KonpyuuTAShell` and opens the requested app (`mutanttube`, `messenger`, `mutantbook`, `mutantmail`, or `netscape` for NEETscape). Search/import responses come from `VITE_YOUTUBE_SERVICE_URL` or the local YouTube service on port 8081 (run `go run .` from `services/youtube-api`). It does not substitute sample results or bypass authentication; Messenger, Guestbook, and delivery use the current signed-in session. Vite’s production entry remains `index.html`.
+The development-only `/__social-toy-review.html?app=mutanttube` entry mounts the real `KonpyuuTAShell` and opens the requested app (`mutanttube`, `messenger`, `mutantbook`, `mutantmail`, `help`, or `guides`). `?app=home` opens the floating home; `?app=netscape` remains a home alias. `&capture=1` hides the development banner. Search/import responses come from `VITE_YOUTUBE_SERVICE_URL` or the local YouTube service on port 8081 (run `go run .` from `services/youtube-api`). It does not substitute sample results or bypass authentication; Messenger, Guestbook, and delivery use the current signed-in session. Vite’s production entry remains `index.html`.
 
 ## TinyTubes
 
@@ -95,7 +100,7 @@ Imports reject mixes (`RD*`), Watch Later, Liked Videos, private lists, and unre
 - History requests are tracked by conversation. Merging deduplicates real message IDs, orders by server time, preserves failed/pending messages, and replaces previews with complete bodies. A successful send replaces its temporary UUID with the returned server ID; failed sends retain their text and expose a retry control.
 - The current `dm_messages` storage collection is shared across all of an owner's partners, ordered by timestamp keys. The RPC scans at most five raw pages per call and returns every matching message from those pages; it must never trim the matches after advancing its cursor. The host follows every cursor, including empty filtered pages, before returning chronological history. Long account histories therefore require multiple RPCs per open; conversation-specific storage would be needed to reduce that cost at scale.
 - All conversation-summary pages are loaded. Friend presence follows Nakama status updates and is re-established after socket replacement.
-- Read state clears only after history loads and `mark_read` succeeds while the conversation is in the focused OS window and the browser is visible/focused. Typing channels are transient; durable messages remain in Nakama storage.
+- Read state clears only after history loads and `mark_read` succeeds while the conversation is in the active portal app and the browser is visible/focused. Typing channels are transient; durable messages remain in Nakama storage.
 - The message composer enforces the server's 2,000-character limit and respects IME composition. The viewport renders the latest 80 messages initially; “Show earlier messages” reveals older loaded history while preserving scroll position. Incoming messages do not force a reader away from older history.
 
 **Postbox** (internal app ID `mutantmail`) sends subject/body letters to Club Mutant usernames. `mailService.ts` uses the shared Nakama auth/socket and `send_letter`, `list_letters`, `update_letter` RPCs. Letters use `postbox_letters`, separate from Messenger DMs; notification code 101 refreshes mail without opening a chat. The server owns Inbox/Sent copies and read/trash/restore/delete state. A create-only receipt in `postbox_receipts` makes each draft request idempotent, including concurrent retries and retries after the Sent copy is deleted. Receipts contain only an ID/timestamp, not letter content. Deleting a letter affects only the caller’s copy.
@@ -107,10 +112,10 @@ Verification: `pnpm --filter club-mutant-3d test` covers Postbox storage and tra
 ## Adding an app
 
 1. Add a React component in `packages/konpyuuta/src/components/apps/`.
-2. Register its ID in `AppRouter.tsx` and its launchers in desktop/panel/Application Manager as needed.
+2. Register its ID in `AppRouter.tsx`, `lib/portalApps.ts`, and the portal icon maps in `lib/socialIcons.ts`.
 3. Define new service contracts in `src/types.ts` before using host data.
 4. Inject host implementations from `KonpyuuTAShell.tsx` and access them with `useKonpyuuTA`.
-5. Scope CSS to the app root and verify normal and narrow window sizes.
+5. Scope CSS to the app root and verify wide and narrow app surfaces.
 
 ## Verification
 
@@ -120,9 +125,9 @@ For Messenger integration verification, start `docker compose -f docker-compose.
 
 ## Liquid signal visuals
 
-`styles/liquid.css` scopes the desktop and social theme under `.cde-root.liquid-signal`, retaining the existing layout/container queries in `cde.css`. The default desktop uses `src/assets/liquid-signal.webp` (quality 92, 176KB); its original JPEG remains an authoring source and is not imported into the client. Custom image wallpapers remain supported. The original wallpaper was generated with built-in imagegen: dark liquid glass, acid-green caustics, a dark upper-left void, violet edges, photographic bloom and fine grain, with no text or logos.
+`styles/liquid.css` scopes the desktop and social theme under `.cde-root.liquid-signal`, retaining the existing layout/container queries in `cde.css`. The home uses `src/assets/liquid-signal.webp` (quality 92, 176KB); its original JPEG remains an authoring source and is not imported into the client. The retired wallpaper picker is not exposed. The original wallpaper was generated with built-in imagegen: dark liquid glass, acid-green caustics, a dark upper-left void, violet edges, photographic bloom and fine grain, with no text or logos.
 
-`tools/render-social-icons.py` authors seven Blender scenes: TinyTubes' glass tube/play symbol, Messenger's paired speech bubbles, Postbox's envelope, Guestbook's book, NEETscape's orbital sphere, Style Manager's gear, and File Manager's folder. `lib/socialIcons.ts` bundles optimized PNG posters and transparent animated WebP loops. Desktop icons animate; headers and dock use stills. Native `<picture>` sources select the poster for reduced motion or lack of WebP support. Each loop is 24 frames at 6 fps (exactly four seconds), rendered at 128px without runtime WebGL. Quality-92 WebP keeps alpha exact and reduces the seven loops from 1.68MB to 418KB; PNG posters are losslessly recompressed. Original APNG delivery files are removed.
+`tools/render-social-icons.py` authors the six active Blender icons: TinyTubes' glass tube/play symbol, Messenger's paired speech bubbles, Postbox's envelope, Guestbook's book, Help's question-mark ring, and Guides' folded route map. The script also retains three retired utility scenes for reproducibility. `lib/socialIcons.ts` bundles PNG posters and transparent animated WebP loops. Home shortcuts animate; app headers use stills. Native `<picture>` sources select the poster for reduced motion or lack of WebP support. Each loop is 24 frames at 6 fps (exactly four seconds), rendered at 128px without runtime 3D geometry. The six active loops total 362KB. PNG posters are losslessly recompressed; runtime APNG delivery files are removed.
 
 Regenerate with Blender 5.x and Python/Pillow with WebP support:
 
@@ -134,7 +139,7 @@ python3 tools/optimize-konpyuuta-assets.py
 
 `SignalOrgan.tsx` supplies a slowly breathing refractive membrane and deterministic user-ID avatars; uploaded Guestbook profile pictures take precedence. `AnalogAccents.tsx` supplies serif wordmarks and small light flares, and `PixelSymbol.tsx` now draws smooth control symbols.
 
-`SignalTransition.tsx` uses `lib/mojibake.ts` for a decorative 980ms corruption/resolve pass limited to explicitly marked headings (`data-signal-text`). TinyTubes marks its browse/collection heading after loading; Messenger and Guestbook mark their introductory heading; Postbox marks its folder heading; NEETscape marks the current page heading. Controls, video titles, profile content, letter bodies, and wordmarks stay steady. TinyTubes uses custom SVG tubular lettering in `TinyTubesWordmark.tsx`. Inputs, stored data, live announcements, and alerts are never re-encoded. Interaction, scrolling, asynchronous content changes, resizing, and reduced-motion preferences restore readable originals immediately. `mojibake.test.ts` verifies Unicode resolution, whitespace, bounded progress, and changing noise.
+`SignalTransition.tsx` uses `lib/mojibake.ts` for a decorative 980ms corruption/resolve pass limited to explicitly marked headings (`data-signal-text`). TinyTubes marks its browse/collection heading after loading; Messenger and Guestbook mark their introductory heading; Postbox marks its folder heading. Controls, video titles, profile content, letter bodies, and wordmarks stay steady. TinyTubes uses custom SVG tubular lettering in `TinyTubesWordmark.tsx`. Inputs, stored data, live announcements, and alerts are never re-encoded. Interaction, scrolling, asynchronous content changes, resizing, and reduced-motion preferences restore readable originals immediately. `mojibake.test.ts` verifies Unicode resolution, whitespace, bounded progress, and changing noise.
 
 Messenger additionally uses `IncomingMessageText.tsx` for a 630ms corruption/resolve pass on a newly received full message. The store issues a short-lived, consumable visual arrival token only from `receiveMessage`, never history loading or optimistic sends. Duplicate notifications and reopened threads do not replay it. Pending tokens are capped at 80 and expire after three seconds; account changes clear them. The original message remains intact in the polite live log, while an `aria-hidden` visual copy animates. Reduced motion, pointer/keyboard/focus interaction, and hidden documents restore readable text. Store regression tests cover deduplication, preview upgrades, history isolation, token expiry/bounds, and account changes.
 
@@ -148,18 +153,12 @@ The optimization command above packages the runtime sword loop. For an enlarged 
 ffmpeg -framerate 12 -i /tmp/club-mutant-gothic-sword/review/%03d.png -plays 0 -f apng artifacts/liquid-social/sword-spin.png
 ```
 
-### Desktop taskbar
+### NEETscape home and screen treatment
 
-`Panel.tsx` renders a single floating glass rail: Applications, six shared glass app posters, four numbered workspace selectors, and a Desktop tools tray. Smooth vector symbols replace the old camera/activity bitmaps and duplicate gears. Running apps show a small light; the active app has a brighter underline. Tooltips also appear on keyboard focus. The tools tray contains Style Manager, Screenshot, Calendar, and Process Monitor; outside clicks and Escape dismiss it, with Escape restoring focus to the trigger.
+`PortalHome.tsx` fills the screen with six floating, named shortcuts: TinyTubes, Messenger, Guestbook, Postbox, Help, and Guides. Their drift pauses when any shortcut is hovered or keyboard focused; the target gains a soft light halo. Home returns keyboard focus to the last shortcut. Reduced motion disables drift and uses static icon posters. Help explains the current controls; Guides is a minimal placeholder pending the user's manually drafted tutorial structure. Directory and Field guide are not exposed.
 
-App shortcuts reuse the most recent matching window in the current workspace, restoring minimized or shaded windows before focusing them. Other workspaces keep their own windows. On narrow screens the shortcut group scrolls horizontally while the launcher, workspaces, and tools stay available.
+`PortalWallpaper.tsx` refracts the approved liquid wallpaper using a small WebGL texture shader, with slow UV ripples and mild barrel distortion toward the edges. There is no ray-marched 3D blob or external graphics library. The shader caps its buffer at 1200px wide / 1x device scale and draws at up to 24fps on home. It holds a static frame while an app is open or reduced motion is enabled, suspends when hidden or outside the viewport, and releases resources/listeners on unmount. CSS uses the same WebP wallpaper as the fallback when WebGL is unavailable or its context is lost. The canvas preserves its drawing buffer for in-world capture.
 
-### NEETscape
+`styles/portal.css` adds a pointer-transparent CRT scanline/phosphor overlay, vignette, and rounded screen edge across home and apps. Fisheye refraction affects the wallpaper; text and click targets remain clear and aligned. Retired boot, panel, window, utility, and browser styling is removed from the runtime stylesheets.
 
-`components/apps/NEETscape.tsx` replaces the Netscape imitation while retaining the `netscape` app ID for existing callers. Its orbital glass identity is shared by the desktop, taskbar, and Application Manager. Lynx has been removed from the active router, desktop, launcher, and bundled data/assets.
-
-NEETscape is a local network portal. Start is a liquid WebGL scene (`NeetSignalScene.tsx`) with merging chrome-green forms and drifting light particles. Four floating, named app shortcuts launch or restore the current workspace's social windows. Their drift pauses on hover or keyboard focus; reduced motion uses static icon posters and a single shader frame. The shader caps its buffer at 900px wide and runs at up to 30fps, suspends when hidden or outside the viewport, and releases resources/listeners on unmount. CSS supplies a decorative fallback if WebGL is unavailable or its context is lost. The canvas preserves its drawing buffer for the in-world desktop capture.
-
-Only Start and About appear in the navigation tabs. Directory and Field guide are hidden pending the user's drafts; their existing `neet://directory` and `neet://guide` addresses display an unpublished-page placeholder. About at `neet://about` is reserved for Club Mutant navigation guides and tutorials, with only a placeholder until the user supplies the structure. Back/Forward, branch replacement, Home, Reload, and Ctrl/Command+L address selection still work.
-
-`lib/neetNavigation.ts` validates addresses. HTTP(S) destinations display an explicit Open website link to the user's web browser; they are not embedded or claimed to be loaded within KonpyuuTA. Executable protocols, credential-bearing URLs, unknown local routes, and malformed addresses are rejected. Parser tests cover those boundaries. The dev review accepts `?app=netscape`.
+`TopBar.tsx` keeps power (return to Club Mutant), interface-sound toggle, and time. Sound is persisted in `settingsStore`; `AudioManager` respects it before creating/playing tones and mutes already-playing notes when switched off. This control does not change game music or embedded video volume.

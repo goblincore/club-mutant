@@ -10,6 +10,7 @@ interface WindowStoreState {
   openWindow: (app: string, opts?: Partial<Omit<WindowState, 'id' | 'app'>>) => string
   closeWindow: (id: string) => void
   focusWindow: (id: string) => void
+  showHome: () => void
   moveWindow: (id: string, pos: { x: number; y: number }) => void
   resizeWindow: (id: string, size: { width: number; height: number }) => void
   minimizeWindow: (id: string) => void
@@ -74,6 +75,8 @@ export const useWindowStore = create<WindowStoreState>((set, get) => ({
       }
     })
   },
+
+  showHome: () => set({ activeWindowId: null }),
 
   moveWindow: (id, pos) => {
     set((state) => {

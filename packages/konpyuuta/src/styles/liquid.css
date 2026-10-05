@@ -14,26 +14,6 @@
   --signal-link-cursor: url('../assets/cursors/sword-link.png') 6 6, pointer;
   cursor: var(--signal-cursor);
 }
-.cde-root.liquid-signal::after { opacity: .07 !important; }
-.cde-root.liquid-signal .cde-desktop[data-liquid-wallpaper] { background: #041008 url('../assets/liquid-signal.webp') center / cover no-repeat !important; }
-.cde-root.liquid-signal .cde-topbar { border: 0; border-bottom: 1px solid #a4d27533; background: #050b08df; color: #a5bd8b; box-shadow: none; font: 10px 'Courier New', monospace; }
-.cde-root.liquid-signal .cde-topbar-btn { border: 0; background: none; color: #b6ff62; box-shadow: none; }
-.cde-root.liquid-signal .cde-window { padding: 1px; border: 1px solid #7fa76870; border-radius: 16px 16px 5px 5px; background: #050b08f7; box-shadow: 0 24px 90px #000a, 0 0 28px #8cdb2c0b; overflow: hidden; }
-.cde-root.liquid-signal .cde-titlebar { border: 0; height: 29px; min-height: 29px; background: linear-gradient(#30462a,#142319 42%,#07130a); color: #c2eaa2; box-shadow: inset 0 1px #defdad33; }
-.cde-root.liquid-signal .cde-titlebar-title { font: 10px 'Courier New', monospace; font-weight: normal; letter-spacing: 2px; text-transform: uppercase; text-shadow: 0 0 9px #b3ff6040; }
-.cde-root.liquid-signal .cde-titlebar button { border: 1px solid #79996150; border-radius: 50%; width: 20px; height: 20px; background: #0a150b; box-shadow: inset 0 1px #c9ffac20; color: #9ada60; }
-.cde-root.liquid-signal .cde-window-body { border: 0; background: #080e09; }
-.cde-root.liquid-signal .cde-desktop-icon-img { image-rendering: auto; width: 64px; height: 64px; padding: 0; background: transparent; border: 0; box-shadow: none; filter: drop-shadow(0 0 7px #9eff3f25); }
-.cde-root.liquid-signal .cde-desktop-icon-label { background: #020903b0; border-radius: 8px; padding: 3px 7px; color: #d8efc0; font: 10px Arial, sans-serif; text-shadow: 0 1px 3px #000; }
-.cde-root.liquid-signal .cde-desktop-icon:hover .cde-desktop-icon-label { background: #9dff43; color: #081006; }
-.cde-root.liquid-signal .cde-panel { background: #0a150fd9; border: 1px solid #67884870; border-bottom: 0; border-radius: 19px 19px 0 0; box-shadow: 0 -4px 26px #0007; padding: 4px 8px 0; backdrop-filter: blur(14px); }
-.cde-root.liquid-signal :is(.cde-handle,.subpanel-arrow,.cde-control,.workspace-btn) { border-color: #64834340; background: #132118; box-shadow: none; color: #bbdda4; }
-.cde-root.liquid-signal .cde-control { border-radius: 10px; }
-.cde-root.liquid-signal .cde-control img { image-rendering: auto; }
-.cde-root.liquid-signal .cde-subpanel { background: #111d14; border: 1px solid #789b5b; border-radius: 9px; box-shadow: 0 12px 28px #0009; }
-.cde-root.liquid-signal .cde-subpanel-item { color: #d3e4c2; font: 11px Arial, sans-serif; }
-.cde-root.liquid-signal .cde-subpanel-item:hover { background: #2e4524; }
-
 .cde-root.liquid-signal :is(.mt-root,.mm-root,.mb-root,.ml-root) {
   --mt-ink: var(--signal-ink); --mt-muted: var(--signal-muted); --mt-paper: #071008;
   --mt-lavender: #1c2c1b; --mt-mint: #314a22; --mt-border: var(--signal-line);
@@ -230,153 +210,15 @@
 .cde-root.liquid-signal .mt-root .mt-playlist-open, .cde-root.liquid-signal .mt-root .mt-track-open { border: 0; background: transparent; box-shadow: none; }
 
 
-.cde-root.liquid-signal .cde-workspace-area { background: none; border: 0; box-shadow: none; }
-.cde-root.liquid-signal .workspace-btn { background: #101c12; border: 1px solid #64834350; border-radius: 8px; color: #a4bb8f; box-shadow: none; font: 9px Arial, sans-serif; }
-.cde-root.liquid-signal .workspace-btn.active { background: #2e451d; color: #d8ffaa; border-color: #8dba54; }
-.cde-root.liquid-signal .control-icon { background: none; border: 0; box-shadow: none; }
-.cde-root.liquid-signal .handle-grip { background: #7e9f5140; width: 2px; box-shadow: none; }
-
-.cde-root.liquid-signal .subpanel-arrow-spacer { background: transparent; border: 0; }
-.cde-root.liquid-signal .subpanel-arrow { border: 0; border-radius: 12px 12px 0 0; background: #16241a; }
-
-.cde-root.liquid-signal .cde-window-shaded { height: auto !important; bottom: auto !important; min-height: 0; }
-
-.cde-root.liquid-signal .cde-window-body::-webkit-scrollbar { width: 6px; height: 6px; }
-.cde-root.liquid-signal .cde-window-body::-webkit-scrollbar-track { background: #080f09; }
-.cde-root.liquid-signal .cde-window-body::-webkit-scrollbar-thumb { border: 0; background: #536b37; border-radius: 5px; }
-
 .cde-root.liquid-signal .mb-root .mb-sign-in { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 24px; background: radial-gradient(ellipse at 50% 30%,#31502025,transparent 60%); }
 .cde-root.liquid-signal .mb-root .mb-sign-in h2 { font: normal 28px 'Times New Roman',serif; color: #e1f2c8; }
 .cde-root.liquid-signal .mb-root .mb-sign-in p { color: #a6b992; font: 12px/1.6 Arial,sans-serif; max-width: 320px; }
 
-/* One floating instrument rail replaces the CDE arrow rows and duplicate controls. */
-.cde-root.liquid-signal .cde-panel.signal-panel {
-  box-sizing: border-box; bottom: 12px; height: 62px; max-width: calc(100vw - 24px); padding: 5px 12px;
-  gap: 8px; align-items: center; border: 1px solid #a1c07855; border-radius: 36px;
-  background: linear-gradient(180deg,#2e4224c9 0,#09130dea 30%,#08120df5 78%,#263b1bd9);
-  box-shadow: inset 0 1px 0 #e2ffb92b, inset 0 -1px 0 #9bbc611b, 0 12px 30px #0008, 0 0 22px #b2ed4010;
-  backdrop-filter: blur(22px) saturate(1.2); isolation: isolate;
-}
-.cde-root.liquid-signal .signal-panel::before { content: ''; position: absolute; inset: 3px 26px auto; height: 1px; background: linear-gradient(90deg,transparent,#e3ffc832,transparent); pointer-events: none; }
-.cde-root.liquid-signal .signal-shortcuts { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.cde-root.liquid-signal .signal-dock-button { position: relative; display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 48px; height: 48px; padding: 3px; border: 1px solid transparent; border-radius: 50%; background: transparent; color: #c5e8a0; box-shadow: none; cursor: pointer; }
-.cde-root.liquid-signal .signal-dock-button > img { width: 43px; height: 43px; object-fit: contain; image-rendering: auto; filter: drop-shadow(0 3px 3px #0007); }
-.cde-root.liquid-signal .signal-dock-button:hover { background: #94c45713; border-color: #a5ce6e30; }
-.cde-root.liquid-signal .signal-dock-button[data-active] { background: radial-gradient(ellipse,#c3ff4820,transparent 70%); }
-.cde-root.liquid-signal .signal-panel :focus-visible { outline: 2px solid #cbff85; outline-offset: 2px; }
-.cde-root.liquid-signal .signal-panel-symbol { width: 28px; height: 28px; flex-shrink: 0; }
-.cde-root.liquid-signal .signal-launcher .signal-panel-symbol { width: 33px; height: 33px; filter: drop-shadow(0 0 6px #b2ff4840); }
-.cde-root.liquid-signal .signal-dock-tip { position: absolute; bottom: calc(100% + 13px); left: 50%; transform: translateX(-50%); padding: 6px 10px; border: 1px solid #88ae5a60; border-radius: 12px; background: #081209f5; box-shadow: 0 4px 12px #0007; color: #dff2c5; font: 11px Arial,sans-serif; white-space: nowrap; opacity: 0; visibility: hidden; pointer-events: none; }
-.cde-root.liquid-signal .signal-dock-button:is(:hover,:focus-visible) .signal-dock-tip { opacity: 1; visibility: visible; }
-.cde-root.liquid-signal .signal-running-light { position: absolute; bottom: 0; width: 3px; height: 3px; border-radius: 50%; background: transparent; }
-.cde-root.liquid-signal .signal-dock-button[data-running] .signal-running-light { background: #799b55; }
-.cde-root.liquid-signal .signal-dock-button[data-active] .signal-running-light { width: 9px; border-radius: 4px; background: #c4ff71; box-shadow: 0 0 7px #baff6260; }
-.cde-root.liquid-signal .signal-panel-divider { flex-shrink: 0; width: 1px; height: 23px; background: linear-gradient(transparent,#b4d18650,transparent); margin: 0 2px; }
-.cde-root.liquid-signal .signal-spaces { display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid #93b46925; border-radius: 24px; background: #01070255; }
-.cde-root.liquid-signal .signal-space { position: relative; width: 28px; height: 33px; padding: 0 0 4px; display: flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 50%; background: transparent; color: #869f70; font: 9px 'Courier New',monospace; cursor: pointer; box-shadow: none; }
-.cde-root.liquid-signal .signal-space[aria-pressed="true"] { color: #e6ffd0; background: radial-gradient(ellipse at 40% 20%,#bfd99145,#47632352 50%,#11210b); border-color: #95b86b70; box-shadow: inset 0 1px #d3f99b40,0 0 9px #9dff3520; }
-.cde-root.liquid-signal .signal-space:hover { color: #dcffb3; border-color: #8dae6055; }
-.cde-root.liquid-signal .signal-space i { position: absolute; bottom: 5px; width: 2px; height: 2px; border-radius: 50%; background: #58724440; }
-.cde-root.liquid-signal .signal-space i[data-occupied] { background: #c2ff79; }
-.cde-root.liquid-signal .signal-tools-button[aria-expanded="true"] { background: #a6d76b20; border-color: #9fca6a50; }
-.cde-root.liquid-signal .signal-tools-tray { position: absolute; right: 0; bottom: calc(100% + 12px); width: 248px; padding: 10px; border: 1px solid #94b56c70; border-radius: 19px; background: linear-gradient(150deg,#21311cec,#071109f5 60%); backdrop-filter: blur(22px); box-shadow: inset 0 1px #e0ffb918,0 14px 40px #0009; }
-.cde-root.liquid-signal .signal-tools-heading { color: #a6bc86; font: 8px 'Courier New',monospace; letter-spacing: 1.7px; padding: 5px 9px 12px; }
-.cde-root.liquid-signal .signal-tools-tray button { display: flex; align-items: center; text-align: left; width: 100%; gap: 14px; padding: 10px; background: transparent; border: 1px solid transparent; border-radius: 12px; color: #d7e9be; font: 12px Arial,sans-serif; box-shadow: none; cursor: pointer; }
-.cde-root.liquid-signal .signal-tools-tray button:hover { background: #89af4920; border-color: #8db65235; }
-.cde-root.liquid-signal .signal-tools-tray button span { display: flex; flex-direction: column; gap: 4px; }
-.cde-root.liquid-signal .signal-tools-tray button small { color: #90a57b; font: 10px Arial,sans-serif; }
-@media (max-width: 650px) {
-  .cde-root.liquid-signal .cde-panel.signal-panel { bottom: 8px; height: 56px; padding: 4px 7px; gap: 3px; max-width: calc(100vw - 12px); }
-  .cde-root.liquid-signal .signal-dock-button { width: 39px; height: 43px; }
-  .cde-root.liquid-signal .signal-dock-button > img { width: 36px; height: 36px; }
-  .cde-root.liquid-signal .signal-shortcuts { overflow-x: auto; gap: 1px; scrollbar-width: none; }
-  .cde-root.liquid-signal .signal-panel-divider { margin: 0 1px; }
-  .cde-root.liquid-signal .signal-spaces { gap: 1px; padding: 2px; }
-  .cde-root.liquid-signal .signal-space { width: 23px; height: 29px; }
-  .cde-root.liquid-signal .signal-shortcuts .signal-dock-tip { display: none; }
-}
-.cde-root.liquid-signal .signal-tools-button[aria-expanded="true"] .signal-dock-tip { opacity: 0; visibility: hidden; }
-
-/* NEETscape: a local network portal, with an explicit door to the wider web. */
-.cde-root.liquid-signal .neet-root { position: relative; height: 100%; min-width: 0; display: flex; flex-direction: column; background: #070e09; color: #dfebce; font: 12px Arial,sans-serif; container: neetscape / inline-size; isolation: isolate; }
-.cde-root.liquid-signal .neet-root button { color: #c9e5a9; background: #1a2916; border: 1px solid #88a85c55; border-radius: 20px; padding: 7px 12px; font: 11px Arial,sans-serif; cursor: pointer; box-shadow: none; }
-.cde-root.liquid-signal .neet-root button:hover:enabled { color: #efffdd; background: #2a3c1e; border-color: #b9ea76; }
-.cde-root.liquid-signal .neet-root button:disabled { opacity: .3; cursor: default; }
-.cde-root.liquid-signal .neet-root :focus-visible { outline: 2px solid #cbff85; outline-offset: 3px; }
-.cde-root.liquid-signal .neet-root input { box-sizing: border-box; min-width: 0; background: #030906; color: #e3efcf; border: 1px solid #94b56b55; border-radius: 22px; padding: 10px 13px; font: 12px Arial,sans-serif; }
-.cde-root.liquid-signal .neet-root input::placeholder { color: #8ea67b; }
-.cde-root.liquid-signal .neet-header { display: flex; align-items: center; gap: 9px; padding: 12px 20px 10px; border-bottom: 1px solid #789a4140; background: radial-gradient(ellipse at 0 0,#52733342,transparent 70%),#0c170e; }
-.cde-root.liquid-signal .neet-header > img { width: 44px; height: 44px; }
-.cde-root.liquid-signal .neet-header .app-wordmark { display: block; font: normal 33px/1.1 'Times New Roman',serif; letter-spacing: -1.5px; color: #e1f6c8; text-shadow: 0 0 17px #b8ff3c25; }
-.cde-root.liquid-signal .neet-header small { display: block; margin-top: 7px; color: #9abf78; font: 8px 'Courier New',monospace; letter-spacing: 1.4px; }
-.cde-root.liquid-signal .neet-navigation { display: flex; gap: 13px; padding: 9px 17px; background: #101c10; }
-.cde-root.liquid-signal .neet-controls { display: flex; gap: 4px; align-items: center; }
-.cde-root.liquid-signal .neet-controls button { width: 30px; height: 30px; padding: 5px; border-radius: 50%; background: transparent; border-color: transparent; }
-.cde-root.liquid-signal .neet-controls svg { width: 19px; height: 19px; }
-.cde-root.liquid-signal .neet-address { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; padding: 3px 4px 3px 12px; background: #020805; border: 1px solid #7c9c5355; border-radius: 25px; box-shadow: inset 0 2px 5px #0006; }
-.cde-root.liquid-signal .neet-address > span { color: #779e54; font-size: 16px; }
-.cde-root.liquid-signal .neet-address input { flex: 1; border: 0; background: transparent; padding: 6px 5px; font: 11px 'Courier New',monospace; }
-.cde-root.liquid-signal .neet-address button { border: 0; padding: 7px 14px; background: #314822; }
-.cde-root.liquid-signal .neet-tabs { display: flex; gap: 6px; padding: 0 18px 7px; border-bottom: 1px solid #7c9c5330; background: #101c10; }
-.cde-root.liquid-signal .neet-tabs button { background: transparent; border-color: transparent; padding: 5px 10px; color: #93ac7c; font-size: 10px; }
-.cde-root.liquid-signal .neet-tabs button[aria-current] { color: #d7ff9e; background: #283b1b; border-color: #7f9f4840; }
-.cde-root.liquid-signal .neet-content { flex: 1; min-height: 0; overflow: auto; scrollbar-color: #537235 #080f09; background: radial-gradient(ellipse at 80% 10%,#2b3b2325,transparent 65%); }
-.cde-root.liquid-signal .neet-eyebrow { color: #93b86c; font: 8px 'Courier New',monospace; letter-spacing: 1.3px; }
-.cde-root.liquid-signal .neet-root .neet-primary { display: inline-flex; gap: 15px; align-items: center; padding: 9px 15px; border: 1px solid #b7d78699; border-radius: 22px; color: #122107; background: #b0d982; text-decoration: none; font: 11px Arial,sans-serif; }
-.cde-root.liquid-signal .neet-reading h1 { color: #dfedcd; font: normal 34px 'Times New Roman',serif; margin: 14px 0; letter-spacing: -.8px; overflow-wrap: anywhere; }
-.cde-root.liquid-signal .neet-reading { padding: 36px; max-width: 600px; }
-.cde-root.liquid-signal .neet-reading > p { color: #a4b98d; line-height: 1.6; }
-.cde-root.liquid-signal .neet-about { padding: 40px 32px; }
-.cde-root.liquid-signal .neet-about p { color: #abc494; line-height: 1.6; }
-.cde-root.liquid-signal .neet-external-url { overflow-wrap: anywhere; color: #8eab74; font: 11px/1.7 'Courier New',monospace; margin: 22px 0; }
-.cde-root.liquid-signal .neet-external > button { margin-left: 10px; }
-.cde-root.liquid-signal .neet-error { background: #2c2230; color: #e6c3da; padding: 10px 18px; margin: 0; font: 11px/1.5 Arial,sans-serif; }
-.cde-root.liquid-signal .neet-status { display: flex; justify-content: space-between; gap: 10px; padding: 8px 17px; border-top: 1px solid #809f4430; background: #101b0d; color: #8dac6c; font: 8px 'Courier New',monospace; letter-spacing: .8px; }
-.cde-root.liquid-signal .neet-status > span:last-child { display: flex; align-items: center; gap: 8px; color: #b3cc96; }
-.cde-root.liquid-signal .neet-status i { width: 3px; height: 3px; background: #caff7b; border-radius: 50%; box-shadow: 0 0 6px #bcff6660; }
-@container neetscape (max-width: 450px) {
-  .cde-root.liquid-signal .neet-navigation { flex-wrap: wrap; gap: 6px; }
-  .cde-root.liquid-signal .neet-address { flex-basis: 100%; }
-}
-
-.cde-root.liquid-signal .neet-signal-space { position: relative; height: 100%; min-height: 280px; overflow: hidden; isolation: isolate; background: radial-gradient(ellipse at 50% 45%,#648c243d,transparent 60%),radial-gradient(ellipse at 70% 30%,#4f1d5633,transparent 60%),#050c07; }
-.cde-root.liquid-signal .neet-signal-space::before { content: ''; position: absolute; width: 42%; height: 54%; left: 29%; top: 23%; border-radius: 42% 58% 63% 37% / 53% 36% 64% 47%; background: radial-gradient(ellipse at 34% 24%,#e5ffc7,#709d24 22%,#172c13 48%,#a7d748 65%,#081b09 82%); box-shadow: inset -12px -20px 36px #040904,0 0 60px #a8ed3320; }
-.cde-root.liquid-signal .neet-signal-canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
-.cde-root.liquid-signal .neet-floating-signals { position: absolute; inset: 0; pointer-events: none; }
-.cde-root.liquid-signal .neet-signal-anchor { position: absolute; left: 19%; top: 28%; transform: translate(-50%,-50%); }
-.cde-root.liquid-signal .neet-signal-anchor:nth-child(2) { left: 31%; top: 73%; }
-.cde-root.liquid-signal .neet-signal-anchor:nth-child(3) { left: 76%; top: 26%; }
-.cde-root.liquid-signal .neet-signal-anchor:nth-child(4) { left: 69%; top: 74%; }
-.cde-root.liquid-signal .neet-root .neet-floating-signal { pointer-events: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; width: 112px; min-height: 108px; padding: 6px; border: 0; border-radius: 50%; background: transparent; animation: neet-drift 13s ease-in-out infinite alternate; }
-.cde-root.liquid-signal .neet-root .neet-floating-signal:hover:enabled { background: transparent; }
-.cde-root.liquid-signal .neet-floating-signal picture { display: block; transition: filter .2s, scale .2s; }
-.cde-root.liquid-signal .neet-floating-signal img { display: block; width: 76px; height: 76px; filter: drop-shadow(0 8px 12px #000a) drop-shadow(0 0 14px #bcff3e30); }
-.cde-root.liquid-signal .neet-floating-signal span { color: #d8eabf; font: 10px 'Courier New',monospace; letter-spacing: .2px; text-shadow: 0 1px 3px #000,0 0 8px #000,0 0 12px #000; }
-.cde-root.liquid-signal .neet-floating-signal:is(:hover,:focus-visible) picture { scale: 1.1; filter: brightness(1.15); }
-.cde-root.liquid-signal .neet-signal-anchor:nth-child(2) .neet-floating-signal { animation-duration: 16s; animation-delay: -6s; }
-.cde-root.liquid-signal .neet-signal-anchor:nth-child(3) .neet-floating-signal { animation-duration: 14s; animation-delay: -9s; }
-.cde-root.liquid-signal .neet-signal-anchor:nth-child(4) .neet-floating-signal { animation-duration: 18s; animation-delay: -3s; }
-.cde-root.liquid-signal .neet-floating-signals:is(:hover,:focus-within) .neet-floating-signal { animation-play-state: paused; }
-.cde-root.liquid-signal .neet-space-label { position: absolute; top: 16px; left: 22px; color: #9ab66f; font: 8px 'Courier New',monospace; letter-spacing: 1.8px; pointer-events: none; }
-@keyframes neet-drift { 0% { transform: translate(-10px,8px) rotate(-3deg); } 35% { transform: translate(19px,-18px) rotate(3deg); } 70% { transform: translate(-16px,-7px) rotate(-2deg); } 100% { transform: translate(12px,15px) rotate(3deg); } }
-@container neetscape (max-width: 650px) {
-  .cde-root.liquid-signal .neet-signal-anchor { left: 23%; top: 25%; }
-  .cde-root.liquid-signal .neet-signal-anchor:nth-child(2) { left: 25%; top: 72%; }
-  .cde-root.liquid-signal .neet-signal-anchor:nth-child(3) { left: 76%; top: 25%; }
-  .cde-root.liquid-signal .neet-signal-anchor:nth-child(4) { left: 74%; top: 72%; }
-  .cde-root.liquid-signal .neet-floating-signal img { width: 64px; height: 64px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .cde-root.liquid-signal .neet-floating-signal { animation: none !important; }
-  .cde-root.liquid-signal .neet-floating-signal picture { transition: none; }
-}
-
 /* Rendered stills back up the animated sprite and reduced-motion mode. */
 .cde-root.liquid-signal :is(button:not(:disabled),a[href],[role="button"],input[type="checkbox"],input[type="radio"],input[type="range"],select,
-  .cde-subpanel-item,.font-item,.fm-menubar span,.fm-breadcrumb-segment,.fm-item,.fm-dropdown-item,.fm-context-item,
-  .pm-process-row,.cal-day,.man-example,.man-link,.mb-post-author,.mb-friend-card) { cursor: var(--signal-link-cursor); }
+  .mb-post-author,.mb-friend-card) { cursor: var(--signal-link-cursor); }
 .cde-root.liquid-signal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(:disabled),textarea:not(:disabled),[contenteditable="true"]) { cursor: text; }
-.cde-root.liquid-signal :is(.mt-root,.mm-root,.mb-root,.ml-root,.neet-root) button:disabled,
+.cde-root.liquid-signal :is(.mt-root,.mm-root,.mb-root,.ml-root) button:disabled,
 .cde-root.liquid-signal :is(input:disabled,textarea:disabled,select:disabled,[aria-disabled="true"]) { cursor: not-allowed; }
 .cde-root.liquid-signal[data-sword-cursor="animated"] { --signal-cursor: none; --signal-link-cursor: none; }
 .sword-cursor-sprite { position: fixed; top: 0; left: 0; width: 48px; height: 48px; display: none; z-index: 2147483647; pointer-events: none; user-select: none; contain: layout style; }

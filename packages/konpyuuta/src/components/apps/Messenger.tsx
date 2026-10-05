@@ -25,7 +25,7 @@ export function Messenger({ windowId }: { windowId?: string }) {
   const { socialService: social, messengerService: service } = useKonpyuuTA()
   const store = useMessengerStore()
   const ownerId = social?.getCurrentUserId() ?? null
-  const focused = useWindowStore((s) => !windowId || (s.activeWindowId === windowId && s.windows[windowId]?.workspace === s.currentWorkspace && !s.windows[windowId]?.shaded))
+  const focused = useWindowStore((s) => !windowId || s.activeWindowId === windowId)
   const [visible, setVisible] = useState(() => !document.hidden && document.hasFocus())
   const [connected, setConnected] = useState(!service?.onConnectionChanged)
   const [query, setQuery] = useState('')

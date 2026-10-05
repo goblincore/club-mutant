@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-ICONS = ['mutanttube', 'mutantbook', 'messenger', 'mutantmail', 'netscape', 'settings', 'filemanager']
+ICONS = ['mutanttube', 'mutantbook', 'messenger', 'mutantmail', 'netscape', 'settings', 'filemanager', 'help', 'guides']
 
 
 def frames_from(source, fps):
@@ -45,18 +45,21 @@ def animation(source, destination, fps, lossless=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--kind', choices=ICONS, help='Package only this icon; leave sword and wallpaper unchanged')
     parser.add_argument('--icon-source', type=Path, default=Path('/tmp/club-mutant-liquid-icons'))
     parser.add_argument('--sword-source', type=Path, default=Path('/tmp/club-mutant-gothic-sword/cursor'))
     parser.add_argument('--wallpaper-source', type=Path, default=ROOT / 'packages/konpyuuta/src/assets/liquid-signal.jpg')
     args = parser.parse_args()
     icons = ROOT / 'packages/konpyuuta/public/icons/apps'
-    for name in ICONS:
+    for name in ([args.kind] if args.kind else ICONS):
         source = args.icon_source / name
         if not source.is_dir():
             source = args.icon_source / (name + '.apng')
         first_frame = animation(source, icons / (name + '.webp'), 6)
         poster = icons / (name + '.png')
         first_frame.save(poster, optimize=True)
+    if args.kind:
+        return
     animation(args.sword_source, ROOT / 'packages/konpyuuta/src/assets/cursors/sword.webp', 12, lossless=True)
     wallpaper = ROOT / 'packages/konpyuuta/src/assets/liquid-signal.webp'
     with Image.open(args.wallpaper_source) as image:
