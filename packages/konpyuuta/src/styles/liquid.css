@@ -309,8 +309,6 @@
 .cde-root.liquid-signal .neet-header > img { width: 44px; height: 44px; }
 .cde-root.liquid-signal .neet-header .app-wordmark { display: block; font: normal 33px/1.1 'Times New Roman',serif; letter-spacing: -1.5px; color: #e1f6c8; text-shadow: 0 0 17px #b8ff3c25; }
 .cde-root.liquid-signal .neet-header small { display: block; margin-top: 7px; color: #9abf78; font: 8px 'Courier New',monospace; letter-spacing: 1.4px; }
-.cde-root.liquid-signal .neet-frequency { margin-left: auto; display: flex; align-items: center; gap: 15px; color: #8ba270; font: 8px 'Courier New',monospace; letter-spacing: 1px; }
-.cde-root.liquid-signal .neet-frequency .doodle-star { width: 27px; height: 27px; }
 .cde-root.liquid-signal .neet-navigation { display: flex; gap: 13px; padding: 9px 17px; background: #101c10; }
 .cde-root.liquid-signal .neet-controls { display: flex; gap: 4px; align-items: center; }
 .cde-root.liquid-signal .neet-controls button { width: 30px; height: 30px; padding: 5px; border-radius: 50%; background: transparent; border-color: transparent; }
@@ -323,62 +321,54 @@
 .cde-root.liquid-signal .neet-tabs button { background: transparent; border-color: transparent; padding: 5px 10px; color: #93ac7c; font-size: 10px; }
 .cde-root.liquid-signal .neet-tabs button[aria-current] { color: #d7ff9e; background: #283b1b; border-color: #7f9f4840; }
 .cde-root.liquid-signal .neet-content { flex: 1; min-height: 0; overflow: auto; scrollbar-color: #537235 #080f09; background: radial-gradient(ellipse at 80% 10%,#2b3b2325,transparent 65%); }
-.cde-root.liquid-signal .neet-hero { position: relative; display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; padding: 14px 32px; overflow: hidden; border-bottom: 1px solid #668b3530; background: radial-gradient(ellipse at 75% 60%,#436b252e,transparent 50%),radial-gradient(ellipse at 95% 0,#56356a22,transparent 55%); }
-.cde-root.liquid-signal .neet-hero-copy > small,.cde-root.liquid-signal .neet-eyebrow { color: #93b86c; font: 8px 'Courier New',monospace; letter-spacing: 1.3px; }
-.cde-root.liquid-signal .neet-hero h1 { margin: 12px 0 10px; font: normal 42px/.95 'Times New Roman',serif; letter-spacing: -2px; color: #e7f3d7; }
-.cde-root.liquid-signal .neet-hero h1 em { font-weight: normal; color: #c7ff78; text-shadow: 0 0 22px #afff3e30; }
-.cde-root.liquid-signal .neet-hero p { color: #a4bb8d; font: 11px/1.5 Arial,sans-serif; margin: 0 0 12px; }
+.cde-root.liquid-signal .neet-eyebrow { color: #93b86c; font: 8px 'Courier New',monospace; letter-spacing: 1.3px; }
 .cde-root.liquid-signal .neet-root .neet-primary { display: inline-flex; gap: 15px; align-items: center; padding: 9px 15px; border: 1px solid #b7d78699; border-radius: 22px; color: #122107; background: #b0d982; text-decoration: none; font: 11px Arial,sans-serif; }
-.cde-root.liquid-signal .neet-orbit { position: relative; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 16px; }
-.cde-root.liquid-signal .neet-orbit i { position: absolute; top: 50%; left: 50%; width: 250px; height: 110px; border: 1px solid #a7d76840; border-radius: 50%; transform: translate(-50%,-65%) rotate(-28deg); box-shadow: 0 0 30px #84c43113,inset 0 0 20px #7ac03009; }
-.cde-root.liquid-signal .neet-orbit img { position: relative; width: 136px; height: 136px; image-rendering: auto; filter: drop-shadow(0 0 25px #a4ff4722); }
-.cde-root.liquid-signal .neet-orbit > span { position: relative; color: #8dad6d; font: 7px 'Courier New',monospace; letter-spacing: 1.5px; }
-.cde-root.liquid-signal .neet-section-label { display: flex; justify-content: space-between; color: #8dab73; font: 8px 'Courier New',monospace; letter-spacing: 1.2px; padding: 18px 24px 10px; }
-.cde-root.liquid-signal .neet-destinations { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; padding: 0 20px 22px; }
-.cde-root.liquid-signal .neet-root .neet-destination { display: flex; align-items: center; text-align: left; gap: 8px; background: linear-gradient(140deg,#22331a80,#0e180d); border: 1px solid #7b9c4640; border-radius: 16px 5px 16px 5px; padding: 10px; min-width: 0; }
-.cde-root.liquid-signal .neet-destination > img { width: 36px; height: 36px; flex-shrink: 0; }
-.cde-root.liquid-signal .neet-destination small { display: block; color: #8caa6c; font: 6px 'Courier New',monospace; letter-spacing: .7px; margin-bottom: 5px; }
-.cde-root.liquid-signal .neet-destination strong { color: #d9edbb; font: normal 17px 'Times New Roman',serif; }
-.cde-root.liquid-signal .neet-link-arrow { margin-left: auto; color: #a0c66c; font: 14px Arial,sans-serif; }
-.cde-root.liquid-signal .neet-directory { padding: 28px; }
-.cde-root.liquid-signal .neet-directory h1,.cde-root.liquid-signal .neet-reading h1 { color: #dfedcd; font: normal 34px 'Times New Roman',serif; margin: 14px 0; letter-spacing: -.8px; overflow-wrap: anywhere; }
-.cde-root.liquid-signal .neet-directory > p { color: #a4b98d; line-height: 1.6; }
-.cde-root.liquid-signal .neet-filter { width: 100%; margin: 15px 0 22px; }
-.cde-root.liquid-signal .neet-directory-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.cde-root.liquid-signal .neet-directory-grid .neet-destination { align-items: flex-start; padding: 20px 14px; }
-.cde-root.liquid-signal .neet-directory-grid .neet-destination > img { width: 48px; height: 48px; }
-.cde-root.liquid-signal .neet-directory-grid .neet-destination strong { font-size: 23px; }
-.cde-root.liquid-signal .neet-directory-grid .neet-destination p { color: #a3b58c; font: 11px/1.6 Arial,sans-serif; margin-bottom: 0; }
+.cde-root.liquid-signal .neet-reading h1 { color: #dfedcd; font: normal 34px 'Times New Roman',serif; margin: 14px 0; letter-spacing: -.8px; overflow-wrap: anywhere; }
 .cde-root.liquid-signal .neet-reading { padding: 36px; max-width: 600px; }
-.cde-root.liquid-signal .neet-reading dl { margin: 28px 0; }
-.cde-root.liquid-signal .neet-reading dt { color: #cfebaa; font: 20px 'Times New Roman',serif; margin-top: 23px; }
-.cde-root.liquid-signal .neet-reading dd { color: #a8bc94; font: 12px/1.8 Arial,sans-serif; margin: 8px 0; }
-.cde-root.liquid-signal .neet-reading code { font-size: 11px; color: #d2f5b6; }
-.cde-root.liquid-signal .neet-about { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 30px; }
-.cde-root.liquid-signal .neet-about > img { width: 128px; height: 128px; margin-bottom: 20px; }
-.cde-root.liquid-signal .neet-about h1 { font: normal 42px 'Times New Roman',serif; color: #dfffbd; letter-spacing: -1.5px; margin: 14px 0; }
+.cde-root.liquid-signal .neet-reading > p { color: #a4b98d; line-height: 1.6; }
+.cde-root.liquid-signal .neet-about { padding: 40px 32px; }
 .cde-root.liquid-signal .neet-about p { color: #abc494; line-height: 1.6; }
-.cde-root.liquid-signal .neet-about .neet-about-note { color: #8ca274; max-width: 240px; margin-bottom: 25px; }
 .cde-root.liquid-signal .neet-external-url { overflow-wrap: anywhere; color: #8eab74; font: 11px/1.7 'Courier New',monospace; margin: 22px 0; }
 .cde-root.liquid-signal .neet-external > button { margin-left: 10px; }
 .cde-root.liquid-signal .neet-error { background: #2c2230; color: #e6c3da; padding: 10px 18px; margin: 0; font: 11px/1.5 Arial,sans-serif; }
 .cde-root.liquid-signal .neet-status { display: flex; justify-content: space-between; gap: 10px; padding: 8px 17px; border-top: 1px solid #809f4430; background: #101b0d; color: #8dac6c; font: 8px 'Courier New',monospace; letter-spacing: .8px; }
 .cde-root.liquid-signal .neet-status > span:last-child { display: flex; align-items: center; gap: 8px; color: #b3cc96; }
 .cde-root.liquid-signal .neet-status i { width: 3px; height: 3px; background: #caff7b; border-radius: 50%; box-shadow: 0 0 6px #bcff6660; }
-@container neetscape (max-width: 650px) {
-  .cde-root.liquid-signal .neet-destinations { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .cde-root.liquid-signal .neet-hero { padding: 28px 23px; gap: 5px; }
-  .cde-root.liquid-signal .neet-orbit i { width: 185px; height: 80px; }
-  .cde-root.liquid-signal .neet-orbit img { width: 130px; height: 130px; }
-}
 @container neetscape (max-width: 450px) {
-  .cde-root.liquid-signal .neet-frequency { display: none; }
   .cde-root.liquid-signal .neet-navigation { flex-wrap: wrap; gap: 6px; }
   .cde-root.liquid-signal .neet-address { flex-basis: 100%; }
-  .cde-root.liquid-signal .neet-hero { grid-template-columns: 1fr; }
-  .cde-root.liquid-signal .neet-orbit { display: none; }
-  .cde-root.liquid-signal .neet-directory-grid { grid-template-columns: 1fr; }
-  .cde-root.liquid-signal .neet-section-label > span:last-child { display: none; }
+}
+
+.cde-root.liquid-signal .neet-signal-space { position: relative; height: 100%; min-height: 280px; overflow: hidden; isolation: isolate; background: radial-gradient(ellipse at 50% 45%,#648c243d,transparent 60%),radial-gradient(ellipse at 70% 30%,#4f1d5633,transparent 60%),#050c07; }
+.cde-root.liquid-signal .neet-signal-space::before { content: ''; position: absolute; width: 42%; height: 54%; left: 29%; top: 23%; border-radius: 42% 58% 63% 37% / 53% 36% 64% 47%; background: radial-gradient(ellipse at 34% 24%,#e5ffc7,#709d24 22%,#172c13 48%,#a7d748 65%,#081b09 82%); box-shadow: inset -12px -20px 36px #040904,0 0 60px #a8ed3320; }
+.cde-root.liquid-signal .neet-signal-canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
+.cde-root.liquid-signal .neet-floating-signals { position: absolute; inset: 0; pointer-events: none; }
+.cde-root.liquid-signal .neet-signal-anchor { position: absolute; left: 19%; top: 28%; transform: translate(-50%,-50%); }
+.cde-root.liquid-signal .neet-signal-anchor:nth-child(2) { left: 31%; top: 73%; }
+.cde-root.liquid-signal .neet-signal-anchor:nth-child(3) { left: 76%; top: 26%; }
+.cde-root.liquid-signal .neet-signal-anchor:nth-child(4) { left: 69%; top: 74%; }
+.cde-root.liquid-signal .neet-root .neet-floating-signal { pointer-events: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; width: 112px; min-height: 108px; padding: 6px; border: 0; border-radius: 50%; background: transparent; animation: neet-drift 13s ease-in-out infinite alternate; }
+.cde-root.liquid-signal .neet-root .neet-floating-signal:hover:enabled { background: transparent; }
+.cde-root.liquid-signal .neet-floating-signal picture { display: block; transition: filter .2s, scale .2s; }
+.cde-root.liquid-signal .neet-floating-signal img { display: block; width: 76px; height: 76px; filter: drop-shadow(0 8px 12px #000a) drop-shadow(0 0 14px #bcff3e30); }
+.cde-root.liquid-signal .neet-floating-signal span { color: #d8eabf; font: 10px 'Courier New',monospace; letter-spacing: .2px; text-shadow: 0 1px 3px #000,0 0 8px #000,0 0 12px #000; }
+.cde-root.liquid-signal .neet-floating-signal:is(:hover,:focus-visible) picture { scale: 1.1; filter: brightness(1.15); }
+.cde-root.liquid-signal .neet-signal-anchor:nth-child(2) .neet-floating-signal { animation-duration: 16s; animation-delay: -6s; }
+.cde-root.liquid-signal .neet-signal-anchor:nth-child(3) .neet-floating-signal { animation-duration: 14s; animation-delay: -9s; }
+.cde-root.liquid-signal .neet-signal-anchor:nth-child(4) .neet-floating-signal { animation-duration: 18s; animation-delay: -3s; }
+.cde-root.liquid-signal .neet-floating-signals:is(:hover,:focus-within) .neet-floating-signal { animation-play-state: paused; }
+.cde-root.liquid-signal .neet-space-label { position: absolute; top: 16px; left: 22px; color: #9ab66f; font: 8px 'Courier New',monospace; letter-spacing: 1.8px; pointer-events: none; }
+@keyframes neet-drift { 0% { transform: translate(-10px,8px) rotate(-3deg); } 35% { transform: translate(19px,-18px) rotate(3deg); } 70% { transform: translate(-16px,-7px) rotate(-2deg); } 100% { transform: translate(12px,15px) rotate(3deg); } }
+@container neetscape (max-width: 650px) {
+  .cde-root.liquid-signal .neet-signal-anchor { left: 23%; top: 25%; }
+  .cde-root.liquid-signal .neet-signal-anchor:nth-child(2) { left: 25%; top: 72%; }
+  .cde-root.liquid-signal .neet-signal-anchor:nth-child(3) { left: 76%; top: 25%; }
+  .cde-root.liquid-signal .neet-signal-anchor:nth-child(4) { left: 74%; top: 72%; }
+  .cde-root.liquid-signal .neet-floating-signal img { width: 64px; height: 64px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cde-root.liquid-signal .neet-floating-signal { animation: none !important; }
+  .cde-root.liquid-signal .neet-floating-signal picture { transition: none; }
 }
 
 /* Rendered stills back up the animated sprite and reduced-motion mode. */
