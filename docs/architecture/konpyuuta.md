@@ -132,3 +132,9 @@ ffmpeg -framerate 6 -i /tmp/club-mutant-liquid-icons/mutanttube/%03d.png -plays 
 `SignalOrgan.tsx` supplies a slowly breathing refractive membrane and deterministic user-ID avatars; uploaded Guestbook profile pictures take precedence. `AnalogAccents.tsx` supplies serif wordmarks and small light flares, and `PixelSymbol.tsx` now draws smooth control symbols.
 
 `SignalTransition.tsx` uses `lib/mojibake.ts` for a decorative 980ms corruption/resolve pass when social views change. It overlays visible text while keeping the originals and accessible names intact. Inputs, stored data, live announcements, and alerts are never re-encoded. Interaction, scrolling, asynchronous content changes, resizing, and reduced-motion preferences restore readable originals immediately. Wordmarks also have a short, quiet accent every 37 seconds; reduced motion disables all of these effects. `mojibake.test.ts` verifies Unicode resolution, whitespace, bounded progress, and changing noise.
+
+### Desktop taskbar
+
+`Panel.tsx` renders a single floating glass rail: Applications, six shared glass app posters, four numbered workspace selectors, and a Desktop tools tray. Smooth vector symbols replace the old camera/activity bitmaps and duplicate gears. Running apps show a small light; the active app has a brighter underline. Tooltips also appear on keyboard focus. The tools tray contains Style Manager, Screenshot, Calendar, and Process Monitor; outside clicks and Escape dismiss it, with Escape restoring focus to the trigger.
+
+App shortcuts reuse the most recent matching window in the current workspace, restoring minimized or shaded windows before focusing them. Other workspaces keep their own windows. On narrow screens the shortcut group scrolls horizontally while the launcher, workspaces, and tools stay available.
