@@ -1,3 +1,4 @@
+import { SignalTransition } from './SignalTransition'
 import { useState, useEffect, useCallback, useRef, useId } from 'react'
 import { useKonpyuuTA } from '../../context/KonpyuuTAContext'
 import type { Playlist, PlaylistTrack } from '../../types'
@@ -7,7 +8,7 @@ import {
 } from '../../lib/mutantTube'
 import { SOCIAL_ICONS } from '../../lib/socialIcons'
 import { usePopup } from './MutantTubePopup'
-import { CastleStation } from './LittleKingdom'
+import { SignalOrgan } from './SignalOrgan'
 import { TubeMascot } from './TubeMascot'
 import { AppWordmark, DoodleStar } from './AnalogAccents'
 import { PixelSymbol } from './PixelSymbol'
@@ -296,17 +297,18 @@ export function MutantTube() {
   }
 
   return <div className="mt-root" aria-busy={loading || busy}>
+    <SignalTransition trigger={`${view}:${browse.kind}:${browse.query || browse.category || ''}:${loading ? 'loading' : 'ready'}`} />
     {popup.PopupComponent}
     <header className="mt-header">
       <button className="mt-brand" onClick={() => void loadBrowse({ ...HOME, under100: browse.under100 })} disabled={busy} aria-label="TinyTubes home">
-        <img className="mt-brand-toy" src={SOCIAL_ICONS.mutanttube} alt="" /><span><AppWordmark label="TinyTubes" /><small>BROADCASTING FROM A VERY SMALL CASTLE</small></span>
+        <img className="mt-brand-toy" src={SOCIAL_ICONS.mutanttube} alt="" /><span><AppWordmark label="TinyTubes" /><small>TRANSMISSIONS FROM THE OTHER SIDE</small></span>
       </button>
       <span className="mt-club-badge" aria-hidden="true">TT<br />CH. 01</span>
       <form className="mt-search" onSubmit={(event) => {
         event.preventDefault()
         if (query.trim() && !busy) void loadBrowse({ kind: 'search', query: query.trim(), title: `Results for “${query.trim()}”`, under100: browse.under100 })
       }}>
-        <input aria-label="Search videos" placeholder="Find something lovely, weird, or both…" value={query} onChange={(event) => setQuery(event.target.value)} />
+        <input aria-label="Search videos" placeholder="Search the signal…" value={query} onChange={(event) => setQuery(event.target.value)} />
         <button disabled={!query.trim() || busy}>Find ↗</button>
       </form>
     </header>
@@ -325,18 +327,18 @@ export function MutantTube() {
           onClick={() => { setQuery(''); void loadBrowse({ kind: 'category', title: category.label, category: category.id, under100: browse.under100 }) }}>
           <span className="mt-channel-number" aria-hidden="true">{String(channelIndex + 1).padStart(2, '0')}</span>{category.label}
         </button>)}
-        <div className="mt-sidebar-note"><div className="mt-shelf-toy" aria-hidden="true"><CastleStation /></div><div><p>Small tower.<br />Big reception.</p><small>Goblin-operated.</small></div></div>
+        <div className="mt-sidebar-note"><div className="mt-shelf-toy" aria-hidden="true"><SignalOrgan compact /></div><div><p>Weak signal.<br />Deep reception.</p><small>FREQUENCY / 00.01</small></div></div>
       </aside>
       <main className="mt-content">
         {view === 'browse' && browse.kind === 'home' && <section className="mt-feature" aria-labelledby={featureTitleId}>
-          <div className="mt-feature-kicker"><PixelSymbol kind="star" /><h2 id={featureTitleId}>Unpopular video of the day</h2><span>THE WATCHTOWER’S PICK</span></div>
+          <div className="mt-feature-kicker"><PixelSymbol kind="star" /><h2 id={featureTitleId}>Unpopular video of the day</h2><span>DAILY TRANSMISSION</span></div>
           {featured ? <button className="mt-feature-video" onClick={() => watch(featured.video)} disabled={busy} aria-label={`Watch today's featured video: ${featured.video.title}`}>
             <div className="mt-feature-screen"><Thumbnail video={featured.video} /><span className="mt-feature-play" aria-hidden="true">▶</span></div>
-            <div className="mt-feature-info"><small>ONE LITTLE VIDEO. ONE WHOLE DAY.</small><h3>{featured.video.title}</h3><p>{featured.video.channel || 'A little internet find'}</p><span className="mt-feature-views">{featured.video.viewCount} {featured.video.viewCount === 1 ? 'view' : 'views'} · fewer than 100</span><span className="mt-feature-watch">Watch today’s pick ↗</span><time dateTime={featured.checkedAt}>Checked {new Date(featured.checkedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · changes daily at midnight UTC</time></div>
-          </button> : <div className="mt-feature-status" role="status"><p>{featureLoading ? 'The goblin is choosing today’s little-seen video…' : featureError ? 'We couldn’t check today’s pick. The other shelves are still here.' : 'No verified video under 100 views is available just now.'}</p>{!featureLoading && <button onClick={() => setFeatureRetry((value) => value + 1)}>Check again</button>}</div>}
+            <div className="mt-feature-info"><small>LOW VISIBILITY / HIGH RESONANCE</small><h3>{featured.video.title}</h3><p>{featured.video.channel || 'A little internet find'}</p><span className="mt-feature-views">{featured.video.viewCount} {featured.video.viewCount === 1 ? 'view' : 'views'} · fewer than 100</span><span className="mt-feature-watch">Watch today’s pick ↗</span><time dateTime={featured.checkedAt}>Checked {new Date(featured.checkedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · changes daily at midnight UTC</time></div>
+          </button> : <div className="mt-feature-status" role="status"><p>{featureLoading ? 'Tuning today’s low-visibility transmission…' : featureError ? 'We couldn’t check today’s pick. The other shelves are still here.' : 'No verified video under 100 views is available just now.'}</p>{!featureLoading && <button onClick={() => setFeatureRetry((value) => value + 1)}>Check again</button>}</div>}
         </section>}
         {loading ? <div className="mt-empty" role="status"><TubeMascot loading /><h2>Finding the good stuff…</h2><p>{browse.under100 ? 'Looking beyond the popular results for videos with 0–99 views.' : 'This may take a little moment.'}</p></div>
-        : error ? <div className="mt-empty" role="alert"><span className="mt-empty-icon">☁</span><h2>A little hiccup</h2><p>{error}</p><button onClick={() => void (view === 'playlist' && playlistId ? openPlaylist(playlistId) : view === 'playlists' ? showPlaylists() : loadBrowse(browse))}>Try again</button></div>
+        : error ? <div className="mt-empty" role="alert"><span className="mt-empty-icon">☁</span><h2>Signal interrupted</h2><p>{error}</p><button onClick={() => void (view === 'playlist' && playlistId ? openPlaylist(playlistId) : view === 'playlists' ? showPlaylists() : loadBrowse(browse))}>Try again</button></div>
         : view === 'browse' ? <>
           <div className="mt-section-heading"><div><small>{browse.kind === 'home' ? 'TODAY’S PROGRAM GUIDE' : browse.kind === 'search' ? 'SEARCH RESULTS' : 'YOU’RE TUNED IN TO'}</small><h1>{browse.title}</h1><p>{browse.kind === 'search' ? `${videos.length} videos found${browse.under100 ? ' with fewer than 100 views' : ''}` : browse.under100 ? 'Little-seen music, old tapes, and odd finds. Every video has fewer than 100 views.' : 'Music, old tapes, and odd little finds. See where the dial takes you.'}</p></div><span className="mt-finds-counter"><DoodleStar filled /><strong>{String(videos.length).padStart(2, '0')}</strong><small>FINDS</small></span></div>
           {!videos.length ? <div className="mt-empty"><h2>{browse.under100 ? 'No tiny finds this time' : 'No videos this time'}</h2><p>{browse.under100 ? 'None of the videos we checked had a known count below 100. Try another search or channel, or switch to All videos.' : 'Try another search or pick a different shelf.'}</p>{browse.under100 && <button onClick={() => void loadBrowse({ ...browse, under100: false })}>Show all videos</button>}</div> : <>
@@ -377,6 +379,6 @@ export function MutantTube() {
         </> : <div className="mt-empty"><h2>Playlist unavailable</h2><button onClick={() => void showPlaylists()}>Back to playlists</button></div>}
       </main>
     </div>
-    <footer className="mt-status"><span role="status" aria-live="polite">{busy ? 'Working on your collection…' : status}</span><span aria-hidden="true"><PixelSymbol kind="star" /> STAY CURIOUS</span></footer>
+    <footer className="mt-status"><span role="status" aria-live="polite">{busy ? 'Working on your collection…' : status}</span><span aria-hidden="true"><PixelSymbol kind="star" /> KEEP RECEIVING</span></footer>
   </div>
 }

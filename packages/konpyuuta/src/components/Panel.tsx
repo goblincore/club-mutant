@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useWindowStore } from '../stores/windowStore'
-import { SOCIAL_ICONS } from '../lib/socialIcons'
+import { DESKTOP_ICONS } from '../lib/socialIcons'
 
 type SubpanelId = 'utilities' | 'style' | 'browser' | null
 
@@ -59,7 +59,7 @@ export function Panel() {
           <button className="cde-control" aria-label="Applications" onClick={() => openApp('appmanager', { title: 'Application Manager', size: { width: 600, height: 450 } })}>
             <div className="control-content">
               <div className="control-icon">
-                <img src="/icons/apps/linux_penguin.png" alt="Applications" />
+                <img src={DESKTOP_ICONS.settings} alt="Applications" />
               </div>
               <div className="control-label">Apps</div>
             </div>
@@ -78,7 +78,7 @@ export function Panel() {
           <button className="cde-control" aria-label="Utilities" onClick={() => openApp('processmonitor', { title: 'Process Monitor', size: { width: 640, height: 480 } })}>
             <div className="control-content">
               <div className="control-icon">
-                <img src="/icons/system/applications-other.png" alt="Utilities" />
+                <img src={DESKTOP_ICONS.lynx} alt="Utilities" />
               </div>
               <div className="control-label">Utilities</div>
             </div>
@@ -117,7 +117,7 @@ export function Panel() {
           >
             <div className="control-content">
               <div className="control-icon">
-                <img src="/icons/apps/org.xfce.settings.manager.png" alt="Style Manager" />
+                <img src={DESKTOP_ICONS.settings} alt="Style Manager" />
               </div>
               <div className="control-label">Style<br />Manager</div>
             </div>
@@ -125,15 +125,15 @@ export function Panel() {
           {openSubpanel === 'style' && (
             <div className="cde-subpanel">
               <div className="cde-subpanel-item" onClick={() => openApp('settings', { title: 'Style Manager', props: { tab: 'color' } })}>
-                <img src="/icons/apps/org.xfce.settings.manager.png" alt="" />
+                <img src={DESKTOP_ICONS.settings} alt="" />
                 <span>Color…</span>
               </div>
               <div className="cde-subpanel-item" onClick={() => openApp('settings', { title: 'Style Manager', props: { tab: 'backdrop' } })}>
-                <img src="/icons/apps/org.xfce.settings.manager.png" alt="" />
+                <img src={DESKTOP_ICONS.settings} alt="" />
                 <span>Backdrop…</span>
               </div>
               <div className="cde-subpanel-item" onClick={() => openApp('settings', { title: 'Style Manager', props: { tab: 'font' } })}>
-                <img src="/icons/apps/org.xfce.settings.manager.png" alt="" />
+                <img src={DESKTOP_ICONS.settings} alt="" />
                 <span>Font…</span>
               </div>
             </div>
@@ -152,7 +152,7 @@ export function Panel() {
           <button className="cde-control" aria-label="Browser" onClick={() => openApp('netscape', { title: 'Netscape Navigator', size: { width: 780, height: 580 } })}>
             <div className="control-content">
               <div className="control-icon">
-                <img src="/icons/apps/konqueror.png" alt="Browser" />
+                <img src={DESKTOP_ICONS.netscape} alt="Browser" />
               </div>
               <div className="control-label">Browser</div>
             </div>
@@ -160,15 +160,15 @@ export function Panel() {
           {openSubpanel === 'browser' && (
             <div className="cde-subpanel">
               <div className="cde-subpanel-item" onClick={() => openApp('netscape', { title: 'Netscape Navigator', size: { width: 780, height: 580 } })}>
-                <img src="/icons/apps/netscape_classic.png" alt="" />
+                <img src={DESKTOP_ICONS.netscape} alt="" />
                 <span>Netscape Navigator</span>
               </div>
               <div className="cde-subpanel-item" onClick={() => openApp('lynx', { title: 'Lynx', size: { width: 700, height: 500 } })}>
-                <img src="/icons/apps/Lynx.svg" alt="" />
+                <img src={DESKTOP_ICONS.lynx} alt="" />
                 <span>Lynx Text Browser</span>
               </div>
               <div className="cde-subpanel-item" onClick={() => openApp('mutanttube', { title: 'TinyTubes', size: { width: 900, height: 650 } })}>
-                <img src={SOCIAL_ICONS.mutanttube} alt="" />
+                <img src={DESKTOP_ICONS.mutanttube} alt="" />
                 <span>TinyTubes</span>
               </div>
             </div>
@@ -202,7 +202,7 @@ export function Panel() {
           <button className="cde-control" aria-label="File Manager" onClick={() => openApp('filemanager', { title: 'File Manager', size: { width: 680, height: 500 } })}>
             <div className="control-content">
               <div className="control-icon">
-                <img src="/icons/apps/filemanager.png" alt="File Manager" />
+                <img src={DESKTOP_ICONS.filemanager} alt="File Manager" />
               </div>
               <div className="control-label">File<br />Manager</div>
             </div>

@@ -1,8 +1,24 @@
 // Let Vite fingerprint these assets so desktop, dock, and app manager share
 // the same URLs in development and production, independent of /icons routing.
-import mutanttube from '../../public/icons/apps/mutanttube.svg?url'
-import mutantbook from '../../public/icons/apps/mutantbook.svg?url'
-import messenger from '../../public/icons/apps/messenger.svg?url'
-import mutantmail from '../../public/icons/apps/mutantmail.svg?url'
+import mutanttube from '../../public/icons/apps/mutanttube.png?url'
+import mutantbook from '../../public/icons/apps/mutantbook.png?url'
+import messenger from '../../public/icons/apps/messenger.png?url'
+import mutantmail from '../../public/icons/apps/mutantmail.png?url'
+import tubeLoop from '../../public/icons/apps/mutanttube.apng?url'
+import bookLoop from '../../public/icons/apps/mutantbook.apng?url'
+import messengerLoop from '../../public/icons/apps/messenger.apng?url'
+import mailLoop from '../../public/icons/apps/mutantmail.apng?url'
 
 export const SOCIAL_ICONS = { mutanttube, mutantbook, messenger, mutantmail }
+export const SOCIAL_ICON_LOOPS = { mutanttube: tubeLoop, mutantbook: bookLoop, messenger: messengerLoop, mutantmail: mailLoop }
+import netscape from '../../public/icons/apps/netscape.png?url'
+import netscapeLoop from '../../public/icons/apps/netscape.apng?url'
+import lynx from '../../public/icons/apps/lynx.png?url'
+import lynxLoop from '../../public/icons/apps/lynx.apng?url'
+import settings from '../../public/icons/apps/settings.png?url'
+import settingsLoop from '../../public/icons/apps/settings.apng?url'
+import filemanager from '../../public/icons/apps/filemanager.png?url'
+import filemanagerLoop from '../../public/icons/apps/filemanager.apng?url'
+
+export const DESKTOP_ICONS = { ...SOCIAL_ICONS, netscape, lynx, settings, filemanager }
+export const DESKTOP_ICON_LOOPS = { ...SOCIAL_ICON_LOOPS, netscape: netscapeLoop, lynx: lynxLoop, settings: settingsLoop, filemanager: filemanagerLoop }

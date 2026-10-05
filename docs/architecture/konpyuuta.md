@@ -31,11 +31,11 @@ Package exports point at TypeScript source; Vite compiles it with the client. Ru
 
 `konpyuutaStaticPlugin` in `client-3d/vite.config.ts` serves `packages/konpyuuta/public/` in development and copies its contents to the production output. Existing desktop chrome uses paths such as `/icons/` and `/backdrops/`. Social app icons are imported through `lib/socialIcons.ts` so Vite includes their assets in the bundle and supplies the URLs consistently. Desktop, panel, and Application Manager use these shared URLs.
 
-The development-only `/__social-toy-review.html` entry opens TinyTubes directly. It uses real search/import responses from `VITE_YOUTUBE_SERVICE_URL` or the local YouTube service on port 8081 (run `go run .` from `services/youtube-api`), plus the shared playlist adapter in `client-3d/src/ui/konpyuuta/playlistService.ts`. It does not replace `fetch` with sample results. Use the game desktop for authenticated social apps. Vite’s production entry remains `index.html`.
+The development-only `/__social-toy-review.html?app=mutanttube` entry mounts the real `KonpyuuTAShell` and opens the requested social app (`mutanttube`, `messenger`, `mutantbook`, or `mutantmail`). Search/import responses come from `VITE_YOUTUBE_SERVICE_URL` or the local YouTube service on port 8081 (run `go run .` from `services/youtube-api`). It does not substitute sample results or bypass authentication; Messenger, Guestbook, and delivery use the current signed-in session. Vite’s production entry remains `index.html`.
 
 ## TinyTubes
 
-TinyTubes uses the existing `mutanttube` app ID and `components/apps/MutantTube.tsx`; it implements discovery, search, category shelves, a paginated video grid, playlist management, and an embedded watch view. Its visual direction is a miniature castle broadcast station: a crooked stone tower, pennant antenna, and goblin signal keeper. The interface mixes serif lettering, paper textures, numbered channels, and collectible video cards. The station’s signal pulses while loading; Netscape's own loading indicator uses immediate pixel stars. Both respect reduced-motion settings.
+TinyTubes uses the existing `mutanttube` app ID and `components/apps/MutantTube.tsx`; it implements discovery, search, category shelves, a paginated video grid, playlist management, and an embedded watch view. Its liquid Y2K direction combines dark reading surfaces, acid-green refracted light, serif titles, and a rendered glass tube/play icon. Numbered channels and video cards retain their existing layout and interactions.
 
 `lib/mutantTube.ts` provides video normalization, playlist URL validation, track-to-video resolution, random query selection, duration parsing, and cancellable HTTP requests with a 30-second timeout.
 
@@ -85,7 +85,7 @@ Imports reject mixes (`RD*`), Watch Later, Liked Videos, private lists, and unre
 
 **Guestbook** retains the `mutantbook` app ID and `components/apps/MutantBook.tsx`. It uses `SocialService` for account/profile lookup, friends, and wall posts. The host adapter calls Nakama through `client-3d/src/network/nakamaClient.ts`.
 
-**Messenger** uses `client-3d/src/services/messengerService.ts` for Nakama message storage, conversation lists, history, and conversation read state. Its lavender console, mint buddy list, and cream chat paper have searchable contacts, per-conversation drafts, sent/pending/failed states with retry, date separators, typing, and a single-pane layout for windows narrower than 580px.
+**Messenger** uses `client-3d/src/services/messengerService.ts` for Nakama message storage, conversation lists, history, and conversation read state. Its dark contact list and opaque green reading pane have searchable contacts, per-conversation drafts, sent/pending/failed states with retry, date separators, typing, and a single-pane layout for windows narrower than 580px.
 
 - Notification code 100 carries the full body, server message ID, and server timestamp. Preview-only notifications from older deployments are explicitly marked and hydrated from history when opened. `notificationSend` takes content before code; both DM and wall notifications use this order.
 - The shared Nakama client owns socket event registries. Messenger subscribes to channel and socket changes, rejoins typing channels after reconnect, and clears typing timers when disconnected. Simultaneous connection/restore calls share one promise. Account changes close the old socket and clear Messenger's messages and drafts.
@@ -115,6 +115,20 @@ Verification: `pnpm --filter club-mutant-3d test` covers Postbox storage and tra
 
 For Messenger integration verification, start `docker compose -f docker-compose.dev.yml up -d`, restart Nakama after runtime edits, then run `node nakama/tests/messenger.integration.mjs`. It creates and deletes its own local device accounts on `127.0.0.1:7350`, checking full realtime bodies, storage history, unread/read state, typing, reconnect, and pagination without gaps. It never targets production. Browser review should cover contact search, drafts when switching chats, delayed/failed history, failed-send retry, incoming full bodies, focus-dependent unread counts, and narrow-window back navigation.
 
-The social launcher SVGs live in `public/icons/apps/`: TinyTubes has a castle broadcast tower and goblin keeper, Messenger a goblin letter courier, Guestbook a notebook, and Postbox a stamped envelope. `lib/socialIcons.ts` imports them as Vite assets for consistent launcher URLs.
+## Liquid signal visuals
 
-`AnalogAccents.tsx` supplies serif wordmarks and crayon stars; `PixelSymbol.tsx` supplies small control symbols. `WeeBeastie.tsx` draws four distinct inhabitants (goblin, moth courier, one-eyed troll, and imp), assigned deterministically from user IDs. These appear in Messenger and Guestbook; uploaded Guestbook profile pictures take precedence. `LittleKingdom.tsx` supplies the broadcast station and Messenger’s illustrated castle gate. Guestbook retains ruled notebook paper, tab dividers, and sticker details. Blinking, courier motion, and pennants respect reduced-motion preferences. App styles remain scoped in `cde.css`; container queries adapt to the OS window width.
+`styles/liquid.css` scopes the desktop and social theme under `.cde-root.liquid-signal`, retaining the existing layout/container queries in `cde.css`. The default desktop uses `src/assets/liquid-signal.jpg`; custom image wallpapers remain supported. The original wallpaper was generated with built-in imagegen: dark liquid glass, acid-green caustics, a dark upper-left void, violet edges, photographic bloom and fine grain, with no text or logos.
+
+`tools/render-social-icons.py` authors eight Blender scenes: TinyTubes' glass tube/play symbol, Messenger's paired speech bubbles, Postbox's envelope, Guestbook's book, Netscape's orbital sphere, Lynx's terminal, Style Manager's gear, and File Manager's folder. `lib/socialIcons.ts` bundles their PNG posters and transparent APNG loops. Desktop icons animate; headers and dock use stills. A native `<picture>` media source selects the poster for reduced motion. Each loop is 24 frames at 6 fps (four seconds), rendered at 128px without runtime WebGL.
+
+Regenerate with Blender 5.x and ffmpeg:
+
+```sh
+blender -b --python tools/render-social-icons.py -- --frames 24
+# Repeat packaging for each scene name; its 000.png is the static poster.
+ffmpeg -framerate 6 -i /tmp/club-mutant-liquid-icons/mutanttube/%03d.png -plays 0 -f apng packages/konpyuuta/public/icons/apps/mutanttube.apng
+```
+
+`SignalOrgan.tsx` supplies a slowly breathing refractive membrane and deterministic user-ID avatars; uploaded Guestbook profile pictures take precedence. `AnalogAccents.tsx` supplies serif wordmarks and small light flares, and `PixelSymbol.tsx` now draws smooth control symbols.
+
+`SignalTransition.tsx` uses `lib/mojibake.ts` for a decorative 980ms corruption/resolve pass when social views change. It overlays visible text while keeping the originals and accessible names intact. Inputs, stored data, live announcements, and alerts are never re-encoded. Interaction, scrolling, asynchronous content changes, resizing, and reduced-motion preferences restore readable originals immediately. Wordmarks also have a short, quiet accent every 37 seconds; reduced motion disables all of these effects. `mojibake.test.ts` verifies Unicode resolution, whitespace, bounded progress, and changing noise.

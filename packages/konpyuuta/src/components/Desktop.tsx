@@ -52,7 +52,7 @@ export function Desktop() {
     : {}
 
   return (
-    <div className="cde-desktop" style={desktopStyle}>
+    <div className="cde-desktop" data-liquid-wallpaper={!wallpaper || wallpaper.endsWith('.pm') ? true : undefined} style={desktopStyle}>
       <div className="cde-desktop-icons">
         {icons.map((icon) => (
           <DesktopIcon key={icon.id} icon={icon} />

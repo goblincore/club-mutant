@@ -1,3 +1,4 @@
+import '../styles/liquid.css'
 import { useCallback, useEffect, useRef } from 'react'
 import { useDesktopStore } from '../stores/desktopStore'
 import { useWindowStore } from '../stores/windowStore'
@@ -64,7 +65,7 @@ export function KonpyuuTADesktop({ onShutdown }: KonpyuuTADesktopProps) {
 
   if (bootStatus === 'booting') {
     return (
-      <div className="cde-root" style={paletteVars}>
+      <div className="cde-root liquid-signal" style={paletteVars}>
         <BootSequence onComplete={handleBootComplete} />
       </div>
     )
@@ -76,7 +77,7 @@ export function KonpyuuTADesktop({ onShutdown }: KonpyuuTADesktopProps) {
   )
 
   return (
-    <div className="cde-root" style={paletteVars}>
+    <div className="cde-root liquid-signal" style={paletteVars}>
       <TopBar onShutdown={onShutdown} />
       <Desktop />
       {/* Render all visible windows */}

@@ -1,8 +1,9 @@
+import { SignalTransition } from './SignalTransition'
 import { useState, useEffect, useCallback } from 'react'
 import { useKonpyuuTA } from '../../context/KonpyuuTAContext'
 import { SOCIAL_ICONS } from '../../lib/socialIcons'
 import { AppWordmark, DoodleStar } from './AnalogAccents'
-import { WeeBeastie } from './WeeBeastie'
+import { SignalAvatar, SignalOrgan } from './SignalOrgan'
 import type { UserProfile, WallPost } from '../../types'
 
 type Tab = 'wall' | 'info' | 'friends'
@@ -34,9 +35,9 @@ function GuestbookHeader() {
       <img src={SOCIAL_ICONS.mutantbook} alt="" />
       <div>
         <AppWordmark label="Guestbook" />
-        <span>LEAVE A LITTLE TRACE OF YOURSELF</span>
+        <span>PROOF THAT YOU WERE HERE</span>
       </div>
-      <span className="mb-brand-sticker" aria-hidden="true"><DoodleStar />hello<br />friend!</span>
+      <span className="mb-brand-sticker" aria-hidden="true"><DoodleStar />YOU<br />ARE HERE</span>
     </header>
   )
 }
@@ -187,16 +188,22 @@ export function MutantBook() {
   if (loading) {
     return (
       <div className="mb-root">
-        <GuestbookHeader />
+        <SignalTransition trigger="guestbook" /><GuestbookHeader />
         <div className="mb-loading">Loading profile...</div>
       </div>
     )
   }
 
+  if (error === 'Not logged in') {
+    return <div className="mb-root"><SignalTransition trigger="sign-in" /><GuestbookHeader />
+      <div className="mb-sign-in"><SignalOrgan /><h2>Leave a trace.</h2><p>Sign in to visit profiles and leave a message on a friend's wall.</p></div>
+    </div>
+  }
+
   if (error) {
     return (
       <div className="mb-root">
-        <GuestbookHeader />
+        <SignalTransition trigger="guestbook" /><GuestbookHeader />
         <div className="mb-error">{error}</div>
       </div>
     )
@@ -205,7 +212,7 @@ export function MutantBook() {
   if (!profileData) {
     return (
       <div className="mb-root">
-        <GuestbookHeader />
+        <SignalTransition trigger="guestbook" /><GuestbookHeader />
         <div className="mb-error">Profile not found</div>
       </div>
     )
@@ -213,7 +220,7 @@ export function MutantBook() {
 
   return (
     <div className="mb-root">
-        <GuestbookHeader />
+        <SignalTransition trigger="guestbook" /><GuestbookHeader />
       {/* Lookup bar */}
       <div className="mb-lookup">
         {!isSelf && (
@@ -241,7 +248,7 @@ export function MutantBook() {
               (e.target as HTMLImageElement).style.display = 'none'
             }} />
           ) : (
-            <WeeBeastie seed={profileData.user_id} />
+            <SignalAvatar seed={profileData.user_id} />
           )}
         </div>
         <div className="mb-header-info">
@@ -317,7 +324,7 @@ export function MutantBook() {
               wallPosts.map((post) => (
                 <div key={post.postId} className="mb-post">
                   <div className="mb-post-avatar">
-                    <WeeBeastie seed={post.authorId} />
+                    <SignalAvatar seed={post.authorId} />
                   </div>
                   <div className="mb-post-body">
                     <div
@@ -404,7 +411,7 @@ export function MutantBook() {
                   onClick={() => goToProfile(friend.userId)}
                 >
                   <div className="mb-friend-avatar">
-                    <WeeBeastie seed={friend.userId} />
+                    <SignalAvatar seed={friend.userId} />
                   </div>
                   <div className="mb-friend-name">
                     {friend.displayName || friend.username}

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { SOCIAL_ICONS } from '../lib/socialIcons'
+import { DESKTOP_ICONS } from '../lib/socialIcons'
 import type { DesktopIcon, NotificationItem } from '../types'
 
 type BootStatus = 'booting' | 'ready'
@@ -20,14 +20,14 @@ interface DesktopStoreState {
 }
 
 const DEFAULT_ICONS: DesktopIcon[] = [
-  { id: 'netscape', label: 'Netscape', icon: '/icons/apps/netscape_classic.png', app: 'netscape' },
-  { id: 'lynx', label: 'Lynx', icon: '/icons/apps/Lynx.svg', app: 'lynx' },
-  { id: 'mutanttube', label: 'TinyTubes', icon: SOCIAL_ICONS.mutanttube, app: 'mutanttube' },
-  { id: 'mutantbook', label: 'Guestbook', icon: SOCIAL_ICONS.mutantbook, app: 'mutantbook' },
-  { id: 'messenger', label: 'Messenger', icon: SOCIAL_ICONS.messenger, app: 'messenger' },
-  { id: 'mutantmail', label: 'Postbox', icon: SOCIAL_ICONS.mutantmail, app: 'mutantmail' },
-  { id: 'settings', label: 'Style Manager', icon: '/icons/apps/org.xfce.settings.manager.png', app: 'settings' },
-  { id: 'filemanager', label: 'File Manager', icon: '/icons/apps/filemanager.png', app: 'filemanager' },
+  { id: 'netscape', label: 'Netscape', icon: DESKTOP_ICONS.netscape, app: 'netscape' },
+  { id: 'lynx', label: 'Lynx', icon: DESKTOP_ICONS.lynx, app: 'lynx' },
+  { id: 'mutanttube', label: 'TinyTubes', icon: DESKTOP_ICONS.mutanttube, app: 'mutanttube' },
+  { id: 'mutantbook', label: 'Guestbook', icon: DESKTOP_ICONS.mutantbook, app: 'mutantbook' },
+  { id: 'messenger', label: 'Messenger', icon: DESKTOP_ICONS.messenger, app: 'messenger' },
+  { id: 'mutantmail', label: 'Postbox', icon: DESKTOP_ICONS.mutantmail, app: 'mutantmail' },
+  { id: 'settings', label: 'Style Manager', icon: DESKTOP_ICONS.settings, app: 'settings' },
+  { id: 'filemanager', label: 'File Manager', icon: DESKTOP_ICONS.filemanager, app: 'filemanager' },
 ]
 
 export const useDesktopStore = create<DesktopStoreState>()(

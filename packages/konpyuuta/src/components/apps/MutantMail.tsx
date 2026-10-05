@@ -1,3 +1,4 @@
+import { SignalTransition } from './SignalTransition'
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
 import { useKonpyuuTA, useCurrentUsername } from '../../context/KonpyuuTAContext'
 import { useMailStore, type MailFolder, type MailMessage } from '../../stores/mailStore'
@@ -133,8 +134,9 @@ export function MutantMail() {
   }
 
   return <div className={`ml-root${draft || selected ? ' ml-has-detail' : ''}`}>
+    <SignalTransition trigger={`${store.currentFolder}:${draft?.id || selected?.id || 'idle'}`} />
     {popup.PopupComponent}
-    <header className="ml-header"><img src={SOCIAL_ICONS.mutantmail} alt="" /><div><AppWordmark label="Postbox" /><small>LITTLE LETTERS, SENT WITH LOVE</small></div><span className="ml-postmark" aria-hidden="true"><DoodleStar />CLUB<br />POST</span></header>
+    <header className="ml-header"><img src={SOCIAL_ICONS.mutantmail} alt="" /><div><AppWordmark label="Postbox" /><small>ASYNCHRONOUS TRANSMISSIONS</small></div><span className="ml-postmark" aria-hidden="true"><DoodleStar />CLUB<br />POST</span></header>
     {!canDeliver && <div className="ml-notice">{userId ? 'Letter delivery isn’t available here. Open Postbox from Club Mutant.' : 'Sign in to send and receive letters. You can keep a draft here.'}</div>}
     {legacyAvailable && <div className="ml-notice">Older local letters found in this browser. They were never delivered.<button disabled={busy} onClick={() => {
       try { store.importLocalArchive(JSON.parse(localStorage.getItem('konpyuuta-mail') || 'null')?.state?.messages, username); setLegacyAvailable(false); setStatus('Old letters imported as local copies.'); } catch { setError('The old archive could not be opened.') }
@@ -147,12 +149,12 @@ export function MutantMail() {
           const count = messages.filter((m) => m.folder === folder && (folder !== 'inbox' || !m.read)).length
           return <button key={folder} className={`ml-folder${store.currentFolder === folder ? ' active' : ''}`} aria-current={store.currentFolder === folder ? 'page' : undefined} disabled={busy} onClick={() => { store.setCurrentFolder(folder); setError(''); setStatus('') }}><span className="ml-folder-label">{LABELS[folder]}</span>{count > 0 && <span className="ml-folder-count" aria-label={`${count} ${folder === 'inbox' ? 'unread letters' : 'letters'}`}>{count}</span>}</button>
         })}</nav>
-        <div className="ml-sidebar-note"><DoodleStar filled /><p>A little paper trail.</p><small>@{username}</small></div>
+        <div className="ml-sidebar-note"><DoodleStar filled /><p>A trace in the ether.</p><small>@{username}</small></div>
       </aside>
       <main className="ml-main">
         <section className="ml-list" aria-label={LABELS[store.currentFolder]}>
           <div className="ml-list-header"><strong>{LABELS[store.currentFolder]}</strong><button aria-label="Refresh letters" disabled={!canDeliver || busy || loading} onClick={() => void refresh()}>↻</button></div>
-          <label className="ml-search"><span className="ml-sr-only">Search letters</span><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find a little letter…" /></label>
+          <label className="ml-search"><span className="ml-sr-only">Search letters</span><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search transmissions…" /></label>
           <div className="ml-messages">{loading && <p className="ml-list-note" role="status">Checking the post…</p>}{!loading && !folderMessages.length && <div className="ml-empty">{query ? 'No matching letters.' : `Nothing in ${LABELS[store.currentFolder].toLowerCase()} yet.`}</div>}{folderMessages.map((message) => <button key={message.id} className={`ml-message-row${message.read ? '' : ' unread'}${selected?.id === message.id || draft?.id === message.id ? ' selected' : ''}`} aria-pressed={selected?.id === message.id || draft?.id === message.id} disabled={busy} onClick={() => selectMessage(message)}><span className="ml-message-from">{!message.read && <i aria-label="Unread" />}{message.originalFolder === 'sent' || message.folder === 'sent' || message.folder === 'drafts' ? `To: ${message.to || '…'}` : message.from}<time>{dateLabel(message.createdAt)}</time></span><strong>{message.subject || 'Untitled letter'}</strong><span className="ml-message-snippet">{message.body || 'A blank piece of paper.'}</span></button>)}</div>
         </section>
         <section className="ml-preview" aria-label={draft ? 'Write a letter' : 'Read a letter'}>
@@ -166,7 +168,7 @@ export function MutantMail() {
             <header className="ml-view-header"><button className="ml-back" onClick={() => store.setSelectedMessage(null)} disabled={busy}>← {LABELS[store.currentFolder]}</button><h1>{selected.subject || 'Untitled letter'}</h1><div className="ml-view-meta"><span>From <strong>@{selected.from}</strong></span><span>To <strong>@{selected.to}</strong></span><time>{new Date(selected.createdAt).toLocaleString()}</time></div>{!selected.delivered && <small>Saved locally · this letter was not delivered</small>}</header>
             <div className="ml-view-body">{selected.body}</div>
             <footer className="ml-view-actions">{selected.folder !== 'trash' ? <><button disabled={busy} onClick={() => startDraft({ to: selected.originalFolder === 'sent' || selected.folder === 'sent' ? selected.to : selected.from, subject: /^Re:/i.test(selected.subject) ? selected.subject : `Re: ${selected.subject}`.slice(0, 100), body: `\n\n— Original letter —\n${selected.body}`.slice(0, 10000) })}>Reply</button><button disabled={busy} onClick={() => messageAction('trash')}>Move to Trash</button></> : <><button disabled={busy} onClick={() => messageAction('restore')}>Restore</button><button disabled={busy} onClick={() => messageAction('delete')}>Delete forever</button></>}</footer>
-          </article> : <div className="ml-no-selection"><div className="ml-envelope" aria-hidden="true"><img src={SOCIAL_ICONS.mutantmail} alt="" /><DoodleStar filled /></div><small>A SMALL SOMETHING, JUST FOR YOU</small><h2>Good things in the post.</h2><p>Letters for your Club Mutant friends.<br />A subject, a story, a little hello.</p><button onClick={() => startDraft()} disabled={busy}>Write your first letter</button></div>}
+          </article> : <div className="ml-no-selection"><div className="ml-envelope" aria-hidden="true"><img src={SOCIAL_ICONS.mutantmail} alt="" /><DoodleStar filled /></div><small>POSTBOX / INCOMING</small><h2>Signals worth keeping.</h2><p>Letters for your Club Mutant friends.<br />A subject. A story. A connection.</p><button onClick={() => startDraft()} disabled={busy}>Write your first letter</button></div>}
         </section>
       </main>
     </div>
