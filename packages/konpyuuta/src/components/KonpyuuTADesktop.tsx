@@ -12,6 +12,7 @@ import { Window } from './Window'
 import { NotificationPopup } from './NotificationPopup'
 import { AppRouter } from './AppRouter'
 import { AudioManager } from '../lib/audioManager'
+import { AnimatedSwordCursor } from './AnimatedSwordCursor'
 
 interface KonpyuuTADesktopProps {
   onShutdown: () => void
@@ -88,6 +89,7 @@ export function KonpyuuTADesktop({ onShutdown }: KonpyuuTADesktopProps) {
       ))}
       <NotificationPopup />
       <Panel />
+      <AnimatedSwordCursor />
     </div>
   )
 }

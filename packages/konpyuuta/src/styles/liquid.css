@@ -10,8 +10,8 @@
   --border-dark: #101b0e !important; --topbar-color: #0c150ff0 !important;
   font-family: Arial, Helvetica, sans-serif; -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility; color: var(--signal-ink);
-  --signal-cursor: url('../assets/cursors/sword.png') 5 5, default;
-  --signal-link-cursor: url('../assets/cursors/sword-link.png') 5 5, pointer;
+  --signal-cursor: url('../assets/cursors/sword.png') 6 6, default;
+  --signal-link-cursor: url('../assets/cursors/sword-link.png') 6 6, pointer;
   cursor: var(--signal-cursor);
 }
 .cde-root.liquid-signal::after { opacity: .07 !important; }
@@ -381,11 +381,16 @@
   .cde-root.liquid-signal .neet-section-label > span:last-child { display: none; }
 }
 
-/* Native sword cursors keep the blade-tip hotspot and familiar editing states.
-   No mouse-following DOM layer: the OS handles movement and pointer capture. */
+/* Rendered stills back up the animated sprite and reduced-motion mode. */
 .cde-root.liquid-signal :is(button:not(:disabled),a[href],[role="button"],input[type="checkbox"],input[type="radio"],input[type="range"],select,
   .cde-subpanel-item,.font-item,.fm-menubar span,.fm-breadcrumb-segment,.fm-item,.fm-dropdown-item,.fm-context-item,
   .pm-process-row,.cal-day,.man-example,.man-link,.mb-post-author,.mb-friend-card) { cursor: var(--signal-link-cursor); }
 .cde-root.liquid-signal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(:disabled),textarea:not(:disabled),[contenteditable="true"]) { cursor: text; }
 .cde-root.liquid-signal :is(.mt-root,.mm-root,.mb-root,.ml-root,.neet-root) button:disabled,
 .cde-root.liquid-signal :is(input:disabled,textarea:disabled,select:disabled,[aria-disabled="true"]) { cursor: not-allowed; }
+.cde-root.liquid-signal[data-sword-cursor="animated"] { --signal-cursor: none; --signal-link-cursor: none; }
+.sword-cursor-sprite { position: fixed; top: 0; left: 0; width: 48px; height: 48px; display: none; z-index: 2147483647; pointer-events: none; user-select: none; contain: layout style; }
+.sword-cursor-sprite[data-link="true"] { filter: drop-shadow(0 0 2px #d69b5155); }
+@media (prefers-reduced-motion: reduce) {
+  .sword-cursor-sprite { display: none !important; }
+}
