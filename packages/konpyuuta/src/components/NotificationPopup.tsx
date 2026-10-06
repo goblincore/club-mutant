@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useDesktopStore } from '../stores/desktopStore'
 import { useWindowStore } from '../stores/windowStore'
 import type { NotificationItem } from '../types'
+import { usePortalStore } from '../stores/portalStore'
 
 interface NotificationToastProps {
   notification: NotificationItem
@@ -17,7 +18,9 @@ function NotificationToast({ notification }: NotificationToastProps) {
   }, [notification.id, dismiss])
 
   const handleClick = () => {
-    if (notification.app) {
+    if (notification.app === 'messenger') {
+      usePortalStore.getState().openMessenger()
+    } else if (notification.app) {
       openWindow(notification.app, { props: notification.appProps })
     }
     dismiss(notification.id)

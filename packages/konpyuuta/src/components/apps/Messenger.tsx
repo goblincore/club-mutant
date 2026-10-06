@@ -19,11 +19,12 @@ const dayLabel = (timestamp: number) => new Date(timestamp).toLocaleDateString([
 const toMessage = (m: DmMessage): Message => ({ id: m.messageId, senderId: m.senderId, senderUsername: m.senderUsername, content: m.body, createdAt: m.createdAt, isPreview: m.isPreview })
 interface HistoryState { loading?: boolean; loaded?: boolean; error?: string }
 
-export function Messenger({ windowId }: { windowId?: string }) {
+export function Messenger({ windowId, isOpen = true, focused: focusOverride, compact = false }: { windowId?: string; isOpen?: boolean; focused?: boolean; compact?: boolean }) {
   const { socialService: social, messengerService: service } = useKonpyuuTA()
   const store = useMessengerStore()
   const ownerId = social?.getCurrentUserId() ?? null
-  const focused = useWindowStore((s) => !windowId || s.activeWindowId === windowId)
+  const activeWindow = useWindowStore((s) => !windowId || s.activeWindowId === windowId)
+  const focused = isOpen && (focusOverride ?? activeWindow)
   const [visible, setVisible] = useState(() => !document.hidden && document.hasFocus())
   const [connected, setConnected] = useState(!service?.onConnectionChanged)
   const [query, setQuery] = useState('')
@@ -35,6 +36,7 @@ export function Messenger({ windowId }: { windowId?: string }) {
   const [visibleCount, setVisibleCount] = useState(80)
   const [jumpToLatest, setJumpToLatest] = useState(false)
   const pendingLoads = useRef(new Map<string, Promise<void>>())
+  const latestPresence = useRef<string[] | null>(null)
   const mounted = useRef(false)
   const listRef = useRef<HTMLDivElement>(null)
   const composeRef = useRef<HTMLTextAreaElement>(null)
@@ -65,19 +67,25 @@ export function Messenger({ windowId }: { windowId?: string }) {
     store.resetForUser(ownerId)
     setHistory({})
     pendingLoads.current.clear()
+    latestPresence.current = null
     setReadError('')
     setQuery('')
   }, [ownerId, store.resetForUser])
 
   useEffect(() => service?.onConnectionChanged?.((online) => {
     setConnected(online)
+    store.setConnected(online)
+    if (!online) latestPresence.current = null
     if (online) setRefresh((r) => r + 1)
-  }), [service])
+  }), [service, store.setConnected, ownerId])
+
+  useEffect(() => { if (!service?.onConnectionChanged) store.setConnected(!!ownerId && !!service) }, [service, ownerId, store.setConnected])
 
   useEffect(() => {
     let cancelled = false
     setError('')
     setLoading(true)
+    store.setFriendIds(null)
     if (!ownerId || !social || !service) { setLoading(false); return }
     Promise.allSettled([social.listFriends(), service.listConversations()]).then(([friendsResult, conversationResult]) => {
       if (cancelled || useMessengerStore.getState().ownerId !== ownerId) return
@@ -94,15 +102,21 @@ export function Messenger({ windowId }: { windowId?: string }) {
         displayName: friend.displayName || friend.username,
       })
       store.mergeConversations([...contacts.values()])
+      if (latestPresence.current) store.setPresence(latestPresence.current)
+      store.setFriendIds(friendsResult.status === 'fulfilled' ? friends.map((f) => f.userId) : null)
       if (friendsResult.status === 'rejected' || conversationResult.status === 'rejected') {
         setError('Some contacts or conversations could not load. Try again.')
       }
       setLoading(false)
     })
     return () => { cancelled = true }
-  }, [social, service, ownerId, refresh, store.mergeConversations])
+  }, [social, service, ownerId, refresh, store.mergeConversations, store.setFriendIds])
 
-  useEffect(() => social?.onPresenceChanged?.(store.setPresence), [social, store.setPresence])
+  useEffect(() => social?.onPresenceChanged?.((ids) => {
+    if (useMessengerStore.getState().ownerId !== ownerId) return
+    latestPresence.current = ids
+    store.setPresence(ids)
+  }), [social, ownerId, store.setPresence])
 
   const loadHistory = useCallback((channelId: string): Promise<void> => {
     if (!service || !ownerId) return Promise.resolve()
@@ -199,16 +213,19 @@ export function Messenger({ windowId }: { windowId?: string }) {
   }
 
   const contacts = conversations.filter((c) => `${c.displayName} ${c.username}`.toLowerCase().includes(query.toLowerCase())).sort((a, b) =>
-    (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0) || Number(b.online) - Number(a.online) || (a.displayName || a.username).localeCompare(b.displayName || b.username))
-  const onlineCount = conversations.filter((c) => c.online).length
+    Number(b.online) - Number(a.online) || (a.displayName || a.username).localeCompare(b.displayName || b.username))
+  const onlineCount = conversations.filter((c) => c.online && store.friendIds?.includes(c.userId)).length
   const shownMessages = messages.slice(-visibleCount)
   const inputId = `mm-message-${windowId ?? 'standalone'}`
   const sending = messages.some((m) => m.pending)
 
-  if (!ownerId || !social || !service) return <div className="mm-root mm-sign-in"><AppWordmark label="Messenger" /><p>Sign in to send messages.</p></div>
+  // Keep subscriptions alive when closed, but don't render/consume visual arrivals
+  // or mark a hidden conversation read. The system bar still receives presence.
+  if (!isOpen) return null
+  if (!ownerId || !social || !service) return <div className="mm-root mm-sign-in">{!compact && <AppWordmark label="Messenger" />}<p>Sign in to send messages.</p></div>
 
   return <div className={`mm-root${active ? ' mm-has-chat' : ''}`}>
-    <header className="mm-toolbar"><img src={SOCIAL_ICONS.messenger} alt="" /><div><AppWordmark label="Messenger" /></div><span className={`mm-connection${connected ? ' mm-connected' : ''}`}><i />{connected ? 'Connected' : 'Disconnected'}{!connected && <button onClick={() => service.connect()}>Reconnect</button>}</span></header>
+    <header className="mm-toolbar">{!compact && <><img src={SOCIAL_ICONS.messenger} alt="" /><div><AppWordmark label="Messenger" /></div></>}<span className={`mm-connection${connected ? ' mm-connected' : ''}`}><i />{connected ? 'Connected' : 'Disconnected'}{!connected && <button onClick={() => service.connect()}>Reconnect</button>}</span></header>
     {error && <div className="mm-notice" role="alert">{error}<button onClick={() => setRefresh((r) => r + 1)}>Retry</button></div>}
     <div className="mm-layout">
       <aside className="mm-contacts" aria-label="Conversations">
@@ -217,11 +234,11 @@ export function Messenger({ windowId }: { windowId?: string }) {
         <div className="mm-contact-list">
           {loading && !contacts.length && <p className="mm-list-note" role="status">Loading contacts…</p>}
           {!loading && !contacts.length && <p className="mm-list-note">{query ? 'No matching friends.' : 'No conversations. Add friends in Guestbook.'}</p>}
-          {contacts.map((c) => <button key={c.channelId} className={`mm-contact${activeId === c.channelId ? ' mm-selected' : ''}`} aria-pressed={activeId === c.channelId} onClick={() => store.setActiveConversation(c.channelId)}>
+          {contacts.map((c, index) => <div key={c.channelId}>{compact && (index === 0 || contacts[index - 1].online !== c.online) && <h3 className="mm-buddy-group">{c.online ? 'Online' : 'Offline'}</h3>}<button className={`mm-contact${activeId === c.channelId ? ' mm-selected' : ''}`} aria-pressed={activeId === c.channelId} onClick={() => store.setActiveConversation(c.channelId)}>
             <span className="mm-avatar" aria-hidden="true"><SignalAvatar seed={c.userId} /><i className={c.online ? 'mm-online' : ''} /></span>
             <span className="mm-contact-text"><strong>{c.displayName || c.username}</strong><span>{c.lastMessage || (c.online ? 'Online' : 'Offline')}</span></span>
             {!!c.unread && <span className="mm-unread" aria-label={`${c.unread} unread messages`}>{c.unread > 99 ? '99+' : c.unread}</span>}
-          </button>)}
+          </button></div>)}
         </div>
         <footer className="mm-self"><i />Signed in as <strong>{social.getCurrentUsername() || 'you'}</strong></footer>
       </aside>

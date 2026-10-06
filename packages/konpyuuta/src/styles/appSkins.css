@@ -1,0 +1,137 @@
+/* Object-shaped shells. The reading surfaces stay clear and undistorted. */
+.cde-root.liquid-signal .portal-app-frame {
+  --skin-light:#efffd4; --skin-mid:#bfd997; --skin-edge:#657c49; --skin-ink:#314327;
+  box-sizing:border-box; padding:12px 20px 35px;
+  border:1px solid var(--skin-light); border-radius:65px 44px 75px 40px / 42px 60px 45px 58px;
+  background:radial-gradient(ellipse at 18% 0%,var(--skin-light),transparent 46%),linear-gradient(135deg,var(--skin-mid),var(--skin-edge) 67%,var(--skin-mid));
+  box-shadow:inset 2px 2px 3px var(--skin-light),inset -3px -4px 5px #263e4070,0 14px 45px #0009;
+}
+.cde-root.liquid-signal .portal-app-frame::before {
+  content:""; position:absolute; top:8px; left:9%; right:14%; height:10px;
+  border-top:2px solid #ffffff90; border-radius:70%; pointer-events:none;
+}
+.cde-root.liquid-signal .portal-app-frame::after {
+  content:""; position:absolute; bottom:12px; left:calc(50% - 28px); width:56px; height:6px;
+  border-radius:50%; background:repeating-linear-gradient(90deg,var(--skin-edge) 0 2px,var(--skin-mid) 2px 6px);
+  box-shadow:0 1px 1px var(--skin-light); pointer-events:none;
+}
+.cde-root.liquid-signal .portal-app-bar {
+  flex:0 0 30px; padding:0 8px 7px; border:0; color:var(--skin-ink); background:transparent;
+  font:italic 600 12px Arial,sans-serif; letter-spacing:-.3px; text-shadow:0 1px #ffffff60;
+}
+.cde-root.liquid-signal .portal-app-bar button {
+  padding:5px 12px; color:var(--skin-ink); background:linear-gradient(145deg,var(--skin-light),var(--skin-mid));
+  border:1px solid var(--skin-edge); border-radius:65% 40% 55% 45% / 55% 65% 45% 60%;
+  box-shadow:inset 1px 1px 2px #ffffff90,0 1px 2px #0003; font:11px Arial,sans-serif;
+}
+.cde-root.liquid-signal .portal-app-bar button:hover { background:var(--skin-light); }
+.cde-root.liquid-signal .portal-app-bar button:focus-visible { outline-color:var(--skin-ink); outline-offset:2px; }
+.cde-root.liquid-signal .portal-app-body {
+  border:2px solid #354734; border-radius:30px 24px 37px 25px / 23px 30px 26px 33px;
+  background:#091109; box-shadow:0 1px 1px var(--skin-light),0 -1px 2px #0005;
+  /* Layout containment keeps app container queries responsive to the screen. */
+  min-width:0;
+}
+.cde-root.liquid-signal .portal-app-frame .portal-resize-handle {
+  right:32px; bottom:8px; width:26px; height:24px; color:var(--skin-ink);
+  border:1px solid var(--skin-edge); border-radius:45% 60% 40% 65%;
+  background:linear-gradient(140deg,var(--skin-light),var(--skin-mid)); box-shadow:inset 1px 1px 2px #ffffffa0,0 1px 2px #0003;
+}
+.cde-root.liquid-signal .portal-app-frame .portal-resize-handle span { font-size:11px; }
+.cde-root.liquid-signal .portal-app-frame .portal-resize-handle:focus-visible { outline-color:var(--skin-ink); }
+
+/* TinyTubes: a thick, glossy bubble TV around a dark convex screen. */
+.cde-root.liquid-signal .portal-app-frame[data-app="mutanttube"] {
+  --skin-light:#eeffd9; --skin-mid:#b6d583; --skin-edge:#6a8663; --skin-ink:#324831;
+  padding:17px 30px 45px;
+  border-radius:15% 18% 14% 17% / 15% 20% 18% 14%;
+  background:
+    radial-gradient(ellipse at 19% 2%,#f7ffe8 0%,#eaffc675 25%,transparent 42%),
+    radial-gradient(ellipse at 94% 7%,#cec8ea9c,transparent 30%),
+    radial-gradient(ellipse at 92% 94%,#d6edb8,transparent 36%),
+    linear-gradient(115deg,#6f956b,#c0df8e 27%,#aacd7e 66%,#5c7959);
+  box-shadow:inset 3px 3px 5px #f7ffe8,inset -5px -7px 8px #32563a90,0 16px 50px #000a;
+}
+.cde-root.liquid-signal .portal-app-frame[data-app="mutanttube"]::before { top:10px; left:20%; right:23%; height:16px; border-width:3px; }
+.cde-root.liquid-signal .portal-app-frame[data-app="mutanttube"]::after { bottom:15px; width:100px; height:9px; left:calc(50% - 50px); transform:rotate(-2deg); }
+.cde-root.liquid-signal [data-app="mutanttube"] .portal-app-bar { padding:0 44px 8px 20px; flex-basis:34px; }
+.cde-root.liquid-signal [data-app="mutanttube"] .portal-app-body {
+  border:5px solid #3d593c; border-radius:7% 9% 8% 7% / 10% 8% 11% 9%;
+  box-shadow:0 2px 2px #edffba,0 -2px 3px #25472c80,inset 0 0 18px #0009;
+}
+.cde-root.liquid-signal [data-app="mutanttube"] .portal-resize-handle { right:10%; bottom:12px; width:34px; height:29px; border-radius:50%; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-header { padding:14px 18px; background:radial-gradient(ellipse at 60% 0%,#8da05d18,transparent),#0a140e; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-brand-toy { width:42px; height:42px; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-brand .tt-wordmark { width:185px; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-search input { border-radius:18px 12px 18px 13px; background:#020b07; box-shadow:inset 0 2px 5px #0007; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-search button { border-radius:45% 55% 40% 60%; color:#23361c; background:linear-gradient(135deg,#e1f6b9,#7eab59); border-color:#8eaf68; box-shadow:inset 1px 1px #edffd1,0 2px 3px #0006; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-nav { padding:8px 14px; background:#172619; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-nav button { border-radius:14px 11px 16px 10px; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-nav button[aria-current],.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-nav .mt-audience[aria-pressed="true"] { color:#e8ffc6; border-color:#8ea66d; background:#304424; box-shadow:inset 0 1px #b7db7630; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-sidebar { width:152px; padding:15px 8px; background:linear-gradient(100deg,#1c2d1b,#101b12); }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-sidebar button { border-radius:15px 8px 14px 10px; font-size:11px; padding:7px 6px; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-sidebar button[aria-current] { background:#314c28; border-left-color:transparent; box-shadow:inset 0 1px #c0e19a30; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-channel-number { color:#c0db9d; border:1px solid #78965e; border-radius:50%; background:linear-gradient(#426134,#20381f); box-shadow:inset 0 1px #a2bd7640; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-content { padding:20px 22px; background:radial-gradient(ellipse at 45% 0%,#14302050,transparent 70%),#07110b; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-feature-screen {
+  padding:8px 9px 15px; background:linear-gradient(125deg,#e7f6c3,#91b76a 48%,#c1dc99 80%,#779a5c);
+  border:1px solid #c5df9a; border-radius:19% 16% 18% 17% / 20% 22% 17% 21%;
+  box-shadow:inset 1px 2px 2px #f5ffe0,inset -2px -3px 3px #4e714b,0 4px 8px #0006;
+}
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-feature-screen img { width:100%; height:100%; object-fit:cover; border:2px solid #34502e; border-radius:14% / 18%; filter:saturate(.85); }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-feature-play { border-radius:50%; background:radial-gradient(circle at 30% 20%,#f6ffdd,#a6cc75 60%,#608c46); color:#294b25; border:1px solid #d7f2aa; box-shadow:inset 0 2px #f4ffd5,0 2px 6px #0007; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-thumbnail { border-radius:15px 18px 13px 17px / 14px 13px 19px 16px; border-color:#7d9a63; box-shadow:inset 0 1px #a1b77440; overflow:hidden; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-player { border:4px solid #446139; border-radius:8% / 12%; box-shadow:0 1px #bbd889,inset 0 0 15px #000; overflow:hidden; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-status { background:#142017; }
+
+/* Postbox: a rounded letter terminal, with a slit molded into its upper lid. */
+.cde-root.liquid-signal .portal-app-frame[data-app="mutantmail"] {
+  --skin-light:#e7f4c8; --skin-mid:#a8c485; --skin-edge:#718863;
+  padding:21px 22px 34px; border-radius:100px 90px 38px 60px / 60px 65px 40px 55px;
+}
+.cde-root.liquid-signal [data-app="mutantmail"]::before { left:30%; right:30%; top:13px; height:4px; background:#445c3b; border:0; box-shadow:0 1px #f2ffda,inset 0 1px 2px #0009; }
+.cde-root.liquid-signal [data-app="mutantmail"] .portal-app-body { border-radius:27px 31px 13px 23px; }
+.cde-root.liquid-signal [data-app="mutantmail"] .ml-root .ml-header { padding:13px 19px; background:linear-gradient(110deg,#263b23,#101c13); }
+.cde-root.liquid-signal [data-app="mutantmail"] .ml-root .ml-header .app-wordmark { font:italic 500 26px Arial,sans-serif; letter-spacing:-1px; }
+.cde-root.liquid-signal [data-app="mutantmail"] .ml-root :is(.ml-compose-btn,.ml-folder,.ml-send-btn) { border-radius:18px 11px 17px 13px; box-shadow:inset 0 1px #c8ef9430; }
+.cde-root.liquid-signal [data-app="mutantmail"] .ml-root .ml-list-search { border-radius:14px; }
+
+/* Guestbook: a lilac clamshell notebook, with a narrow spine down the side. */
+.cde-root.liquid-signal .portal-app-frame[data-app="mutantbook"] {
+  --skin-light:#ece7fd; --skin-mid:#b5adc9; --skin-edge:#726a85; --skin-ink:#3e354d;
+  padding:13px 22px 34px 29px; border-radius:37px 85px 65px 33px / 64px 48px 65px 40px;
+}
+.cde-root.liquid-signal .portal-app-frame[data-app="mutantbook"]::before { left:9px; top:70px; bottom:65px; right:auto; height:auto; width:7px; border:1px solid #80728c; background:linear-gradient(90deg,#776982,#d7cfe5,#9382a1); border-radius:50%; }
+.cde-root.liquid-signal [data-app="mutantbook"] .portal-app-body { border-color:#53475a; border-radius:16px 31px 26px 12px; }
+.cde-root.liquid-signal [data-app="mutantbook"] .mb-root .mb-brand { background:linear-gradient(110deg,#31253a,#152216); padding:13px 19px; }
+.cde-root.liquid-signal [data-app="mutantbook"] .mb-root .app-wordmark { color:#dad0e9; font:italic 500 26px Arial,sans-serif; letter-spacing:-1px; }
+.cde-root.liquid-signal [data-app="mutantbook"] .mb-root :is(.mb-tab,.mb-friend-card,.mb-post,.mb-compose) { border-radius:16px 12px 17px 10px; }
+.cde-root.liquid-signal [data-app="mutantbook"] .mb-root .mb-tab.active { background:#4a3852; border-color:#af93bd; color:#ece2f2; }
+
+/* Help and Guides share a small translucent reference-pad shell. */
+.cde-root.liquid-signal .portal-app-frame:is([data-app="help"],[data-app="guides"]) { border-radius:90px 34px 80px 36px / 48px 80px 42px 76px; }
+.cde-root.liquid-signal [data-app="guides"] { --skin-mid:#b2c5bb; --skin-edge:#6e8b82; --skin-light:#e0f7e9; }
+.cde-root.liquid-signal :is([data-app="help"],[data-app="guides"]) .portal-reading { background:radial-gradient(ellipse at top right,#cdeab512,transparent 65%),#0c160f; }
+@media(max-width:650px) {
+  .cde-root.liquid-signal .portal-app-frame { padding:10px 10px 33px; border-radius:40px 28px 45px 26px / 32px 45px 30px 40px; }
+  .cde-root.liquid-signal .portal-app-frame[data-app="mutanttube"] { padding:12px 13px 38px; border-radius:49px 58px 50px 40px / 60px 40px 57px 48px; }
+  .cde-root.liquid-signal [data-app="mutanttube"] .portal-app-bar { padding:0 10px 7px; flex-basis:28px; }
+  .cde-root.liquid-signal [data-app="mutanttube"] .portal-app-body { border-width:3px; border-radius:27px 32px 29px 22px; }
+  .cde-root.liquid-signal .portal-app-frame[data-app="mutantbook"] { padding-left:16px; }
+  .cde-root.liquid-signal .portal-app-frame[data-app="mutantbook"]::before { left:4px; width:5px; }
+  .cde-root.liquid-signal .portal-app-frame[data-app="mutantmail"] { padding-top:20px; border-radius:52px 55px 28px 34px; }
+}
+@container tube (max-width:500px) {
+  .cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-header { padding:12px; }
+  .cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-sidebar { width:auto; padding:5px; }
+  .cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-content { padding:16px 12px; }
+  .cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-nav { padding:7px 9px; gap:4px; }
+  .cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-nav button { padding:5px 6px; font-size:11px; }
+}
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-status { padding:6px 26px; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-feature-screen::after { content:""; position:absolute; bottom:5px; left:calc(50% - 11px); width:22px; height:3px; border-radius:50%; background:repeating-linear-gradient(90deg,#587443 0 1px,#cfeba1 1px 3px); pointer-events:none; }
+.cde-root.liquid-signal [data-app="mutanttube"] .mt-root .mt-feature-screen .mt-thumbnail { border:2px solid #3c5834; border-radius:14% / 18%; }
+.cde-root.liquid-signal .portal-app-frame[data-app="mutanttube"] { height:var(--panel-height,min(calc(100% - 79px),max(560px,calc((100vw - 48px)*.8 + 80px)))); }
+@media(min-width:980px) { .cde-root.liquid-signal.portal-with-buddy .portal-app-frame[data-app="mutanttube"] { height:var(--panel-height,min(calc(100% - 79px),calc((100vw - var(--buddy-width,300px) - 92px)*.8 + 80px))); } }
+@media(max-width:650px) { .cde-root.liquid-signal .portal-app-frame[data-app="mutanttube"] { height:var(--panel-height,calc(100% - 56px)); } }
+.cde-root.liquid-signal .portal-app-frame .mt-popup { border-radius:24px 17px 26px 18px; overflow:hidden; }
