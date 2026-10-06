@@ -54,7 +54,7 @@ export function KonpyuuTADesktop({ onShutdown }: KonpyuuTADesktopProps) {
   }}>
     {!booting && <><PortalWallpaper animate={!app} />
     <TopBar onShutdown={onShutdown} />
-    {app && active ? <PortalAppFrame key={active.id} id={active.id} title={app.name}>
+    {app && active ? <PortalAppFrame key={active.id} id={active.id} app={app.app} title={app.name}>
       <AppRouter windowId={active.id} app={app.app} props={active.props} />
     </PortalAppFrame> : <PortalHome returnTo={lastApp.current} />}</>}
     <PortalMessenger visible={showMessenger} onWidthChange={setBuddyWidth} />
