@@ -3,22 +3,11 @@
 // search, resolve, and proxy. This file only handles server-side prefetch
 // (used by DJ queue and jukebox commands to pre-warm the video cache).
 
+import { parseYoutubeVideoId } from './lib/youtubeLink'
+
 const YOUTUBE_SERVICE_URL = process.env.YOUTUBE_SERVICE_URL || 'http://localhost:8081'
 
-// Extract video ID from YouTube link
-function extractVideoId(link: string): string | null {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-    /^([a-zA-Z0-9_-]{11})$/,
-  ]
-
-  for (const pattern of patterns) {
-    const match = link.match(pattern)
-    if (match) return match[1]
-  }
-
-  return null
-}
+const extractVideoId = parseYoutubeVideoId
 
 // Trigger prefetch for a video (fire-and-forget).
 // Use priority 'high' for next-up tracks that need to be ready ASAP.
