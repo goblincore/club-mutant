@@ -30,7 +30,7 @@ FROM alpine:latest
 RUN apk add --no-cache ca-certificates python3 py3-pip ffmpeg nodejs && \
     pip3 install --break-system-packages --pre \
         'yt-dlp==2026.8.17.73947.dev0' \
-        'bgutil-ytdlp-pot-provider==1.3.1'
+        'bgutil-ytdlp-pot-provider==2.0.0'
 
 # Copy Go binary
 COPY --from=go-builder /app/youtube-api /youtube-api

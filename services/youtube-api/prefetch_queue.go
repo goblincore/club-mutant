@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"io"
+	"errors"
 	"log"
-	"net/http"
 	"sync"
 	"time"
 )
@@ -115,16 +113,14 @@ func (pq *PrefetchQueue) Stop() {
 }
 
 // Enqueue adds a video to the prefetch queue. Returns false if already
-// queued, in-flight, or already cached.
+// queued, in-flight, or both video and audio are already cached.
 func (pq *PrefetchQueue) Enqueue(videoID string, priority JobPriority) bool {
 	cacheKey := videoID + ":video"
 
-	// Skip if already in video cache (memory or disk)
-	if _, found := pq.server.videoCache.Get(cacheKey); found {
-		return false
-	}
-	if pq.server.diskCache != nil {
-		if _, found := pq.server.diskCache.Get(cacheKey); found {
+	// A previous foreground video fetch must not prevent a missing audio
+	// stream from being prefetched (and its analysis from becoming available).
+	if _, videoCached := pq.server.cachedMedia(cacheKey); videoCached {
+		if _, audioCached := pq.server.cachedMedia(videoID + ":audio"); audioCached {
 			return false
 		}
 	}
@@ -251,7 +247,7 @@ func (pq *PrefetchQueue) processJob(workerID int, job *PrefetchJob) {
 		log.Printf("[prefetch-queue] Completed %s", job.VideoID)
 	} else {
 		job.Error = err.Error()
-		if job.Attempts <= pq.maxRetry {
+		if job.Attempts <= pq.maxRetry && !errors.Is(err, errMediaTooLarge) && pq.ctx.Err() == nil {
 			// Re-queue with exponential backoff
 			delay := RetryBaseDelay * time.Duration(intPow(RetryMultiplier, job.Attempts-1))
 			retryAt := time.Now().Add(delay)
@@ -263,7 +259,13 @@ func (pq *PrefetchQueue) processJob(workerID int, job *PrefetchJob) {
 
 			// Schedule a wake-up after the retry delay
 			go func() {
-				time.Sleep(delay)
+				timer := time.NewTimer(delay)
+				defer timer.Stop()
+				select {
+				case <-pq.ctx.Done():
+					return
+				case <-timer.C:
+				}
 				select {
 				case pq.notify <- struct{}{}:
 				default:
@@ -282,146 +284,25 @@ func (pq *PrefetchQueue) processJob(workerID int, job *PrefetchJob) {
 	}
 }
 
-// doPrefetch resolves a video via yt-dlp and caches the bytes.
-// Uses a dedicated prefetch semaphore (separate from user-facing requests).
+// doPrefetch uses the same shared, bounded download as foreground playback.
+// Audio prefetch belongs to the worker lifecycle so Stop waits for its cleanup.
 func (pq *PrefetchQueue) doPrefetch(videoID string) error {
-	cacheKey := videoID + ":video"
-
-	// Resolve via singleflight. Pass the dedicated prefetch semaphore so we
-	// don't compete with user-facing /resolve and /proxy for yt-dlp slots.
-	result, err, _ := resolveGroup.Do("prefetch:"+cacheKey, func() (interface{}, error) {
-		return pq.server.resolveWithYtDlpInternal(videoID, true, false, false, prefetchSemaphore)
-	})
-	if err != nil {
-		return fmt.Errorf("resolve failed: %w", err)
+	if _, err := pq.server.prefetchMedia(pq.ctx, videoID, true, false); err != nil {
+		return err
 	}
-
-	resolved := result.(*ResolveResponse)
-	pq.server.resolveCache.Set(cacheKey, *resolved, 5*time.Minute)
-
-	// Fetch video bytes
-	req, err := http.NewRequest("GET", resolved.URL, nil)
-	if err != nil {
-		return fmt.Errorf("request creation failed: %w", err)
-	}
-
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Origin", "https://www.youtube.com")
-	req.Header.Set("Referer", "https://www.youtube.com/")
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("fetch failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad status: %d", resp.StatusCode)
-	}
-
-	data, err := io.ReadAll(io.LimitReader(resp.Body, pq.server.maxCacheableVideoSize+1))
-	if err != nil {
-		return fmt.Errorf("read failed: %w", err)
-	}
-	if int64(len(data)) > pq.server.maxCacheableVideoSize {
-		return fmt.Errorf("video too large to cache (%d bytes)", len(data))
-	}
-
-	// Entries at or below the memory threshold go to both memory and disk;
-	// larger entries go to disk only so one long video doesn't evict the hot
-	// memory set.
-	if int64(len(data)) <= MemoryCacheMaxEntrySize {
-		pq.server.videoCache.Set(cacheKey, data)
-	}
-	if pq.server.diskCache != nil {
-		pq.server.diskCache.Set(cacheKey, data)
-	}
-
-	log.Printf("[prefetch-queue] Cached %s video (%d bytes)", videoID, len(data))
-
-	// Also prefetch the audio-only stream (used for dream audio + frequency analysis)
-	go pq.doPrefetchAudio(videoID)
-
+	pq.doPrefetchAudio(videoID)
 	return nil
 }
 
-// doPrefetchAudio resolves and caches the audio-only stream for a video.
-// Runs as a goroutine after the video prefetch completes — non-blocking.
 func (pq *PrefetchQueue) doPrefetchAudio(videoID string) {
-	audioCacheKey := videoID + ":audio"
-
-	// Skip if already cached
-	if _, found := pq.server.videoCache.Get(audioCacheKey); found {
-		return
-	}
-	if pq.server.diskCache != nil {
-		if _, found := pq.server.diskCache.Get(audioCacheKey); found {
-			return
-		}
-	}
-
-	// Resolve audio-only URL (audioOnly=true, videoOnly=false)
-	result, err, _ := resolveGroup.Do("prefetch:"+audioCacheKey, func() (interface{}, error) {
-		return pq.server.resolveWithYtDlpInternal(videoID, false, true, false, prefetchSemaphore)
-	})
+	audioData, err := pq.server.prefetchMedia(pq.ctx, videoID, false, true)
 	if err != nil {
-		log.Printf("[prefetch-queue] Audio resolve failed for %s: %v", videoID, err)
+		log.Printf("[prefetch-queue] Audio prefetch failed for %s: %v", videoID, err)
 		return
 	}
-
-	resolved := result.(*ResolveResponse)
-	pq.server.resolveCache.Set(audioCacheKey, *resolved, 5*time.Minute)
-
-	// Fetch audio bytes
-	req, err := http.NewRequest("GET", resolved.URL, nil)
-	if err != nil {
-		log.Printf("[prefetch-queue] Audio request creation failed for %s: %v", videoID, err)
+	if pq.ctx.Err() != nil {
 		return
 	}
-
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Origin", "https://www.youtube.com")
-	req.Header.Set("Referer", "https://www.youtube.com/")
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		log.Printf("[prefetch-queue] Audio fetch failed for %s: %v", videoID, err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("[prefetch-queue] Audio bad status for %s: %d", videoID, resp.StatusCode)
-		return
-	}
-
-	audioData, err := io.ReadAll(io.LimitReader(resp.Body, pq.server.maxCacheableVideoSize+1))
-	if err != nil {
-		log.Printf("[prefetch-queue] Audio read failed for %s: %v", videoID, err)
-		return
-	}
-	if int64(len(audioData)) > pq.server.maxCacheableVideoSize {
-		log.Printf("[prefetch-queue] Audio too large to cache for %s (%d bytes)", videoID, len(audioData))
-		return
-	}
-
-	if int64(len(audioData)) <= MemoryCacheMaxEntrySize {
-		pq.server.videoCache.Set(audioCacheKey, audioData)
-	}
-	if pq.server.diskCache != nil {
-		pq.server.diskCache.Set(audioCacheKey, audioData)
-	}
-
-	log.Printf("[prefetch-queue] Cached %s audio (%d bytes)", videoID, len(audioData))
-
-	// Analyze the freshly cached audio to produce the precomputed FFT
-	// timeline. Synchronous here (we're already in a goroutine); the CPU
-	// semaphore inside runAnalysis serializes the heavy work. Failures are
-	// non-fatal — the live analyser path covers misses on the client.
 	if err := pq.server.runAnalysis(videoID, audioData); err != nil {
 		log.Printf("[prefetch-queue] Analysis failed for %s: %v", videoID, err)
 	}

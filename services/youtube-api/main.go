@@ -200,6 +200,7 @@ func (c *ResolveCache) cleanupLoop() {
 }
 
 type Server struct {
+	metrics               Metrics
 	featured              *dailyFeature
 	searchCache           *Cache
 	resolveCache          *ResolveCache
@@ -209,6 +210,14 @@ type Server struct {
 	prefetchQueue         *PrefetchQueue
 	playlistCache         *PlaylistCache
 	maxCacheableVideoSize int64
+
+	// Shared media downloads are scoped to this server, not the process.
+	downloadMu        sync.Mutex
+	downloads         map[string]*mediaDownload
+	mediaResolveGroup singleflight.Group
+	mediaResolver     func(context.Context, string, bool, bool, bool, chan struct{}) (*ResolveResponse, error)
+	proxyMediaClient  *http.Client
+	directMediaClient *http.Client
 }
 
 // POTokenCache caches PO tokens to avoid regenerating on every yt-dlp call
@@ -541,7 +550,6 @@ const cookiesMountPath = "/etc/youtube-api/cookies.txt"
 var ytdlpSemaphore = make(chan struct{}, 2)
 
 // Singleflight to coalesce duplicate requests
-var resolveGroup singleflight.Group
 var searchGroup singleflight.Group
 
 // warmupYtDlp runs a lightweight yt-dlp command on startup to warm up
@@ -631,38 +639,14 @@ func isBotDetectionError(stderr string) bool {
 	return false
 }
 
-// resolveVideo resolves a YouTube video URL via yt-dlp
-func (s *Server) resolveVideo(videoID string, videoOnly bool, audioOnly bool) (*ResolveResponse, error) {
-	return s.resolveWithYtDlp(videoID, videoOnly, audioOnly)
-}
-
-// resolveAfterUpstream403 re-resolves after YouTube refused the media URL.
-//
-// A tokenless URL resolves fine and is only refused at fetch time: since late
-// July 2026 YouTube gates android_vr https formats behind a GVS PO token, so
-// such a URL is good for only a small slice of the file. Retrying the same
-// tokenless path just reproduces the 403, so escalate to the PO token path
-// when a provider is configured.
-func (s *Server) resolveAfterUpstream403(videoID string, videoOnly bool, audioOnly bool) (*ResolveResponse, error) {
-	if os.Getenv("POT_PROVIDER_URL") != "" {
-		resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, audioOnly, true)
-		if err == nil {
-			resp.ResolvedViaProxy = false
-			return resp, nil
-		}
-		log.Printf("[resolve] PO token escalation failed for %s, falling back: %v", videoID, err)
-	}
-	return s.resolveWithYtDlp(videoID, videoOnly, audioOnly)
-}
-
-// resolveWithYtDlp calls yt-dlp - tries ISP proxy first (faster), falls back to PO token
-func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool, audioOnly bool) (*ResolveResponse, error) {
+// resolveWithYtDlpContext tries the ISP proxy first, then the PO token route.
+func (s *Server) resolveWithYtDlpContext(ctx context.Context, videoID string, videoOnly bool, audioOnly bool, sem chan struct{}) (*ResolveResponse, error) {
 	proxyURL := os.Getenv("PROXY_URL")
 	potProviderURL := os.Getenv("POT_PROVIDER_URL")
 
 	// If ISP proxy is configured, try without PO token first (faster ~4s vs ~7s)
 	if proxyURL != "" {
-		resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, audioOnly, false)
+		resp, err := s.resolveWithYtDlpInternalContext(ctx, videoID, videoOnly, audioOnly, false, sem)
 		if err == nil {
 			resp.ResolvedViaProxy = true
 			return resp, nil
@@ -672,7 +656,7 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool, audioOnly bool
 
 	// If PO provider is configured, use PO token
 	if potProviderURL != "" {
-		resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, audioOnly, true)
+		resp, err := s.resolveWithYtDlpInternalContext(ctx, videoID, videoOnly, audioOnly, true, sem)
 		if err == nil {
 			resp.ResolvedViaProxy = false
 		}
@@ -682,22 +666,25 @@ func (s *Server) resolveWithYtDlp(videoID string, videoOnly bool, audioOnly bool
 	// Local dev: neither proxy nor PO provider configured - try basic yt-dlp
 	// This may fail for some videos due to bot detection, but works for many
 	log.Printf("[resolve] No proxy or PO provider configured, trying basic yt-dlp for %s", videoID)
-	resp, err := s.resolveWithYtDlpInternal(videoID, videoOnly, audioOnly, false)
+	resp, err := s.resolveWithYtDlpInternalContext(ctx, videoID, videoOnly, audioOnly, false, sem)
 	if err == nil {
 		resp.ResolvedViaProxy = false
 	}
 	return resp, err
 }
 
-// resolveWithYtDlpInternal is the actual yt-dlp call with optional PO token support.
-// The sem parameter controls which semaphore to acquire (user-facing vs prefetch).
-func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, audioOnly bool, usePOToken bool, sem ...chan struct{}) (*ResolveResponse, error) {
-	// Acquire semaphore to limit concurrent yt-dlp processes
+// resolveWithYtDlpInternalContext runs yt-dlp with the caller's resource budget.
+func (s *Server) resolveWithYtDlpInternalContext(parent context.Context, videoID string, videoOnly bool, audioOnly bool, usePOToken bool, sem ...chan struct{}) (*ResolveResponse, error) {
+	// Acquire semaphore to limit concurrent yt-dlp processes.
 	semToUse := ytdlpSemaphore
 	if len(sem) > 0 && sem[0] != nil {
 		semToUse = sem[0]
 	}
-	semToUse <- struct{}{}
+	select {
+	case semToUse <- struct{}{}:
+	case <-parent.Done():
+		return nil, parent.Err()
+	}
 	defer func() { <-semToUse }()
 
 	cfg := ytdlpArgsConfig{
@@ -720,7 +707,7 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, audioO
 	if usePOToken {
 		timeout = 60 * time.Second
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 
 	log.Printf("[yt-dlp] Running: yt-dlp %s", redactCredentials(fmt.Sprint(args)))
@@ -792,37 +779,12 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 
 	audioOnly := r.URL.Query().Get("audioOnly") == "true"
 	videoOnly := !audioOnly && r.URL.Query().Get("videoOnly") != "false"
-	cacheKey := videoID
-	if audioOnly {
-		cacheKey += ":audio"
-	} else if videoOnly {
-		cacheKey += ":video"
-	}
-
-	if cached, found := s.resolveCache.Get(cacheKey); found {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(cached)
-		return
-	}
-
-	// Use singleflight to coalesce duplicate requests for the same video
-	result, err, shared := resolveGroup.Do(cacheKey, func() (interface{}, error) {
-		log.Printf("[resolve] Resolving %s (videoOnly=%v, audioOnly=%v)", videoID, videoOnly, audioOnly)
-		return s.resolveVideo(videoID, videoOnly, audioOnly)
-	})
-
-	if shared {
-		log.Printf("[resolve] Request for %s was coalesced with another in-flight request", videoID)
-	}
-
+	resolved, err := s.resolveMedia(r.Context(), videoID, videoOnly, audioOnly, false, ytdlpSemaphore)
 	if err != nil {
 		log.Printf("[resolve] yt-dlp failed for %s: %v", videoID, err)
 		http.Error(w, "Failed to resolve video", http.StatusInternalServerError)
 		return
 	}
-
-	resolved := result.(*ResolveResponse)
-	s.resolveCache.Set(cacheKey, *resolved, 5*time.Minute)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resolved)
 }
@@ -842,339 +804,21 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	audioOnly := r.URL.Query().Get("audioOnly") == "true"
 	videoOnly := !audioOnly && r.URL.Query().Get("videoOnly") != "false"
-	cacheKey := videoID
-	if audioOnly {
-		cacheKey += ":audio"
-	} else if videoOnly {
-		cacheKey += ":video"
-	}
-
-	rangeHeader := r.Header.Get("Range")
-
-	// Check byte cache. We serve from cache for:
-	//   - no Range header (full 200)
-	//   - a satisfiable single Range (206 Partial Content)
-	//   - a malformed Range (ignore per RFC 7233, serve full 200)
-	//   - an unsatisfiable Range (416)
-	// Multipart ranges fall through to the upstream proxy path unchanged.
-	cachedData, found := s.videoCache.Get(cacheKey)
-
-	// Memory miss → check disk cache and promote to memory (only when the
-	// entry is small enough to belong in the hot memory set).
-	if !found && s.diskCache != nil {
-		if diskData, diskHit := s.diskCache.Get(cacheKey); diskHit {
-			cachedData = diskData
-			found = true
-			if int64(len(diskData)) <= MemoryCacheMaxEntrySize {
-				s.videoCache.Set(cacheKey, diskData) // promote to memory
-			}
-			log.Printf("[proxy] Disk cache hit for %s (%d bytes)", videoID, len(diskData))
+	cacheKey := mediaCacheKey(videoID, videoOnly, audioOnly)
+	format := metricFormat(videoOnly, audioOnly)
+	cachedData, tier := s.cachedMediaWithTier(cacheKey)
+	s.metrics.playback[format].requests[tier].Add(1)
+	if tier != cacheMiss {
+		start, end, ok := mediaResponseRange(w, r.Header.Get("Range"), int64(len(cachedData)), cachedMediaContentType(cachedData, audioOnly))
+		if ok {
+			n, _ := w.Write(cachedData[start : end+1])
+			s.metrics.playback[format].bytes[tier].Add(uint64(n))
 		}
-	}
-
-	if found {
-		contentType := "video/mp4"
-		if audioOnly {
-			contentType = "audio/mp4"
-		}
-		total := int64(len(cachedData))
-
-		start, end, status := parseRangeDetailed(rangeHeader, total)
-		switch status {
-		case rangeMultipart:
-			// Can't serve multipart from a single cached blob; fall through to upstream.
-			log.Printf("[proxy] Multipart range %q for %s; bypassing cache", rangeHeader, videoID)
-		case rangeUnsatisfiable:
-			log.Printf("[proxy] Cache hit for %s but range %q unsatisfiable (416)", videoID, rangeHeader)
-			w.Header().Set("Content-Type", contentType)
-			w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", total))
-			w.Header().Set("Accept-Ranges", "bytes")
-			w.Header().Set("Cache-Control", "public, max-age=3600")
-			w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
-			return
-		case rangeOK:
-			slice := cachedData[start : end+1]
-			log.Printf("[proxy] Cache hit for %s range %q (%d bytes)", videoID, rangeHeader, len(slice))
-			w.Header().Set("Content-Type", contentType)
-			w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, total))
-			w.Header().Set("Content-Length", strconv.Itoa(len(slice)))
-			w.Header().Set("Accept-Ranges", "bytes")
-			w.Header().Set("Cache-Control", "public, max-age=3600")
-			w.WriteHeader(http.StatusPartialContent)
-			w.Write(slice)
-			return
-		default:
-			// rangeNone or rangeMalformed: serve full 200 from cache.
-			log.Printf("[proxy] Cache hit for %s (%d bytes)", videoID, len(cachedData))
-			w.Header().Set("Content-Type", contentType)
-			w.Header().Set("Content-Length", strconv.Itoa(len(cachedData)))
-			w.Header().Set("Accept-Ranges", "bytes")
-			w.Header().Set("Cache-Control", "public, max-age=3600")
-			w.WriteHeader(http.StatusOK)
-			w.Write(cachedData)
-			return
-		}
-	}
-
-	resolveStart := time.Now()
-	resolved, found := s.resolveCache.Get(cacheKey)
-	if !found {
-		// Use singleflight to coalesce duplicate requests
-		result, err, _ := resolveGroup.Do(cacheKey, func() (interface{}, error) {
-			log.Printf("[proxy] Resolving %s (videoOnly=%v, audioOnly=%v)", videoID, videoOnly, audioOnly)
-			return s.resolveVideo(videoID, videoOnly, audioOnly)
-		})
-
-		if err != nil {
-			log.Printf("[proxy] yt-dlp failed for %s: %v", videoID, err)
-			http.Error(w, "Failed to resolve video", http.StatusInternalServerError)
-			return
-		}
-
-		ytdlpResolved := result.(*ResolveResponse)
-		s.resolveCache.Set(cacheKey, *ytdlpResolved, 5*time.Minute)
-		resolved = *ytdlpResolved
-		log.Printf("[proxy] Resolve for %s took %dms", videoID, time.Since(resolveStart).Milliseconds())
-	} else {
-		log.Printf("[proxy] Resolve cache hit for %s", videoID)
-	}
-
-	req, err := http.NewRequest("GET", resolved.URL, nil)
-	if err != nil {
-		http.Error(w, "Failed to create upstream request", http.StatusInternalServerError)
 		return
 	}
 
-	// Set headers to mimic a browser request - YouTube CDN rejects requests without proper headers
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Origin", "https://www.youtube.com")
-	req.Header.Set("Referer", "https://www.youtube.com/")
-
-	// Always request a bounded range upstream. An unbounded GET against
-	// googlevideo answers 200 and then truncates mid-transfer, so the fetch is
-	// split into chunks; this first one also tells us the resource total via
-	// Content-Range.
-	fetchStart := int64(0)
-	clientEnd := int64(-1)
-	if rangeHeader != "" {
-		if s, e, hasEnd, ok := rangeStartOffset(rangeHeader); ok {
-			fetchStart = s
-			if hasEnd {
-				clientEnd = e
-			}
-		}
-	}
-	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", fetchStart, fetchStart+upstreamChunkSize-1))
-
-	// Use shared client with connection pooling for better performance
-	// If URL was resolved via proxy, use proxy for streaming too
-	// If URL was resolved via PO token (no proxy), don't use proxy for streaming
-	upstreamStart := time.Now()
-	useProxyForStream := resolved.ResolvedViaProxy && os.Getenv("PROXY_URL") != ""
-	log.Printf("[proxy] Streaming %s (resolvedViaProxy=%v, usingProxy=%v)", videoID, resolved.ResolvedViaProxy, useProxyForStream)
-
-	streamClient := httpClient
-	if !useProxyForStream {
-		streamClient = &http.Client{Timeout: 5 * time.Minute}
-	}
-
-	var resp *http.Response
-	resp, err = streamClient.Do(req)
-	if err != nil {
-		log.Printf("[proxy] Upstream request failed for %s: %v", videoID, err)
-		http.Error(w, "Upstream request failed", http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-
-	log.Printf("[proxy] Upstream connect for %s took %dms, status=%d, content-length=%s", videoID, time.Since(upstreamStart).Milliseconds(), resp.StatusCode, resp.Header.Get("Content-Length"))
-
-	// If YouTube returns 403, the URL may be IP-locked to a different IP
-	// Re-resolve to get a fresh URL
-	if resp.StatusCode == http.StatusForbidden {
-		// Log the actual IP being used when 403 occurs
-		go func() {
-			ipTestReq, _ := http.NewRequest("GET", "https://httpbin.org/ip", nil)
-			ipResp, err := httpClient.Do(ipTestReq)
-			if err != nil {
-				log.Printf("[proxy] Failed to check current proxy IP: %v", err)
-				return
-			}
-			defer ipResp.Body.Close()
-			body, _ := io.ReadAll(ipResp.Body)
-			log.Printf("[proxy] Current proxy IP on 403: %s", string(body))
-		}()
-		log.Printf("[proxy] Got 403 for %s, re-resolving with fresh cache", videoID)
-
-		// Re-resolve with fresh cache key to bypass any cached result
-		result, err, _ := resolveGroup.Do(cacheKey+":retry", func() (interface{}, error) {
-			log.Printf("[proxy] Re-resolving %s via yt-dlp after 403", videoID)
-			return s.resolveAfterUpstream403(videoID, videoOnly, audioOnly)
-		})
-
-		if err != nil {
-			log.Printf("[proxy] Re-resolve failed for %s: %v", videoID, err)
-			http.Error(w, "Failed to re-resolve video", http.StatusInternalServerError)
-			return
-		}
-
-		resolved = *result.(*ResolveResponse)
-		s.resolveCache.Set(cacheKey, resolved, 5*time.Minute)
-		log.Printf("[proxy] Re-resolved %s, trying upstream again", videoID)
-
-		// Create new request with fresh URL
-		req, err = http.NewRequest("GET", resolved.URL, nil)
-		if err != nil {
-			http.Error(w, "Failed to create upstream request", http.StatusInternalServerError)
-			return
-		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-		req.Header.Set("Accept", "*/*")
-		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-		req.Header.Set("Origin", "https://www.youtube.com")
-		req.Header.Set("Referer", "https://www.youtube.com/")
-		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", fetchStart, fetchStart+upstreamChunkSize-1))
-
-		// Try again with new URL
-		resp, err = streamClient.Do(req)
-		if err != nil {
-			log.Printf("[proxy] Upstream request failed for %s on retry: %v", videoID, err)
-			http.Error(w, "Upstream request failed", http.StatusBadGateway)
-			return
-		}
-		defer resp.Body.Close()
-
-		log.Printf("[proxy] Retry upstream connect for %s took %dms, status=%d", videoID, time.Since(upstreamStart).Milliseconds(), resp.StatusCode)
-	}
-
-	// If YouTube returns an error, log it and pass through
-	if resp.StatusCode >= 400 {
-		log.Printf("[proxy] YouTube returned error %d for %s", resp.StatusCode, videoID)
-	}
-
-	// Set content type - default to video/mp4 if not provided
-	contentType := resp.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "video/mp4"
-	}
-	w.Header().Set("Content-Type", contentType)
-
-	// Splice the first chunk together with a retrying reader for the rest, so
-	// the caller sees one continuous body. Falls back to the raw response when
-	// upstream didn't report a usable total.
-	upstreamBody := resp.Body
-	respStatus := resp.StatusCode
-	total, haveTotal := parseContentRangeTotal(resp.Header.Get("Content-Range"))
-
-	if haveTotal && resp.StatusCode == http.StatusPartialContent {
-		last := total - 1
-		if clientEnd >= 0 && clientEnd < last {
-			last = clientEnd
-		}
-
-		first, readErr := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if readErr != nil {
-			log.Printf("[proxy] First chunk read failed for %s: %v", videoID, readErr)
-			http.Error(w, "Upstream read failed", http.StatusBadGateway)
-			return
-		}
-		if int64(len(first)) > last-fetchStart+1 {
-			first = first[:last-fetchStart+1]
-		}
-
-		readers := []io.Reader{bytes.NewReader(first)}
-		if next := fetchStart + int64(len(first)); next <= last {
-			readers = append(readers, newChunkedBody(
-				streamClient, resolved.URL, req.Header, next, last,
-				upstreamChunkSize, upstreamChunkRetries))
-		}
-		upstreamBody = io.NopCloser(io.MultiReader(readers...))
-
-		w.Header().Set("Content-Length", strconv.FormatInt(last-fetchStart+1, 10))
-		if rangeHeader != "" {
-			w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", fetchStart, last, total))
-			respStatus = http.StatusPartialContent
-		} else {
-			respStatus = http.StatusOK
-		}
-	} else {
-		if cl := resp.Header.Get("Content-Length"); cl != "" {
-			w.Header().Set("Content-Length", cl)
-		}
-		if cr := resp.Header.Get("Content-Range"); cr != "" {
-			w.Header().Set("Content-Range", cr)
-		}
-	}
-	w.Header().Set("Accept-Ranges", "bytes")
-
-	// Allow browser to cache video for 1 hour (avoids re-fetching on replay)
-	w.Header().Set("Cache-Control", "public, max-age=3600")
-
-	w.WriteHeader(respStatus)
-
-	// Cache the response when it represents the full resource:
-	//   - bare GET with HTTP 200, or
-	//   - "Range: bytes=0-" with HTTP 206 whose Content-Range covers the full resource.
-	// In both cases the response body is the complete resource, so we can
-	// accumulate it and store the same way we would for a plain 200.
-	shouldCache := false
-	if rangeHeader == "" && respStatus == http.StatusOK {
-		shouldCache = true
-	} else if rangeHeader == "bytes=0-" && respStatus == http.StatusPartialContent {
-		if cr := resp.Header.Get("Content-Range"); contentRangeCoversFull(cr) {
-			shouldCache = true
-		}
-	}
-	var videoData []byte
-	if shouldCache {
-		videoData = make([]byte, 0, 5*1024*1024) // Pre-allocate 5MB
-	}
-
-	// Use a larger buffer for more efficient streaming (128KB)
-	buf := make([]byte, 128*1024)
-	bytesWritten := int64(0)
-
-	for {
-		n, readErr := upstreamBody.Read(buf)
-		if n > 0 {
-			_, writeErr := w.Write(buf[:n])
-			if writeErr != nil {
-				log.Printf("[proxy] Write error for %s after %d bytes: %v", videoID, bytesWritten, writeErr)
-				break
-			}
-			bytesWritten += int64(n)
-
-			// Accumulate data for caching up to the per-entry cap.
-			if shouldCache && int64(len(videoData))+int64(n) <= s.maxCacheableVideoSize {
-				videoData = append(videoData, buf[:n]...)
-			}
-		}
-
-		if readErr != nil {
-			if readErr != io.EOF {
-				log.Printf("[proxy] Read error for %s after %d bytes: %v", videoID, bytesWritten, readErr)
-			}
-			break
-		}
-	}
-
-	log.Printf("[proxy] Streamed %d bytes for %s in %dms", bytesWritten, videoID, time.Since(proxyStart).Milliseconds())
-
-	// Cache the video if we got a full response (LRU eviction, no TTL).
-	// Entries larger than the memory threshold go to disk only so one long
-	// video doesn't evict the hot memory set; entries at or below the threshold
-	// go to both memory and disk.
-	if shouldCache && len(videoData) > 0 && int64(len(videoData)) <= s.maxCacheableVideoSize {
-		if int64(len(videoData)) <= MemoryCacheMaxEntrySize {
-			s.videoCache.Set(cacheKey, videoData)
-		}
-		if s.diskCache != nil {
-			s.diskCache.Set(cacheKey, videoData)
-		}
-	}
+	s.serveMediaMiss(w, r, videoID, videoOnly, audioOnly)
+	log.Printf("[proxy] Completed %s in %dms", videoID, time.Since(proxyStart).Milliseconds())
 }
 
 // handlePrefetch enqueues a video for background prefetch and caching.
@@ -1864,6 +1508,8 @@ func main() {
 	mux.HandleFunc("POST /admin/cache/add", adminAuthMiddleware(server.handleAdminCacheAdd))
 	mux.HandleFunc("POST /admin/cache/clear", adminAuthMiddleware(server.handleAdminCacheClear))
 	mux.HandleFunc("GET /admin/queue", adminAuthMiddleware(server.handleAdminQueueStatus))
+	mux.HandleFunc("GET /admin/metrics", adminAuthMiddleware(server.handleAdminMetrics))
+	mux.HandleFunc("GET /metrics", adminAuthMiddleware(server.handleMetrics))
 
 	handler := corsMiddleware(loggingMiddleware(mux))
 

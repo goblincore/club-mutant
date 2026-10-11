@@ -82,12 +82,16 @@ youtube-api ──HTTP───→ pot-provider     (YouTube PO tokens)
 ## Services
 
 ### youtube-api (Go, port 8081)
-YouTube search, stream URL resolution, CORS-safe video proxy. No YouTube API key — uses web scraping + kkdai/youtube.
+YouTube search, stream URL resolution, CORS-safe media proxy. No YouTube API key — search uses InnerTube, resolution uses yt-dlp with ISP-proxy-first access and a PO token fallback. Playback and prefetch share validated bounded-range downloads; concurrent cache misses for the same format read one progressive temporary file. Only complete resources enter the memory/disk cache. Large resources above the cache cap stream without shared spooling. Each persistent cache volume belongs to one service instance.
 - `GET /search?q=&limit=` — search
 - `GET /resolve/:videoId` — get direct stream URL (cached)
 - `GET /proxy/:videoId` — stream through server
-- `GET /browse?url=` — proxy-browse a web page
-- Env: `PORT`, `YOUTUBE_API_CACHE_TTL`, `PROXY_URL`, `POT_PROVIDER_URL`
+- `POST /prefetch/:videoId` — queue video and audio/analysis caching; requires the internal service bearer token
+- `/browse` is disabled because arbitrary HTML proxying permits SSRF and same-origin script execution
+- `GET /admin/metrics` — JSON cache-hit, media traffic, and shared-download counters; displayed in `/admin`
+- `GET /metrics` — Prometheus scrape endpoint; both metrics APIs require the existing admin bearer token
+- Metrics are per process and reset on restart. ISP-proxy/direct byte counters include prefetch and retries, but exclude extraction and HTTP overhead. Historical collection requires an external scraper.
+- Env: `PORT`, `YOUTUBE_API_CACHE_TTL`, `PROXY_URL`, `POT_PROVIDER_URL`, `ADMIN_TOKEN`, `INTERNAL_SERVICE_TOKEN`
 
 ### dream-npc-go (Go, port 4000)
 AI NPC chat for dream characters and bartender (Lily). Fiber v2, LRU cache (500 entries, 1hr TTL — skipped when music playing), rate limiting per IP/room. Gemini 2.5 Flash Lite.
@@ -102,7 +106,7 @@ Chat image uploads. Resizes to 512px max, JPEG 80%, stores on Cloudflare R2.
 - Max 2MB, 5 uploads/min per session
 
 ### pot-provider (port 4416)
-YouTube Proof-of-Origin token provider (bgutil). Deployed on Fly.io.
+YouTube Proof-of-Origin token provider (bgutil 2.0.0, matched to the yt-dlp plugin). Runs alongside youtube-api in the Hetzner Compose deployment, with no published host port. Used when the preferred ISP-proxy route fails.
 
 ## Auth (Nakama)
 

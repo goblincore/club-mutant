@@ -13,8 +13,8 @@ const (
 	rangeNone rangeStatus = iota
 	// rangeMalformed: syntactically invalid — per RFC 7233, ignore and serve full 200.
 	rangeMalformed
-	// rangeMultipart: multipart range (e.g. "bytes=0-1,5-9") — caller should pass
-	// the request through to upstream unchanged.
+	// rangeMultipart: multipart range (e.g. "bytes=0-1,5-9") — caller may
+	// ignore Range and serve a full 200 response.
 	rangeMultipart
 	// rangeUnsatisfiable: syntactically valid single range but start >= size —
 	// respond 416 with Content-Range: bytes */<size>.
@@ -32,8 +32,8 @@ const (
 //   - "bytes=X-"   → bytes X through the end
 //   - "bytes=-N"   → the last N bytes (suffix range)
 //
-// Multipart ranges ("bytes=0-1,5-9") are detected and surfaced as rangeMultipart
-// so the caller can pass them through to the upstream proxy. The end value is
+// Multipart ranges ("bytes=0-1,5-9") are detected and surfaced as rangeMultipart.
+// The end value is
 // clamped to size-1 when it exceeds the resource; suffix ranges larger than the
 // resource clamp to the full resource.
 func parseRangeDetailed(header string, size int64) (start, end int64, status rangeStatus) {

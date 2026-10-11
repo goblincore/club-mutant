@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,6 +33,8 @@ const (
 // It implements io.ReadCloser so it can be dropped in wherever an
 // http.Response.Body was used.
 type chunkedBody struct {
+	ctx       context.Context
+	fetch     func(int64, int64) ([]byte, error)
 	client    *http.Client
 	url       string
 	header    http.Header
@@ -49,6 +52,7 @@ func newChunkedBody(client *http.Client, url string, header http.Header, start, 
 		chunkSize = upstreamChunkSize
 	}
 	return &chunkedBody{
+		ctx:       context.Background(),
 		client:    client,
 		url:       url,
 		header:    header.Clone(),
@@ -95,6 +99,9 @@ func (cb *chunkedBody) fetchNextChunk() error {
 
 	var lastErr error
 	for attempt := 0; attempt <= cb.maxRetry; attempt++ {
+		if err := cb.ctx.Err(); err != nil {
+			return err
+		}
 		data, err := cb.fetchRange(cb.pos, end)
 		if err == nil && int64(len(data)) == want {
 			cb.buf = data
@@ -110,7 +117,10 @@ func (cb *chunkedBody) fetchNextChunk() error {
 }
 
 func (cb *chunkedBody) fetchRange(start, end int64) ([]byte, error) {
-	req, err := http.NewRequest("GET", cb.url, nil)
+	if cb.fetch != nil {
+		return cb.fetch(start, end)
+	}
+	req, err := http.NewRequestWithContext(cb.ctx, "GET", cb.url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +140,7 @@ func (cb *chunkedBody) fetchRange(start, end int64) ([]byte, error) {
 	if resp.StatusCode != http.StatusPartialContent && resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("upstream status %d", resp.StatusCode)
 	}
-	return io.ReadAll(resp.Body)
+	return io.ReadAll(io.LimitReader(resp.Body, end-start+2))
 }
 
 // parseContentRangeTotal extracts the resource total from a Content-Range
