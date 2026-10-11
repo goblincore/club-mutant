@@ -6,7 +6,7 @@ import { JukeboxItem, DJUserInfo } from '@club-mutant/types/RoomState'
 import { Message } from '@club-mutant/types/Messages'
 import { prefetchVideo } from '../../youtubeService'
 import { normalizeYoutubeLink } from '../../lib/youtubeLink'
-import { clampTrackDuration } from './djHelpers'
+import { clampTrackDuration, stopMusicStream } from './djHelpers'
 
 type ClientPayload = {
   client: Client
@@ -74,15 +74,7 @@ export function playNextJukeboxTrack(room: ClubMutant) {
  * Stop the jukebox stream. Clears musicStream but does NOT remove tracks.
  */
 export function stopJukeboxStream(room: ClubMutant) {
-  const musicStream = room.state.musicStream
-  musicStream.status = 'waiting'
-  musicStream.currentLink = null
-  musicStream.currentTitle = null
-  musicStream.currentTrackId = null
-  musicStream.isAmbient = false
-
-  console.log('[Jukebox] Stream stopped')
-  room.broadcast(Message.STOP_MUSIC_STREAM, {})
+  stopMusicStream(room)
 }
 
 /**

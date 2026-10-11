@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
 import { boot, ColyseusTestServer } from '@colyseus/testing'
 import { Server, CloseCode } from '@colyseus/core'
 import { getStateCallbacks } from '@colyseus/sdk'
@@ -6,6 +6,9 @@ import { uWebSocketsTransport } from '@colyseus/uwebsockets-transport'
 import { ClubMutant } from '../rooms/ClubMutant'
 import { Message } from '@club-mutant/types/Messages'
 import { RoomType } from '@club-mutant/types/Rooms'
+import { DJStopCommand } from '../rooms/commands/DJQueueCommand'
+
+vi.mock('../youtubeService', () => ({ prefetchVideo: vi.fn() }))
 
 // Public room: onJoin populates player.name from options (use for join/move/chat tests).
 const PUBLIC_ROOM_OPTIONS = {
@@ -217,6 +220,46 @@ describe('ClubMutant room integration', () => {
 
     await dj1.leave()
     await dj2.leave()
+  })
+
+  it('reconnect sends a stopped playback snapshot and the current private playlist', { timeout: 15000 }, async () => {
+    const room = await testServer.createRoom<ClubMutant>(RoomType.CUSTOM, PRIVATE_ROOM_OPTIONS)
+    const client = await testServer.connectTo(room, { ...GUEST_AUTH, playerId: 'reconnect-dj' })
+    client.send(Message.DJ_QUEUE_JOIN, { slotIndex: 0 })
+    await wait(80)
+    client.send(Message.ROOM_QUEUE_PLAYLIST_ADD, { title: 'first', link: 'dQw4w9WgXcQ', duration: 213 })
+    // Playlist controls share the production 250ms per-message rate limit.
+    await wait(300)
+    client.send(Message.ROOM_QUEUE_PLAYLIST_ADD, { title: 'second', link: 'oHg5SJYRHA0', duration: 213 })
+    await wait(80)
+    client.send(Message.DJ_PLAY)
+    await wait(80)
+    expect(room.state.musicStream.status).toBe('playing')
+    expect(room.state.players.get(client.sessionId)!.roomQueuePlaylist).toHaveLength(2)
+
+    client.reconnection.minUptime = 0
+    client.reconnection.delay = 500
+    client.reconnection.minDelay = 500
+    const dropped = new Promise<void>((resolve) => client.onDrop(() => resolve()))
+    const reconnected = new Promise<void>((resolve) => client.onReconnect(() => resolve()))
+    const snapshot = new Promise<any>((resolve) => client.onMessage(Message.MUSIC_STREAM_TICK, resolve))
+    const playlist = new Promise<any>((resolve) => client.onMessage(Message.ROOM_QUEUE_PLAYLIST_UPDATED, resolve))
+    client.connection.close()
+    await dropped
+    await wait(40)
+    const player = room.state.players.get(client.sessionId)!
+    expect(player.connected).toBe(false)
+    const command = new DJStopCommand()
+    ;(command as any).room = room
+    ;(command as any).state = room.state
+    command.execute({ client: { sessionId: client.sessionId } as any })
+    player.roomQueuePlaylist.reverse()
+
+    await reconnected
+    expect((await snapshot).musicStream.status).toBe('waiting')
+    expect((await playlist).items.map((item: any) => item.title)).toEqual(['first', 'second'])
+    expect(player.connected).toBe(true)
+    await client.leave()
   })
 
   it('NPC_DJ_SET_STANDBY waves the fallback NPC off the decks and summons it back', { timeout: 15000 }, async () => {

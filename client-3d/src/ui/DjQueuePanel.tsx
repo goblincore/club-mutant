@@ -471,7 +471,7 @@ export function DjQueuePanel() {
                   </p>
                 )}
                 {queuePlaylist.map((track, i) => {
-                  const isNowPlaying = isCurrentDJ && i === 0 && stream.isPlaying
+                  const isNowPlaying = isCurrentDJ && track.id === stream.currentTrackId && stream.isPlaying
 
                   return (
                     <div key={track.id} className={`flex items-center justify-between py-1 ${isNowPlaying ? 'bg-purple-500/10 rounded px-1 -mx-1' : ''}`}>

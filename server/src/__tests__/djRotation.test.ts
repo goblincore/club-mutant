@@ -5,8 +5,10 @@ import {
   markTrackAsPlayed,
   removeDJFromQueue,
   joinDjQueue,
+  playTrackForCurrentDJ,
 } from '../rooms/commands/djHelpers'
-import { DJTurnCompleteCommand } from '../rooms/commands/DJQueueCommand'
+import { DJTurnCompleteCommand, DJStopCommand, DJSkipTurnCommand, DJPlayCommand } from '../rooms/commands/DJQueueCommand'
+import { Message } from '@club-mutant/types/Messages'
 import type { ClubMutant } from '../rooms/ClubMutant'
 
 // djHelpers.playTrackForCurrentDJ prefetches the next DJ's track — stub the
@@ -19,6 +21,7 @@ function makeRoom(): ClubMutant {
   const room = {
     state: new RoomState(),
     broadcast: vi.fn(),
+    clients: [],
     notifyNpcMusicStarted: vi.fn(),
     // F2: the helpers own the watchdog lifecycle — stubbed here since the
     // real timers live on the Colyseus room, not under rotation test.
@@ -62,7 +65,7 @@ function runTurnComplete(room: ClubMutant, sessionId: string, streamId?: number)
   const cmd = new DJTurnCompleteCommand()
   ;(cmd as any).room = room
   ;(cmd as any).state = room.state
-  cmd.execute({ client: { sessionId } as any, streamId })
+  cmd.execute({ client: { sessionId } as any, streamId: streamId as number })
 }
 
 describe('advanceRotation — F1: rotates the CURRENT DJ, not djQueue[0]', () => {
@@ -108,7 +111,7 @@ describe('advanceRotation — F1: rotates the CURRENT DJ, not djQueue[0]', () =>
 
   // F8: a full cycle through every DJ's playlist must loop, not strand the
   // rotation in silence until a human presses ▶.
-  it('loops the rotation by resetting played flags when every queued DJ is exhausted (F8)', () => {
+  it('resets only the selected DJ when every queued DJ is exhausted', () => {
     const alice = addPlayer(room, 'A', 'Alice', ['track-a'])
     const bob = addPlayer(room, 'B', 'Bob', ['track-b'])
     alice.roomQueuePlaylist[0].played = true
@@ -124,10 +127,9 @@ describe('advanceRotation — F1: rotates the CURRENT DJ, not djQueue[0]', () =>
     expect(room.state.currentDjSessionId).toBe('B')
     expect(room.state.musicStream.status).toBe('playing')
     expect(room.state.musicStream.currentTitle).toBe('track-b')
-    // Both flags were reset by the loop; marking happens via markTrackAsPlayed
-    // on turn completion, not at playback start — so both are false here
+    // B's turn resets B only; A remains played until their next turn.
     expect(bob.roomQueuePlaylist[0].played).toBe(false)
-    expect(alice.roomQueuePlaylist[0].played).toBe(false)
+    expect(alice.roomQueuePlaylist[0].played).toBe(true)
   })
 
   it('still stops the stream when queued DJs have no tracks at all (nothing to loop)', () => {
@@ -156,6 +158,8 @@ describe('DJTurnCompleteCommand — F4: stale/duplicate completions are rejected
     room.state.musicStream.status = 'playing'
     room.state.musicStream.streamId = 5
     room.state.musicStream.currentTitle = 'track-a'
+    room.state.musicStream.currentTrackId = 'A-track-a'
+    room.state.musicStream.currentLink = 'https://youtu.be/track-a'
   })
 
   it('ignores a turn-complete carrying a stale streamId', () => {
@@ -178,9 +182,9 @@ describe('DJTurnCompleteCommand — F4: stale/duplicate completions are rejected
     expect(room.state.musicStream.currentTitle).toBe('track-b')
   })
 
-  it('still accepts a payload without streamId (watchdog/legacy senders)', () => {
+  it('rejects identity-free completion payloads', () => {
     runTurnComplete(room, 'A', undefined)
-    expect(room.state.currentDjSessionId).toBe('B')
+    expect(room.state.currentDjSessionId).toBe('A')
   })
 
   it('rejects a turn-complete from a non-current DJ even with matching streamId', () => {
@@ -190,14 +194,14 @@ describe('DJTurnCompleteCommand — F4: stale/duplicate completions are rejected
   })
 })
 
-describe('removeDJFromQueue — F5: leave-promotion skips exhausted DJs', () => {
+describe('removeDJFromQueue — fair leave promotion', () => {
   let room: ClubMutant
 
   beforeEach(() => {
     room = makeRoom()
   })
 
-  it('promotes the next DJ with UNPLAYED tracks, not blindly djQueue[0]', () => {
+  it('loops an exhausted DJ at their turn before a later DJ with unplayed tracks', () => {
     addPlayer(room, 'A', 'Alice', ['track-a'])
     const bob = addPlayer(room, 'B', 'Bob', ['track-b'])
     bob.roomQueuePlaylist[0].played = true // B exhausted their playlist
@@ -210,13 +214,12 @@ describe('removeDJFromQueue — F5: leave-promotion skips exhausted DJs', () => 
 
     removeDJFromQueue(room, 'A')
 
-    // C (first with unplayed tracks) is current and playing; B was skipped
-    expect(room.state.currentDjSessionId).toBe('C')
-    expect(queueIds(room)).toEqual(['C', 'B'])
+    // B keeps their turn despite their shorter playlist having exhausted.
+    expect(room.state.currentDjSessionId).toBe('B')
+    expect(queueIds(room)).toEqual(['B', 'C'])
     expect(room.state.musicStream.status).toBe('playing')
-    expect(room.state.musicStream.currentTitle).toBe('track-c')
-    // B's played flags untouched — they were skipped, not reset
-    expect(bob.roomQueuePlaylist[0].played).toBe(true)
+    expect(room.state.musicStream.currentTitle).toBe('track-b')
+    expect(bob.roomQueuePlaylist[0].played).toBe(false)
   })
 
   it('loop-resets an exhausted playlist when nobody has unplayed tracks', () => {
@@ -343,5 +346,133 @@ describe('joinDjQueue — teleport parameter', () => {
     // …but the body has not moved.
     expect(player.x).toBe(50)
     expect(player.y).toBe(50)
+  })
+})
+
+function runCommand(room: ClubMutant, CommandType: any, data: any) {
+  const cmd = new CommandType()
+  cmd.room = room
+  cmd.state = room.state
+  cmd.execute(data)
+}
+
+describe('rotation lifecycle regressions', () => {
+  it('keeps one-track humans alternating with a replenished NPC playlist', () => {
+    const room = makeRoom()
+    addPlayer(room, 'A', 'Alice', ['a'])
+    const npc = addPlayer(room, 'npc-dj:test', 'Bot', ['n1', 'n2', 'n3'])
+    addToQueue(room, 'A', 'Alice', 0)
+    addToQueue(room, 'npc-dj:test', 'Bot', 1)
+    room.state.currentDjSessionId = 'A'
+    playTrackForCurrentDJ(room)
+    for (let turn = 0; turn < 6; turn++) {
+      runTurnComplete(room, 'A', room.state.musicStream.streamId)
+      expect(room.state.currentDjSessionId).toBe('npc-dj:test')
+      // Simulate the NPC replenishing indefinitely, independent of human exhaustion.
+      npc.roomQueuePlaylist.forEach((track) => { track.played = false })
+      runTurnComplete(room, 'npc-dj:test', room.state.musicStream.streamId)
+      expect(room.state.currentDjSessionId).toBe('A')
+      expect(room.state.musicStream.currentTitle).toBe('a')
+    }
+  })
+
+  it('preserves each playlist order while different-length human playlists loop independently', () => {
+    const room = makeRoom()
+    addPlayer(room, 'A', 'Alice', ['a'])
+    addPlayer(room, 'B', 'Bob', ['b1', 'b2', 'b3'])
+    addToQueue(room, 'A', 'Alice', 0)
+    addToQueue(room, 'B', 'Bob', 1)
+    room.state.currentDjSessionId = 'A'
+    playTrackForCurrentDJ(room)
+    const titles = [room.state.musicStream.currentTitle]
+    for (let turn = 0; turn < 7; turn++) {
+      runTurnComplete(room, room.state.currentDjSessionId!, room.state.musicStream.streamId)
+      titles.push(room.state.musicStream.currentTitle)
+    }
+    expect(titles).toEqual(['a', 'b1', 'a', 'b2', 'a', 'b3', 'a', 'b1'])
+  })
+
+  it('skips an empty head and loops the next nonempty DJ when the current DJ leaves', () => {
+    const room = makeRoom()
+    addPlayer(room, 'A', 'Alice', ['a'])
+    addPlayer(room, 'B', 'Bob')
+    addPlayer(room, 'C', 'Carol', ['c']).roomQueuePlaylist[0].played = true
+    for (const [i, id] of ['A', 'B', 'C'].entries()) addToQueue(room, id, id, i)
+    room.state.currentDjSessionId = 'A'
+    playTrackForCurrentDJ(room)
+    removeDJFromQueue(room, 'A')
+    expect(room.state.currentDjSessionId).toBe('C')
+    expect(room.state.musicStream.currentTitle).toBe('c')
+  })
+
+  it('ignores completion after Stop without marking or restarting a song', () => {
+    const room = makeRoom()
+    const player = addPlayer(room, 'A', 'Alice', ['a', 'b'])
+    addToQueue(room, 'A', 'Alice', 0)
+    room.state.currentDjSessionId = 'A'
+    playTrackForCurrentDJ(room)
+    const sid = room.state.musicStream.streamId
+    runCommand(room, DJStopCommand, { client: { sessionId: 'A' } })
+    runTurnComplete(room, 'A', sid)
+    expect(room.state.musicStream.status).toBe('waiting')
+    expect(player.roomQueuePlaylist.every((track) => !track.played)).toBe(true)
+  })
+
+  it('deduplicates solo completion and skip against the successor stream', () => {
+    const room = makeRoom()
+    const player = addPlayer(room, 'A', 'Alice', ['a', 'b', 'c'])
+    addToQueue(room, 'A', 'Alice', 0)
+    room.state.currentDjSessionId = 'A'
+    playTrackForCurrentDJ(room)
+    const sid = room.state.musicStream.streamId
+    runTurnComplete(room, 'A', sid)
+    runTurnComplete(room, 'A', sid)
+    runCommand(room, DJSkipTurnCommand, { client: { sessionId: 'A' }, streamId: sid })
+    expect(room.state.musicStream.currentTitle).toBe('b')
+    expect(player.roomQueuePlaylist.filter((track) => track.played)).toHaveLength(1)
+  })
+
+  it('does not mark an unheard song when skipping a stopped turn', () => {
+    const room = makeRoom()
+    const player = addPlayer(room, 'A', 'Alice', ['a'])
+    addPlayer(room, 'B', 'Bob', ['b'])
+    addToQueue(room, 'A', 'Alice', 0)
+    addToQueue(room, 'B', 'Bob', 1)
+    room.state.currentDjSessionId = 'A'
+    runCommand(room, DJSkipTurnCommand, { client: { sessionId: 'A' } })
+    expect(player.roomQueuePlaylist[0].played).toBe(false)
+    expect(room.state.currentDjSessionId).toBe('B')
+  })
+
+  it('sends watchdog-driven order changes and loop resets to the real private client', () => {
+    const room = makeRoom()
+    const send = vi.fn()
+    ;(room as any).clients = [{ sessionId: 'A', send }]
+    const player = addPlayer(room, 'A', 'Alice', ['a', 'b'])
+    addToQueue(room, 'A', 'Alice', 0)
+    room.state.currentDjSessionId = 'A'
+    playTrackForCurrentDJ(room)
+    runTurnComplete(room, 'A', room.state.musicStream.streamId)
+    expect(send).toHaveBeenLastCalledWith(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
+      items: expect.arrayContaining([expect.objectContaining({ id: 'A-a', played: true })]),
+    })
+    runTurnComplete(room, 'A', room.state.musicStream.streamId)
+    expect(send.mock.lastCall?.[1].items.every((track: any) => !track.played)).toBe(true)
+    expect(player.roomQueuePlaylist.map((track) => track.id)).toEqual(['A-a', 'A-b'])
+  })
+
+  it('synchronizes explicit play reset while preserving reordered unplayed selection', () => {
+    const room = makeRoom()
+    const send = vi.fn()
+    ;(room as any).clients = [{ sessionId: 'A', send }]
+    const player = addPlayer(room, 'A', 'Alice', ['a', 'b'])
+    player.roomQueuePlaylist.forEach((track) => { track.played = true })
+    player.roomQueuePlaylist.reverse()
+    addToQueue(room, 'A', 'Alice', 0)
+    room.state.currentDjSessionId = 'A'
+    runCommand(room, DJPlayCommand, { client: { sessionId: 'A' } })
+    expect(room.state.musicStream.currentTrackId).toBe('A-b')
+    expect(send.mock.lastCall?.[1].items.map((track: any) => track.id)).toEqual(['A-b', 'A-a'])
+    expect(send.mock.lastCall?.[1].items.every((track: any) => !track.played)).toBe(true)
   })
 })

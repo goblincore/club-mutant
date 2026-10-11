@@ -48,6 +48,8 @@ import {
   JukeboxTrackCompleteCommand,
 } from './commands/JukeboxCommand'
 
+import { sendPlaylistSnapshot, stopMusicStream } from './commands/djHelpers'
+
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 import PunchPlayerCommand from './commands/PunchPlayerCommand'
 import { NpcDjManager, parseNpcDjLobbyEnv, sanitizeNpcDjOptions } from './NpcDjManager'
@@ -108,6 +110,7 @@ export class ClubMutant extends Room {
 
   // Per-client message throttling: sessionId → messageType → lastSentMs
   private messageThrottles = new Map<string, Map<number, number>>()
+  private authExpiryTimers = new Map<string, { clear(): void }>()
 
   private musicStreamTickIntervalId: NodeJS.Timeout | null = null
   private trackWatchdogTimerId: NodeJS.Timeout | null = null
@@ -155,6 +158,23 @@ export class ClubMutant extends Room {
     if (nowMs - lastMs < minIntervalMs) return true
     clientMap.set(messageType, nowMs)
     return false
+  }
+
+  /**
+   * Disconnect an authenticated client when its Nakama token expires. The client
+   * extends the session by sending AUTH_REFRESH with a newer token before then.
+   * Looked up by sessionId so the timer still reaches the live client after a reconnect.
+   */
+  private scheduleAuthExpiry(sessionId: string, expSeconds: number) {
+    this.authExpiryTimers.get(sessionId)?.clear()
+    const delayMs = Math.min(Math.max(0, expSeconds * 1000 - Date.now()), 2 ** 31 - 1)
+    this.authExpiryTimers.set(
+      sessionId,
+      this.clock.setTimeout(() => {
+        this.authExpiryTimers.delete(sessionId)
+        this.clients.getById(sessionId)?.leave(1008, 'Session expired')
+      }, delayMs)
+    )
   }
 
   /** Start a watchdog timer that auto-advances when no track-complete arrives. */
@@ -225,20 +245,7 @@ export class ClubMutant extends Room {
   }
 
   private setStoppedMusicStream() {
-    // F2: every stop path kills the watchdog so it can't fire for a dead stream
-    this.clearTrackWatchdog()
-
-    const musicStream = this.state.musicStream
-
-    musicStream.status = 'waiting'
-    musicStream.currentLink = null
-    musicStream.currentTitle = null
-    musicStream.currentTrackId = null
-    musicStream.currentVisualUrl = null
-    musicStream.currentTrackMessage = null
-    musicStream.startTime = Date.now()
-    musicStream.duration = 0
-    musicStream.isAmbient = false
+    stopMusicStream(this)
   }
 
   private startAmbientIfNeeded() {
@@ -278,9 +285,8 @@ export class ClubMutant extends Room {
     this.musicStreamTickIntervalId = setInterval(() => {
       const musicStream = this.state.musicStream
 
-      if (musicStream.status !== 'playing' || !musicStream.currentLink) return
-
       this.broadcast(Message.MUSIC_STREAM_TICK, {
+        musicStream,
         streamId: musicStream.streamId,
         startTime: musicStream.startTime,
         serverNowMs: Date.now(),
@@ -302,7 +308,6 @@ export class ClubMutant extends Room {
     if (!musicStream.isAmbient) return
 
     this.setStoppedMusicStream()
-    this.broadcast(Message.STOP_MUSIC_STREAM, {})
   }
 
   // ── NPC Methods ──
@@ -886,6 +891,15 @@ export class ClubMutant extends Room {
       client.send(Message.SERVICE_AUTH, { token, expiresAt })
     })
 
+    this.handleMessage(Message.AUTH_REFRESH, (client, data: { token: string }) => {
+      const current = client.auth as NakamaTokenPayload | true | undefined
+      if (!current || typeof current !== 'object') return // guests have no session to extend
+      const next = verifyNakamaToken(data.token)
+      if (!next || next.uid !== current.uid) { client.leave(1008, 'Invalid token'); return }
+      client.auth = next
+      this.scheduleAuthExpiry(client.sessionId, next.exp)
+    })
+
     this.handleMessage(Message.TIME_SYNC_REQUEST, (client, message: { clientSentAtMs?: unknown }) => {
       const clientSentAtMs =
         typeof message?.clientSentAtMs === 'number' && Number.isFinite(message.clientSentAtMs)
@@ -959,7 +973,6 @@ export class ClubMutant extends Room {
         // No DJ queue active and booth emptied — stop music
         if (this.state.musicStream.currentBooth === musicBoothIndex) {
           this.setStoppedMusicStream()
-          this.broadcast(Message.STOP_MUSIC_STREAM, {})
         }
       }
     )
@@ -1163,8 +1176,8 @@ export class ClubMutant extends Room {
         this.dispatcher.dispatch(new DJStopCommand(), { client })
       })
 
-      this.handleMessage(Message.DJ_SKIP_TURN, (client) => {
-        this.dispatcher.dispatch(new DJSkipTurnCommand(), { client })
+      this.handleMessage(Message.DJ_SKIP_TURN, (client, message) => {
+        this.dispatcher.dispatch(new DJSkipTurnCommand(), { client, streamId: message?.streamId })
       })
 
       // Carries streamId (F4) — server deduplicates stale/duplicate completions.
@@ -1349,9 +1362,7 @@ export class ClubMutant extends Room {
     const isAuthenticated = auth && typeof auth === 'object' && 'uid' in auth
     console.log(`[onJoin] client=${client.sessionId} room=${this.roomId} name=${options?.name ?? '?'} players=${this.state.players.size} auth=${isAuthenticated ? (auth as NakamaTokenPayload).uid.slice(0, 8) : 'guest'}`)
 
-    if (isAuthenticated) {
-      this.clock.setTimeout(() => client.leave(1008, 'Session expired'), Math.max(0, ((auth as NakamaTokenPayload).exp * 1000) - Date.now()))
-    }
+    if (isAuthenticated) this.scheduleAuthExpiry(client.sessionId, (auth as NakamaTokenPayload).exp)
     const existingPlayer = this.state.players.get(client.sessionId)
     const player = existingPlayer ?? new Player()
 
@@ -1405,6 +1416,7 @@ export class ClubMutant extends Room {
     if (LOG_ENABLED) console.log('////onJoin, Message.SEND_ROOM_DATA')
 
     this.startAmbientIfNeeded()
+    sendPlaylistSnapshot(this, client.sessionId)
 
     const musicStream = this.state.musicStream
     if (LOG_ENABLED) console.log('this state musicStream', musicStream)
@@ -1445,6 +1457,15 @@ export class ClubMutant extends Room {
     if (player) {
       player.connected = true
     }
+
+    sendPlaylistSnapshot(this, client.sessionId)
+    const musicStream = this.state.musicStream
+    client.send(Message.MUSIC_STREAM_TICK, {
+      musicStream,
+      streamId: musicStream.streamId,
+      startTime: musicStream.startTime,
+      serverNowMs: Date.now(),
+    })
   }
 
   async onLeave(client: Client, code: number) {
@@ -1452,6 +1473,8 @@ export class ClubMutant extends Room {
 
     this.lastPlayerActionAtMsBySessionId.delete(client.sessionId)
     this.messageThrottles.delete(client.sessionId)
+    this.authExpiryTimers.get(client.sessionId)?.clear()
+    this.authExpiryTimers.delete(client.sessionId)
     this.npcConversationWindows.delete(client.sessionId)
     this.playerJoinTimes.delete(client.sessionId)
 
@@ -1484,7 +1507,6 @@ export class ClubMutant extends Room {
         // No DJ queue active and booth emptied — stop music
         if (this.state.musicStream.currentBooth === index) {
           this.setStoppedMusicStream()
-          this.broadcast(Message.STOP_MUSIC_STREAM, {})
         }
       }
     })
