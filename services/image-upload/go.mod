@@ -1,6 +1,6 @@
 module github.com/goblincore/club-mutant/services/image-upload
 
-go 1.25.0
+go 1.26.9
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.41.5

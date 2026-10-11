@@ -39,6 +39,6 @@ Nakama hook request shapes were checked against the [official runtime types](htt
 
 Current stack: 47 server tests, 78 client tests, 22 shared-type tests; server and client production builds; race checks in all three Go services; clean upload `govulncheck`; builds of all four custom service images; Caddy and Compose validation. Local non-root/read-only container checks passed for game server, NPC, and upload. A disposable Nakama 3.24.2/Postgres stack verified native storage denial, private settings writes, authenticated playlist RPCs, and unauthenticated runtime-key denial (`python3 tools/security-nakama-smoke.py`). Nakama requires named global registered handlers; authentication guards run inside each global RPC handler.
 
-CI runs the socket/client/type regressions, server build, Go race tests, and source vulnerability checks on pull requests. NPC source scanning reports no called vulnerabilities, with two package/module advisories outside called paths.
+CI runs the socket/client/type regressions, server build, Go 1.26.9 race tests, and source vulnerability checks on pull requests. NPC source scanning reports no called vulnerabilities, with two package/module advisories outside called paths.
 
 A standalone server `tsc --noEmit` still reports four existing test/configuration errors (null inference and shared tests importing `.ts` extensions); the production bundle builds.
