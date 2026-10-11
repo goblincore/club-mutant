@@ -21,8 +21,11 @@ export function validRoomMessage(type: Message, data: any): boolean {
     case Message.UPDATE_PLAYER_SCALE: return number(data.scale) && data.scale >= 1 && data.scale <= 255
     case Message.UPDATE_PLAYER_NAME: return text(data.name, 32)
     case Message.PUNCH_PLAYER: return text(data.targetId, 64)
+    // The client sends { visitorIndex } on connect and {} on disconnect; the handlers default to booth 0.
     case Message.CONNECT_TO_MUSIC_BOOTH:
-    case Message.DISCONNECT_FROM_MUSIC_BOOTH: return integer(data.musicBoothIndex)
+    case Message.DISCONNECT_FROM_MUSIC_BOOTH:
+      return (data.musicBoothIndex === undefined || integer(data.musicBoothIndex)) &&
+        (data.visitorIndex === undefined || integer(data.visitorIndex))
     case Message.ADD_CHAT_MESSAGE: return text(data.content, 1000) && (data.imageUrl === undefined || (text(data.imageUrl, 512) && /^https:\/\/cdn\.mutante\.club\/chat\/[A-Za-z0-9_-]+\.jpg$/.test(data.imageUrl)))
     case Message.NPC_DJ_SET_STANDBY: return typeof data.standby === 'boolean'
     case Message.NPC_DJ_SET_MODE: return ['off', 'fallback', 'rotation'].includes(data.mode)
