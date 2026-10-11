@@ -9,8 +9,15 @@ import { RoomType } from '@club-mutant/types/Rooms'
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const key = 'b'.repeat(64)
+// JWT expiry has whole-second resolution, so `expiresIn: 1` can already be expired by the time
+// the join verifies it. Short-lived tokens here get at least ~2s of real validity.
 const token = (uid: string, lifetimeSec: number) =>
-  jwt.sign({ uid, usn: uid }, key, { expiresIn: lifetimeSec })
+  jwt.sign({ uid, usn: uid, exp: Math.ceil(Date.now() / 1000) + lifetimeSec }, key)
+const closedWithin = (client: any, ms: number) =>
+  new Promise<number | undefined>((resolve) => {
+    const timer = setTimeout(() => resolve(undefined), ms)
+    client.onLeave((code: number) => { clearTimeout(timer); resolve(code) })
+  })
 const options = { name: 'Auth refresh', musicMode: 'jukebox', autoDispose: false, isPublic: true }
 
 // The server drops a client when its Nakama token expires. AUTH_REFRESH extends the
@@ -33,21 +40,16 @@ describe('authenticated session expiry and refresh', () => {
 
   it('disconnects a client at token expiry', async () => {
     const room = await server.createRoom<ClubMutant>(RoomType.CUSTOM, options)
-    const client = await server.connectTo(room, { name: 'expiring', nakamaToken: token('user-a', 1) })
-    let code: number | undefined
-    client.onLeave((c) => (code = c))
-    await wait(1800)
-    expect(code).toBe(1008)
+    const client = await server.connectTo(room, { name: 'expiring', nakamaToken: token('user-a', 2) })
+    expect(await closedWithin(client, 6000)).toBe(1008)
   })
 
   it('keeps a client connected when it sends a refreshed token for the same user', async () => {
     const room = await server.createRoom<ClubMutant>(RoomType.CUSTOM, options)
-    const client = await server.connectTo(room, { name: 'refreshing', nakamaToken: token('user-b', 1) })
-    let code: number | undefined
-    client.onLeave((c) => (code = c))
+    const client = await server.connectTo(room, { name: 'refreshing', nakamaToken: token('user-b', 2) })
     client.send(Message.AUTH_REFRESH, { token: token('user-b', 60) })
-    await wait(1800)
-    expect(code).toBeUndefined()
+    // well past the original token's expiry
+    expect(await closedWithin(client, 4000)).toBeUndefined()
     expect(room.clients.length).toBe(1)
   })
 
