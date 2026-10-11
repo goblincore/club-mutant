@@ -2,6 +2,7 @@ import { useRef, useEffect } from 'react'
 import ReactPlayer from 'react-player/youtube'
 
 import { useMusicStore } from '../stores/musicStore'
+import { seekPlayerToOffset } from './playerSeek'
 
 /**
  * Fullscreen iframe YouTube player rendered BEHIND the transparent 3D canvas.
@@ -17,9 +18,7 @@ export function IframeVideoBackground() {
 
     const offsetSec = (Date.now() - stream.startTime) / 1000
 
-    if (offsetSec > 1) {
-      playerRef.current.seekTo(offsetSec, 'seconds')
-    }
+    seekPlayerToOffset(playerRef.current, offsetSec)
   }, [stream.currentLink, stream.startTime, stream.isPlaying])
 
   if (!stream.currentLink) return null

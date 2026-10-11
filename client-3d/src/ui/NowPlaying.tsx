@@ -7,6 +7,7 @@ import { useBoothStore } from '../stores/boothStore'
 import { useGameStore } from '../stores/gameStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useDreamStore } from '../dream/dreamStore'
+import { resyncPlayerTo, seekPlayerToOffset } from './playerSeek'
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -68,7 +69,7 @@ export function NowPlaying() {
 
     const offsetSec = (Date.now() - stream.startTime) / 1000
 
-    playerRef.current.seekTo(Math.max(0, offsetSec), 'seconds')
+    seekPlayerToOffset(playerRef.current, offsetSec)
   }, [stream.currentLink, stream.startTime, stream.isPlaying, stream.streamId])
 
   // F10: re-apply the late-join seek once the player is actually ready.
@@ -89,7 +90,7 @@ export function NowPlaying() {
         Math.round(expectedSec - actualSec),
         Math.round(expectedSec)
       )
-      player.seekTo(expectedSec, 'seconds')
+      resyncPlayerTo(player, expectedSec)
     }
   }, [stream.streamId])
 
@@ -116,7 +117,7 @@ export function NowPlaying() {
           Math.round(expectedSec),
           Math.round(actualSec)
         )
-        player.seekTo(expectedSec, 'seconds')
+        resyncPlayerTo(player, expectedSec)
       }
     }, 5000)
 
