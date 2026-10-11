@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -183,5 +184,23 @@ func TestBuildYtDlpArgsCookiesOnlyWhenAvailable(t *testing.T) {
 	})
 	if hasArg(without, "--cookies") {
 		t.Errorf("must not pass --cookies when none available, got: %v", without)
+	}
+}
+
+func TestRedactCredentials(t *testing.T) {
+	args := []string{"https://www.youtube.com/watch?v=abc", "-g", "--proxy", "http://user:s3cret@45.1.2.3:12323"}
+	got := redactCredentials(fmt.Sprint(args))
+	if strings.Contains(got, "s3cret") || strings.Contains(got, "user:") {
+		t.Fatalf("credentials leaked: %s", got)
+	}
+	if !strings.Contains(got, "http://***@45.1.2.3:12323") {
+		t.Errorf("host should stay visible for debugging, got: %s", got)
+	}
+	stderr := "ProxyError: Unable to connect to proxy http://user:s3cret@45.1.2.3:12323 (timed out)"
+	if strings.Contains(redactCredentials(stderr), "s3cret") {
+		t.Errorf("stderr credentials leaked")
+	}
+	if got := redactCredentials("https://www.youtube.com/watch?v=abc"); got != "https://www.youtube.com/watch?v=abc" {
+		t.Errorf("credential-free URL changed: %s", got)
 	}
 }
