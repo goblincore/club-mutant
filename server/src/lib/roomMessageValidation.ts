@@ -27,6 +27,7 @@ export function validRoomMessage(type: Message, data: any): boolean {
       return (data.musicBoothIndex === undefined || integer(data.musicBoothIndex)) &&
         (data.visitorIndex === undefined || integer(data.visitorIndex))
     case Message.ADD_CHAT_MESSAGE: return text(data.content, 1000) && (data.imageUrl === undefined || (text(data.imageUrl, 512) && /^https:\/\/cdn\.mutante\.club\/chat\/[A-Za-z0-9_-]+\.jpg$/.test(data.imageUrl)))
+    case Message.AUTH_REFRESH: return text(data.token, 4096)
     case Message.NPC_DJ_SET_STANDBY: return typeof data.standby === 'boolean'
     case Message.NPC_DJ_SET_MODE: return ['off', 'fallback', 'rotation'].includes(data.mode)
     case Message.DJ_SKIP_TURN: return data.streamId === undefined || integer(data.streamId)

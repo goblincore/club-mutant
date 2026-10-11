@@ -161,9 +161,10 @@ export async function authenticateEmail(
 
 /**
  * Get current valid token string for passing to Colyseus.
- * Returns null if not authenticated. Auto-refreshes expired tokens.
+ * Returns null if not authenticated. Auto-refreshes expired tokens, and with
+ * `minValiditySec` also refreshes a still-valid token that expires sooner than that.
  */
-export async function getValidToken(): Promise<string | null> {
+export async function getValidToken(minValiditySec = 0): Promise<string | null> {
   if (!_session) {
     const restored = await restoreNakamaSession()
     if (!restored) return null
@@ -171,8 +172,10 @@ export async function getValidToken(): Promise<string | null> {
   }
 
   const now = Date.now() / 1000
-  if (_session.isexpired(now)) {
+  if (_session.isexpired(now + minValiditySec)) {
     if (_session.isrefreshexpired(now)) {
+      // Only a hard failure if the token itself is dead; a still-valid token is returned as is.
+      if (!_session.isexpired(now)) return _session.token
       console.warn('[nakama] getValidToken: both tokens expired — logging out')
       useAuthStore.getState().logout()
       return null
