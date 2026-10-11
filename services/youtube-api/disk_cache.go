@@ -28,6 +28,11 @@ func NewDiskCache(dir string, maxSize int64) (*DiskCache, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, err
 	}
+	// This cache belongs to one service instance. Discard unpublished spools
+	// left by a crash; complete cache entries live directly in dir.
+	if err := os.RemoveAll(filepath.Join(dir, "inflight")); err != nil {
+		return nil, err
+	}
 
 	dc := &DiskCache{
 		dir:     dir,
@@ -248,4 +253,3 @@ func (dc *DiskCache) Stats() (entries int, size int64, maxSize int64) {
 
 	return count, dc.curSize, dc.maxSize
 }
-

@@ -22,9 +22,10 @@
     #panel { display: none; }
 
     /* Stats bar */
-    .stats { display: flex; gap: 20px; margin-bottom: 16px; padding: 10px 14px; background: #111; border: 1px solid #222; border-radius: 4px; }
+    .stats { display: flex; flex-wrap: wrap; gap: 12px 20px; margin-bottom: 16px; padding: 10px 14px; background: #111; border: 1px solid #222; border-radius: 4px; }
     .stat { font-size: 11px; color: #888; }
     .stat strong { color: #e0e0e0; }
+    .metrics-note { font-size: 11px; color: #888; margin-bottom: 12px; line-height: 1.5; }
 
     /* Add video */
     .add-row { display: flex; gap: 8px; margin-bottom: 16px; }
@@ -92,6 +93,23 @@
     <div class="stat">capacity: <strong id="stat-max">-</strong></div>
   </div>
 
+  <div class="metrics-note" id="metrics-note">Loading streaming metrics…</div>
+  <div class="stats">
+    <div class="stat">playback cache hits: <strong id="metric-hit-rate">—</strong></div>
+    <div class="stat">memory / disk / misses: <strong id="metric-lookups">—</strong></div>
+    <div class="stat">served from cache: <strong id="metric-cache-bytes">—</strong></div>
+    <div class="stat">ISP proxy media: <strong id="metric-proxy-bytes">—</strong></div>
+    <div class="stat">recent ISP proxy rate: <strong id="metric-proxy-rate">—</strong></div>
+    <div class="stat">direct media: <strong id="metric-direct-bytes">—</strong></div>
+  </div>
+  <div class="stats">
+    <div class="stat">joined downloads: <strong id="metric-joined">—</strong></div>
+    <div class="stat">active downloads: <strong id="metric-active">—</strong></div>
+    <div class="stat">completed / failed / canceled: <strong id="metric-outcomes">—</strong></div>
+    <div class="stat">over cache cap: <strong id="metric-oversized">—</strong></div>
+    <div class="stat">upstream attempts / errors / 403s: <strong id="metric-upstream">—</strong></div>
+  </div>
+
   <div class="toolbar">
     <div class="add-row" style="flex:1">
       <input type="text" id="add-input" placeholder="YouTube video ID (e.g. dQw4w9WgXcQ)">
@@ -135,6 +153,14 @@
 <script>
   var token = sessionStorage.getItem('admin_token') || '';
   var BASE = window.location.origin;
+  var refreshTimer = null;
+  var previousMetrics = null;
+
+  function showPanel() {
+    document.getElementById('login').style.display = 'none';
+    document.getElementById('panel').style.display = 'block';
+    if (!refreshTimer) refreshTimer = setInterval(loadCache, 10000);
+  }
 
   function doLogin() {
     token = document.getElementById('password').value;
@@ -142,8 +168,7 @@
     sessionStorage.setItem('admin_token', token);
     loadCache().then(function(ok) {
       if (ok) {
-        document.getElementById('login').style.display = 'none';
-        document.getElementById('panel').style.display = 'block';
+        showPanel();
       } else {
         document.getElementById('login-error').textContent = 'invalid token';
         sessionStorage.removeItem('admin_token');
@@ -189,14 +214,64 @@
   function loadCache() {
     return fetchAuth(BASE + '/admin/cache')
       .then(function(res) {
-        if (res.status === 401) return false;
+        if (!res.ok) return false;
         return res.json().then(function(data) {
           renderStats(data);
           renderTable(data.entries || []);
+          loadMetrics();
           return true;
         });
       })
       .catch(function() { return false; });
+  }
+
+  function loadMetrics() {
+    return fetchAuth(BASE + '/admin/metrics')
+      .then(function(res) {
+        if (!res.ok) throw new Error('metrics unavailable');
+        return res.json();
+      })
+      .then(renderMetrics)
+      .catch(function() {
+        document.getElementById('metrics-note').textContent = 'Metrics unavailable; displayed totals may be stale.';
+      });
+  }
+
+  function renderMetrics(data) {
+    var memory = 0, disk = 0, misses = 0, cacheBytes = 0;
+    data.playback.forEach(function(p) {
+      memory += p.memoryHits;
+      disk += p.diskHits;
+      misses += p.misses;
+      cacheBytes += p.memoryBytes + p.diskBytes;
+    });
+    var total = memory + disk + misses;
+    var proxyBytes = 0, directBytes = 0, attempts = 0, errors = 0, forbidden = 0;
+    data.upstream.forEach(function(u) {
+      if (u.route === 'isp_proxy') proxyBytes += u.bytes;
+      else directBytes += u.bytes;
+      attempts += u.requests;
+      errors += u.errors;
+      forbidden += u.forbidden;
+    });
+    var now = Date.now();
+    var rate = '—';
+    if (previousMetrics && previousMetrics.startedAt === data.startedAt && now > previousMetrics.at && proxyBytes >= previousMetrics.bytes) {
+      rate = formatBytes(Math.round((proxyBytes - previousMetrics.bytes) * 1000 / (now - previousMetrics.at))) + '/s';
+    }
+    previousMetrics = { startedAt: data.startedAt, at: now, bytes: proxyBytes };
+    document.getElementById('metric-hit-rate').textContent = total ? ((memory + disk) * 100 / total).toFixed(1) + '%' : '—';
+    document.getElementById('metric-lookups').textContent = memory + ' / ' + disk + ' / ' + misses;
+    document.getElementById('metric-cache-bytes').textContent = formatBytes(cacheBytes);
+    document.getElementById('metric-proxy-bytes').textContent = formatBytes(proxyBytes);
+    document.getElementById('metric-proxy-rate').textContent = rate;
+    document.getElementById('metric-direct-bytes').textContent = formatBytes(directBytes);
+    document.getElementById('metric-joined').textContent = data.downloads.joined;
+    document.getElementById('metric-active').textContent = data.downloads.active;
+    document.getElementById('metric-outcomes').textContent = data.downloads.completed + ' / ' + data.downloads.failed + ' / ' + data.downloads.canceled;
+    document.getElementById('metric-oversized').textContent = data.downloads.oversized;
+    document.getElementById('metric-upstream').textContent = attempts + ' / ' + errors + ' / ' + forbidden;
+    document.getElementById('metrics-note').textContent = 'Totals since ' + new Date(data.startedAt).toLocaleString() + '. Refreshes every 10s. Media traffic includes prefetch and retries; excludes extraction traffic and HTTP overhead.';
   }
 
   function renderStats(data) {
@@ -367,10 +442,7 @@
   if (token) {
     loadCache().then(function(ok) {
       if (ok) {
-        document.getElementById('login').style.display = 'none';
-        document.getElementById('panel').style.display = 'block';
-        // Auto-refresh
-        setInterval(loadCache, 10000);
+        showPanel();
       } else {
         sessionStorage.removeItem('admin_token');
         token = '';
