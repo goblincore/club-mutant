@@ -32,7 +32,7 @@ export function prefetchVideo(link: string, priority: 'normal' | 'high' = 'norma
   const params = priority === 'high' ? '?priority=high' : ''
   const url = `${YOUTUBE_SERVICE_URL}/prefetch/${videoId}${params}`
 
-  fetch(url, { method: 'POST' })
+  fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${process.env.INTERNAL_SERVICE_TOKEN || ''}` }, signal: AbortSignal.timeout(5000) })
     .then((res) => {
       if (res.ok) {
         console.log(`[youtubeService] Prefetch triggered for ${videoId} (priority=${priority})`)

@@ -71,6 +71,8 @@ function parseDurationToSeconds(dur: string): number {
 export class NetworkManager {
   private client: Client
   private room: Room<RoomState> | null = null
+  private uploadGrants = new WeakMap<Room<RoomState>, { token: string; expiresAt: number }>()
+  private pendingUploadGrants = new WeakMap<Room<RoomState>, Promise<string>>()
   private lobby: Room | null = null
   private _lobbyPromise: Promise<void> | null = null
   private moveThrottleTimer: ReturnType<typeof setTimeout> | null = null
@@ -270,7 +272,7 @@ export class NetworkManager {
       this.checkNoActiveSession()
       const authOpts = await this.getAuthOptions()
       this.room = await withTimeout(
-        this.client.joinOrCreate<RoomState>(RoomType.MYROOM, {
+        this.client.create<RoomState>(RoomType.MYROOM, {
           name: playerName,
           playerId: getOrCreatePlayerId(),
           textureId,
@@ -458,10 +460,29 @@ export class NetworkManager {
 
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('sessionId', sessionId)
+    const room = this.room!
+    const cached = this.uploadGrants.get(room)
+    let authorization = cached && cached.expiresAt > Date.now() / 1000 + 10 ? cached.token : ''
+    if (!authorization) {
+      let request = this.pendingUploadGrants.get(room)
+      if (!request) {
+        request = new Promise<string>((resolve, reject) => {
+          const timeout = setTimeout(() => { unsubscribe(); reject(new Error('Upload authorization timed out')) }, 5000)
+          const unsubscribe = room.onMessage(Message.SERVICE_AUTH, (data: { token: string; expiresAt: number }) => {
+            clearTimeout(timeout); unsubscribe()
+            this.uploadGrants.set(room, data)
+            resolve(data.token)
+          })
+          room.send(Message.SERVICE_AUTH)
+        }).finally(() => this.pendingUploadGrants.delete(room))
+        this.pendingUploadGrants.set(room, request)
+      }
+      authorization = await request
+    }
 
     const res = await fetch(`${uploadUrl}/upload`, {
       method: 'POST',
+      headers: { Authorization: `Bearer ${authorization}` },
       body: formData,
     })
 

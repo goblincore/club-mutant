@@ -58,7 +58,7 @@ function validateProfileInput(input) {
   if (input.links !== undefined) {
     if (!Array.isArray(input.links)) throw 'links must be an array';
     result.links = input.links.slice(0, MAX_LINKS).map(function (link) {
-      if (!link.label || !link.url) throw 'each link must have label and url';
+      if (!link.label || typeof link.url !== 'string' || !/^https?:\/\//i.test(link.url)) throw 'each link must have label and url';
       return {
         label: String(link.label).trim().substring(0, MAX_LABEL),
         url: String(link.url).trim().substring(0, MAX_URL),
@@ -68,6 +68,7 @@ function validateProfileInput(input) {
 
   if (input.background_url !== undefined) {
     if (typeof input.background_url !== 'string') throw 'background_url must be a string';
+    if (input.background_url && !/^https?:\/\//i.test(input.background_url)) throw 'background_url must use http or https';
     result.background_url = input.background_url.trim().substring(0, MAX_URL);
   }
 
@@ -361,7 +362,7 @@ var savePlaylistRpc = function (ctx, logger, nk, payload) {
     userId: ctx.userId,
     value: value,
     permissionRead: 1,
-    permissionWrite: 1
+    permissionWrite: 0
   }]);
 
   logger.info('Playlist saved for user %s: %s (%d tracks)', ctx.userId, input.id, items.length);
@@ -1036,23 +1037,56 @@ var updateLetterRpc = function (ctx, logger, nk, payload) {
 
 // ─── InitModule ─────────────────────────────────────────────────────
 
+// User RPCs require a verified Nakama session even when invoked with http_key.
+function authenticatedRpc(handler) {
+  return function (ctx, logger, nk, payload) {
+    if (!ctx.userId) throw { message: 'Authentication required', code: 16 };
+    if (payload && payload.length > 262144) throw { message: 'Payload too large', code: 3 };
+    return handler(ctx, logger, nk, payload);
+  };
+}
+
+// These collections are exclusively written through validated runtime RPCs.
+// Also protects existing playlists whose old permissionWrite value was 1.
+function protectedStorage(ctx, logger, nk, request) {
+  var objects = request.objects || request.objectIds || [];
+  for (var i = 0; i < objects.length; i++) {
+    if (objects[i].collection === 'user_settings') {
+      if (objects[i].value && objects[i].value.length > 16384) throw { message: 'Setting too large', code: 3 };
+      if (objects[i].permissionRead !== undefined) objects[i].permissionRead = 1;
+      if (objects[i].permissionWrite !== undefined) objects[i].permissionWrite = 1;
+      continue;
+    }
+    throw { message: 'Use application RPCs for storage mutations', code: 7 };
+  }
+  return request;
+}
+
+function validateAccountUpdate(ctx, logger, nk, request) {
+  if (request.avatarUrl && !/^https?:\/\//i.test(request.avatarUrl)) throw { message: 'Invalid avatar URL', code: 3 };
+  return request;
+}
+
 var InitModule = function (ctx, logger, nk, initializer) {
-  initializer.registerRpc('update_profile', updateProfileRpc);
-  initializer.registerRpc('get_profile', getProfileRpc);
-  initializer.registerRpc('list_playlists', listPlaylistsRpc);
-  initializer.registerRpc('get_playlist', getPlaylistRpc);
-  initializer.registerRpc('save_playlist', savePlaylistRpc);
-  initializer.registerRpc('delete_playlist', deletePlaylistRpc);
-  initializer.registerRpc('send_message', sendMessageRpc);
-  initializer.registerRpc('list_conversations', listConversationsRpc);
-  initializer.registerRpc('get_messages', getMessagesRpc);
-  initializer.registerRpc('mark_read', markReadRpc);
-  initializer.registerRpc('send_letter', sendLetterRpc);
-  initializer.registerRpc('list_letters', listLettersRpc);
-  initializer.registerRpc('update_letter', updateLetterRpc);
-  initializer.registerRpc('create_wall_post', createWallPostRpc);
-  initializer.registerRpc('get_wall_posts', getWallPostsRpc);
-  initializer.registerRpc('delete_wall_post', deleteWallPostRpc);
+  initializer.registerRpc('update_profile', authenticatedRpc(updateProfileRpc));
+  initializer.registerRpc('get_profile', authenticatedRpc(getProfileRpc));
+  initializer.registerRpc('list_playlists', authenticatedRpc(listPlaylistsRpc));
+  initializer.registerRpc('get_playlist', authenticatedRpc(getPlaylistRpc));
+  initializer.registerRpc('save_playlist', authenticatedRpc(savePlaylistRpc));
+  initializer.registerRpc('delete_playlist', authenticatedRpc(deletePlaylistRpc));
+  initializer.registerRpc('send_message', authenticatedRpc(sendMessageRpc));
+  initializer.registerRpc('list_conversations', authenticatedRpc(listConversationsRpc));
+  initializer.registerRpc('get_messages', authenticatedRpc(getMessagesRpc));
+  initializer.registerRpc('mark_read', authenticatedRpc(markReadRpc));
+  initializer.registerRpc('send_letter', authenticatedRpc(sendLetterRpc));
+  initializer.registerRpc('list_letters', authenticatedRpc(listLettersRpc));
+  initializer.registerRpc('update_letter', authenticatedRpc(updateLetterRpc));
+  initializer.registerRpc('create_wall_post', authenticatedRpc(createWallPostRpc));
+  initializer.registerRpc('get_wall_posts', authenticatedRpc(getWallPostsRpc));
+  initializer.registerRpc('delete_wall_post', authenticatedRpc(deleteWallPostRpc));
+  initializer.registerBeforeWriteStorageObjects(protectedStorage);
+  initializer.registerBeforeDeleteStorageObjects(protectedStorage);
+  initializer.registerBeforeUpdateAccount(validateAccountUpdate);
   initializer.registerBeforeAuthenticateEmail(beforeAuthenticateEmail);
   logger.info('Modules loaded: RPCs (update_profile, get_profile, list_playlists, get_playlist, save_playlist, delete_playlist, send_message, list_conversations, get_messages, mark_read, send_letter, list_letters, update_letter, create_wall_post, get_wall_posts, delete_wall_post), hooks (beforeAuthenticateEmail)');
 };

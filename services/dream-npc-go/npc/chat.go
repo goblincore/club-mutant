@@ -90,7 +90,7 @@ func HandleNpcChat(req NpcChatRequest, sessionKey string) (int, any) {
 	}
 
 	// Record request
-	rateLimiter.Record(sessionKey)
+	// Quota was reserved atomically by Check.
 
 	// Start memory context assembly in parallel with prompt building
 	memUserID := ""

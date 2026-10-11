@@ -31,7 +31,7 @@ export class RoomQueuePlaylistAddCommand extends Command<ClubMutant, AddPayload>
   execute(data: AddPayload) {
     const { client, item } = data
     const player = this.state.players.get(client.sessionId)
-    if (!player) return
+    if (!player || player.roomQueuePlaylist.length >= 50) return
 
     // Only allow if player is in DJ queue
     const inQueue = this.state.djQueue.some((e) => e.sessionId === client.sessionId)

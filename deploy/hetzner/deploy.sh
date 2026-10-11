@@ -16,6 +16,9 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
+chmod 600 "$ENV_FILE"
+if [[ -f "$REPO_ROOT/deploy/hetzner/cookies.txt" ]]; then chmod 600 "$REPO_ROOT/deploy/hetzner/cookies.txt"; fi
+
 echo "==> Repo: $REPO_ROOT"
 
 echo "==> Pulling latest code"

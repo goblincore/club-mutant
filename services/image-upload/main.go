@@ -3,7 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -36,6 +40,8 @@ const (
 	jpegQuality     = 80 // JPEG output quality (good enough for chat images)
 )
 
+var decodeSlots = make(chan struct{}, 2)
+
 var allowedTypes = map[string]bool{
 	"image/jpeg": true,
 	"image/png":  true,
@@ -56,7 +62,9 @@ func newRateLimiter() *rateLimiter {
 	return rl
 }
 
-func (rl *rateLimiter) allow(key string) bool {
+func (rl *rateLimiter) allow(key string) bool { return rl.allowLimit(key, rateLimit) }
+
+func (rl *rateLimiter) allowLimit(key string, limit int) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
@@ -71,7 +79,7 @@ func (rl *rateLimiter) allow(key string) bool {
 		}
 	}
 
-	if len(valid) >= rateLimit {
+	if len(valid) >= limit {
 		rl.windows[key] = valid
 		return false
 	}
@@ -118,6 +126,7 @@ func main() {
 	accessKeyID := mustEnv("R2_ACCESS_KEY_ID")
 	secretAccessKey := mustEnv("R2_SECRET_ACCESS_KEY")
 	bucket := envOr("R2_BUCKET_NAME", "club-mutant-images")
+	_ = mustEnv("SERVICE_AUTH_KEY")
 	publicURL := envOr("R2_PUBLIC_URL", "https://cdn.mutante.club")
 
 	// Create S3-compatible client for Cloudflare R2
@@ -146,7 +155,8 @@ func main() {
 	log.Printf("[image-upload] Starting on port %s", port)
 	log.Printf("[image-upload] Bucket: %s, Public URL: %s", bucket, publicURL)
 
-	if err := http.ListenAndServe(":"+port, handler); err != nil {
+	httpServer := &http.Server{Addr: ":" + port, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024}
+	if err := httpServer.ListenAndServe(); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
@@ -157,27 +167,29 @@ func (srv *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (srv *server) handleUpload(w http.ResponseWriter, r *http.Request) {
-	// Limit request body size
-	r.Body = http.MaxBytesReader(w, r.Body, maxFileSize+1024) // +1KB for form overhead
-
-	// Parse multipart form
+	subject, err := uploadSubject(r.Header.Get("Authorization"), os.Getenv("SERVICE_AUTH_KEY"), time.Now())
+	if err != nil {
+		jsonError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	// Global quota remains effective when an attacker creates fresh guest sessions.
+	if !srv.limiter.allowLimit("global", 30) || !srv.limiter.allow(subject) {
+		jsonError(w, "Upload quota exceeded", http.StatusTooManyRequests)
+		return
+	}
+	select {
+	case decodeSlots <- struct{}{}:
+		defer func() { <-decodeSlots }()
+	default:
+		jsonError(w, "Upload service busy", http.StatusServiceUnavailable)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxFileSize+16*1024)
 	if err := r.ParseMultipartForm(maxFileSize); err != nil {
-		jsonError(w, "File too large (max 2 MB)", http.StatusRequestEntityTooLarge)
+		jsonError(w, "File too large", http.StatusRequestEntityTooLarge)
 		return
 	}
-
-	// Get sessionId for rate limiting
-	sessionID := r.FormValue("sessionId")
-	if sessionID == "" {
-		jsonError(w, "sessionId is required", http.StatusBadRequest)
-		return
-	}
-
-	// Rate limit check
-	if !srv.limiter.allow(sessionID) {
-		jsonError(w, "Rate limit exceeded (max 5 uploads/min)", http.StatusTooManyRequests)
-		return
-	}
+	defer r.MultipartForm.RemoveAll()
 
 	// Get uploaded file
 	file, header, err := r.FormFile("file")
@@ -207,6 +219,12 @@ func (srv *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check dimensions and actual format BEFORE allocation in the full decoder.
+	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil || !allowedTypes["image/"+format] || cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width > 4096 || cfg.Height > 4096 || int64(cfg.Width)*int64(cfg.Height) > 16_000_000 {
+		jsonError(w, "Unsupported image or dimensions too large", http.StatusBadRequest)
+		return
+	}
 	// Decode image (supports jpeg, png, gif, webp via imported decoders)
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
@@ -284,7 +302,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		if r.Method == http.MethodOptions {
@@ -309,4 +327,47 @@ func mustEnv(key string) string {
 		log.Fatalf("Required environment variable %s is not set", key)
 	}
 	return v
+}
+
+// uploadSubject accepts only capabilities minted by a joined game session.
+func uploadSubject(authorization, key string, now time.Time) (string, error) {
+	invalid := errors.New("invalid capability")
+	if len(key) < 32 || len(authorization) > 4096 || !strings.HasPrefix(authorization, "Bearer ") {
+		return "", invalid
+	}
+	parts := strings.Split(strings.TrimPrefix(authorization, "Bearer "), ".")
+	if len(parts) != 3 {
+		return "", invalid
+	}
+	mac := hmac.New(sha256.New, []byte(key))
+	mac.Write([]byte(parts[0] + "." + parts[1]))
+	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil || !hmac.Equal(signature, mac.Sum(nil)) {
+		return "", invalid
+	}
+	header, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return "", invalid
+	}
+	var h struct {
+		Alg string `json:"alg"`
+	}
+	if json.Unmarshal(header, &h) != nil || h.Alg != "HS256" {
+		return "", invalid
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", invalid
+	}
+	var c struct {
+		Sub   string `json:"sub"`
+		Iss   string `json:"iss"`
+		Aud   string `json:"aud"`
+		Scope string `json:"scope"`
+		Exp   int64  `json:"exp"`
+	}
+	if json.Unmarshal(payload, &c) != nil || c.Sub == "" || len(c.Sub) > 128 || c.Iss != "club-mutant-game" || c.Aud != "club-mutant-services" || c.Scope != "upload" || c.Exp <= now.Unix() || c.Exp > now.Unix()+300 {
+		return "", invalid
+	}
+	return c.Sub, nil
 }

@@ -1,5 +1,5 @@
 # Go build stage
-FROM golang:1.24-alpine AS go-builder
+FROM golang:1.26-alpine AS go-builder
 
 WORKDIR /app
 
@@ -35,6 +35,8 @@ RUN apk add --no-cache ca-certificates python3 py3-pip ffmpeg nodejs && \
 # Copy Go binary
 COPY --from=go-builder /app/youtube-api /youtube-api
 
+RUN addgroup -g 1000 app && adduser -D -u 1000 -G app app && mkdir -p /var/cache/youtube-api && chown app:app /var/cache/youtube-api
+USER 1000:1000
 ENV PORT=8081
 
 EXPOSE 8081

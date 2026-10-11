@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -260,7 +261,7 @@ func init() {
 		proxyParsed, err := url.Parse(proxyURL)
 		if err == nil {
 			transport.Proxy = http.ProxyURL(proxyParsed)
-			log.Printf("[init] HTTP client configured with proxy: %s", proxyURL)
+			log.Printf("[init] HTTP proxy configured")
 			// Test that the proxy is actually working
 			testClient := &http.Client{
 				Transport: &http.Transport{
@@ -1847,11 +1848,11 @@ func main() {
 	mux.HandleFunc("GET /resolve/{videoId}", server.handleResolve)
 	mux.HandleFunc("GET /analysis/{videoId}", server.handleAnalysis)
 	mux.HandleFunc("GET /proxy/{videoId}", server.handleProxy)
-	mux.HandleFunc("POST /prefetch/{videoId}", server.handlePrefetch)
+	mux.HandleFunc("POST /prefetch/{videoId}", internalAuth(server.handlePrefetch))
 	mux.HandleFunc("GET /health", server.handleHealth)
 	mux.HandleFunc("GET /cache/list", server.handleCacheList)
 	mux.HandleFunc("GET /pot", server.handlePOToken)
-	mux.HandleFunc("GET /browse", server.handleBrowse)
+	// Arbitrary HTML proxy disabled: redirect SSRF and same-origin script execution.
 
 	// Admin UI (no auth — page handles auth client-side via API calls)
 	mux.HandleFunc("GET /admin", handleAdminUI)
@@ -1877,8 +1878,9 @@ func main() {
 	warmupYtDlp()
 
 	httpServer := &http.Server{
-		Addr:    ":" + port,
-		Handler: handler,
+		Addr:              ":" + port,
+		Handler:           admission(handler),
+		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024,
 	}
 
 	// Graceful shutdown
@@ -1957,6 +1959,36 @@ func corsMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		next.ServeHTTP(w, r)
+	})
+}
+
+func internalAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := os.Getenv("INTERNAL_SERVICE_TOKEN")
+		if len(token) < 32 || subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+token)) != 1 {
+			http.Error(w, "Unauthorized", 401)
+			return
+		}
+		next(w, r)
+	}
+}
+
+// Reject overload before handlers wait on resolver semaphores or open streams.
+func admission(next http.Handler) http.Handler {
+	slots := make(chan struct{}, 64)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if len(r.URL.RawQuery) > 2048 {
+			http.Error(w, "Query too large", 414)
+			return
+		}
+		select {
+		case slots <- struct{}{}:
+			defer func() { <-slots }()
+		default:
+			http.Error(w, "Service busy", 503)
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }

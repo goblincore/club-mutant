@@ -1,4 +1,4 @@
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
@@ -15,17 +15,19 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o dream-npc .
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 
-WORKDIR /root/
+WORKDIR /app/
 
 # Copy the Pre-built binary file from the previous stage
 COPY --from=builder /app/dream-npc .
 
 # Data directory for cognitive memory SQLite database
-RUN mkdir -p /root/data
-VOLUME ["/root/data"]
+RUN addgroup -g 10001 app && adduser -D -u 10001 -G app app && mkdir -p /app/data && chown -R app:app /app
+USER 10001:10001
+VOLUME ["/app/data"]
 
 ENV PORT=4000
-ENV COGMEM_DB_PATH=/root/data/cogmem.db
+ENV DUALMEM_DB_PATH=/app/data/dualmem.db
+ENV COGMEM_DB_PATH=/app/data/cogmem.db
 EXPOSE 4000
 
 # Command to run the executable
