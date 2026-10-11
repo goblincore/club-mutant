@@ -48,6 +48,8 @@ import {
   JukeboxTrackCompleteCommand,
 } from './commands/JukeboxCommand'
 
+import { sendPlaylistSnapshot, stopMusicStream } from './commands/djHelpers'
+
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 import PunchPlayerCommand from './commands/PunchPlayerCommand'
 import { NpcDjManager, parseNpcDjLobbyEnv, sanitizeNpcDjOptions } from './NpcDjManager'
@@ -225,20 +227,7 @@ export class ClubMutant extends Room {
   }
 
   private setStoppedMusicStream() {
-    // F2: every stop path kills the watchdog so it can't fire for a dead stream
-    this.clearTrackWatchdog()
-
-    const musicStream = this.state.musicStream
-
-    musicStream.status = 'waiting'
-    musicStream.currentLink = null
-    musicStream.currentTitle = null
-    musicStream.currentTrackId = null
-    musicStream.currentVisualUrl = null
-    musicStream.currentTrackMessage = null
-    musicStream.startTime = Date.now()
-    musicStream.duration = 0
-    musicStream.isAmbient = false
+    stopMusicStream(this)
   }
 
   private startAmbientIfNeeded() {
@@ -278,9 +267,8 @@ export class ClubMutant extends Room {
     this.musicStreamTickIntervalId = setInterval(() => {
       const musicStream = this.state.musicStream
 
-      if (musicStream.status !== 'playing' || !musicStream.currentLink) return
-
       this.broadcast(Message.MUSIC_STREAM_TICK, {
+        musicStream,
         streamId: musicStream.streamId,
         startTime: musicStream.startTime,
         serverNowMs: Date.now(),
@@ -302,7 +290,6 @@ export class ClubMutant extends Room {
     if (!musicStream.isAmbient) return
 
     this.setStoppedMusicStream()
-    this.broadcast(Message.STOP_MUSIC_STREAM, {})
   }
 
   // ── NPC Methods ──
@@ -959,7 +946,6 @@ export class ClubMutant extends Room {
         // No DJ queue active and booth emptied — stop music
         if (this.state.musicStream.currentBooth === musicBoothIndex) {
           this.setStoppedMusicStream()
-          this.broadcast(Message.STOP_MUSIC_STREAM, {})
         }
       }
     )
@@ -1163,8 +1149,8 @@ export class ClubMutant extends Room {
         this.dispatcher.dispatch(new DJStopCommand(), { client })
       })
 
-      this.handleMessage(Message.DJ_SKIP_TURN, (client) => {
-        this.dispatcher.dispatch(new DJSkipTurnCommand(), { client })
+      this.handleMessage(Message.DJ_SKIP_TURN, (client, message) => {
+        this.dispatcher.dispatch(new DJSkipTurnCommand(), { client, streamId: message?.streamId })
       })
 
       // Carries streamId (F4) — server deduplicates stale/duplicate completions.
@@ -1405,6 +1391,7 @@ export class ClubMutant extends Room {
     if (LOG_ENABLED) console.log('////onJoin, Message.SEND_ROOM_DATA')
 
     this.startAmbientIfNeeded()
+    sendPlaylistSnapshot(this, client.sessionId)
 
     const musicStream = this.state.musicStream
     if (LOG_ENABLED) console.log('this state musicStream', musicStream)
@@ -1445,6 +1432,15 @@ export class ClubMutant extends Room {
     if (player) {
       player.connected = true
     }
+
+    sendPlaylistSnapshot(this, client.sessionId)
+    const musicStream = this.state.musicStream
+    client.send(Message.MUSIC_STREAM_TICK, {
+      musicStream,
+      streamId: musicStream.streamId,
+      startTime: musicStream.startTime,
+      serverNowMs: Date.now(),
+    })
   }
 
   async onLeave(client: Client, code: number) {
@@ -1484,7 +1480,6 @@ export class ClubMutant extends Room {
         // No DJ queue active and booth emptied — stop music
         if (this.state.musicStream.currentBooth === index) {
           this.setStoppedMusicStream()
-          this.broadcast(Message.STOP_MUSIC_STREAM, {})
         }
       }
     })

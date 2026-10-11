@@ -5,7 +5,7 @@ import type { ClubMutant } from '../ClubMutant'
 import { RoomQueuePlaylistItem } from '@club-mutant/types/RoomState'
 import { Message } from '@club-mutant/types/Messages'
 import { prefetchVideo } from '../../youtubeService'
-import { playTrackForCurrentDJ, clampTrackDuration } from './djHelpers'
+import { sendPlaylistSnapshot, clampTrackDuration } from './djHelpers'
 
 type AddPayload = {
   client: Client
@@ -84,9 +84,7 @@ export class RoomQueuePlaylistAddCommand extends Command<ClubMutant, AddPayload>
     }
 
     // Notify client of update
-    client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
-      items: [...player.roomQueuePlaylist],
-    })
+    sendPlaylistSnapshot(this.room, client.sessionId)
   }
 }
 
@@ -114,9 +112,7 @@ export class RoomQueuePlaylistRemoveCommand extends Command<ClubMutant, RemovePa
     console.log('[RoomQueuePlaylist] Removed:', removed[0]?.title, 'for:', client.sessionId)
 
     // Notify client of update
-    client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
-      items: [...player.roomQueuePlaylist],
-    })
+    sendPlaylistSnapshot(this.room, client.sessionId)
   }
 }
 
@@ -160,8 +156,6 @@ export class RoomQueuePlaylistReorderCommand extends Command<ClubMutant, Reorder
     }
 
     // Notify client of update
-    client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
-      items: [...player.roomQueuePlaylist],
-    })
+    sendPlaylistSnapshot(this.room, client.sessionId)
   }
 }

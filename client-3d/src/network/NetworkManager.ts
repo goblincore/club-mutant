@@ -560,12 +560,12 @@ export class NetworkManager {
     this.room?.send(Message.DJ_STOP, {})
   }
 
-  djSkipTurn() {
-    this.room?.send(Message.DJ_SKIP_TURN, {})
+  djSkipTurn(streamId: number) {
+    this.room?.send(Message.DJ_SKIP_TURN, { streamId })
   }
 
   // streamId lets the server reject stale/duplicate completions (audit F4)
-  djTurnComplete(streamId?: number) {
+  djTurnComplete(streamId: number) {
     this.room?.send(Message.DJ_TURN_COMPLETE, { streamId })
   }
 

@@ -11,6 +11,24 @@ export const MAX_DJ_QUEUE_SIZE = 3
 export const DJ_SLOT_SERVER_X = [100, 0, -100]
 export const BEHIND_BOOTH_SERVER_Y = 430
 
+/** Every stop is a new authoritative playback transition, including a waiting snapshot. */
+export function stopMusicStream(room: ClubMutant) {
+  const stream = room.state.musicStream
+  stream.streamId += 1
+  stream.status = 'waiting'
+  stream.currentLink = null
+  stream.currentTitle = null
+  stream.currentTrackId = null
+  stream.currentVisualUrl = null
+  stream.currentTrackMessage = null
+  stream.currentDj = new DJUserInfo()
+  stream.startTime = Date.now()
+  stream.duration = 0
+  stream.isAmbient = false
+  room.clearTrackWatchdog()
+  room.broadcast(Message.STOP_MUSIC_STREAM, { streamId: stream.streamId })
+}
+
 /**
  * Play the first unplayed track in the current DJ's roomQueuePlaylist.
  * Sets musicStream state, broadcasts START_MUSIC_STREAM + DJ_PLAY_STARTED.
@@ -101,8 +119,8 @@ function prefetchNextDJTrack(room: ClubMutant, currentDjId: string) {
 
 // ─── DJ queue rotation helpers ──────────────────────────────────────────────
 // Shared by the DJQueue*Command wrappers and the NPC DJ manager. These must
-// never depend on a Colyseus `Client` — the NPC DJ has none. Commands keep
-// their client.send(...) UI notifications; everything else lives here.
+// accept room/session identity rather than a Colyseus `Client` — the NPC has
+// none. Private notifications locate the owner's live room client separately.
 
 // F14: client-supplied durations drive the track watchdog — validate/clamp
 // them server-side. youtubeService has no metadata plumbing (it only
@@ -126,17 +144,29 @@ export function hasUnplayedTracks(player: any): boolean {
   return false
 }
 
-/** Find the first DJ in the queue that has unplayed tracks. */
-export function findNextDJWithTracks(room: ClubMutant): {
-  entry: DJQueueEntry | null
-  player: any | null
-} {
-  for (let i = 0; i < room.state.djQueue.length; i++) {
-    const entry = room.state.djQueue[i]
+/** Private playlists are not schema fields; always target the owner's live client. */
+export function sendPlaylistSnapshot(room: ClubMutant, sessionId: string) {
+  const player = room.state.players.get(sessionId)
+  const client = room.clients?.find((c) => c.sessionId === sessionId)
+  if (player && client) {
+    client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, { items: [...player.roomQueuePlaylist] })
+  }
+}
+
+export function resetPlaylistForLoop(room: ClubMutant, sessionId: string) {
+  const player = room.state.players.get(sessionId)
+  if (!player || hasUnplayedTracks(player)) return
+  for (const track of player.roomQueuePlaylist) track.played = false
+  sendPlaylistSnapshot(room, sessionId)
+}
+
+/** One track per DJ turn, including DJs whose shorter playlists already exhausted. */
+function findNextDJForTurn(room: ClubMutant) {
+  for (const entry of room.state.djQueue) {
     const player = room.state.players.get(entry.sessionId)
-    if (player && hasUnplayedTracks(player)) {
-      return { entry, player }
-    }
+    if (!player || player.roomQueuePlaylist.length === 0) continue
+    resetPlaylistForLoop(room, entry.sessionId)
+    return { entry, player }
   }
   return { entry: null, player: null }
 }
@@ -146,16 +176,7 @@ export function advanceRotation(room: ClubMutant) {
   if (room.state.djQueue.length === 0) {
     room.state.currentDjSessionId = null
 
-    // Stop music stream
-    const musicStream = room.state.musicStream
-    musicStream.status = 'waiting'
-    musicStream.currentLink = null
-    musicStream.currentTitle = null
-    musicStream.currentTrackId = null
-
-    console.log('[DJQueue] No more DJs, stopping music')
-    room.clearTrackWatchdog() // F2: stop path kills the watchdog
-    room.broadcast(Message.STOP_MUSIC_STREAM, {})
+    stopMusicStream(room)
     return
   }
 
@@ -175,8 +196,8 @@ export function advanceRotation(room: ClubMutant) {
     room.state.djQueue.splice(currentIndex, 1) // Remove from current position
 
     // If player still connected, move to end of queue (even without unplayed tracks —
-    // they can still add more tracks while at the booth). findNextDJWithTracks will
-    // skip them for playback if they have no unplayed tracks.
+    // they can still add more tracks while at the booth). The turn selector will
+    // skip them for playback only while their playlist is empty.
     if (currentPlayer) {
       const newEntry = new DJQueueEntry()
       newEntry.sessionId = currentEntry.sessionId
@@ -198,31 +219,7 @@ export function advanceRotation(room: ClubMutant) {
     entry.queuePosition = i
   })
 
-  // Find next DJ with tracks (skip those without)
-  let { entry: nextEntry, player: nextPlayer } = findNextDJWithTracks(room)
-
-  // F8: nobody has unplayed tracks but DJs are still queued — a full cycle
-  // just finished. Reset played flags and loop the rotation instead of
-  // stopping with DJs stranded at the booth in silence (recovery used to
-  // require a human pressing ▶).
-  if (!nextEntry && room.state.djQueue.length > 0) {
-    let anyReset = false
-    room.state.djQueue.forEach((entry) => {
-      const p = room.state.players.get(entry.sessionId)
-      if (!p) return
-      for (const t of p.roomQueuePlaylist) {
-        if (t.played) {
-          t.played = false
-          anyReset = true
-        }
-      }
-    })
-
-    if (anyReset) {
-      console.log('[DJQueue] All queued DJs exhausted — resetting played flags to loop rotation')
-      ;({ entry: nextEntry, player: nextPlayer } = findNextDJWithTracks(room))
-    }
-  }
+  const { entry: nextEntry, player: nextPlayer } = findNextDJForTurn(room)
 
   if (nextEntry && nextPlayer) {
     // Move this DJ to the front of the queue
@@ -244,16 +241,7 @@ export function advanceRotation(room: ClubMutant) {
     // No DJs with tracks - wait for someone to add tracks
     room.state.currentDjSessionId = null
 
-    // Stop music stream
-    const musicStream = room.state.musicStream
-    musicStream.status = 'waiting'
-    musicStream.currentLink = null
-    musicStream.currentTitle = null
-    musicStream.currentTrackId = null
-
-    console.log('[DJQueue] No DJs with tracks, waiting...')
-    room.clearTrackWatchdog() // F2: stop path kills the watchdog
-    room.broadcast(Message.STOP_MUSIC_STREAM, {})
+    stopMusicStream(room)
   }
 
   room.broadcast(Message.DJ_QUEUE_UPDATED, {
@@ -308,16 +296,7 @@ export function removeDJFromQueue(room: ClubMutant, sessionId: string) {
 
   // If current DJ was playing, stop their track first
   if (wasCurrentDJ && wasPlaying) {
-    console.log('[DJQueue] Current DJ left during track, stopping playback')
-    const musicStream = room.state.musicStream
-    musicStream.status = 'waiting'
-    musicStream.currentLink = null
-    musicStream.currentTitle = null
-    musicStream.currentTrackId = null
-    // F2: the leaving DJ's watchdog must die with their stream — if a new DJ
-    // is promoted below, playTrackForCurrentDJ re-arms it for the new track.
-    room.clearTrackWatchdog()
-    room.broadcast(Message.STOP_MUSIC_STREAM, {})
+    stopMusicStream(room)
   }
 
   // Remove the leaving DJ from the queue
@@ -329,11 +308,7 @@ export function removeDJFromQueue(room: ClubMutant, sessionId: string) {
   })
 
   if (wasCurrentDJ) {
-    // F5: promote like advanceRotation does — skip DJs with no UNPLAYED
-    // tracks instead of blindly promoting djQueue[0]. The old length check
-    // let a fully-played playlist through, playTrackForCurrentDJ no-opped,
-    // and the room stalled silently.
-    const { entry: nextEntry, player: nextPlayer } = findNextDJWithTracks(room)
+    const { entry: nextEntry, player: nextPlayer } = findNextDJForTurn(room)
 
     if (nextEntry && nextPlayer) {
       // Move this DJ to the front so queue order reflects the rotation
@@ -350,23 +325,8 @@ export function removeDJFromQueue(room: ClubMutant, sessionId: string) {
       console.log('[DJQueue] Promoted next DJ with unplayed tracks:', nextEntry.sessionId)
       playTrackForCurrentDJ(room)
     } else if (room.state.djQueue.length > 0) {
-      // Nobody has unplayed tracks. Promote the head anyway (they hold the
-      // booth and can add tracks) — and if their playlist is merely
-      // exhausted, apply the same loop-reset DJPlayCommand does so the room
-      // keeps playing instead of stalling (F5).
-      const headEntry = room.state.djQueue[0]
-      room.state.currentDjSessionId = headEntry.sessionId
-
-      const headPlayer = room.state.players.get(headEntry.sessionId)
-      if (headPlayer && headPlayer.roomQueuePlaylist.length > 0) {
-        console.log('[DJQueue] All tracks played — loop-reset for promoted DJ:', headEntry.sessionId)
-        for (let i = 0; i < headPlayer.roomQueuePlaylist.length; i++) {
-          headPlayer.roomQueuePlaylist[i].played = false
-        }
-        playTrackForCurrentDJ(room)
-      } else {
-        console.log('[DJQueue] Promoted next DJ (no tracks):', headEntry.sessionId)
-      }
+      // All remaining playlists are empty. Keep a waiting DJ who can add tracks.
+      room.state.currentDjSessionId = room.state.djQueue[0].sessionId
     } else {
       // Queue is empty
       room.state.currentDjSessionId = null

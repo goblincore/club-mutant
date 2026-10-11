@@ -5,124 +5,67 @@ import { useMusicStore } from '../../stores/musicStore'
 import { TimeSync } from '../TimeSync'
 
 export function wireMusicHandlers(room: Room<RoomState>, timeSync: TimeSync | null): void {
-  // Music stream messages
-  room.onMessage(
-    Message.START_MUSIC_STREAM,
-    (data: { musicStream: any; offset: number }) => {
-      const ms = data.musicStream
-      if (!ms) return
-
-      // Skip ambient background streams — no DJ is playing
-      if (ms.isAmbient) return
-
-      // Convert server startTime to client time using clock sync. Before
-      // TimeSync is ready, derive startTime from the server-computed offset
-      // (F11/F12): that value is skew-free (only off by one-way latency),
-      // unlike the raw server-clock startTime.
-      const clientStartTime = timeSync?.ready
-        ? timeSync.toClientTime(ms.startTime ?? 0)
-        : Date.now() - (data.offset ?? 0) * 1000
-
-      useMusicStore.getState().setStream({
-        currentLink: ms.currentLink ?? null,
-        currentTitle: ms.currentTitle ?? null,
-        currentDjName: ms.currentDj?.name ?? null,
-        startTime: clientStartTime,
-        duration: ms.duration ?? 0,
-        isPlaying: true,
-        streamId: ms.streamId ?? 0,
-      })
+  const reconcile = (ms: any, offset?: number) => {
+    if (!ms) return
+    const store = useMusicStore.getState()
+    if ((ms.streamId ?? 0) < store.stream.streamId) return
+    if (ms.status !== 'playing' || !ms.currentLink || ms.isAmbient) {
+      if (store.stream.isPlaying || store.stream.streamId !== (ms.streamId ?? 0)) {
+        store.clearStream(ms.streamId ?? 0)
+      }
+      return
     }
-  )
 
-  room.onMessage(Message.STOP_MUSIC_STREAM, () => {
-    useMusicStore.getState().clearStream()
-  })
+    const sameStream = store.stream.isPlaying && store.stream.streamId === ms.streamId
+    // Schema state has no server-now timestamp. Keep the existing skew-free
+    // anchor until START, a snapshot tick, or clock synchronization supplies one.
+    const clientStartTime = timeSync?.ready
+      ? timeSync.toClientTime(ms.startTime ?? 0)
+      : offset !== undefined
+        ? Date.now() - Math.max(0, offset) * 1000
+        : sameStream ? store.stream.startTime : Date.now()
 
-  // Periodic drift correction — server sends streamId + startTime every 5s
-  room.onMessage(
-    Message.MUSIC_STREAM_TICK,
-    (data: { streamId: number; startTime: number; serverNowMs: number }) => {
-      const store = useMusicStore.getState()
+    const unchanged = sameStream &&
+      store.stream.currentLink === ms.currentLink &&
+      store.stream.currentTitle === (ms.currentTitle ?? null) &&
+      store.stream.currentTrackId === (ms.currentTrackId ?? null) &&
+      store.stream.currentDjName === (ms.currentDj?.name ?? null) &&
+      store.stream.duration === (ms.duration ?? 0)
+    if (unchanged && Math.abs(clientStartTime - store.stream.startTime) <= 2000) return
 
-      // F13: a tick carrying a NEWER streamId than the store means this client
-      // missed START_MUSIC_STREAM (dropped message / transient handler error).
-      // Rehydrate from schema state — which the tick confirms is current —
-      // instead of staying silent until the next track.
-      if (!store.stream.isPlaying || data.streamId > (store.stream.streamId ?? 0)) {
-        const ms = (room.state as any)?.musicStream
-        if (
-          ms &&
-          ms.status === 'playing' &&
-          ms.currentLink &&
-          !ms.isAmbient &&
-          (ms.streamId ?? 0) === data.streamId
-        ) {
-          const rehydratedStart = timeSync?.ready
-            ? timeSync.toClientTime(data.startTime)
-            : data.startTime
-          console.log('[Music] Tick carries newer streamId — rehydrating missed stream')
-          store.setStream({
-            currentLink: ms.currentLink,
-            currentTitle: ms.currentTitle ?? null,
-            currentDjName: ms.currentDj?.name ?? null,
-            startTime: rehydratedStart,
-            duration: ms.duration ?? 0,
-            isPlaying: true,
-            streamId: ms.streamId ?? 0,
-          })
-        }
-        return
-      }
-
-      // Ignore stale ticks for an older stream
-      if (store.stream.streamId !== data.streamId) return
-
-      // Recompute client-local startTime from this tick's authoritative server time
-      const clientStartTime = timeSync?.ready
-        ? timeSync.toClientTime(data.startTime)
-        : data.startTime
-
-      const currentClientStart = store.stream.startTime
-      const drift = Math.abs(clientStartTime - currentClientStart)
-
-      // Only correct if drift > 2 seconds to avoid micro-jitter
-      if (drift > 2000) {
-        console.log(`[TimeSync] Drift correction: ${drift}ms, resyncing startTime`)
-
-        store.setStream({ startTime: clientStartTime })
-      }
-    }
-  )
-
-  // Late-join: sync music state AFTER TimeSync is ready (correct seek offset)
-  if (timeSync) {
-    timeSync.onReady(() => {
-      const rs = room.state as any
-      const ms = rs?.musicStream
-      if (!ms || ms.status !== 'playing' || !ms.currentLink || ms.isAmbient) return
-
-      const store = useMusicStore.getState()
-      const clientStartTime = timeSync.toClientTime(ms.startTime ?? 0)
-
-      // START_MUSIC_STREAM may have set this stream BEFORE TimeSync was ready
-      // (offset-derived startTime, off by one-way latency). Now that sync
-      // samples exist, refresh startTime with the skew-corrected value
-      // instead of skipping the stream entirely (F11).
-      if (store.stream.isPlaying && store.stream.streamId === (ms.streamId ?? 0)) {
-        store.setStream({ startTime: clientStartTime })
-        return
-      }
-
-      store.setStream({
-        currentLink: ms.currentLink,
-        currentTitle: ms.currentTitle ?? null,
-        currentDjName: ms.currentDj?.name ?? null,
-        startTime: clientStartTime,
-        duration: ms.duration ?? 0,
-        isPlaying: true,
-        streamId: ms.streamId ?? 0,
-      })
+    store.setStream({
+      currentLink: ms.currentLink,
+      currentTitle: ms.currentTitle ?? null,
+      currentTrackId: ms.currentTrackId ?? null,
+      currentDjName: ms.currentDj?.name ?? null,
+      startTime: clientStartTime,
+      duration: ms.duration ?? 0,
+      isPlaying: true,
+      streamId: ms.streamId ?? 0,
     })
   }
+
+  room.onMessage(Message.START_MUSIC_STREAM, (data: { musicStream: any; offset: number }) => {
+    reconcile(data.musicStream, data.offset)
+  })
+  room.onMessage(Message.STOP_MUSIC_STREAM, (data: { streamId?: number }) => {
+    const store = useMusicStore.getState()
+    const id = data?.streamId ?? store.stream.streamId
+    if (id >= store.stream.streamId) store.clearStream(id)
+  })
+
+  // Full snapshots include waiting state: a missed STOP now heals too.
+  room.onMessage(Message.MUSIC_STREAM_TICK, (data: {
+    musicStream?: any; streamId: number; startTime: number; serverNowMs: number
+  }) => {
+    const ms = data.musicStream ?? (room.state as any)?.musicStream
+    if (!ms || ms.streamId !== data.streamId) return
+    // Ignore delayed ticks for streams that have already been superseded locally.
+    if (data.streamId < useMusicStore.getState().stream.streamId) return
+    reconcile(ms, (data.serverNowMs - data.startTime) / 1000)
+  })
+
+  // State patches are authoritative even when a notification was missed.
+  room.onStateChange(() => reconcile((room.state as any)?.musicStream))
+  timeSync?.onReady(() => reconcile((room.state as any)?.musicStream))
 }

@@ -3,6 +3,7 @@ import { create } from 'zustand'
 export interface MusicStreamState {
   currentLink: string | null
   currentTitle: string | null
+  currentTrackId: string | null
   currentDjName: string | null
   startTime: number
   duration: number
@@ -14,12 +15,13 @@ interface MusicState {
   stream: MusicStreamState
 
   setStream: (stream: Partial<MusicStreamState>) => void
-  clearStream: () => void
+  clearStream: (streamId?: number) => void
 }
 
 const EMPTY_STREAM: MusicStreamState = {
   currentLink: null,
   currentTitle: null,
+  currentTrackId: null,
   currentDjName: null,
   startTime: 0,
   duration: 0,
@@ -32,5 +34,5 @@ export const useMusicStore = create<MusicState>((set) => ({
 
   setStream: (partial) => set((s) => ({ stream: { ...s.stream, ...partial } })),
 
-  clearStream: () => set({ stream: { ...EMPTY_STREAM } }),
+  clearStream: (streamId = 0) => set({ stream: { ...EMPTY_STREAM, streamId } }),
 }))

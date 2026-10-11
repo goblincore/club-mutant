@@ -23,6 +23,7 @@ const PERIODIC_INTERVAL_MS = 30_000
 interface SyncSample {
   offset: number
   rtt: number
+  receivedAtMonotonic: number
 }
 
 export class TimeSync {
@@ -32,7 +33,17 @@ export class TimeSync {
   private _rtt = 0
   private _ready = false
   private periodicTimer: ReturnType<typeof setInterval> | null = null
-  private pendingSentAt: number | null = null
+  private disposeListener: (() => void) | null = null
+  private burstTimers = new Set<ReturnType<typeof setTimeout>>()
+  private pendingProbes = new Map<number, number>()
+  private handleResume = () => {
+    if (document.visibilityState === 'visible') {
+      this.samples = []
+      this._ready = false
+      this.pendingProbes.clear()
+      this.runBurst()
+    }
+  }
   private _onReadyCallbacks: (() => void)[] = []
 
   constructor(room: Room) {
@@ -71,7 +82,11 @@ export class TimeSync {
    * then periodic re-syncs.
    */
   start() {
+    if (this.periodicTimer !== null) return
+    this.samples = []
+    this._ready = false
     this.wireListener()
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.handleResume)
     this.runBurst()
 
     this.periodicTimer = setInterval(() => {
@@ -84,18 +99,34 @@ export class TimeSync {
       clearInterval(this.periodicTimer)
       this.periodicTimer = null
     }
+    for (const timer of this.burstTimers) clearTimeout(timer)
+    this.burstTimers.clear()
+    this.pendingProbes.clear()
+    this.disposeListener?.()
+    this.disposeListener = null
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', this.handleResume)
   }
 
   private wireListener() {
-    this.room.onMessage(
+    this.disposeListener = this.room.onMessage(
       Message.TIME_SYNC_RESPONSE,
       (data: { clientSentAtMs: number; serverNowMs: number }) => {
+        const sentAt = this.pendingProbes.get(data.clientSentAtMs)
+        if (sentAt === undefined || !Number.isFinite(data.serverNowMs)) return
+        this.pendingProbes.delete(data.clientSentAtMs)
         const clientReceivedAt = Date.now()
-        const rtt = clientReceivedAt - data.clientSentAtMs
+        const rtt = performance.now() - sentAt
+        // A changed wall clock invalidates the midpoint calculation for this probe.
+        if (Math.abs(clientReceivedAt - data.clientSentAtMs - rtt) > 1000) {
+          this.samples = []
+          this._ready = false
+          return
+        }
         const oneWay = rtt / 2
         const offset = data.serverNowMs + oneWay - clientReceivedAt
 
-        this.samples.push({ offset, rtt })
+        this.samples = this.samples.filter((sample) => performance.now() - sample.receivedAtMonotonic < 60_000)
+        this.samples.push({ offset, rtt, receivedAtMonotonic: performance.now() })
 
         // Keep only the best (lowest RTT) samples
         this.samples.sort((a, b) => a.rtt - b.rtt)
@@ -138,15 +169,21 @@ export class TimeSync {
 
   private runBurst() {
     for (let i = 0; i < PROBE_COUNT; i++) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
+        this.burstTimers.delete(timer)
         this.sendProbe()
       }, i * PROBE_INTERVAL_MS)
+      this.burstTimers.add(timer)
     }
   }
 
   private sendProbe() {
     const now = Date.now()
-    this.pendingSentAt = now
+    // Expire unanswered probes so a disconnected server cannot grow this map.
+    for (const [sentAt, sentAtMonotonic] of this.pendingProbes) {
+      if (performance.now() - sentAtMonotonic > PERIODIC_INTERVAL_MS) this.pendingProbes.delete(sentAt)
+    }
+    this.pendingProbes.set(now, performance.now())
 
     this.room.send(Message.TIME_SYNC_REQUEST, { clientSentAtMs: now })
   }

@@ -797,9 +797,9 @@ export default class Network {
     this.room?.send(Message.DJ_QUEUE_LEAVE, {})
   }
 
-  skipDJTurn() {
+  skipDJTurn(streamId?: number) {
     console.log('[Network] Skipping DJ turn')
-    this.room?.send(Message.DJ_SKIP_TURN, {})
+    this.room?.send(Message.DJ_SKIP_TURN, { streamId: streamId ?? this.room?.state.musicStream.streamId })
   }
 
   djPlay() {
@@ -812,9 +812,9 @@ export default class Network {
     this.room?.send(Message.DJ_STOP, {})
   }
 
-  djTurnComplete() {
+  djTurnComplete(streamId: number) {
     console.log('[Network] DJ turn complete')
-    this.room?.send(Message.DJ_TURN_COMPLETE, {})
+    this.room?.send(Message.DJ_TURN_COMPLETE, { streamId })
   }
 
   // Room Queue Playlist Management

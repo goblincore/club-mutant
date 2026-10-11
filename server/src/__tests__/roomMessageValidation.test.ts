@@ -9,6 +9,8 @@ const clientPayloads: Array<[Message, unknown]> = [
   [Message.DISCONNECT_FROM_MUSIC_BOOTH, {}],
   [Message.DJ_QUEUE_JOIN, { slotIndex: 1 }],
   [Message.DJ_QUEUE_LEAVE, {}],
+  [Message.DJ_SKIP_TURN, { streamId: 0 }],
+  [Message.DJ_SKIP_TURN, {}],
   [Message.DJ_TURN_COMPLETE, { streamId: 0 }],
   [Message.JUKEBOX_TRACK_COMPLETE, { streamId: 3 }],
   [Message.UPDATE_PLAYER_ACTION, { x: 12.5, y: -3, textureId: 2 }],
@@ -26,6 +28,11 @@ const clientPayloads: Array<[Message, unknown]> = [
 describe('validRoomMessage accepts real client payloads', () => {
   it.each(clientPayloads)('%s', (type, payload) => {
     expect(validRoomMessage(type, payload)).toBe(true)
+  })
+
+  it('rejects malformed skip playback identities', () => {
+    expect(validRoomMessage(Message.DJ_SKIP_TURN, { streamId: '3' })).toBe(false)
+    expect(validRoomMessage(Message.DJ_SKIP_TURN, { streamId: -1 })).toBe(false)
   })
 
   it('still rejects malformed booth payloads', () => {

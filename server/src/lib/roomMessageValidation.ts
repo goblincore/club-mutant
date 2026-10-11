@@ -8,7 +8,7 @@ const youtube = (v: unknown) => text(v, 256) && /^(?:[a-zA-Z0-9_-]{11}|https:\/\
 /** Validate before any handler dereferences or stores a network payload. */
 export function validRoomMessage(type: Message, data: any): boolean {
   const empty = [Message.READY_TO_CONNECT, Message.CHAT_HISTORY,
-    Message.DJ_QUEUE_LEAVE, Message.DJ_PLAY, Message.DJ_STOP, Message.DJ_SKIP_TURN,
+    Message.DJ_QUEUE_LEAVE, Message.DJ_PLAY, Message.DJ_STOP,
     Message.JUKEBOX_CONNECT, Message.JUKEBOX_DISCONNECT, Message.JUKEBOX_PLAY,
     Message.JUKEBOX_STOP, Message.JUKEBOX_SKIP, Message.DREAM_SLEEP, Message.DREAM_WAKE,
     Message.PLAYER_JUMP, Message.SERVICE_AUTH]
@@ -29,6 +29,7 @@ export function validRoomMessage(type: Message, data: any): boolean {
     case Message.ADD_CHAT_MESSAGE: return text(data.content, 1000) && (data.imageUrl === undefined || (text(data.imageUrl, 512) && /^https:\/\/cdn\.mutante\.club\/chat\/[A-Za-z0-9_-]+\.jpg$/.test(data.imageUrl)))
     case Message.NPC_DJ_SET_STANDBY: return typeof data.standby === 'boolean'
     case Message.NPC_DJ_SET_MODE: return ['off', 'fallback', 'rotation'].includes(data.mode)
+    case Message.DJ_SKIP_TURN: return data.streamId === undefined || integer(data.streamId)
     case Message.DJ_TURN_COMPLETE:
     case Message.JUKEBOX_TRACK_COMPLETE: return integer(data.streamId)
     case Message.ROOM_QUEUE_PLAYLIST_ADD:

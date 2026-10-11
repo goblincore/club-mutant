@@ -41,7 +41,9 @@ export function NowPlaying() {
   // For DJ queue mode: only the current DJ reports.
   // For jukebox/personal mode: any client can report (server deduplicates via streamId).
   const handleEnded = useCallback(() => {
-    const sid = useMusicStore.getState().stream.streamId
+    const sid = stream.streamId
+    const current = useMusicStore.getState().stream
+    if (!current.isPlaying || current.streamId !== sid) return
 
     if (lastEndedStreamIdRef.current === sid) {
       console.log('[NowPlaying] Ignoring duplicate onEnded for streamId', sid)
@@ -58,7 +60,7 @@ export function NowPlaying() {
       console.log('[NowPlaying] DJ track ended (streamId=%d), sending djTurnComplete', sid)
       getNetwork().djTurnComplete(sid)
     }
-  }, [isCurrentDJ, isJukeboxMode])
+  }, [isCurrentDJ, isJukeboxMode, stream.streamId])
 
   // Seek to correct offset on stream start (late-join sync)
   useEffect(() => {
@@ -66,10 +68,8 @@ export function NowPlaying() {
 
     const offsetSec = (Date.now() - stream.startTime) / 1000
 
-    if (offsetSec > 1) {
-      playerRef.current.seekTo(offsetSec, 'seconds')
-    }
-  }, [stream.currentLink, stream.startTime, stream.isPlaying])
+    playerRef.current.seekTo(Math.max(0, offsetSec), 'seconds')
+  }, [stream.currentLink, stream.startTime, stream.isPlaying, stream.streamId])
 
   // F10: re-apply the late-join seek once the player is actually ready.
   // A seekTo issued before the YouTube iframe is ready can silently expire
@@ -78,7 +78,7 @@ export function NowPlaying() {
   const handleReadyOrStart = useCallback(() => {
     const s = useMusicStore.getState().stream
     const player = playerRef.current
-    if (!s.isPlaying || !s.startTime || !player) return
+    if (!s.isPlaying || s.streamId !== stream.streamId || !s.startTime || !player) return
 
     const expectedSec = (Date.now() - s.startTime) / 1000
     const actualSec = player.getCurrentTime?.() ?? 0
@@ -91,7 +91,7 @@ export function NowPlaying() {
       )
       player.seekTo(expectedSec, 'seconds')
     }
-  }, [])
+  }, [stream.streamId])
 
   // F10: periodic position-drift check — compares the ACTUAL player position
   // against expected elapsed and re-seeks when they diverge. Catches expired
@@ -168,6 +168,7 @@ export function NowPlaying() {
     return (
       <div className="fixed -left-[9999px] -top-[9999px] w-1 h-1 overflow-hidden">
         <ReactPlayer
+          key={stream.streamId}
           ref={playerRef}
           url={stream.currentLink!}
           playing={stream.isPlaying}
@@ -200,6 +201,7 @@ export function NowPlaying() {
       {isPlaying && (
         <div className="fixed -left-[9999px] -top-[9999px] w-1 h-1 overflow-hidden">
           <ReactPlayer
+            key={stream.streamId}
             ref={playerRef}
             url={stream.currentLink!}
             playing={stream.isPlaying}
@@ -244,7 +246,7 @@ export function NowPlaying() {
 
             <button
               onClick={() =>
-                getNetwork().djTurnComplete(useMusicStore.getState().stream.streamId)
+                getNetwork().djSkipTurn(stream.streamId)
               }
               className="w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 border border-white/15 rounded transition-colors"
               title="Skip to next"
