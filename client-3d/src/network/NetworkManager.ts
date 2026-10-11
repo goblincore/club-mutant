@@ -68,6 +68,11 @@ function parseDurationToSeconds(dur: string): number {
   return parts[0] || 0
 }
 
+// Join with a token good for at least this long, and re-send a fresh one before it runs out.
+const AUTH_MIN_VALIDITY_SEC = 5 * 60
+const AUTH_REFRESH_CHECK_MS = 60_000
+const AUTH_REFRESH_AHEAD_SEC = 30 * 60
+
 export class NetworkManager {
   private client: Client
   private room: Room<RoomState> | null = null
@@ -82,6 +87,8 @@ export class NetworkManager {
   private _myTextureId: number = 0
   private _tabId: string = crypto.randomUUID()
   private _heartbeatInterval: ReturnType<typeof setInterval> | null = null
+  private _authRefreshInterval: ReturnType<typeof setInterval> | null = null
+  private _lastSentToken: string | null = null
   private _onUnload = () => this.releaseSessionLock()
 
   constructor(serverUrl?: string) {
@@ -107,9 +114,11 @@ export class NetworkManager {
     const authState = useAuthStore.getState()
     if (!authState.isAuthenticated) return {}
 
-    const token = await getValidToken()
+    // Require a few minutes of validity: the server drops a session when its token expires.
+    const token = await getValidToken(AUTH_MIN_VALIDITY_SEC)
     if (!token) return {}
 
+    this._lastSentToken = token
     return { nakamaToken: token }
   }
 
@@ -193,7 +202,31 @@ export class NetworkManager {
     window.addEventListener('beforeunload', this._onUnload)
   }
 
+  /**
+   * Keep an authenticated session alive: the server disconnects a client when its
+   * Nakama token expires, so send a refreshed token well before that happens.
+   */
+  private startAuthRefresh(): void {
+    this.stopAuthRefresh()
+    if (!useAuthStore.getState().isAuthenticated) return
+
+    const room = this.room
+    this._authRefreshInterval = setInterval(async () => {
+      if (this.room !== room || !useAuthStore.getState().isAuthenticated) return
+      const token = await getValidToken(AUTH_REFRESH_AHEAD_SEC)
+      if (!token || token === this._lastSentToken || this.room !== room) return
+      this._lastSentToken = token
+      room?.send(Message.AUTH_REFRESH, { token })
+    }, AUTH_REFRESH_CHECK_MS)
+  }
+
+  private stopAuthRefresh(): void {
+    if (this._authRefreshInterval) clearInterval(this._authRefreshInterval)
+    this._authRefreshInterval = null
+  }
+
   private releaseSessionLock(): void {
+    this.stopAuthRefresh()
     const raw = localStorage.getItem(SESSION_LOCK_KEY)
     if (raw) {
       try {
@@ -230,6 +263,7 @@ export class NetworkManager {
 
     this._timeSync = new TimeSync(this.room as Room)
     this._timeSync.start()
+    this.startAuthRefresh()
 
     this.wireRoomListeners()
 

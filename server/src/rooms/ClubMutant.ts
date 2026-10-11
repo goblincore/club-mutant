@@ -108,6 +108,7 @@ export class ClubMutant extends Room {
 
   // Per-client message throttling: sessionId → messageType → lastSentMs
   private messageThrottles = new Map<string, Map<number, number>>()
+  private authExpiryTimers = new Map<string, { clear(): void }>()
 
   private musicStreamTickIntervalId: NodeJS.Timeout | null = null
   private trackWatchdogTimerId: NodeJS.Timeout | null = null
@@ -155,6 +156,23 @@ export class ClubMutant extends Room {
     if (nowMs - lastMs < minIntervalMs) return true
     clientMap.set(messageType, nowMs)
     return false
+  }
+
+  /**
+   * Disconnect an authenticated client when its Nakama token expires. The client
+   * extends the session by sending AUTH_REFRESH with a newer token before then.
+   * Looked up by sessionId so the timer still reaches the live client after a reconnect.
+   */
+  private scheduleAuthExpiry(sessionId: string, expSeconds: number) {
+    this.authExpiryTimers.get(sessionId)?.clear()
+    const delayMs = Math.min(Math.max(0, expSeconds * 1000 - Date.now()), 2 ** 31 - 1)
+    this.authExpiryTimers.set(
+      sessionId,
+      this.clock.setTimeout(() => {
+        this.authExpiryTimers.delete(sessionId)
+        this.clients.getById(sessionId)?.leave(1008, 'Session expired')
+      }, delayMs)
+    )
   }
 
   /** Start a watchdog timer that auto-advances when no track-complete arrives. */
@@ -886,6 +904,15 @@ export class ClubMutant extends Room {
       client.send(Message.SERVICE_AUTH, { token, expiresAt })
     })
 
+    this.handleMessage(Message.AUTH_REFRESH, (client, data: { token: string }) => {
+      const current = client.auth as NakamaTokenPayload | true | undefined
+      if (!current || typeof current !== 'object') return // guests have no session to extend
+      const next = verifyNakamaToken(data.token)
+      if (!next || next.uid !== current.uid) { client.leave(1008, 'Invalid token'); return }
+      client.auth = next
+      this.scheduleAuthExpiry(client.sessionId, next.exp)
+    })
+
     this.handleMessage(Message.TIME_SYNC_REQUEST, (client, message: { clientSentAtMs?: unknown }) => {
       const clientSentAtMs =
         typeof message?.clientSentAtMs === 'number' && Number.isFinite(message.clientSentAtMs)
@@ -1349,9 +1376,7 @@ export class ClubMutant extends Room {
     const isAuthenticated = auth && typeof auth === 'object' && 'uid' in auth
     console.log(`[onJoin] client=${client.sessionId} room=${this.roomId} name=${options?.name ?? '?'} players=${this.state.players.size} auth=${isAuthenticated ? (auth as NakamaTokenPayload).uid.slice(0, 8) : 'guest'}`)
 
-    if (isAuthenticated) {
-      this.clock.setTimeout(() => client.leave(1008, 'Session expired'), Math.max(0, ((auth as NakamaTokenPayload).exp * 1000) - Date.now()))
-    }
+    if (isAuthenticated) this.scheduleAuthExpiry(client.sessionId, (auth as NakamaTokenPayload).exp)
     const existingPlayer = this.state.players.get(client.sessionId)
     const player = existingPlayer ?? new Player()
 
@@ -1452,6 +1477,8 @@ export class ClubMutant extends Room {
 
     this.lastPlayerActionAtMsBySessionId.delete(client.sessionId)
     this.messageThrottles.delete(client.sessionId)
+    this.authExpiryTimers.get(client.sessionId)?.clear()
+    this.authExpiryTimers.delete(client.sessionId)
     this.npcConversationWindows.delete(client.sessionId)
     this.playerJoinTimes.delete(client.sessionId)
 
