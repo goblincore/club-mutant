@@ -31,6 +31,14 @@ The application changes address the [2026-10-11 audit](../reviews/2026-10-11-sec
 
 ## Colyseus PR #70
 
-This PR targets main's 0.17 stack. Pnpm patches are included for **0.17.20 and 0.18.4**, the transport version in #70. They fix abort handling, bound matchmaking bodies, reject untrusted production WebSocket origins, and cap transport connections and matchmaking requests (300 POSTs/min per process). Unused patches are intentional. When merging the other PR, preserve both patch files, `patchedDependencies`, and `allowUnusedPatches`; regenerate the lockfile using pnpm 10.25.0 and rerun server integration tests. Both PRs touch the lockfile and integration fixture, so conflicts may require resolution. The upgrade alone does not fix the abort bug.
+This PR targets main's 0.17 stack. Pnpm patches are included for **0.17.20 and 0.18.4**, the transport version in #70. They fix abort handling, bound matchmaking bodies, reject untrusted production WebSocket origins, and cap transport connections and matchmaking requests (300 POSTs/min per process). Unused patches are intentional. When merging the other PR, preserve both patch files, `patchedDependencies`, and `allowUnusedPatches`; regenerate the lockfile using pnpm 10.25.0 and rerun server integration tests. Both PRs touch the lockfile and integration fixture, so conflicts may require resolution. The upgrade alone does not fix the abort bug. A local merge with #70 passed 48 server tests on Node 22, the server build, and client TypeScript checks; the only merge conflict was the lockfile.
 
 Nakama hook request shapes were checked against the [official runtime types](https://github.com/heroiclabs/nakama-common/blob/master/index.d.ts).
+
+## Validation
+
+Current stack: 47 server tests, 78 client tests, 22 shared-type tests; server and client production builds; race checks in all three Go services; clean upload `govulncheck`; builds of all four custom service images; Caddy and Compose validation. Local non-root/read-only container checks passed for game server, NPC, and upload. A disposable Nakama 3.24.2/Postgres stack verified native storage denial, private settings writes, authenticated playlist RPCs, and unauthenticated runtime-key denial (`python3 tools/security-nakama-smoke.py`). Nakama requires named global registered handlers; authentication guards run inside each global RPC handler.
+
+CI runs the socket/client/type regressions, server build, Go race tests, and source vulnerability checks on pull requests. NPC source scanning reports no called vulnerabilities, with two package/module advisories outside called paths.
+
+A standalone server `tsc --noEmit` still reports four existing test/configuration errors (null inference and shared tests importing `.ts` extensions); the production bundle builds.

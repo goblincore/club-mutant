@@ -76,6 +76,7 @@ function validateProfileInput(input) {
 }
 
 var updateProfileRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -108,6 +109,7 @@ var updateProfileRpc = function (ctx, logger, nk, payload) {
 };
 
 var getProfileRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input = {};
   if (payload) {
     try {
@@ -167,14 +169,18 @@ function checkRateLimit(nk, logger, ip, limitType, windowSec, maxAttempts) {
     record = { windowStart: now, count: 1 };
   }
 
-  nk.storageWrite([{
+  try { nk.storageWrite([{
     collection: RATE_LIMIT_COLLECTION,
     key: key,
     userId: SYSTEM_USER_ID,
     value: record,
+    version: objects && objects.length > 0 ? objects[0].version : '*',
     permissionRead: 0,
     permissionWrite: 0
-  }]);
+  }]); } catch (e) {
+    // Concurrent attempts cannot overwrite one another's quota reservation.
+    return false;
+  }
 
   return true;
 }
@@ -192,6 +198,13 @@ var beforeAuthenticateEmail = function (ctx, logger, nk, data) {
     }
   }
 
+  return data;
+};
+
+var beforeAuthenticateDevice = function (ctx, logger, nk, data) {
+  if (!checkRateLimit(nk, logger, ctx.clientIp || 'unknown', 'device', 3600, 30)) {
+    throw { message: 'Too many device authentication attempts', code: 8 };
+  }
   return data;
 };
 
@@ -238,6 +251,7 @@ function countUserPlaylists(nk, userId) {
 }
 
 var listPlaylistsRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input = {};
   if (payload) {
     try {
@@ -284,6 +298,7 @@ var listPlaylistsRpc = function (ctx, logger, nk, payload) {
 };
 
 var getPlaylistRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -316,6 +331,7 @@ var getPlaylistRpc = function (ctx, logger, nk, payload) {
 };
 
 var savePlaylistRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -379,6 +395,7 @@ var savePlaylistRpc = function (ctx, logger, nk, payload) {
 };
 
 var deletePlaylistRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -418,6 +435,7 @@ var DM_NOTIFICATION_CODE = 100;
  * Output: { messageId, createdAt }
  */
 var sendMessageRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -576,6 +594,7 @@ function updateConversationIndex(nk, userId, otherUserId, otherUsername, preview
  * Output: { conversations: ConversationSummary[], cursor? }
  */
 var listConversationsRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input = {};
   if (payload) {
     try {
@@ -621,6 +640,7 @@ var listConversationsRpc = function (ctx, logger, nk, payload) {
  * Output: { messages: MailMessage[], cursor? }
  */
 var getMessagesRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -686,6 +706,7 @@ var getMessagesRpc = function (ctx, logger, nk, payload) {
  * Output: { success: true }
  */
 var markReadRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -737,6 +758,7 @@ var WALL_NOTIFICATION_CODE = 101;
  * Output: { postId, createdAt }
  */
 var createWallPostRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -840,6 +862,7 @@ var createWallPostRpc = function (ctx, logger, nk, payload) {
  * Output: { posts: WallPost[], cursor? }
  */
 var getWallPostsRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -885,6 +908,7 @@ var getWallPostsRpc = function (ctx, logger, nk, payload) {
  * Output: { success: true }
  */
 var deleteWallPostRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -963,6 +987,7 @@ function savedLetterResponse(letter, input) {
   return JSON.stringify({ letter: letter });
 }
 var sendLetterRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input = letterInput(ctx, payload);
   if (typeof input.request_id !== 'string' || !/^[a-f0-9-]{36}$/.test(input.request_id)) throw 'Invalid letter request';
   if (typeof input.to !== 'string' || !input.to.trim() || input.to.length > 128) throw 'Enter a Club Mutant username';
@@ -1007,6 +1032,7 @@ var sendLetterRpc = function (ctx, logger, nk, payload) {
   return JSON.stringify({ letter: senderCopy });
 };
 var listLettersRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input = letterInput(ctx, payload);
   if (input.cursor !== undefined && typeof input.cursor !== 'string') throw 'Invalid cursor';
   var result = nk.storageList(ctx.userId, LETTER_COLLECTION, 50, input.cursor || '');
@@ -1016,6 +1042,7 @@ var listLettersRpc = function (ctx, logger, nk, payload) {
   return JSON.stringify({ letters: letters, cursor: result.cursor || '' });
 };
 var updateLetterRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input = letterInput(ctx, payload);
   if (typeof input.id !== 'string' || input.id.length > 100) throw 'Invalid letter';
   var object = letterObject(nk, ctx.userId, input.id);
@@ -1038,12 +1065,9 @@ var updateLetterRpc = function (ctx, logger, nk, payload) {
 // ─── InitModule ─────────────────────────────────────────────────────
 
 // User RPCs require a verified Nakama session even when invoked with http_key.
-function authenticatedRpc(handler) {
-  return function (ctx, logger, nk, payload) {
-    if (!ctx.userId) throw { message: 'Authentication required', code: 16 };
-    if (payload && payload.length > 262144) throw { message: 'Payload too large', code: 3 };
-    return handler(ctx, logger, nk, payload);
-  };
+function requireUserSession(ctx, payload) {
+  if (!ctx.userId) throw { message: 'Authentication required', code: 16 };
+  if (payload && payload.length > 262144) throw { message: 'Payload too large', code: 3 };
 }
 
 // These collections are exclusively written through validated runtime RPCs.
@@ -1063,30 +1087,32 @@ function protectedStorage(ctx, logger, nk, request) {
 }
 
 function validateAccountUpdate(ctx, logger, nk, request) {
+  if (request.metadata !== undefined) throw { message: 'Use update_profile for metadata', code: 7 };
   if (request.avatarUrl && !/^https?:\/\//i.test(request.avatarUrl)) throw { message: 'Invalid avatar URL', code: 3 };
   return request;
 }
 
 var InitModule = function (ctx, logger, nk, initializer) {
-  initializer.registerRpc('update_profile', authenticatedRpc(updateProfileRpc));
-  initializer.registerRpc('get_profile', authenticatedRpc(getProfileRpc));
-  initializer.registerRpc('list_playlists', authenticatedRpc(listPlaylistsRpc));
-  initializer.registerRpc('get_playlist', authenticatedRpc(getPlaylistRpc));
-  initializer.registerRpc('save_playlist', authenticatedRpc(savePlaylistRpc));
-  initializer.registerRpc('delete_playlist', authenticatedRpc(deletePlaylistRpc));
-  initializer.registerRpc('send_message', authenticatedRpc(sendMessageRpc));
-  initializer.registerRpc('list_conversations', authenticatedRpc(listConversationsRpc));
-  initializer.registerRpc('get_messages', authenticatedRpc(getMessagesRpc));
-  initializer.registerRpc('mark_read', authenticatedRpc(markReadRpc));
-  initializer.registerRpc('send_letter', authenticatedRpc(sendLetterRpc));
-  initializer.registerRpc('list_letters', authenticatedRpc(listLettersRpc));
-  initializer.registerRpc('update_letter', authenticatedRpc(updateLetterRpc));
-  initializer.registerRpc('create_wall_post', authenticatedRpc(createWallPostRpc));
-  initializer.registerRpc('get_wall_posts', authenticatedRpc(getWallPostsRpc));
-  initializer.registerRpc('delete_wall_post', authenticatedRpc(deleteWallPostRpc));
+  initializer.registerRpc('update_profile', updateProfileRpc);
+  initializer.registerRpc('get_profile', getProfileRpc);
+  initializer.registerRpc('list_playlists', listPlaylistsRpc);
+  initializer.registerRpc('get_playlist', getPlaylistRpc);
+  initializer.registerRpc('save_playlist', savePlaylistRpc);
+  initializer.registerRpc('delete_playlist', deletePlaylistRpc);
+  initializer.registerRpc('send_message', sendMessageRpc);
+  initializer.registerRpc('list_conversations', listConversationsRpc);
+  initializer.registerRpc('get_messages', getMessagesRpc);
+  initializer.registerRpc('mark_read', markReadRpc);
+  initializer.registerRpc('send_letter', sendLetterRpc);
+  initializer.registerRpc('list_letters', listLettersRpc);
+  initializer.registerRpc('update_letter', updateLetterRpc);
+  initializer.registerRpc('create_wall_post', createWallPostRpc);
+  initializer.registerRpc('get_wall_posts', getWallPostsRpc);
+  initializer.registerRpc('delete_wall_post', deleteWallPostRpc);
   initializer.registerBeforeWriteStorageObjects(protectedStorage);
   initializer.registerBeforeDeleteStorageObjects(protectedStorage);
   initializer.registerBeforeUpdateAccount(validateAccountUpdate);
   initializer.registerBeforeAuthenticateEmail(beforeAuthenticateEmail);
+  initializer.registerBeforeAuthenticateDevice(beforeAuthenticateDevice);
   logger.info('Modules loaded: RPCs (update_profile, get_profile, list_playlists, get_playlist, save_playlist, delete_playlist, send_message, list_conversations, get_messages, mark_read, send_letter, list_letters, update_letter, create_wall_post, get_wall_posts, delete_wall_post), hooks (beforeAuthenticateEmail)');
 };

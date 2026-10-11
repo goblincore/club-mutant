@@ -24,6 +24,9 @@ echo "==> Repo: $REPO_ROOT"
 echo "==> Pulling latest code"
 git -C "$REPO_ROOT" pull
 
+echo "==> Validating configuration"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" config --quiet
+
 echo "==> Building + starting services"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build --remove-orphans
 

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it, vi } from 'vitest'
-const runtime = runInNewContext(readFileSync(new URL('../../../../nakama/modules/index.js', import.meta.url), 'utf8') + '\n({ InitModule, protectedStorage, validateProfileInput });')
+const runtime = runInNewContext(readFileSync(new URL('../../../../nakama/modules/index.js', import.meta.url), 'utf8') + '\n({ InitModule, protectedStorage, validateProfileInput, checkRateLimit });')
 const logger = { info: vi.fn() }
 describe('Nakama security boundaries', () => {
   it('every registered RPC requires a session even with the runtime HTTP key', () => {
@@ -24,7 +24,13 @@ describe('Nakama security boundaries', () => {
     const request = { objects: [{ collection: 'user_settings', value: '{}', permissionRead: 2, permissionWrite: 1 }] }
     expect(runtime.protectedStorage({}, logger, {}, request).objects[0].permissionRead).toBe(1)
   })
-  it('rejects executable profile URLs', () => {
+  it('fails closed when concurrent authentication quota reservations conflict', () => {
+    const writes = vi.fn((_objects: Array<{ version: string }>) => { throw new Error('version conflict') })
+    const nk = { storageRead: () => [{ value: { windowStart: Math.floor(Date.now() / 1000), count: 1 }, version: 'old-version' }], storageWrite: writes }
+    expect(runtime.checkRateLimit(nk, { warn: vi.fn() }, '127.0.0.1', 'login', 300, 10)).toBe(false)
+    expect(writes.mock.calls[0][0][0].version).toBe('old-version')
+  })
+  it('rejects executable profile URLs' , () => {
     expect(() => runtime.validateProfileInput({ links: [{ label: 'x', url: 'javascript:alert(1)' }] })).toThrow()
     expect(() => runtime.validateProfileInput({ background_url: 'data:text/html,hi' })).toThrow()
   })
