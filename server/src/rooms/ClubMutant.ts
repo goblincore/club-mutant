@@ -111,6 +111,11 @@ export class ClubMutant extends Room {
   // Per-client message throttling: sessionId → messageType → lastSentMs
   private messageThrottles = new Map<string, Map<number, number>>()
   private authExpiryTimers = new Map<string, { clear(): void }>()
+  // Who each session is, for replacing a player's own stale session when they come back.
+  // Never broadcast: a guest's device key is a secret only their browser knows.
+  private sessionIdentity = new Map<string, { identity: string; seq: number }>()
+  private heldSeats = new Map<string, { reject(reason?: unknown): void }>()
+  private identitySeq = 0
 
   private musicStreamTickIntervalId: NodeJS.Timeout | null = null
   private trackWatchdogTimerId: NodeJS.Timeout | null = null
@@ -157,6 +162,42 @@ export class ClubMutant extends Room {
     const lastMs = clientMap.get(messageType) ?? 0
     if (nowMs - lastMs < minIntervalMs) return true
     clientMap.set(messageType, nowMs)
+    return false
+  }
+
+  /**
+   * A stable identity for "the same person": the verified Nakama user, or for guests a
+   * random per-browser key. Used only to replace that person's own dropped session.
+   */
+  private identityFor(auth: unknown, options: any): string | null {
+    if (auth && typeof auth === 'object' && 'uid' in auth) return `u:${(auth as NakamaTokenPayload).uid}`
+    const key = options?.deviceKey
+    if (typeof key !== 'string' || !/^[A-Za-z0-9_-]{16,64}$/.test(key)) return null
+    return `d:${createHash('sha256').update(key).digest('hex')}`
+  }
+
+  /**
+   * A dropped player keeps their seat for 60s so a flaky connection can resume. When the
+   * same person joins again (closed tab, reload) that held seat is a ghost twin: release it.
+   */
+  private releaseHeldSeatsFor(identity: string, exceptSessionId: string) {
+    for (const [sessionId, held] of this.heldSeats) {
+      if (sessionId !== exceptSessionId && this.sessionIdentity.get(sessionId)?.identity === identity) {
+        console.log(`[session] ${sessionId} replaced by ${exceptSessionId}; releasing held seat`)
+        held.reject(false) // same path as the reconnection window expiring
+      }
+    }
+  }
+
+  /** True when this person already has a newer, live session in the room. */
+  private hasNewerLiveSession(sessionId: string): boolean {
+    const mine = this.sessionIdentity.get(sessionId)
+    if (!mine) return false
+    for (const [otherId, other] of this.sessionIdentity) {
+      if (otherId !== sessionId && other.identity === mine.identity && other.seq > mine.seq && !this.heldSeats.has(otherId)) {
+        return true
+      }
+    }
     return false
   }
 
@@ -1363,6 +1404,11 @@ export class ClubMutant extends Room {
     console.log(`[onJoin] client=${client.sessionId} room=${this.roomId} name=${options?.name ?? '?'} players=${this.state.players.size} auth=${isAuthenticated ? (auth as NakamaTokenPayload).uid.slice(0, 8) : 'guest'}`)
 
     if (isAuthenticated) this.scheduleAuthExpiry(client.sessionId, (auth as NakamaTokenPayload).exp)
+    const identity = this.identityFor(auth, options)
+    if (identity) {
+      this.sessionIdentity.set(client.sessionId, { identity, seq: ++this.identitySeq })
+      this.releaseHeldSeatsFor(identity, client.sessionId)
+    }
     const existingPlayer = this.state.players.get(client.sessionId)
     const player = existingPlayer ?? new Player()
 
@@ -1438,8 +1484,17 @@ export class ClubMutant extends Room {
   onDrop(client: Client, code: number) {
     console.log(`[onDrop] client=${client.sessionId} code=${code} room=${this.roomId} players=${this.state.players.size}`)
 
-    // Allow 60 seconds for reconnection
-    this.allowReconnection(client, 60)
+    // This person already has a newer live session (a reload or second tab got here first):
+    // there is nothing to hold the seat for.
+    if (this.hasNewerLiveSession(client.sessionId)) {
+      console.log(`[onDrop] ${client.sessionId} already replaced by a newer session; not holding the seat`)
+    } else {
+      // Allow 60 seconds for reconnection
+      const held = this.allowReconnection(client, 60)
+      this.heldSeats.set(client.sessionId, held)
+      const release = () => this.heldSeats.delete(client.sessionId)
+      held.then(release, release)
+    }
 
     // Mark player as disconnected so other clients can show visual feedback
     const player = this.state.players.get(client.sessionId)
@@ -1475,6 +1530,8 @@ export class ClubMutant extends Room {
     this.messageThrottles.delete(client.sessionId)
     this.authExpiryTimers.get(client.sessionId)?.clear()
     this.authExpiryTimers.delete(client.sessionId)
+    this.sessionIdentity.delete(client.sessionId)
+    this.heldSeats.delete(client.sessionId)
     this.npcConversationWindows.delete(client.sessionId)
     this.playerJoinTimes.delete(client.sessionId)
 

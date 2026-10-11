@@ -58,6 +58,25 @@ export function getOrCreatePlayerId(): string {
   return id
 }
 
+const DEVICE_KEY = 'cm_device_key'
+
+/**
+ * Random per-browser secret, never shown to other players. The server uses it to recognise a
+ * guest who closed or reloaded the tab, so the dropped session is replaced instead of lingering.
+ */
+export function getOrCreateDeviceKey(): string {
+  try {
+    let key = localStorage.getItem(DEVICE_KEY)
+    if (!key) {
+      key = crypto.randomUUID().replace(/-/g, '')
+      localStorage.setItem(DEVICE_KEY, key)
+    }
+    return key
+  } catch {
+    return crypto.randomUUID().replace(/-/g, '') // storage unavailable: a one-off key still works
+  }
+}
+
 /** Parse a duration string like "2:21" or "1:03:45" into total seconds. Returns 0 for unparseable values. */
 function parseDurationToSeconds(dur: string): number {
   if (!dur || dur === 'LIVE') return 0
@@ -110,16 +129,17 @@ export class NetworkManager {
    * Build auth options to include in Colyseus room join/create calls.
    * Returns { nakamaToken } if authenticated, empty object for guests.
    */
-  private async getAuthOptions(): Promise<{ nakamaToken?: string }> {
+  private async getAuthOptions(): Promise<{ nakamaToken?: string; deviceKey: string }> {
+    const deviceKey = getOrCreateDeviceKey()
     const authState = useAuthStore.getState()
-    if (!authState.isAuthenticated) return {}
+    if (!authState.isAuthenticated) return { deviceKey }
 
     // Require a few minutes of validity: the server drops a session when its token expires.
     const token = await getValidToken(AUTH_MIN_VALIDITY_SEC)
-    if (!token) return {}
+    if (!token) return { deviceKey }
 
     this._lastSentToken = token
-    return { nakamaToken: token }
+    return { nakamaToken: token, deviceKey }
   }
 
   /**
