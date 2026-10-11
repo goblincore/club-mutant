@@ -1,11 +1,13 @@
-import { createHash, timingSafeEqual } from 'crypto'
+import jwt from 'jsonwebtoken'
+import { validRoomMessage } from '../lib/roomMessageValidation'
+import { createHash, timingSafeEqual, randomUUID } from 'crypto'
 import { Room, Client, ServerError, CloseCode } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
 import { verifyNakamaToken, type NakamaTokenPayload } from '../lib/verifyNakamaToken'
 
 import { Player, RoomState, MusicBooth, ChatMessage } from '@club-mutant/types/RoomState'
 
-import { IRoomData, type MusicMode } from '@club-mutant/types/Rooms'
+import { RoomType, IRoomData, type MusicMode } from '@club-mutant/types/Rooms'
 import { Message } from '@club-mutant/types/Messages'
 import {
   TEXTURE_IDS,
@@ -78,6 +80,21 @@ type NpcState = 'idle' | 'walking' | 'dancing' | 'conversing'
 
 export class ClubMutant extends Room {
   state = new RoomState()
+  maxMessagesPerSecond = 60
+  private static activeRooms = new Set<string>()
+  private personalOwner = ''
+
+  private handleMessage(type: Message, handler: (client: Client, data: any) => void) {
+    this.onMessage(type, (client, data) => {
+      if (!validRoomMessage(type, data)) { client.leave(1008, 'Invalid message'); return }
+      // Bound costly controls separately from movement and time sync.
+      if (type !== Message.UPDATE_PLAYER_ACTION && type !== Message.TIME_SYNC_REQUEST && this.throttle(client, type + 10000, 250)) return
+      try { handler(client, data) } catch (error) {
+        console.error('[room] Message handler failed', type, error)
+        client.leave(1011, 'Message failed')
+      }
+    })
+  }
 
   private dispatcher = new Dispatcher(this)
   private name = ''
@@ -497,7 +514,7 @@ export class ClubMutant extends Room {
     try {
       const res = await fetch(`${NPC_SERVICE_URL}/bartender/npc-chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.INTERNAL_SERVICE_TOKEN || ''}` },
         body: JSON.stringify({
           personalityId: NPC_PERSONALITY_ID,
           message: actualMessage,
@@ -686,7 +703,7 @@ export class ClubMutant extends Room {
 
       const response = await fetch(`${NPC_SERVICE_URL}/bartender/heartbeat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.INTERNAL_SERVICE_TOKEN || ''}` },
         body: JSON.stringify(snapshot),
         signal: controller.signal,
       })
@@ -787,14 +804,24 @@ export class ClubMutant extends Room {
 
   async onCreate(options: IRoomData) {
     console.log(`[onCreate] room=${this.roomId} name=${options.name} musicMode=${options.musicMode ?? 'default'}`)
-    const { name, description, password, autoDispose, isPublic } = options
+    if (ClubMutant.activeRooms.size >= 128) throw new ServerError(503, 'Room capacity reached')
+    if (options.name !== undefined && (typeof options.name !== 'string' || options.name.length > 64)) throw new ServerError(400, 'Invalid room name')
+    if (options.description !== undefined && (typeof options.description !== 'string' || options.description.length > 500)) throw new ServerError(400, 'Invalid description')
+    if (options.password && (typeof options.password !== 'string' || options.password.length > 128)) throw new ServerError(400, 'Invalid password')
+    const { name = 'Room', description = '', password } = options
+    ClubMutant.activeRooms.add(this.roomId)
+    const isPublic = this.roomName === RoomType.PUBLIC
+    const autoDispose = !isPublic
     this.name = name
     this.description = description
     this.autoDispose = autoDispose
     this.isPublic = Boolean(isPublic)
 
     // Compute music mode from options
-    if (options.musicMode) {
+    if (this.roomName === RoomType.MYROOM) {
+      this.musicMode = 'personal'
+      this.setPrivate(true)
+    } else if (['djqueue', 'jukebox'].includes(options.musicMode)) {
       this.musicMode = options.musicMode
     } else if (this.isPublic) {
       this.musicMode = 'djqueue'
@@ -803,7 +830,7 @@ export class ClubMutant extends Room {
     }
 
     // Performance: cap max players per room
-    this.maxClients = 50
+    this.maxClients = this.roomName === RoomType.MYROOM ? 1 : 50
 
     // Performance: reduce patch rate from 20fps (50ms) to 10fps (100ms)
     // Client uses exponential lerp (REMOTE_LERP=8) so 10fps is visually smooth
@@ -847,7 +874,19 @@ export class ClubMutant extends Room {
       }
     }
 
-    this.onMessage(Message.TIME_SYNC_REQUEST, (client, message: { clientSentAtMs?: unknown }) => {
+    this.handleMessage(Message.SERVICE_AUTH, (client) => {
+      const key = process.env.SERVICE_AUTH_KEY
+      const player = this.state.players.get(client.sessionId)
+      if (!key || key.length < 32 || !player) return
+      const expiresAt = Math.min(Math.floor(Date.now() / 1000) + 300, (client.auth as NakamaTokenPayload)?.exp || Infinity)
+      if (expiresAt <= Date.now() / 1000) { client.leave(1008, 'Session expired'); return }
+      const token = jwt.sign({ scope: 'upload', exp: expiresAt }, key, {
+        algorithm: 'HS256', subject: player.playerId, issuer: 'club-mutant-game', audience: 'club-mutant-services',
+      })
+      client.send(Message.SERVICE_AUTH, { token, expiresAt })
+    })
+
+    this.handleMessage(Message.TIME_SYNC_REQUEST, (client, message: { clientSentAtMs?: unknown }) => {
       const clientSentAtMs =
         typeof message?.clientSentAtMs === 'number' && Number.isFinite(message.clientSentAtMs)
           ? message.clientSentAtMs
@@ -862,7 +901,7 @@ export class ClubMutant extends Room {
     })
 
     // when a player connects to a music booth
-    this.onMessage(
+    this.handleMessage(
       Message.CONNECT_TO_MUSIC_BOOTH,
       (client, message: { musicBoothIndex: number }) => {
         const musicBoothIndex =
@@ -890,7 +929,7 @@ export class ClubMutant extends Room {
     )
 
     // when a player disconnects from a music booth
-    this.onMessage(
+    this.handleMessage(
       Message.DISCONNECT_FROM_MUSIC_BOOTH,
       (client, message: { musicBoothIndex: number }) => {
         const musicBoothIndex =
@@ -926,7 +965,7 @@ export class ClubMutant extends Room {
     )
 
     // when receiving updatePlayer message, call the PlayerUpdateActionCommand
-    this.onMessage(
+    this.handleMessage(
       Message.UPDATE_PLAYER_ACTION,
       (
         client,
@@ -977,7 +1016,7 @@ export class ClubMutant extends Room {
       }
     )
 
-    this.onMessage(Message.UPDATE_PLAYER_SCALE, (client, message: { scale?: unknown }) => {
+    this.handleMessage(Message.UPDATE_PLAYER_SCALE, (client, message: { scale?: unknown }) => {
       const player = this.state.players.get(client.sessionId)
       if (!player) return
 
@@ -989,7 +1028,7 @@ export class ClubMutant extends Room {
       player.scale = scale
     })
 
-    this.onMessage(Message.PUNCH_PLAYER, (client, message: { targetId?: unknown }) => {
+    this.handleMessage(Message.PUNCH_PLAYER, (client, message: { targetId?: unknown }) => {
       const targetId = typeof message.targetId === 'string' ? message.targetId : ''
       if (!targetId) return
 
@@ -997,7 +1036,7 @@ export class ClubMutant extends Room {
     })
 
     // when receiving updatePlayerName message, call the PlayerUpdateNameCommand
-    this.onMessage(Message.UPDATE_PLAYER_NAME, (client, message: { name: string }) => {
+    this.handleMessage(Message.UPDATE_PLAYER_NAME, (client, message: { name: string }) => {
       if (this.isPublic) return
       this.dispatcher.dispatch(new PlayerUpdateNameCommand(), {
         client,
@@ -1006,13 +1045,13 @@ export class ClubMutant extends Room {
     })
 
     // when a player is ready to connect, call the PlayerReadyToConnectCommand
-    this.onMessage(Message.READY_TO_CONNECT, (client) => {
+    this.handleMessage(Message.READY_TO_CONNECT, (client) => {
       const player = this.state.players.get(client.sessionId)
       if (player) player.readyToConnect = true
     })
 
     // when a player send a chat message, update the message array and broadcast to all connected clients except the sender
-    this.onMessage(Message.ADD_CHAT_MESSAGE, (client, message: { content: string; imageUrl?: string }) => {
+    this.handleMessage(Message.ADD_CHAT_MESSAGE, (client, message: { content: string; imageUrl?: string }) => {
       if (this.throttle(client, Message.ADD_CHAT_MESSAGE, 500)) return
       // update the message array (so that players join later can also see the message)
       if (this.state.chatMessages.length >= 25) {
@@ -1055,7 +1094,7 @@ export class ClubMutant extends Room {
 
     // ── Chat History ──
     // Client requests chat history on join (replaces schema-synced chatMessages for initial load)
-    this.onMessage(Message.CHAT_HISTORY, (client) => {
+    this.handleMessage(Message.CHAT_HISTORY, (client) => {
       const messages = this.state.chatMessages.toArray().map((m) => ({
         author: m.author,
         content: m.content,
@@ -1067,7 +1106,7 @@ export class ClubMutant extends Room {
 
     // ──────── DJ Queue Management (djqueue mode only) ────────
     if (this.musicMode === 'djqueue') {
-      this.onMessage(Message.DJ_QUEUE_JOIN, (client, message) => {
+      this.handleMessage(Message.DJ_QUEUE_JOIN, (client, message) => {
         if (this.throttle(client, Message.DJ_QUEUE_JOIN, 2000)) return
         this.dispatcher.dispatch(new DJQueueJoinCommand(), {
           client,
@@ -1079,21 +1118,21 @@ export class ClubMutant extends Room {
       // watchdog lifecycle (playTrackForCurrentDJ arms, every stop path clears).
       // This also means a REJECTED command (e.g. stale DJ_TURN_COMPLETE, F4)
       // leaves the running track's watchdog untouched instead of resetting it.
-      this.onMessage(Message.DJ_QUEUE_LEAVE, (client) => {
+      this.handleMessage(Message.DJ_QUEUE_LEAVE, (client) => {
         if (this.throttle(client, Message.DJ_QUEUE_LEAVE, 2000)) return
         this.dispatcher.dispatch(new DJQueueLeaveCommand(), { client })
       })
 
       // Any player may wave the fallback NPC DJ off the decks (takeover
       // prompt) or summon it back (click menu). No-op for rotation NPCs.
-      this.onMessage(Message.NPC_DJ_SET_STANDBY, (client, message: { standby?: unknown }) => {
+      this.handleMessage(Message.NPC_DJ_SET_STANDBY, (client, message: { standby?: unknown }) => {
         if (this.throttle(client, Message.NPC_DJ_SET_STANDBY, 1000)) return
         this.npcDjManager?.setStandby(message?.standby === true)
       })
 
       // Room creator live-toggles the NPC DJ (custom djqueue rooms only — the
       // public lobby stays env-controlled). Mode changes respawn the NPC.
-      this.onMessage(Message.NPC_DJ_SET_MODE, (client, message: { mode?: unknown }) => {
+      this.handleMessage(Message.NPC_DJ_SET_MODE, (client, message: { mode?: unknown }) => {
         if (this.throttle(client, Message.NPC_DJ_SET_MODE, 1000)) return
         if (this.isPublic) return
         const sender = this.state.players.get(client.sessionId)
@@ -1116,20 +1155,20 @@ export class ClubMutant extends Room {
         }
       })
 
-      this.onMessage(Message.DJ_PLAY, (client) => {
+      this.handleMessage(Message.DJ_PLAY, (client) => {
         this.dispatcher.dispatch(new DJPlayCommand(), { client })
       })
 
-      this.onMessage(Message.DJ_STOP, (client) => {
+      this.handleMessage(Message.DJ_STOP, (client) => {
         this.dispatcher.dispatch(new DJStopCommand(), { client })
       })
 
-      this.onMessage(Message.DJ_SKIP_TURN, (client) => {
+      this.handleMessage(Message.DJ_SKIP_TURN, (client) => {
         this.dispatcher.dispatch(new DJSkipTurnCommand(), { client })
       })
 
       // Carries streamId (F4) — server deduplicates stale/duplicate completions.
-      this.onMessage(Message.DJ_TURN_COMPLETE, (client, message) => {
+      this.handleMessage(Message.DJ_TURN_COMPLETE, (client, message) => {
         this.dispatcher.dispatch(new DJTurnCompleteCommand(), {
           client,
           streamId: message?.streamId,
@@ -1137,21 +1176,21 @@ export class ClubMutant extends Room {
       })
 
       // Room Queue Playlist Management (per-player, djqueue mode only)
-      this.onMessage(
+      this.handleMessage(
         Message.ROOM_QUEUE_PLAYLIST_ADD,
         (client, message: { title: string; link: string; duration: number }) => {
           this.dispatcher.dispatch(new RoomQueuePlaylistAddCommand(), { client, item: message })
         }
       )
 
-      this.onMessage(Message.ROOM_QUEUE_PLAYLIST_REMOVE, (client, message: { itemId: string }) => {
+      this.handleMessage(Message.ROOM_QUEUE_PLAYLIST_REMOVE, (client, message: { itemId: string }) => {
         this.dispatcher.dispatch(new RoomQueuePlaylistRemoveCommand(), {
           client,
           itemId: message.itemId,
         })
       })
 
-      this.onMessage(
+      this.handleMessage(
         Message.ROOM_QUEUE_PLAYLIST_REORDER,
         (client, message: { fromIndex: number; toIndex: number }) => {
           this.dispatcher.dispatch(new RoomQueuePlaylistReorderCommand(), {
@@ -1166,7 +1205,7 @@ export class ClubMutant extends Room {
     // ──────── Jukebox Management (jukebox + personal modes) ────────
     if (this.musicMode === 'jukebox' || this.musicMode === 'personal') {
       // Exclusive access: one player at a time
-      this.onMessage(Message.JUKEBOX_CONNECT, (client) => {
+      this.handleMessage(Message.JUKEBOX_CONNECT, (client) => {
         if (this.state.jukeboxUserId && this.state.jukeboxUserId !== client.sessionId) {
           client.send('jukebox_busy', { name: this.state.jukeboxUserName })
           return
@@ -1176,14 +1215,14 @@ export class ClubMutant extends Room {
         this.state.jukeboxUserName = player?.name ?? 'someone'
       })
 
-      this.onMessage(Message.JUKEBOX_DISCONNECT, (client) => {
+      this.handleMessage(Message.JUKEBOX_DISCONNECT, (client) => {
         if (this.state.jukeboxUserId === client.sessionId) {
           this.state.jukeboxUserId = ''
           this.state.jukeboxUserName = ''
         }
       })
 
-      this.onMessage(
+      this.handleMessage(
         Message.JUKEBOX_ADD,
         (client, message: { title: string; link: string; duration: number }) => {
           if (this.state.jukeboxUserId !== client.sessionId) return
@@ -1192,7 +1231,7 @@ export class ClubMutant extends Room {
         }
       )
 
-      this.onMessage(Message.JUKEBOX_REMOVE, (client, message: { itemId: string }) => {
+      this.handleMessage(Message.JUKEBOX_REMOVE, (client, message: { itemId: string }) => {
         if (this.state.jukeboxUserId !== client.sessionId) return
         this.clearTrackWatchdog()
         this.dispatcher.dispatch(new JukeboxRemoveCommand(), {
@@ -1202,19 +1241,19 @@ export class ClubMutant extends Room {
         this.startWatchdogIfPlaying()
       })
 
-      this.onMessage(Message.JUKEBOX_PLAY, (client) => {
+      this.handleMessage(Message.JUKEBOX_PLAY, (client) => {
         if (this.state.jukeboxUserId !== client.sessionId) return
         this.dispatcher.dispatch(new JukeboxPlayCommand(), { client })
         this.startWatchdogIfPlaying()
       })
 
-      this.onMessage(Message.JUKEBOX_STOP, (client) => {
+      this.handleMessage(Message.JUKEBOX_STOP, (client) => {
         if (this.state.jukeboxUserId !== client.sessionId) return
         this.clearTrackWatchdog()
         this.dispatcher.dispatch(new JukeboxStopCommand(), { client })
       })
 
-      this.onMessage(Message.JUKEBOX_SKIP, (client) => {
+      this.handleMessage(Message.JUKEBOX_SKIP, (client) => {
         if (this.state.jukeboxUserId !== client.sessionId) return
         this.clearTrackWatchdog()
         this.dispatcher.dispatch(new JukeboxSkipCommand(), { client })
@@ -1222,7 +1261,9 @@ export class ClubMutant extends Room {
       })
 
       // Track complete: no guard — any client can report (server deduplicates via streamId)
-      this.onMessage(Message.JUKEBOX_TRACK_COMPLETE, (client, message) => {
+      this.handleMessage(Message.JUKEBOX_TRACK_COMPLETE, (client, message) => {
+        const stream = this.state.musicStream
+        if (stream.status !== 'playing' || message.streamId !== stream.streamId || stream.duration <= 0 || Date.now() < stream.startTime + stream.duration * 1000 - 2000) return
         this.clearTrackWatchdog()
         this.dispatcher.dispatch(new JukeboxTrackCompleteCommand(), {
           client,
@@ -1234,23 +1275,23 @@ export class ClubMutant extends Room {
 
     // ── Dream Mode ──
 
-    this.onMessage(Message.DREAM_SLEEP, (client) => {
+    this.handleMessage(Message.DREAM_SLEEP, (client) => {
       const player = this.state.players.get(client.sessionId)
       if (!player) return
       player.isDreaming = true
     })
 
-    this.onMessage(Message.DREAM_WAKE, (client) => {
+    this.handleMessage(Message.DREAM_WAKE, (client) => {
       const player = this.state.players.get(client.sessionId)
       if (!player) return
       player.isDreaming = false
     })
 
-    this.onMessage(Message.DREAM_COLLECT, (client, message: { collectibleId?: string }) => {
+    this.handleMessage(Message.DREAM_COLLECT, (client, message: { collectibleId?: string }) => {
       const player = this.state.players.get(client.sessionId)
       if (!player) return
       const id = message?.collectibleId
-      if (typeof id !== 'string' || !id) return
+      if (id !== 'static_flower' || player.collectibles.length >= 32) return
       // Only add if not already collected
       if (!player.collectibles.includes(id)) {
         player.collectibles.push(id)
@@ -1258,15 +1299,19 @@ export class ClubMutant extends Room {
     })
 
     // Trampoline jump — broadcast to all other clients (cosmetic)
-    this.onMessage(Message.PLAYER_JUMP, (client) => {
+    this.handleMessage(Message.PLAYER_JUMP, (client) => {
       if (this.throttle(client, Message.PLAYER_JUMP, 1000)) return
       this.broadcast(Message.PLAYER_JUMP, { sessionId: client.sessionId }, { except: client })
     })
   }
 
-  onAuth(client: Client, options: { password: string | null; nakamaToken?: string }) {
+  onAuth(client: Client, options: { password: string | null; nakamaToken?: string; name?: string }) {
     console.log(`[onAuth] client=${client.sessionId} room=${this.roomId} hasToken=${!!options.nakamaToken}`)
 
+    if (!options || typeof options !== 'object') throw new ServerError(400, 'Invalid join options')
+    if (options.password != null && (typeof options.password !== 'string' || options.password.length > 128)) throw new ServerError(400, 'Invalid password')
+    if (options.nakamaToken != null && (typeof options.nakamaToken !== 'string' || options.nakamaToken.length > 4096)) throw new ServerError(401, 'Invalid token')
+    if (options['name'] != null && (typeof options['name'] !== 'string' || options['name'].length > 32)) throw new ServerError(400, 'Invalid player name')
     // 1. Room password check (unchanged — applies to both guests and authenticated users)
     if (this.password) {
       if (!options.password) {
@@ -1286,10 +1331,15 @@ export class ClubMutant extends Room {
       if (!payload) {
         throw new ServerError(401, 'Invalid or expired auth token')
       }
+      if (this.roomName === RoomType.MYROOM) {
+        if (this.personalOwner && this.personalOwner !== payload.uid) throw new ServerError(403, 'Private room')
+        this.personalOwner = payload.uid
+      }
       // Return payload — Colyseus passes onAuth return value as `auth` to onJoin
       return payload
     }
 
+    if (this.roomName === RoomType.MYROOM) throw new ServerError(401, 'Sign in for My Room')
     // 3. Guest access — no token, allow through
     return true
   }
@@ -1299,15 +1349,18 @@ export class ClubMutant extends Room {
     const isAuthenticated = auth && typeof auth === 'object' && 'uid' in auth
     console.log(`[onJoin] client=${client.sessionId} room=${this.roomId} name=${options?.name ?? '?'} players=${this.state.players.size} auth=${isAuthenticated ? (auth as NakamaTokenPayload).uid.slice(0, 8) : 'guest'}`)
 
+    if (isAuthenticated) {
+      this.clock.setTimeout(() => client.leave(1008, 'Session expired'), Math.max(0, ((auth as NakamaTokenPayload).exp * 1000) - Date.now()))
+    }
     const existingPlayer = this.state.players.get(client.sessionId)
     const player = existingPlayer ?? new Player()
 
     if (!existingPlayer) {
       // Authenticated users: use Nakama user ID as persistent playerId
-      // Guests: use client-provided playerId or fall back to session ID prefix
+      // Guest identity is generated here; join options cannot impersonate another player.
       const playerId = isAuthenticated
         ? (auth as NakamaTokenPayload).uid
-        : (options?.playerId || client.sessionId.slice(0, 8))
+        : 'guest:' + randomUUID()
       player.playerId = playerId
       player.nakamaId = isAuthenticated ? (auth as NakamaTokenPayload).uid : ''
 
@@ -1321,8 +1374,8 @@ export class ClubMutant extends Room {
       player.animId = packDirectionalAnimId('idle', 'down')
 
       // Use exact coordinates provided by client or default to 0,0 instead of 2D 705,500
-      player.x = typeof options?.spawnX === 'number' ? options.spawnX : 0
-      player.y = typeof options?.spawnY === 'number' ? options.spawnY : 0
+      player.x = typeof options?.spawnX === 'number' && Number.isFinite(options.spawnX) && Math.abs(options.spawnX) <= 100000 ? options.spawnX : 0
+      player.y = typeof options?.spawnY === 'number' && Number.isFinite(options.spawnY) && Math.abs(options.spawnY) <= 100000 ? options.spawnY : 0
 
       if (this.isPublic) {
         // Authenticated users: prefer options.name, then Nakama username, then fallback
@@ -1444,6 +1497,7 @@ export class ClubMutant extends Room {
   }
 
   onDispose() {
+    ClubMutant.activeRooms.delete(this.roomId)
     console.log(`[onDispose] room=${this.roomId} players=${this.state.players.size}`)
 
     this.stopNpcHeartbeat()

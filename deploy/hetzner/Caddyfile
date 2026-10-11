@@ -1,8 +1,18 @@
 {
   email admin@mutante.club
+  servers {
+    timeouts {
+      read_header 5s
+      read_body 15s
+      idle 1m
+    }
+  }
 }
 
 api.mutante.club {
+  request_body {
+    max_size 64KB
+  }
   encode gzip
   # CORS handled by Colyseus server via matchMaker.controller.getCorsHeaders
 
@@ -28,7 +38,11 @@ api.mutante.club {
   route {
     reverse_proxy @websocket server:2567
     reverse_proxy /matchmake/* server:2567
-    reverse_proxy /health server:2567
+    @health {
+      method GET
+      path /health
+    }
+    reverse_proxy @health server:2567
     respond "Not Found" 404
   }
 }
@@ -37,6 +51,8 @@ yt.mutante.club {
   # No gzip — video content is already compressed; gzip just wastes CPU
   # and causes Caddy to buffer responses that then get cancelled by Safari's
   # aggressive byte-range retry behaviour, flooding the connection pool.
+  @private path /browse /admin /admin/* /prefetch/*
+  respond @private "Not Found" 404
   reverse_proxy youtube-api:8081 {
     flush_interval -1
     transport http {
@@ -49,12 +65,15 @@ yt.mutante.club {
 dream.mutante.club {
   encode gzip
   # CORS handled by Express cors middleware in dream-npc service
-  reverse_proxy dream-npc:4000
+  respond "Not Found" 404 # NPC service is game-server-only
 }
 
 upload.mutante.club {
   encode gzip
   # CORS handled by Go service corsMiddleware
+  request_body {
+    max_size 3MB
+  }
   reverse_proxy image-upload:4001
 }
 

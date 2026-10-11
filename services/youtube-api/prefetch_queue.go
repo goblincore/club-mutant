@@ -73,11 +73,11 @@ type PrefetchQueue struct {
 }
 
 const (
-	DefaultWorkers   = 2
-	DefaultMaxRetry  = 2
-	MaxHistorySize   = 50
-	RetryBaseDelay   = 5 * time.Second
-	RetryMultiplier  = 3
+	DefaultWorkers  = 2
+	DefaultMaxRetry = 2
+	MaxHistorySize  = 50
+	RetryBaseDelay  = 5 * time.Second
+	RetryMultiplier = 3
 )
 
 // Dedicated semaphore for prefetch yt-dlp processes (separate from user-facing)
@@ -131,6 +131,10 @@ func (pq *PrefetchQueue) Enqueue(videoID string, priority JobPriority) bool {
 
 	pq.mu.Lock()
 	defer pq.mu.Unlock()
+
+	if len(pq.queue) >= 128 {
+		return false
+	}
 
 	// Dedup: skip if already queued or in-flight
 	if _, exists := pq.seen[videoID]; exists {

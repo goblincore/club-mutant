@@ -170,7 +170,7 @@ function SingleBubble({
 
   // Load image texture
   useEffect(() => {
-    if (!bubble.imageUrl) return
+    if (!bubble.imageUrl || !/^https:\/\/cdn\.mutante\.club\/chat\/[A-Za-z0-9_-]+\.jpg$/.test(bubble.imageUrl)) return
     loadBubbleTexture(bubble.imageUrl, setImgTex)
   }, [bubble.imageUrl])
 

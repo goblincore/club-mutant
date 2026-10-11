@@ -1,0 +1,211 @@
+diff --git a/build/uWebSocketsTransport.cjs b/build/uWebSocketsTransport.cjs
+index 0c41b54f9f276417b9139b42082e31577d40eb7e..dcfaf7a9610e031a07a61eda53f1f5f3bf75029a 100644
+--- a/build/uWebSocketsTransport.cjs
++++ b/build/uWebSocketsTransport.cjs
+@@ -63,6 +63,13 @@ var uWebSocketsTransport = class extends import_core.Transport {
+     this.app.ws("/*", {
+       ...options,
+       upgrade: (res, req, context) => {
++        if (this.clients.length >= 512) { res.writeStatus("503 Service Unavailable").end(); return; }
++        const origin = req.getHeader("origin");
++        if (process.env.NODE_ENV === "production" && origin && !(process.env.WS_ALLOWED_ORIGINS || "https://mutante.club").split(",").includes(origin)) {
++          res.writeStatus("403 Forbidden").end();
++          return;
++        }
++
+         const headers = {};
+         req.forEach((key, value) => headers[key] = value);
+         const searchParams = import_querystring.default.parse(req.getQuery());
+@@ -157,11 +164,17 @@ var uWebSocketsTransport = class extends import_core.Transport {
+         res.end();
+       });
+     });
++    let matchmakingWindow = Date.now();
++    let matchmakingRequests = 0;
+     this.app.any("/*", async (res, req) => {
++      if (req.getMethod() === "post" && req.getUrl().startsWith("/matchmake/")) {
++        if (Date.now() - matchmakingWindow >= 60000) { matchmakingWindow = Date.now(); matchmakingRequests = 0; }
++        if (++matchmakingRequests > 300) { res.writeStatus("429 Too Many Requests").end(); return; }
++      }
+       const abortController = new AbortController();
+       res.onAborted(() => {
+-        abortController.abort();
+         res.aborted = true;
++        abortController.abort();
+       });
+       const headers = new Headers();
+       req.forEach((key, value) => headers.set(key, value));
+@@ -180,8 +193,15 @@ var uWebSocketsTransport = class extends import_core.Transport {
+         if (method !== "GET" && method !== "HEAD") {
+           let body = void 0;
+           await new Promise((resolve) => {
++            abortController.signal.addEventListener("abort", () => resolve(), { once: true });
+             res.onData((ab, isLast) => {
+               const chunk = Buffer.from(ab);
++              if ((body?.length || 0) + chunk.length > 64 * 1024) {
++                res.writeStatus("413 Payload Too Large").end();
++                res.aborted = true;
++                resolve();
++                return;
++              }
+               if (body === void 0) {
+                 body = Buffer.from(chunk);
+               } else {
+@@ -192,6 +212,7 @@ var uWebSocketsTransport = class extends import_core.Transport {
+               }
+             });
+           });
++          if (res.aborted || !body) return;
+           requestInit.body = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
+         }
+         const fullUrl = `http://${headers.get("host") || "localhost"}${url}${query ? `?${query}` : ""}`;
+@@ -225,7 +246,7 @@ var uWebSocketsTransport = class extends import_core.Transport {
+         const eres = new uWebSocketsExpressModule.ServerResponse(res, req, this._expressApp);
+         abortController.signal.addEventListener("abort", () => {
+           eres.finished = true;
+-          eres.writableEnded = true;
++          // writableEnded is getter-only; finished is the writable abort state.
+         });
+         for (const header in corsHeaders) {
+           eres.setHeader(header, corsHeaders[header].toString());
+diff --git a/build/uWebSocketsTransport.mjs b/build/uWebSocketsTransport.mjs
+index 87c92a36302a9d8b470c6da3cdbec6c88c872901..2bc55b50bee6a96be01f29ed97f04f346e14c0f7 100644
+--- a/build/uWebSocketsTransport.mjs
++++ b/build/uWebSocketsTransport.mjs
+@@ -29,6 +29,13 @@ var uWebSocketsTransport = class extends Transport {
+     this.app.ws("/*", {
+       ...options,
+       upgrade: (res, req, context) => {
++        if (this.clients.length >= 512) { res.writeStatus("503 Service Unavailable").end(); return; }
++        const origin = req.getHeader("origin");
++        if (process.env.NODE_ENV === "production" && origin && !(process.env.WS_ALLOWED_ORIGINS || "https://mutante.club").split(",").includes(origin)) {
++          res.writeStatus("403 Forbidden").end();
++          return;
++        }
++
+         const headers = {};
+         req.forEach((key, value) => headers[key] = value);
+         const searchParams = querystring.parse(req.getQuery());
+@@ -123,11 +130,17 @@ var uWebSocketsTransport = class extends Transport {
+         res.end();
+       });
+     });
++    let matchmakingWindow = Date.now();
++    let matchmakingRequests = 0;
+     this.app.any("/*", async (res, req) => {
++      if (req.getMethod() === "post" && req.getUrl().startsWith("/matchmake/")) {
++        if (Date.now() - matchmakingWindow >= 60000) { matchmakingWindow = Date.now(); matchmakingRequests = 0; }
++        if (++matchmakingRequests > 300) { res.writeStatus("429 Too Many Requests").end(); return; }
++      }
+       const abortController = new AbortController();
+       res.onAborted(() => {
+-        abortController.abort();
+         res.aborted = true;
++        abortController.abort();
+       });
+       const headers = new Headers();
+       req.forEach((key, value) => headers.set(key, value));
+@@ -146,8 +159,15 @@ var uWebSocketsTransport = class extends Transport {
+         if (method !== "GET" && method !== "HEAD") {
+           let body = void 0;
+           await new Promise((resolve) => {
++            abortController.signal.addEventListener("abort", () => resolve(), { once: true });
+             res.onData((ab, isLast) => {
+               const chunk = Buffer.from(ab);
++              if ((body?.length || 0) + chunk.length > 64 * 1024) {
++                res.writeStatus("413 Payload Too Large").end();
++                res.aborted = true;
++                resolve();
++                return;
++              }
+               if (body === void 0) {
+                 body = Buffer.from(chunk);
+               } else {
+@@ -158,6 +178,7 @@ var uWebSocketsTransport = class extends Transport {
+               }
+             });
+           });
++          if (res.aborted || !body) return;
+           requestInit.body = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
+         }
+         const fullUrl = `http://${headers.get("host") || "localhost"}${url}${query ? `?${query}` : ""}`;
+@@ -191,7 +212,7 @@ var uWebSocketsTransport = class extends Transport {
+         const eres = new uWebSocketsExpressModule.ServerResponse(res, req, this._expressApp);
+         abortController.signal.addEventListener("abort", () => {
+           eres.finished = true;
+-          eres.writableEnded = true;
++          // writableEnded is getter-only; finished is the writable abort state.
+         });
+         for (const header in corsHeaders) {
+           eres.setHeader(header, corsHeaders[header].toString());
+diff --git a/src/uWebSocketsTransport.ts b/src/uWebSocketsTransport.ts
+index 5b247a85269bc8d7266204d8aeb59b0aa42f2d83..b573c3022b6be712e6a77935311419c55b07b17c 100644
+--- a/src/uWebSocketsTransport.ts
++++ b/src/uWebSocketsTransport.ts
+@@ -57,6 +57,13 @@ export class uWebSocketsTransport extends Transport {
+       ...options,
+ 
+       upgrade: (res, req, context) => {
++        if (this.clients.length >= 512) { res.writeStatus("503 Service Unavailable").end(); return; }
++        const origin = req.getHeader("origin");
++        if (process.env.NODE_ENV === "production" && origin && !(process.env.WS_ALLOWED_ORIGINS || "https://mutante.club").split(",").includes(origin)) {
++          res.writeStatus("403 Forbidden").end();
++          return;
++        }
++
+         // get all headers
+         const headers: { [id: string]: string } = {};
+         req.forEach((key, value) => headers[key] = value);
+@@ -181,12 +188,18 @@ export class uWebSocketsTransport extends Transport {
+       });
+     });
+ 
++    let matchmakingWindow = Date.now();
++    let matchmakingRequests = 0;
+     this.app.any('/*', async (res, req) => {
++      if (req.getMethod() === "post" && req.getUrl().startsWith("/matchmake/")) {
++        if (Date.now() - matchmakingWindow >= 60000) { matchmakingWindow = Date.now(); matchmakingRequests = 0; }
++        if (++matchmakingRequests > 300) { res.writeStatus("429 Too Many Requests").end(); return; }
++      }
+       const abortController = new AbortController();
+ 
+       res.onAborted(() => {
++        (res as any).aborted = true;
+         abortController.abort();
+-        res.aborted = true;
+       });
+ 
+       // cache all headers and request info synchronously
+@@ -216,8 +229,15 @@ export class uWebSocketsTransport extends Transport {
+ 
+           // uWebSockets.js `HttpRequest` does not provide 'getData', must aggregate POST body via HttpResponse
+           await new Promise<void>((resolve) => {
++            abortController.signal.addEventListener("abort", () => resolve(), { once: true });
+             res.onData((ab, isLast) => {
+               const chunk = Buffer.from(ab);
++              if ((body?.length || 0) + chunk.length > 64 * 1024) {
++                res.writeStatus("413 Payload Too Large").end();
++                (res as any).aborted = true;
++                resolve();
++                return;
++              }
+               if (body === undefined) {
+                 body = Buffer.from(chunk);
+               } else {
+@@ -229,6 +249,7 @@ export class uWebSocketsTransport extends Transport {
+             });
+           });
+ 
++          if ((res as any).aborted || !body) return;
+           requestInit.body = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer;
+         }
+ 
+@@ -275,7 +296,7 @@ export class uWebSocketsTransport extends Transport {
+         abortController.signal.addEventListener('abort', () => {
+           eres.finished = true;
+           // @ts-ignore
+-          eres.writableEnded = true;
++          // writableEnded is getter-only; finished is the writable abort state.
+         });
+ 
+         // Apply CORS headers through the Express response wrapper

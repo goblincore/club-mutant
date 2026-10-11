@@ -30,7 +30,7 @@ export function verifyNakamaToken(token: string): NakamaTokenPayload | null {
       algorithms: ['HS256'],
     }) as NakamaTokenPayload
 
-    if (!decoded.uid || !decoded.usn) {
+    if (typeof decoded.uid !== 'string' || !decoded.uid || typeof decoded.usn !== 'string' || typeof decoded.exp !== 'number' || !Number.isFinite(decoded.exp)) {
       console.warn('[auth] Nakama token missing uid or usn claim')
       return null
     }

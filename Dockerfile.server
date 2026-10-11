@@ -12,6 +12,7 @@ WORKDIR /app
 
 # Copy workspace config and lockfile
 COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY patches/ ./patches/
 
 # Copy package.json files for all workspace packages
 COPY package.json ./
@@ -46,6 +47,7 @@ WORKDIR /app
 
 # Copy workspace config
 COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY patches/ ./patches/
 COPY package.json ./
 COPY types/package.json ./types/
 COPY server/package.json ./server/
@@ -61,6 +63,8 @@ COPY types/ ./types/
 # Copy built server files (tsup bundles everything including JS files)
 COPY --from=builder /app/server/lib ./server/lib
 
+RUN useradd -u 10001 -m app
+USER 10001:10001
 ENV NODE_ENV=production
 ENV PORT=2567
 

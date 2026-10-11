@@ -95,7 +95,7 @@ jukeboxRoomHandler.enableRealtimeListing()
 
 const server = defineServer({
   transport: new uWebSocketsTransport({
-    maxPayloadLength: 1024 * 1024, // 1MB max message size
+    maxPayloadLength: 64 * 1024, // 64KiB max message size
   }),
 
   rooms: {

@@ -45,6 +45,8 @@ describe('ClubMutant room integration', () => {
     // Exercise the production transport and native fetch (no loadtest HTTP shim).
     const gameServer = new Server({ transport: new uWebSocketsTransport() })
     gameServer.define(RoomType.CUSTOM, ClubMutant)
+    gameServer.define(RoomType.PUBLIC, ClubMutant)
+    gameServer.define(RoomType.MYROOM, ClubMutant)
     testServer = await boot(gameServer)
   }, 30000)
 
@@ -53,7 +55,7 @@ describe('ClubMutant room integration', () => {
   })
 
   it('player joins, state syncs, player leaves', { timeout: 15000 }, async () => {
-    const room = await testServer.createRoom<ClubMutant>(RoomType.CUSTOM, PUBLIC_ROOM_OPTIONS)
+    const room = await testServer.createRoom<ClubMutant>(RoomType.PUBLIC, PUBLIC_ROOM_OPTIONS)
 
     const client = await testServer.connectTo(room, {
       ...GUEST_AUTH,
@@ -82,7 +84,7 @@ describe('ClubMutant room integration', () => {
   })
 
   it('player movement updates state within speed cap', { timeout: 15000 }, async () => {
-    const room = await testServer.createRoom<ClubMutant>(RoomType.CUSTOM, PUBLIC_ROOM_OPTIONS)
+    const room = await testServer.createRoom<ClubMutant>(RoomType.PUBLIC, PUBLIC_ROOM_OPTIONS)
     const client = await testServer.connectTo(room, {
       ...GUEST_AUTH, name: 'Bob', playerId: 'guest-bob', textureId: 0, spawnX: 0, spawnY: 0,
     })
@@ -141,7 +143,7 @@ describe('ClubMutant room integration', () => {
   })
 
   it('chat message broadcasts to other clients', { timeout: 15000 }, async () => {
-    const room = await testServer.createRoom<ClubMutant>(RoomType.CUSTOM, PUBLIC_ROOM_OPTIONS)
+    const room = await testServer.createRoom<ClubMutant>(RoomType.PUBLIC, PUBLIC_ROOM_OPTIONS)
     const alice = await testServer.connectTo(room, {
       ...GUEST_AUTH, name: 'Alice', playerId: 'a', textureId: 0, spawnX: 0, spawnY: 0,
     })
@@ -208,7 +210,7 @@ describe('ClubMutant room integration', () => {
     expect(room.state.musicStream.currentTitle).toBe('DJ1 Track')
     expect(room.state.musicStream.currentDj.sessionId).toBe(dj1.sessionId)
 
-    dj1.send(Message.DJ_TURN_COMPLETE)
+    dj1.send(Message.DJ_TURN_COMPLETE, { streamId: room.state.musicStream.streamId })
     await wait(80)
 
     expect(room.state.currentDjSessionId).toBe(dj2.sessionId)
@@ -260,7 +262,8 @@ describe('ClubMutant room integration', () => {
       textureId: 0,
     })
     await wait(80)
-    expect(room.state.creatorPlayerId).toBe('guest-creator')
+    expect(room.state.creatorPlayerId).toBe(room.state.players.get(creator.sessionId)!.playerId)
+    expect(room.state.creatorPlayerId).toMatch(/^guest:/)
 
     const guest = await testServer.connectTo(room, {
       ...GUEST_AUTH,

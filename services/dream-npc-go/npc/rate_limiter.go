@@ -17,15 +17,15 @@ type RateLimits struct {
 }
 
 type RateLimiter struct {
-	mu          sync.Mutex
-	sessions    map[string]*RateLimits
-	global      *RateLimits
-	limitSessM  int
-	limitSessH  int
-	limitSessD  int
-	limitGlobM  int
-	limitGlobH  int
-	limitGlobD  int
+	mu         sync.Mutex
+	sessions   map[string]*RateLimits
+	global     *RateLimits
+	limitSessM int
+	limitSessH int
+	limitSessD int
+	limitGlobM int
+	limitGlobH int
+	limitGlobD int
 }
 
 func NewRateLimiter() *RateLimiter {
@@ -46,7 +46,17 @@ func (rl *RateLimiter) Check(sessionKey string) (bool, int64) {
 	defer rl.mu.Unlock()
 
 	now := time.Now().UnixMilli()
-	
+	for key, session := range rl.sessions {
+		if session.Day.ResetAt < now {
+			delete(rl.sessions, key)
+		}
+	}
+	if len(rl.sessions) >= 10000 {
+		if _, exists := rl.sessions[sessionKey]; !exists {
+			return false, 60_000
+		}
+	}
+
 	// Global limits
 	if ok, retry := checkWindow(&rl.global.Minute, rl.limitGlobM, 60_000, now); !ok {
 		return false, retry
@@ -79,23 +89,17 @@ func (rl *RateLimiter) Check(sessionKey string) (bool, int64) {
 		return false, retry
 	}
 
-	return true, 0
-}
-
-func (rl *RateLimiter) Record(sessionKey string) {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
 	rl.global.Minute.Count++
 	rl.global.Hour.Count++
 	rl.global.Day.Count++
-
-	if sess, ok := rl.sessions[sessionKey]; ok {
-		sess.Minute.Count++
-		sess.Hour.Count++
-		sess.Day.Count++
-	}
+	sess.Minute.Count++
+	sess.Hour.Count++
+	sess.Day.Count++
+	return true, 0
 }
+
+// ReserveHeartbeat shares the model budget with chat requests.
+func ReserveHeartbeat() bool { ok, _ := rateLimiter.Check("heartbeat"); return ok }
 
 func checkWindow(w *RateWindow, limit int, durationMs int64, now int64) (bool, int64) {
 	if now > w.ResetAt {

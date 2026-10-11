@@ -11,3 +11,9 @@ onlyBuiltDependencies:
   - esbuild
   - msgpackr-extract
   - swiper
+
+patchedDependencies:
+  '@colyseus/uwebsockets-transport@0.17.20': patches/@colyseus__uwebsockets-transport@0.17.20.patch
+
+  '@colyseus/uwebsockets-transport@0.18.4': patches/@colyseus__uwebsockets-transport@0.18.4.patch
+allowUnusedPatches: true

@@ -79,4 +79,5 @@ export enum Message {
   // NPC DJ
   NPC_DJ_SET_STANDBY, // Client → server: { standby: boolean } — keep the fallback NPC DJ off the decks (true) or summon it back (false)
   NPC_DJ_SET_MODE, // Client → server (room creator only, custom djqueue rooms): { mode: 'off' | 'fallback' | 'rotation' } — live-toggle the NPC DJ
+  SERVICE_AUTH, // Request/receive a short-lived upload capability
 }

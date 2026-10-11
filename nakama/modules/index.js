@@ -58,7 +58,7 @@ function validateProfileInput(input) {
   if (input.links !== undefined) {
     if (!Array.isArray(input.links)) throw 'links must be an array';
     result.links = input.links.slice(0, MAX_LINKS).map(function (link) {
-      if (!link.label || !link.url) throw 'each link must have label and url';
+      if (!link.label || typeof link.url !== 'string' || !/^https?:\/\//i.test(link.url)) throw 'each link must have label and url';
       return {
         label: String(link.label).trim().substring(0, MAX_LABEL),
         url: String(link.url).trim().substring(0, MAX_URL),
@@ -68,6 +68,7 @@ function validateProfileInput(input) {
 
   if (input.background_url !== undefined) {
     if (typeof input.background_url !== 'string') throw 'background_url must be a string';
+    if (input.background_url && !/^https?:\/\//i.test(input.background_url)) throw 'background_url must use http or https';
     result.background_url = input.background_url.trim().substring(0, MAX_URL);
   }
 
@@ -75,6 +76,7 @@ function validateProfileInput(input) {
 }
 
 var updateProfileRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -107,6 +109,7 @@ var updateProfileRpc = function (ctx, logger, nk, payload) {
 };
 
 var getProfileRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input = {};
   if (payload) {
     try {
@@ -166,14 +169,18 @@ function checkRateLimit(nk, logger, ip, limitType, windowSec, maxAttempts) {
     record = { windowStart: now, count: 1 };
   }
 
-  nk.storageWrite([{
+  try { nk.storageWrite([{
     collection: RATE_LIMIT_COLLECTION,
     key: key,
     userId: SYSTEM_USER_ID,
     value: record,
+    version: objects && objects.length > 0 ? objects[0].version : '*',
     permissionRead: 0,
     permissionWrite: 0
-  }]);
+  }]); } catch (e) {
+    // Concurrent attempts cannot overwrite one another's quota reservation.
+    return false;
+  }
 
   return true;
 }
@@ -191,6 +198,13 @@ var beforeAuthenticateEmail = function (ctx, logger, nk, data) {
     }
   }
 
+  return data;
+};
+
+var beforeAuthenticateDevice = function (ctx, logger, nk, data) {
+  if (!checkRateLimit(nk, logger, ctx.clientIp || 'unknown', 'device', 3600, 30)) {
+    throw { message: 'Too many device authentication attempts', code: 8 };
+  }
   return data;
 };
 
@@ -237,6 +251,7 @@ function countUserPlaylists(nk, userId) {
 }
 
 var listPlaylistsRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input = {};
   if (payload) {
     try {
@@ -283,6 +298,7 @@ var listPlaylistsRpc = function (ctx, logger, nk, payload) {
 };
 
 var getPlaylistRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -315,6 +331,7 @@ var getPlaylistRpc = function (ctx, logger, nk, payload) {
 };
 
 var savePlaylistRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -361,7 +378,7 @@ var savePlaylistRpc = function (ctx, logger, nk, payload) {
     userId: ctx.userId,
     value: value,
     permissionRead: 1,
-    permissionWrite: 1
+    permissionWrite: 0
   }]);
 
   logger.info('Playlist saved for user %s: %s (%d tracks)', ctx.userId, input.id, items.length);
@@ -378,6 +395,7 @@ var savePlaylistRpc = function (ctx, logger, nk, payload) {
 };
 
 var deletePlaylistRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -417,6 +435,7 @@ var DM_NOTIFICATION_CODE = 100;
  * Output: { messageId, createdAt }
  */
 var sendMessageRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -575,6 +594,7 @@ function updateConversationIndex(nk, userId, otherUserId, otherUsername, preview
  * Output: { conversations: ConversationSummary[], cursor? }
  */
 var listConversationsRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input = {};
   if (payload) {
     try {
@@ -620,6 +640,7 @@ var listConversationsRpc = function (ctx, logger, nk, payload) {
  * Output: { messages: MailMessage[], cursor? }
  */
 var getMessagesRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -685,6 +706,7 @@ var getMessagesRpc = function (ctx, logger, nk, payload) {
  * Output: { success: true }
  */
 var markReadRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -736,6 +758,7 @@ var WALL_NOTIFICATION_CODE = 101;
  * Output: { postId, createdAt }
  */
 var createWallPostRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -839,6 +862,7 @@ var createWallPostRpc = function (ctx, logger, nk, payload) {
  * Output: { posts: WallPost[], cursor? }
  */
 var getWallPostsRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -884,6 +908,7 @@ var getWallPostsRpc = function (ctx, logger, nk, payload) {
  * Output: { success: true }
  */
 var deleteWallPostRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input;
   try {
     input = JSON.parse(payload);
@@ -962,6 +987,7 @@ function savedLetterResponse(letter, input) {
   return JSON.stringify({ letter: letter });
 }
 var sendLetterRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input = letterInput(ctx, payload);
   if (typeof input.request_id !== 'string' || !/^[a-f0-9-]{36}$/.test(input.request_id)) throw 'Invalid letter request';
   if (typeof input.to !== 'string' || !input.to.trim() || input.to.length > 128) throw 'Enter a Club Mutant username';
@@ -1006,6 +1032,7 @@ var sendLetterRpc = function (ctx, logger, nk, payload) {
   return JSON.stringify({ letter: senderCopy });
 };
 var listLettersRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input = letterInput(ctx, payload);
   if (input.cursor !== undefined && typeof input.cursor !== 'string') throw 'Invalid cursor';
   var result = nk.storageList(ctx.userId, LETTER_COLLECTION, 50, input.cursor || '');
@@ -1015,6 +1042,7 @@ var listLettersRpc = function (ctx, logger, nk, payload) {
   return JSON.stringify({ letters: letters, cursor: result.cursor || '' });
 };
 var updateLetterRpc = function (ctx, logger, nk, payload) {
+  requireUserSession(ctx, payload);
   var input = letterInput(ctx, payload);
   if (typeof input.id !== 'string' || input.id.length > 100) throw 'Invalid letter';
   var object = letterObject(nk, ctx.userId, input.id);
@@ -1036,6 +1064,34 @@ var updateLetterRpc = function (ctx, logger, nk, payload) {
 
 // ─── InitModule ─────────────────────────────────────────────────────
 
+// User RPCs require a verified Nakama session even when invoked with http_key.
+function requireUserSession(ctx, payload) {
+  if (!ctx.userId) throw { message: 'Authentication required', code: 16 };
+  if (payload && payload.length > 262144) throw { message: 'Payload too large', code: 3 };
+}
+
+// These collections are exclusively written through validated runtime RPCs.
+// Also protects existing playlists whose old permissionWrite value was 1.
+function protectedStorage(ctx, logger, nk, request) {
+  var objects = request.objects || request.objectIds || [];
+  for (var i = 0; i < objects.length; i++) {
+    if (objects[i].collection === 'user_settings') {
+      if (objects[i].value && objects[i].value.length > 16384) throw { message: 'Setting too large', code: 3 };
+      if (objects[i].permissionRead !== undefined) objects[i].permissionRead = 1;
+      if (objects[i].permissionWrite !== undefined) objects[i].permissionWrite = 1;
+      continue;
+    }
+    throw { message: 'Use application RPCs for storage mutations', code: 7 };
+  }
+  return request;
+}
+
+function validateAccountUpdate(ctx, logger, nk, request) {
+  if (request.metadata !== undefined) throw { message: 'Use update_profile for metadata', code: 7 };
+  if (request.avatarUrl && !/^https?:\/\//i.test(request.avatarUrl)) throw { message: 'Invalid avatar URL', code: 3 };
+  return request;
+}
+
 var InitModule = function (ctx, logger, nk, initializer) {
   initializer.registerRpc('update_profile', updateProfileRpc);
   initializer.registerRpc('get_profile', getProfileRpc);
@@ -1053,6 +1109,10 @@ var InitModule = function (ctx, logger, nk, initializer) {
   initializer.registerRpc('create_wall_post', createWallPostRpc);
   initializer.registerRpc('get_wall_posts', getWallPostsRpc);
   initializer.registerRpc('delete_wall_post', deleteWallPostRpc);
+  initializer.registerBeforeWriteStorageObjects(protectedStorage);
+  initializer.registerBeforeDeleteStorageObjects(protectedStorage);
+  initializer.registerBeforeUpdateAccount(validateAccountUpdate);
   initializer.registerBeforeAuthenticateEmail(beforeAuthenticateEmail);
+  initializer.registerBeforeAuthenticateDevice(beforeAuthenticateDevice);
   logger.info('Modules loaded: RPCs (update_profile, get_profile, list_playlists, get_playlist, save_playlist, delete_playlist, send_message, list_conversations, get_messages, mark_read, send_letter, list_letters, update_letter, create_wall_post, get_wall_posts, delete_wall_post), hooks (beforeAuthenticateEmail)');
 };
