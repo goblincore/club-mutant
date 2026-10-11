@@ -55,6 +55,7 @@ export class DJUserInfo extends Schema {
 
 export class MusicStream extends Schema {
   @type('string') status = 'waiting' // waiting or seeking or playing
+  // Monotonic playback transition ID: both starts and stops advance it.
   @type('number') streamId = 0
   @type('string') currentLink: string | null = null
   @type('string') currentTitle: string | null = null

@@ -14,6 +14,7 @@ export function wireLifecycleHandlers(
   // Reconnection: connection dropped unexpectedly
   room.onDrop((code: number, reason?: string) => {
     console.log(`[network] Connection dropped! code=${code} reason=${reason}`)
+    timeSync?.stop()
     useGameStore.getState().setConnectionStatus('reconnecting')
   })
 
@@ -29,6 +30,7 @@ export function wireLifecycleHandlers(
   // Room leave — permanent (either consented or failed to reconnect)
   room.onLeave((code: number) => {
     console.log('[network] Left room, code:', code)
+    timeSync?.stop()
     onLeave()
     useGameStore.getState().setConnectionStatus('disconnected')
     useMusicStore.getState().clearStream()

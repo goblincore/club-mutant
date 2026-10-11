@@ -233,8 +233,8 @@ export default function YoutubePlayer() {
   const handleDJNext = useCallback(() => {
     if (!isCurrentDJ) return
     setIsPlaying(true)
-    game.network.djTurnComplete()
-  }, [isCurrentDJ, game.network, setIsPlaying])
+    game.network.skipDJTurn(streamId)
+  }, [isCurrentDJ, game.network, setIsPlaying, streamId])
 
   const handleOnEnded = useCallback(() => {
     if (isAmbient) {
@@ -250,7 +250,7 @@ export default function YoutubePlayer() {
     // New DJ Queue system
     if (isInDJQueue && isCurrentDJ) {
       setIsPlaying(true)
-      game.network.djTurnComplete()
+      game.network.djTurnComplete(streamId)
       return
     }
 
@@ -284,6 +284,7 @@ export default function YoutubePlayer() {
     setIsPlaying,
     isInDJQueue,
     isCurrentDJ,
+    streamId,
   ])
 
   // Render: Ambient mode (hidden player)

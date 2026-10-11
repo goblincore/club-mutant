@@ -1,388 +1,70 @@
 # DJ Queue Rotation System
 
-## Overview
+The server owns DJ membership, turn selection, private playlists, and playback transitions. The 3D client plays the authoritative stream through a YouTube ReactPlayer. The analysis proxy is separate from audible playback.
 
-The DJ Queue Rotation System is a social music-sharing feature that allows multiple users to queue up and take turns playing tracks for the room. It's designed to facilitate collaborative listening sessions where everyone gets a turn to share their music.
+## Turns and playlist looping
 
-## User Flow
+Up to three DJs occupy booth slots. Queue position controls turn order; slot index controls physical position. The current DJ can be different from the queue head during join or explicit play promotion, so rotation always locates the entry matching `currentDjSessionId`.
 
-### 1. Becoming a DJ
+Each turn plays one track. Completion or an explicit skip moves the current DJ to the back and selects the next player still in the room with a nonempty playlist. Empty playlists are skipped without removing their owners from the queue.
 
-**First DJ:**
+A selected DJ whose entire playlist has been played has its played flags reset before playback starts. This looping happens independently for each DJ, preserving one-track turns when playlists have different lengths or an NPC continually replenishes its own playlist. A one-song DJ therefore plays that song on each turn, rather than waiting for every other playlist to exhaust. There is currently no per-playlist non-looping option.
 
-1. Walk up to the DJ booth (music booth 0)
-2. Press `R` or click the booth
-3. Automatically joins the queue as position #1
-4. Becomes the current DJ immediately
-5. Can add tracks from their personal playlist to the Room Queue
+The first unplayed track in playlist order starts. When it completes, that exact track ID is marked played and moved to the bottom. Unplayed tracks continue in their own order until the next loop. Reordering and removal protect the actual playing track by ID, regardless of its index.
 
-**Additional DJs:**
+When the current DJ leaves, the same selection and reset policy promotes the next DJ. An empty queue stops playback. If all remaining playlists are empty, leaving retains a waiting current DJ who can add tracks; completion leaves no current DJ until a queued player adds a track or requests play.
 
-1. While someone is DJing, approach the booth
-2. Click the "Join DJ Queue" button
-3. Get added to the end of the queue
-4. Wait for their turn while watching the current DJ play
+The first human starts playback explicitly. Subsequent turn transitions autoplay. The NPC DJ manager retains its fallback/rotation modes, playlist replenishment, movement, and separate completion timer. Movement does not gate queue transitions.
 
-### 2. Managing Your Queue
+## Playback identity and controls
 
-**Adding Tracks:**
+`musicStream.streamId` is a monotonic transition ID. Starts and stops both increment it. Starts record `currentTrackId`, link, title, DJ, server start timestamp, and duration. Stops clear playback fields and publish their transition ID.
 
-- Open your personal playlist panel (right side)
-- Find a track you want to play
-- Click the `+` button next to it
-- Track is inserted right after the currently playing track (if any)
+Natural completion (`DJ_TURN_COMPLETE`) requires a matching transition ID, a playing stream, a current track ID, and the current DJ's session. Completion after Stop and duplicate callbacks from an earlier playback are ignored. The server watchdog includes the ID of the stream it is completing.
 
-**Track Order:**
+Explicit skip (`DJ_SKIP_TURN`) has separate behavior. While playing, it must match the current transition and marks the playing track before rotating. While stopped, it gives up the turn without marking an unheard track. Repeating a skip for an earlier stream cannot consume its successor. Stop leaves playlist played flags intact; explicit play resets the current DJ's flags only if all tracks are exhausted.
 
-```
-[Currently Playing] ← Locked, can't move
-[Unplayed Track 1]  ← Will play next
-[Unplayed Track 2]
-[Unplayed Track 3]
-[Played Track 1]    ← Greyed out, history
-[Played Track 2]    ← Greyed out, history
-```
+Both 3D and legacy 2D clients send playback IDs for natural completion. The 3D skip control sends the ID captured for its displayed stream.
 
-**Reordering:**
+## Public state and private playlists
 
-- Drag and drop tracks to reorder (only unplayed tracks)
-- Currently playing track is locked in place
-- Played tracks are locked at the bottom
+Colyseus synchronizes `djQueue`, `currentDjSessionId`, and `musicStream` as public schema state. Personal `roomQueuePlaylist` arrays remain server-only; other players do not receive their contents.
 
-**Removing Tracks:**
+`sendPlaylistSnapshot` targets the owner by session ID in the room's live client collection. It publishes `ROOM_QUEUE_PLAYLIST_UPDATED` after add, remove, reorder, completion, skip marking, and loop reset, plus join/reconnection recovery. Watchdog completion does not depend on a synthetic client's `send` method. Disconnected players recover their latest private playlist when reconnecting.
 
-- Click the trash icon on any track
-- Cannot remove the currently playing track
+The 3D client mirrors public queue schemas into `boothStore` and receives private snapshots into its own queue playlist. The current-track highlight compares track IDs rather than assuming playlist index zero. The legacy client still consumes `DJ_QUEUE_UPDATED` notifications.
 
-### 3. Playing Music
+## Playback synchronization and reconnect
 
-**First DJ (empty room):**
+START and STOP messages provide prompt playback updates. Full `MUSIC_STREAM_TICK` snapshots every five seconds carry playing or waiting state, transition ID, server start time, and server-now time. Reconnection sends the same full snapshot immediately, including a stopped room.
 
-- Must explicitly press the play button to start playback
-- This is the ONLY case where manual play is required
+The client also reconciles schema patches. It retains the stopped transition ID and rejects older START messages, STOP messages, ticks, and schema states, so a lagging patch cannot resurrect or replace newer playback. Unrelated room patches do not cause music-store updates when playback fields and timing are unchanged.
 
-**When It's Your Turn (autoplay):**
+Before clock synchronization is ready, the client derives elapsed time from the server's START offset or tick timestamps. It never interprets a raw server timestamp as a client timestamp. Once synchronized, timestamps can be converted using the estimated clock offset.
 
-- Your top unplayed track automatically starts playing for everyone
-- You see playback controls (play/pause, prev, next) and a background video toggle
-- Other users see your name as the current DJ but NO playback controls
+`TimeSync.start` is idempotent. Drop and permanent leave stop periodic probes, burst timeouts, and response listeners; reconnect starts a fresh synchronization session. Probe RTT and sample expiration use the monotonic performance clock. Historical low-RTT samples expire after one minute, and reconnect/browser resume clear previous samples. A wall-clock change during a probe invalidates that sample.
 
-**During Your Turn:**
+The YouTube player is keyed by transition ID so a new stream of the same URL gets a fresh player. Its completion callback captures that stream's ID and checks that it still owns active playback before reporting. Initial and ready-time seeking plus periodic position checks repair late joins and buffering drift.
 
-- Track plays to completion (or until skipped)
-- After track ends, you're moved to the end of the queue (if you have more tracks)
-- Next DJ's top track starts automatically (no manual play needed)
+## Watchdog and remaining limits
 
-**Track Status Text:**
+Human streams use the room watchdog. NPC streams transfer timing ownership to `NpcDjManager`; queue helpers clear and rearm the room watchdog consistently across starts and stops.
 
-- "Now playing" — track is actively streaming
-- "Paused" — track is the current track but playback is paused
-- "Played" — track has been played and is in history
-- "Up next" — next unplayed track in your queue
+Durations are still client supplied and bounded to five seconds through four hours; unknown duration uses the existing ten-minute watchdog fallback. These bounds do not establish actual YouTube duration. Authoritative metadata, unavailable-embed recovery, and finite-track versus live-stream behavior remain separate follow-up work.
 
-### 4. Skipping Your Turn
+Private snapshots rely on ordered room transport and full reconnect recovery. Playlist edit revisions/acknowledgments are not implemented. Browser playback of real YouTube embeds still depends on autoplay, buffering, and provider availability.
 
-- Click "Skip My Turn" button (only visible when you're the current DJ)
-- Current track is marked as played and moved to bottom
-- Client receives updated playlist (`ROOM_QUEUE_PLAYLIST_UPDATED`)
-- Immediately advances to next DJ (autoplay)
-- You stay in the queue for your next turn
+## File map and verification
 
-### 5. Leaving the Queue
+- `types/RoomState.ts`: public schemas and server-only player playlist.
+- `server/src/rooms/commands/djHelpers.ts`: selection, looping, playback transitions, private snapshot delivery.
+- `server/src/rooms/commands/DJQueueCommand.ts`: player commands and completion guards.
+- `server/src/rooms/commands/RoomQueuePlaylistCommand.ts`: private playlist edits.
+- `server/src/rooms/ClubMutant.ts`: watchdog, clock replies, periodic snapshots, reconnect recovery.
+- `server/src/rooms/NpcDjManager.ts`: NPC queue participation, movement, and track timer.
+- `client-3d/src/network/messages/musicHandlers.ts`: playback notification/schema/snapshot reconciliation.
+- `client-3d/src/network/TimeSync.ts`: clock estimate and lifecycle.
+- `client-3d/src/ui/NowPlaying.tsx`: audio player and immutable completion ownership.
+- `client-3d/src/ui/DjQueuePanel.tsx`: playlist and current-track highlighting.
 
-**Click "Leave Queue":**
-
-- Removes you from the DJ queue
-- If you were currently playing:
-  - Rotation advances to next DJ (autoplay — their track starts immediately)
-- If you were NOT the current DJ:
-  - Playback for the current DJ is unaffected
-- Disconnects you from the booth
-- Closes the DJ UI
-
-## Technical Implementation
-
-### Server-Side
-
-**Schema Extensions:**
-
-```typescript
-// OfficeState
-djQueue: ArraySchema<DJQueueEntry>
-currentDjSessionId: string | null
-
-// Player
-roomQueuePlaylist: ArraySchema<RoomQueuePlaylistItem>
-
-// RoomQueuePlaylistItem
-id: string
-title: string
-link: string
-duration: number
-addedAtMs: number
-played: boolean // Track history flag
-```
-
-**Commands:**
-
-1. **DJQueueJoinCommand** (`DJ_QUEUE_JOIN`)
-   - Validates user not already in queue
-   - Adds to end of queue
-   - If first DJ, sets as current (but does NOT auto-start — requires explicit `DJ_PLAY`)
-
-2. **DJQueueLeaveCommand** (`DJ_QUEUE_LEAVE`)
-   - Calls `removeDJFromQueue()` which handles all cleanup
-   - If was current DJ: promotes next DJ and autoplays their track
-
-3. **DJSkipTurnCommand** (`DJ_SKIP_TURN`)
-   - Only current DJ can trigger
-   - Marks current track as played
-   - Sends `ROOM_QUEUE_PLAYLIST_UPDATED` to the client so UI updates
-   - Advances rotation immediately (autoplay)
-
-4. **DJTurnCompleteCommand** (`DJ_TURN_COMPLETE`)
-   - Called when track naturally ends
-   - Marks track as played and moves to bottom
-   - Sends `ROOM_QUEUE_PLAYLIST_UPDATED` to the client
-   - Advances to next DJ (autoplay)
-
-5. **DJPlayCommand** (`DJ_PLAY`)
-   - Explicit play — only needed for first play in an empty/silent room
-   - All other transitions use autoplay via `playTrackForCurrentDJ()`
-
-6. **RoomQueuePlaylist Commands**
-   - `ROOM_QUEUE_PLAYLIST_ADD`: Insert after current playing track. Does NOT auto-start playback.
-   - `ROOM_QUEUE_PLAYLIST_REMOVE`: Remove by ID (not if playing)
-   - `ROOM_QUEUE_PLAYLIST_REORDER`: Reorder unplayed tracks only
-
-**Rotation Logic:**
-
-```typescript
-function advanceRotation() {
-  // 1. Move current DJ to end of queue (if they have more tracks) or remove
-  // 2. Update queue positions
-  // 3. Find next DJ with unplayed tracks (findNextDJWithTracks)
-  // 4. Move them to front, set as currentDjSessionId
-  // 5. Call playTrackForCurrentDJ() to autoplay
-  // 6. Broadcast DJ_QUEUE_UPDATED to all clients
-}
-
-function removeDJFromQueue() {
-  // 1. Stop current track if leaving DJ was playing
-  // 2. Remove from queue, reassign positions
-  // 3. If was current DJ: promote next in queue
-  // 4. Autoplay next DJ's track if they have one (regardless of whether previous DJ was playing)
-  // 5. Broadcast DJ_QUEUE_UPDATED
-}
-```
-
-### Client-Side
-
-**Redux Stores:**
-
-1. **DJQueueStore** (`client/src/stores/DJQueueStore.ts`)
-   - `entries`: Array of DJQueueEntryDto
-   - `currentDjSessionId`: Who's currently playing
-   - `isInQueue`: Whether current user is in queue
-   - `myQueuePosition`: User's position in queue
-
-2. **RoomQueuePlaylistStore** (`client/src/stores/RoomQueuePlaylistStore.ts`)
-   - `items`: Array of RoomQueuePlaylistItemDto
-   - `isVisible`: Show/hide panel
-
-**Components:**
-
-1. **DJQueuePanel** (`client/src/components/DJQueuePanel.tsx`)
-   - Shows queue list with current DJ highlighted
-   - Displays user's playlist with drag-drop reorder
-   - Track status text reflects actual play/pause state ("Now playing" / "Paused" / "Played")
-   - Shows "Skip My Turn" button for current DJ
-   - Shows "Leave Queue" button
-
-2. **PlayerControls** (`client/src/components/PlayerControls.tsx`)
-   - Play/pause, previous, and next track buttons
-   - Only rendered when `isCurrentDJ` is true (hidden for non-current DJs)
-   - `canControl` prop gates interactivity (disabled when no tracks)
-
-3. **YoutubePlayer Integration** (`client/src/components/YoutubePlayer.tsx`)
-   - View modes:
-     - **In Queue (expanded)**: Shows playback controls (current DJ only), BG video toggle, DJQueuePanel
-     - **In Queue (minimized, current DJ)**: Shows playback controls + track title + elapsed time + "Up next"
-     - **In Queue (minimized, waiting)**: Shows queue position text only, no controls
-     - **Booth Occupied (not in queue)**: Shows join button
-   - Hidden video player continues audio playback
-   - Background video toggle (camera icon) next to playback controls
-
-4. **usePlayerSync** (`client/src/components/usePlayerSync.ts`)
-   - Custom hook managing player synchronization, drift correction, and resync
-   - **Auto-play effect**: Sets `isPlaying = true` when `link` or `streamId` changes (ensures playback starts on DJ switch)
-   - **Reset effect**: Sets `isPlaying = false` when `link` becomes null (shows play button when stopped)
-
-**Network Methods:**
-
-```typescript
-// DJ Queue
-joinDJQueue()
-leaveDJQueue()
-skipDJTurn()
-djTurnComplete()
-
-// Room Queue Playlist
-addToRoomQueuePlaylist(item: { title, link, duration })
-removeFromRoomQueuePlaylist(itemId: string)
-reorderRoomQueuePlaylist(fromIndex: number, toIndex: number)
-```
-
-## State Transitions
-
-### User Joins as First DJ (empty room)
-
-```
-User → Click Booth → Join Queue (pos #1) → Set as current DJ → Must press Play to start
-```
-
-### User Joins as Additional DJ
-
-```
-User → Click "Join Queue" → Join Queue (pos #N) → Wait for turn
-```
-
-### Track Ends Naturally
-
-```
-Track Ends → Client sends DJ_TURN_COMPLETE → Mark as Played → Send playlist update → advanceRotation → Autoplay next DJ
-```
-
-### DJ Skips Turn
-
-```
-Skip Clicked → Mark as Played → Send playlist update → advanceRotation → Autoplay next DJ → Skipped DJ goes to end
-```
-
-### DJ Leaves While Playing
-
-```
-Leave Clicked → Client sends DJ_QUEUE_LEAVE + DISCONNECT_FROM_MUSIC_BOOTH
-  → removeDJFromQueue: Stop track → Remove from queue → Promote next DJ → Autoplay their track
-  → DISCONNECT_FROM_MUSIC_BOOTH: Skip legacy handling (DJ queue is active)
-```
-
-### Non-Current DJ Leaves
-
-```
-Leave Clicked → Client sends DJ_QUEUE_LEAVE + DISCONNECT_FROM_MUSIC_BOOTH
-  → removeDJFromQueue: Remove from queue → No music state change
-  → DISCONNECT_FROM_MUSIC_BOOTH: Skip legacy handling (DJ queue is active)
-```
-
-## Edge Cases
-
-1. **All DJs run out of tracks**
-   - Music stops, stream set to 'waiting'
-   - Waits for someone to add tracks and press play
-
-2. **Only one DJ in queue**
-   - After playing one track, rotates back to themselves
-   - Plays their next track (if any)
-
-3. **DJ leaves while others waiting**
-   - Immediate rotation to next DJ with autoplay
-   - Seamless transition — current DJ's playback for other users is unaffected during non-current-DJ leave
-
-4. **New user joins mid-playback**
-   - Sees current track playing
-   - Can join queue and wait for their turn
-   - Synced to current playback position via TimeSync
-
-5. **Message ordering race condition (DJ_QUEUE_LEAVE vs DISCONNECT_FROM_MUSIC_BOOTH)**
-   - Client sends `DJ_QUEUE_LEAVE` first, then `DISCONNECT_FROM_MUSIC_BOOTH`
-   - By the time booth disconnect runs, player is already removed from DJ queue
-   - Guard: check `djQueue.length > 0 || currentDjSessionId !== null` (not the specific player)
-   - Without this guard, legacy booth music handling (`clearRoomPlaylistAfterDjLeft`) disrupts the newly started stream
-
-## Styling Guidelines
-
-The DJ Queue UI follows the existing Club Mutant dark transparent theme:
-
-```css
-/* Container */
-background: transparent; /* Inherits from parent */
-border: none;
-font-family: 'Courier New', Courier, monospace;
-
-/* Items */
-background: rgba(255, 255, 255, 0.1); /* Selected/highlighted */
-border: 1px solid rgba(255, 255, 255, 0.25);
-opacity: 1; /* Unplayed */
-opacity: 0.7; /* Currently playing */
-opacity: 0.4; /* Played history */
-
-/* Buttons */
-background: rgba(0, 0, 0, 0.35);
-border: 1px solid rgba(255, 255, 255, 0.25);
-color: rgba(255, 255, 255, 0.9);
-text-transform: lowercase;
-```
-
-## Future Enhancements
-
-Potential improvements to consider:
-
-1. **Track Preview**: Allow DJs to preview tracks before adding to queue
-2. **Queue Voting**: Let non-DJs vote on upcoming tracks
-3. **DJ Stats**: Track total play time, favorite genres, etc.
-4. **Cross-fade**: Smooth transitions between DJs
-5. **Chat Integration**: Special chat badges for current DJ
-6. **Track Recommendations**: Suggest tracks based on room's music taste
-
-## Migration from Legacy System
-
-The DJ Queue system replaces the previous shared room playlist:
-
-- **Old**: Single shared playlist, one DJ controls everything
-- **New**: Per-user playlists, round-robin rotation
-- **Migration**: Legacy room playlist data preserved but UI removed
-- **Compatibility**: Old `roomPlaylist` endpoints still exist for backward compatibility
-
-## Testing Checklist
-
-### Playback
-
-- [ ] First DJ in empty room must press play explicitly
-- [ ] Adding a track does NOT auto-start playback
-- [ ] Track finishes → next DJ's track autoplays
-- [ ] Skip turn → next DJ's track autoplays
-- [ ] Current DJ leaves → next DJ's track autoplays
-- [ ] Non-current DJ leaves → current DJ's playback is unaffected
-- [ ] All DJs out of tracks stops music gracefully
-
-### UI
-
-- [ ] Current DJ sees playback controls (play/pause, prev, next) in both minimized and expanded views
-- [ ] Non-current DJs see NO playback controls
-- [ ] Current DJ sees background video toggle (camera icon)
-- [ ] Track status shows "Now playing" when streaming, "Paused" when paused, "Played" for history
-- [ ] Minimized view: current DJ shows track title + time + controls; waiting DJ shows queue position
-- [ ] Track history shows with correct opacity (0.4)
-- [ ] Cannot drag currently playing or played tracks
-- [ ] Adding tracks inserts at correct position
-
-### Rotation
-
-- [ ] Single DJ can join and play tracks
-- [ ] Multiple DJs can join and rotate correctly
-- [ ] Skip turn marks track as played and client playlist updates
-- [ ] Leaving queue while playing advances rotation seamlessly
-
-### Booth Disconnect Isolation
-
-- [ ] Non-current DJ leaving does not trigger legacy music stop
-- [ ] Current DJ leaving does not trigger legacy music stop (DJ queue handles it)
-- [ ] Last DJ leaving allows ambient music to resume (legacy handling runs when queue is empty)
-
-### Background Video + TV Static
-
-- [ ] TV static fades out when background video starts (WebGL)
-- [ ] TV static fades out when background video starts (iframe fallback)
-- [ ] TV static fades back in when background video is disabled/stopped
-- [ ] Background video toggle works for current DJ
+Server regressions cover mixed playlist lengths/NPC replenishment, empty-head leave, stopped completion, duplicate completion/skip, private watchdog updates, and explicit reset/reordered selection. Integration coverage drops and reconnects an actual WebSocket while playback is stopped and a private playlist changes. Client regressions cover stale notifications and schema ordering, stopped-state recovery, clock skew/sample aging, timer cleanup, and old same-URL completion callbacks.

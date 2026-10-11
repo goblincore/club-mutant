@@ -1,7 +1,6 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 import type { ClubMutant } from '../ClubMutant'
-import { Message } from '@club-mutant/types/Messages'
 import {
   advanceRotation,
   hasUnplayedTracks,
@@ -9,6 +8,9 @@ import {
   markTrackAsPlayed,
   playTrackForCurrentDJ,
   removeDJFromQueue,
+  resetPlaylistForLoop,
+  sendPlaylistSnapshot,
+  stopMusicStream,
 } from './djHelpers'
 
 // Re-exported for compatibility — the constant now lives with the queue helpers.
@@ -19,15 +21,15 @@ type Payload = {
   slotIndex?: number
 }
 
+type SkipPayload = Payload & { streamId?: number }
+
 type TurnCompletePayload = {
   client: Client
-  streamId?: number
+  streamId: number
 }
 
-// Thin wrappers over the djHelpers queue functions. Commands keep their
-// client.send(...) UI notifications; all queue/rotation logic lives in
-// djHelpers.ts so the NPC DJ manager can drive the same code paths without
-// a Colyseus Client.
+// Player commands share queue, playback and private snapshot helpers with
+// the watchdog and NPC manager; those callers do not need a synthetic send().
 
 export class DJQueueJoinCommand extends Command<ClubMutant, Payload> {
   execute(data: Payload) {
@@ -46,8 +48,8 @@ export class DJQueueLeaveCommand extends Command<ClubMutant, Payload> {
   }
 }
 
-export class DJSkipTurnCommand extends Command<ClubMutant, Payload> {
-  execute(data: Payload) {
+export class DJSkipTurnCommand extends Command<ClubMutant, SkipPayload> {
+  execute(data: SkipPayload) {
     const { client } = data
 
     // Only current DJ can skip their turn
@@ -56,17 +58,14 @@ export class DJSkipTurnCommand extends Command<ClubMutant, Payload> {
       return
     }
 
-    const player = this.state.players.get(client.sessionId)
-    if (player) {
-      // Mark current track as played even when skipping (F7: by id — the
-      // playing track is not necessarily index 0; null while stopped falls
-      // back to legacy index-0 behavior)
-      markTrackAsPlayed(player, this.state.musicStream.currentTrackId)
-
-      // Notify client so their playlist UI updates
-      client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
-        items: [...player.roomQueuePlaylist],
-      })
+    // A repeated skip for an active stream must not consume its successor.
+    if (this.state.musicStream.status === 'playing') {
+      if (data.streamId !== this.state.musicStream.streamId) return
+      const player = this.state.players.get(client.sessionId)
+      if (player && this.state.musicStream.currentTrackId) {
+        markTrackAsPlayed(player, this.state.musicStream.currentTrackId)
+      }
+      sendPlaylistSnapshot(this.room, client.sessionId)
     }
 
     console.log('[DJQueue] Current DJ skipping turn:', client.sessionId)
@@ -130,16 +129,7 @@ export class DJPlayCommand extends Command<ClubMutant, Payload> {
       return
     }
 
-    // If all tracks are played, reset them to loop through the playlist again
-    const hasUnplayed = player.roomQueuePlaylist.some((t: any) => !t.played)
-
-    if (!hasUnplayed) {
-      console.log('[DJQueue] All tracks played, resetting for loop:', client.sessionId)
-
-      for (let i = 0; i < player.roomQueuePlaylist.length; i++) {
-        player.roomQueuePlaylist[i].played = false
-      }
-    }
+    resetPlaylistForLoop(this.room, client.sessionId)
 
     console.log('[DJQueue] Explicit play by current DJ:', client.sessionId)
     playTrackForCurrentDJ(this.room)
@@ -164,15 +154,7 @@ export class DJStopCommand extends Command<ClubMutant, Payload> {
 
     console.log('[DJQueue] DJ stopped playback:', client.sessionId)
 
-    const musicStream = this.state.musicStream
-    musicStream.status = 'waiting'
-    musicStream.currentLink = null
-    musicStream.currentTitle = null
-    musicStream.currentTrackId = null
-
-    // F2: stop path owns the watchdog clear (handler no longer wraps this)
-    this.room.clearTrackWatchdog()
-    this.room.broadcast(Message.STOP_MUSIC_STREAM, {})
+    stopMusicStream(this.room)
   }
 }
 
@@ -180,22 +162,13 @@ export class DJTurnCompleteCommand extends Command<ClubMutant, TurnCompletePaylo
   execute(data: TurnCompletePayload) {
     const { client } = data
 
-    // Dedup (F4): only process if the streamId matches the current stream —
-    // mirrors the jukebox pattern (JukeboxTrackCompleteCommand). Prevents a
-    // late/duplicate completion (client onEnded racing the watchdog, or a
-    // double ▶▶ press) from marking/killing the track that just started.
+    // Completion belongs to one active playback, never a stopped turn or its successor.
+    const stream = this.state.musicStream
     if (
-      data.streamId !== undefined &&
-      data.streamId !== this.state.musicStream.streamId
-    ) {
-      console.log(
-        '[DJQueue] Turn complete ignored - streamId mismatch:',
-        data.streamId,
-        'vs',
-        this.state.musicStream.streamId
-      )
-      return
-    }
+      stream.status !== 'playing' ||
+      !stream.currentTrackId ||
+      data.streamId !== stream.streamId
+    ) return
 
     // Only current DJ can complete their turn
     if (this.state.currentDjSessionId !== client.sessionId) {
@@ -215,14 +188,7 @@ export class DJTurnCompleteCommand extends Command<ClubMutant, TurnCompletePaylo
     // started it), not index 0.
     markTrackAsPlayed(player, this.state.musicStream.currentTrackId)
 
-    // Notify client so their playlist UI updates. The track watchdog (and any
-    // NPC-related path) dispatches this command with a synthetic Client that
-    // only carries a sessionId — it has no send().
-    if (typeof client.send === 'function') {
-      client.send(Message.ROOM_QUEUE_PLAYLIST_UPDATED, {
-        items: [...player.roomQueuePlaylist],
-      })
-    }
+    sendPlaylistSnapshot(this.room, client.sessionId)
 
     // ALWAYS advance to next DJ after playing one track
     console.log('[DJQueue] Track finished, advancing to next DJ')
