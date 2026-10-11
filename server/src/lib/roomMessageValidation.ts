@@ -1,9 +1,10 @@
 import { Message } from '@club-mutant/types/Messages'
+import { parseYoutubeVideoId } from './youtubeLink'
 
 const text = (v: unknown, max: number) => typeof v === 'string' && v.length <= max
 const number = (v: unknown) => typeof v === 'number' && Number.isFinite(v)
 const integer = (v: unknown) => number(v) && Number.isInteger(v) && (v as number) >= 0
-const youtube = (v: unknown) => text(v, 256) && /^(?:[a-zA-Z0-9_-]{11}|https:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=[a-zA-Z0-9_-]{11}(?:&[^\s]*)?|youtu\.be\/[a-zA-Z0-9_-]{11}(?:\?[^\s]*)?))$/.test(v as string)
+const youtube = (v: unknown) => parseYoutubeVideoId(v) !== null
 
 /** Validate before any handler dereferences or stores a network payload. */
 export function validRoomMessage(type: Message, data: any): boolean {

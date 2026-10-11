@@ -5,6 +5,7 @@ import type { ClubMutant } from '../ClubMutant'
 import { JukeboxItem, DJUserInfo } from '@club-mutant/types/RoomState'
 import { Message } from '@club-mutant/types/Messages'
 import { prefetchVideo } from '../../youtubeService'
+import { normalizeYoutubeLink } from '../../lib/youtubeLink'
 import { clampTrackDuration, stopMusicStream } from './djHelpers'
 
 type ClientPayload = {
@@ -101,7 +102,7 @@ export class JukeboxAddCommand extends Command<ClubMutant, AddPayload> {
     const jukeboxItem = new JukeboxItem()
     jukeboxItem.id = uuidv4()
     jukeboxItem.title = String(item.title)
-    jukeboxItem.link = String(item.link)
+    jukeboxItem.link = normalizeYoutubeLink(String(item.link))
     // F14: this value later drives the track watchdog — never trust it raw
     jukeboxItem.duration = clampTrackDuration(item.duration)
     jukeboxItem.addedBySessionId = client.sessionId
@@ -120,7 +121,7 @@ export class JukeboxAddCommand extends Command<ClubMutant, AddPayload> {
     )
 
     // Pre-fetch video to cache it before playback
-    prefetchVideo(item.link)
+    prefetchVideo(jukeboxItem.link)
 
     // Do NOT auto-play when adding to an idle jukebox.
     // Players should hit Play explicitly to start.

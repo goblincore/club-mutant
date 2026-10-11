@@ -5,6 +5,7 @@ import type { ClubMutant } from '../ClubMutant'
 import { RoomQueuePlaylistItem } from '@club-mutant/types/RoomState'
 import { Message } from '@club-mutant/types/Messages'
 import { prefetchVideo } from '../../youtubeService'
+import { normalizeYoutubeLink } from '../../lib/youtubeLink'
 import { sendPlaylistSnapshot, clampTrackDuration } from './djHelpers'
 
 type AddPayload = {
@@ -43,7 +44,7 @@ export class RoomQueuePlaylistAddCommand extends Command<ClubMutant, AddPayload>
     const playlistItem = new RoomQueuePlaylistItem()
     playlistItem.id = uuidv4()
     playlistItem.title = item.title
-    playlistItem.link = item.link
+    playlistItem.link = normalizeYoutubeLink(item.link)
     // F14: this value later drives the track watchdog — never trust it raw
     playlistItem.duration = clampTrackDuration(item.duration)
     playlistItem.addedAtMs = Date.now()
@@ -70,7 +71,7 @@ export class RoomQueuePlaylistAddCommand extends Command<ClubMutant, AddPayload>
     console.log('[RoomQueuePlaylist] Added:', item.title, 'for:', client.sessionId)
 
     // Pre-fetch video to cache it before playback
-    prefetchVideo(item.link)
+    prefetchVideo(playlistItem.link)
 
     // If no current DJ, promote this player so they can press play
     if (!this.state.currentDjSessionId) {
