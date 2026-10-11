@@ -51,7 +51,7 @@ yt.mutante.club {
   # No gzip — video content is already compressed; gzip just wastes CPU
   # and causes Caddy to buffer responses that then get cancelled by Safari's
   # aggressive byte-range retry behaviour, flooding the connection pool.
-  @private path /browse /admin /admin/* /prefetch/*
+  @private path /browse /admin /admin/* /metrics /prefetch/*
   respond @private "Not Found" 404
   reverse_proxy youtube-api:8081 {
     flush_interval -1
