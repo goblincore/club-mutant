@@ -723,7 +723,7 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, audioO
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	log.Printf("[yt-dlp] Running: yt-dlp %v", args)
+	log.Printf("[yt-dlp] Running: yt-dlp %s", redactCredentials(fmt.Sprint(args)))
 	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -742,7 +742,7 @@ func (s *Server) resolveWithYtDlpInternal(videoID string, videoOnly bool, audioO
 		if ctx.Err() == context.DeadlineExceeded {
 			log.Printf("[yt-dlp] TIMEOUT after %v for %s (%s)", elapsed, videoID, poLabel)
 		} else {
-			log.Printf("[yt-dlp] Failed for %s after %v (%s): %v, stderr: %s", videoID, elapsed, poLabel, err, stderr.String())
+			log.Printf("[yt-dlp] Failed for %s after %v (%s): %v, stderr: %s", videoID, elapsed, poLabel, err, redactCredentials(stderr.String()))
 		}
 		return nil, err
 	}

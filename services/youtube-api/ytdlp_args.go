@@ -1,6 +1,9 @@
 package main
 
-import "os"
+import (
+	"os"
+	"regexp"
+)
 
 // usableCookiesPath returns path if it names a non-empty regular file, and ""
 // otherwise. A plain existence check is not enough: docker-compose bind-mounts
@@ -95,4 +98,14 @@ func buildYtDlpArgs(cfg ytdlpArgsConfig) []string {
 	}
 
 	return args
+}
+
+// urlCredentials matches the userinfo of any URL (scheme://user:pass@host) so
+// proxy credentials passed via --proxy never reach the logs.
+var urlCredentials = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.-]*://)[^/\s@]+@`)
+
+// redactCredentials masks URL userinfo in s. Use it on anything derived from
+// yt-dlp's command line or output before logging.
+func redactCredentials(s string) string {
+	return urlCredentials.ReplaceAllString(s, "${1}***@")
 }
