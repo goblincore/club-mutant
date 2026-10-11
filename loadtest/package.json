@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@club-mutant/types": "workspace:*",
-    "@colyseus/loadtest": "^0.17.0",
-    "@colyseus/sdk": "^0.17.0"
+    "@colyseus/loadtest": "^0.18.3",
+    "@colyseus/sdk": "^0.18.5"
   },
   "devDependencies": {
     "tsx": "^4.0.0",

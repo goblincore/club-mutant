@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { boot, ColyseusTestServer } from '@colyseus/testing'
-import { Server } from '@colyseus/core'
+import { Server, CloseCode } from '@colyseus/core'
+import { getStateCallbacks } from '@colyseus/sdk'
+import { uWebSocketsTransport } from '@colyseus/uwebsockets-transport'
 import { ClubMutant } from '../rooms/ClubMutant'
 import { Message } from '@club-mutant/types/Messages'
 import { RoomType } from '@club-mutant/types/Rooms'
@@ -40,7 +42,8 @@ describe('ClubMutant room integration', () => {
   let testServer: ColyseusTestServer
 
   beforeAll(async () => {
-    const gameServer = new Server()
+    // Exercise the production transport and native fetch (no loadtest HTTP shim).
+    const gameServer = new Server({ transport: new uWebSocketsTransport() })
     gameServer.define(RoomType.CUSTOM, ClubMutant)
     testServer = await boot(gameServer)
   }, 30000)
@@ -68,6 +71,9 @@ describe('ClubMutant room integration', () => {
     expect(serverPlayer!.x).toBe(50)
     expect(serverPlayer!.y).toBe(60)
     expect(serverPlayer!.connected).toBe(true)
+    expect(client.state.players.get(client.sessionId)?.name).toBe('Alice')
+    expect(client.state.players.get(client.sessionId)?.x).toBe(50)
+    expect(client.state.players.get(client.sessionId)?.y).toBe(60)
 
     await client.leave()
     // Last client leaves an autoDispose room → room disposes; player is gone.
@@ -91,8 +97,47 @@ describe('ClubMutant room integration', () => {
     const player = room.state.players.get(client.sessionId)
     expect(player!.x).toBe(10)
     expect(player!.y).toBe(20)
+    await expect.poll(() => client.state.players.get(client.sessionId)?.x).toBe(10)
+    await expect.poll(() => client.state.players.get(client.sessionId)?.y).toBe(20)
 
     await client.leave()
+  })
+
+  it('reconnect resync preserves schema objects and their callbacks', { timeout: 15000 }, async () => {
+    const room = await testServer.createRoom<ClubMutant>(RoomType.CUSTOM, PRIVATE_ROOM_OPTIONS)
+    const client = await testServer.connectTo(room, {
+      ...GUEST_AUTH, name: 'Reconnect', playerId: 'guest-reconnect', textureId: 0,
+    })
+    const originalState = client.state
+    const originalPlayer = client.state.players.get(client.sessionId)!
+    const positions: number[] = []
+    getStateCallbacks(client)(originalPlayer).listen('x', (x) => positions.push(x))
+
+    client.reconnection.minUptime = 0
+    client.reconnection.minDelay = 500
+    client.reconnection.maxDelay = 500
+    const dropped = new Promise<void>((resolve) => client.onDrop.once(() => resolve()))
+    const reconnected = new Promise<void>((resolve) => client.onReconnect.once(() => resolve()))
+
+    try {
+      client.connection.close(CloseCode.MAY_TRY_RECONNECT, 'integration test drop')
+      await dropped
+      await expect.poll(() => room.state.players.get(client.sessionId)?.connected).toBe(false)
+
+      // This change happens while the client is offline, so reconnect must resync it.
+      room.state.players.get(client.sessionId)!.x = 120
+      await reconnected
+      await expect.poll(() => client.state.players.get(client.sessionId)?.x).toBe(120)
+      expect(client.state).toBe(originalState)
+      expect(client.state.players.get(client.sessionId)).toBe(originalPlayer)
+      expect(room.state.players.size).toBe(1)
+      expect(room.state.players.get(client.sessionId)?.connected).toBe(true)
+
+      room.state.players.get(client.sessionId)!.x = 130
+      await expect.poll(() => positions.includes(130)).toBe(true)
+    } finally {
+      await client.leave()
+    }
   })
 
   it('chat message broadcasts to other clients', { timeout: 15000 }, async () => {

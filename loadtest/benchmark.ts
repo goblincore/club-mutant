@@ -14,8 +14,6 @@
  *   npx tsx benchmark.ts 5
  *   npx tsx benchmark.ts 20 ws://localhost:2567
  */
-import './patch-fetch'
-
 import { Client, Room } from '@colyseus/sdk'
 import { Message } from '@club-mutant/types/Messages'
 
