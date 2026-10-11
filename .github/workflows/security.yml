@@ -26,6 +26,8 @@ jobs:
       - run: pnpm --filter club-mutant-3d test
       - run: pnpm --filter @club-mutant/types test
       - run: pnpm --filter club-mutant-server build
+      # Typecheck + bundle the client: tsc is part of its build, and CI never ran it.
+      - run: pnpm --filter club-mutant-3d build
   go:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -43,3 +45,25 @@ jobs:
           cache-dependency-path: services/${{ matrix.service }}/go.sum
       - run: go test -race ./...
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+  deploy-config:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      # Placeholders so the compose file's required (${VAR:?}) variables resolve.
+      SERVICE_AUTH_KEY: ${{ github.sha }}${{ github.sha }}
+      INTERNAL_SERVICE_TOKEN: ${{ github.run_id }}${{ github.sha }}
+      NAKAMA_RUNTIME_HTTP_KEY: ${{ github.run_number }}${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Compose file resolves
+        run: docker compose -f deploy/hetzner/docker-compose.yml --env-file deploy/hetzner/.env.example config --quiet
+      - name: tmpfs entries are absolute mount paths
+        # A flow list like [/tmp:size=128m,mode=1777] splits on the comma into a bogus
+        # "mode=1777" mount; `config --quiet` accepts it and only `up` fails.
+        run: |
+          docker compose -f deploy/hetzner/docker-compose.yml --env-file deploy/hetzner/.env.example config --format json \
+            | jq -e '[.services[].tmpfs // [] | .[] | startswith("/")] | all'
+      - name: Published ports stay on the intended interface
+        run: |
+          docker compose -f deploy/hetzner/docker-compose.yml --env-file deploy/hetzner/.env.example config --format json \
+            | jq -e '[.services | to_entries[] | select(.key != "caddy") | .value.ports // [] | .[] | .host_ip == "127.0.0.1"] | all'
