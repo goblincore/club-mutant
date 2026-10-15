@@ -8,6 +8,7 @@ import { useGameStore } from '../stores/gameStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useDreamStore } from '../dream/dreamStore'
 import { resyncPlayerTo, seekPlayerToOffset } from './playerSeek'
+import { PlayerFace } from './skin/PlayerFace'
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -27,6 +28,8 @@ export function NowPlaying() {
   const musicMode = useGameStore((s) => s.musicMode)
   const isCurrentDJ = currentDjSessionId === mySessionId
   const muted = useSettingsStore((s) => s.muted)
+  const musicVolume = useSettingsStore((s) => s.musicVolume)
+  const setMusicVolume = useSettingsStore((s) => s.setMusicVolume)
   const isDreaming = useDreamStore((s) => s.isDreaming)
 
   const isJukeboxMode = musicMode === 'jukebox' || musicMode === 'personal'
@@ -173,7 +176,7 @@ export function NowPlaying() {
           ref={playerRef}
           url={stream.currentLink!}
           playing={stream.isPlaying}
-          volume={muted || isDreaming ? 0 : 0.5}
+          volume={muted || isDreaming ? 0 : musicVolume}
           width={1}
           height={1}
           onEnded={handleEnded}
@@ -206,7 +209,7 @@ export function NowPlaying() {
             ref={playerRef}
             url={stream.currentLink!}
             playing={stream.isPlaying}
-            volume={muted || isDreaming ? 0 : 0.5}
+            volume={muted || isDreaming ? 0 : musicVolume}
             width={1}
             height={1}
             onEnded={handleEnded}
@@ -222,77 +225,22 @@ export function NowPlaying() {
         </div>
       )}
 
-      {/* Mini player bar — DJ queue mode only */}
-      <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm border border-white/10 rounded-lg px-3 py-2 min-w-[320px] max-w-[500px]">
-        {/* Controls: play/stop toggle + skip */}
-        {showControls && (
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {isPlaying ? (
-              <button
-                onClick={() => getNetwork().djStop()}
-                className="w-7 h-7 flex items-center justify-center bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded transition-colors"
-                title="Stop"
-              >
-                <span className="text-[12px] text-red-400">■</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => getNetwork().djPlay()}
-                className="w-7 h-7 flex items-center justify-center bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded transition-colors"
-                title="Play"
-              >
-                <span className="text-[12px] text-green-400">▶</span>
-              </button>
-            )}
-
-            <button
-              onClick={() =>
-                getNetwork().djSkipTurn(stream.streamId)
-              }
-              className="w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 border border-white/15 rounded transition-colors"
-              title="Skip to next"
-            >
-              <span className="text-[12px] text-white/90">▶▶</span>
-            </button>
-          </div>
-        )}
-
-        {/* Track info */}
-        <div className="min-w-0 flex-1">
-          {isPlaying ? (
-            <>
-              <div className="text-[13px] font-mono text-white truncate">
-                {stream.currentTitle ?? '♪ untitled'}
-              </div>
-
-              <div className="text-[11px] font-mono text-white/60 truncate">
-                {timeText}
-                {timeText && upNextText && ' · '}
-                {upNextText}
-              </div>
-            </>
-          ) : (
-            <div className="text-[13px] font-mono text-white/60">
-              stopped — press ▶ to play
-            </div>
-          )}
-        </div>
-
-        {/* Video background toggle — only when playing */}
-        {isPlaying && (
-          <button
-            onClick={toggleVideo}
-            className={`w-7 h-7 flex items-center justify-center border rounded transition-colors flex-shrink-0 ${
-              videoBackground
-                ? 'bg-purple-500/30 border-purple-500/50 text-purple-300'
-                : 'bg-white/10 border-white/20 text-white/60 hover:text-white'
-            }`}
-            title={videoBackground ? 'Hide video background' : 'Show video background'}
-          >
-            <span className="text-[13px]">📺</span>
-          </button>
-        )}
-      </div>
+      <PlayerFace
+        title={stream.currentTitle ?? 'untitled'}
+        subtitle={[timeText, upNextText].filter(Boolean).join(' · ')}
+        isPlaying={isPlaying}
+        showControls={showControls}
+        videoBackground={videoBackground}
+        elapsed={elapsed}
+        duration={totalDuration || stream.duration || 0}
+        volume={musicVolume}
+        muted={muted}
+        onPlay={() => getNetwork().djPlay()}
+        onStop={() => getNetwork().djStop()}
+        onSkip={() => getNetwork().djSkipTurn(stream.streamId)}
+        onToggleVideo={toggleVideo}
+        onVolumeChange={setMusicVolume}
+      />
     </>
   )
 }

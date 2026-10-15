@@ -10,42 +10,50 @@ interface SettingsState {
   psxEnabled: boolean
   showNametags: boolean
   muted: boolean
+  musicVolume: number
   showFps: boolean
   renderScale: number
   fisheyeOverride: number | null
   vertexFisheye: number
   vortexOob: boolean
   crtFrame: boolean
+  hudSkin: 'original' | 'terminal'
 
   toggleNametags: () => void
   toggleMuted: () => void
+  setMusicVolume: (volume: number) => void
   toggleFps: () => void
   cycleRenderScale: () => void
   setFisheyeOverride: (v: number | null) => void
   setVertexFisheye: (v: number) => void
   toggleVortexOob: () => void
   toggleCrtFrame: () => void
+  setHudSkin: (skin: 'original' | 'terminal') => void
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   psxEnabled: true,
   showNametags: true,
   muted: false,
+  musicVolume: 0.5,
   showFps: false,
   renderScale: 0.75,
   fisheyeOverride: null,
   vertexFisheye: 0,
   vortexOob: false,
   crtFrame: true,
+  hudSkin: 'original',
 
   toggleNametags: () => set((s) => ({ showNametags: !s.showNametags })),
   toggleMuted: () => set((s) => ({ muted: !s.muted })),
+  setMusicVolume: (volume) => set({ musicVolume: Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 0.5 }),
   toggleFps: () => set((s) => ({ showFps: !s.showFps })),
 
   setFisheyeOverride: (v) => set({ fisheyeOverride: v }),
   setVertexFisheye: (v) => set({ vertexFisheye: v }),
   toggleVortexOob: () => set((s) => ({ vortexOob: !s.vortexOob })),
   toggleCrtFrame: () => set((s) => ({ crtFrame: !s.crtFrame })),
+  setHudSkin: (hudSkin) => set({ hudSkin }),
 
   cycleRenderScale: () =>
     set((s) => {
