@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 
 import { useChatStore } from '../stores/chatStore'
 import { getNetwork } from '../network/NetworkManager'
+import { ChatSurface } from './skin/HudChrome'
 
 const CHAT_WIDTH = 400
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
@@ -226,15 +227,10 @@ export function ChatInput() {
         </div>
       )}
 
-      <div
+      <ChatSurface
         style={{ width: CHAT_WIDTH }}
-        className={`pointer-events-auto mx-4 mb-4 flex items-center bg-black/[0.75] backdrop-blur-md border transition-all duration-150 rounded-lg ${
-          dragOver
-            ? 'border-green-400/70 shadow-[0_0_8px_2px_rgba(74,222,128,0.4)]'
-            : focused
-              ? 'shadow-[0_0_8px_2px_rgba(255,255,255,0.6),0_0_20px_6px_rgba(200,230,255,0.3)] border-white/70'
-              : 'border-white/[0.15]'
-        }`}
+        focused={focused}
+        dragOver={dragOver}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -293,7 +289,7 @@ export function ChatInput() {
             e.target.value = '' // reset so same file can be re-selected
           }}
         />
-      </div>
+      </ChatSurface>
     </div>
   )
 }

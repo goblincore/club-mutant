@@ -28,6 +28,7 @@ import { ToastContainer } from './ui/ToastContainer'
 import { DisconnectedOverlay } from './ui/DisconnectedOverlay'
 import { SleepPrompt } from './ui/SleepPrompt'
 import { WakePrompt } from './ui/WakePrompt'
+import './ui/skin/terminal.css'
 
 // Lazy-loaded: dream scene (heavy — R3F Canvas, shaders, audio player)
 const DreamScene = lazy(() => import('./ui/DreamScene').then((m) => ({ default: m.DreamScene })))
@@ -139,6 +140,7 @@ function MainApp() {
   const currentDjSessionId = useBoothStore((s) => s.currentDjSessionId)
 
   const rightPanelOpen = usePanelStore((s) => s.rightPanelOpen)
+  const hudSkin = useSettingsStore((s) => s.hudSkin)
 
   const showIframe =
     videoBackgroundEnabled && videoBgMode === 'iframe' && streamIsPlaying && !!streamCurrentLink
@@ -175,10 +177,10 @@ function MainApp() {
   const nowPlayingVisible = !isJukeboxMode && ((streamIsPlaying && !!streamCurrentLink) || isCurrentDJ)
 
   // Playlist panel starts below NowPlaying when visible, otherwise full height
-  const playlistTop = nowPlayingVisible ? 68 : 0
+  const playlistTop = nowPlayingVisible ? (hudSkin === 'terminal' ? 124 : 68) : 0
 
   return (
-    <div className="relative w-full h-full overflow-hidden">
+    <div className="relative w-full h-full overflow-hidden" data-ui-skin={hudSkin}>
       {/* Layer 0: Iframe video background (behind canvas) */}
       {showIframe && (
         <div className="absolute top-0 left-0 bottom-0 transition-[right] duration-300 ease-in-out" style={{ zIndex: 0, right: rightInset }}>
@@ -200,7 +202,7 @@ function MainApp() {
 
       {/* Minimized booth bar — shown when DJ queue panel is open but minimized (booth only, not jukebox) */}
       {playlistOpen && playlistMinimized && isAtBooth && !isJukeboxMode && (
-        <div className="absolute top-14" style={{ left: 12, zIndex: 20 }}>
+        <div className="absolute top-14" style={{ left: 12, zIndex: 20, top: hudSkin === 'terminal' ? 124 : undefined }}>
           <MinimizedBoothBar />
         </div>
       )}

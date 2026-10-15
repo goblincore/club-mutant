@@ -1,0 +1,246 @@
+/* The original HUD remains the default. These rules only skin its DOM layer. */
+.terminal-only { display: none; }
+
+[data-ui-skin='terminal'] {
+  --terminal-ink: #dedbc7;
+  --terminal-phosphor: #beca82;
+  --terminal-edge: #777968;
+}
+
+[data-ui-skin='terminal'] .terminal-face {
+  position: relative;
+  border: 8px solid transparent;
+  border-image: url('/ui/terminal/frame.png') 20 / 8px / 0 stretch;
+  border-radius: 0;
+  background: linear-gradient(165deg, #3b3d33, #292c25 55%, #24271f);
+  background-clip: padding-box;
+  box-shadow: 1px 3px 4px #0005;
+  color: var(--terminal-ink);
+  backdrop-filter: none;
+}
+
+[data-ui-skin='terminal'] .terminal-icon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  pointer-events: none;
+  filter: saturate(.94);
+}
+.terminal-icon img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.terminal-icon__motion { display: none; width: 100%; height: 100%; }
+[data-ui-skin='terminal'] .terminal-icon .terminal-icon__poster { display: none; }
+[data-ui-skin='terminal'] .terminal-icon .terminal-icon__motion { display: block; }
+
+[data-ui-skin='terminal'] .terminal-trim {
+  display: block;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.terminal-trim__wires { position: absolute; width: 45px; height: 45px; top: -10px; left: -10px; }
+.terminal-trim__beetle { position: absolute; width: 15px; height: 15px; right: -8px; top: -13px; transform: rotate(-22deg); }
+
+[data-ui-skin='terminal'] .hud-player {
+  display: block;
+  position: relative;
+  width: 460px;
+  min-width: 0;
+  max-width: calc(100vw - 24px);
+  min-height: 0;
+  aspect-ratio: 1000 / 226;
+  padding: 0;
+  border: 0;
+  border-image: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  overflow: visible;
+}
+[data-ui-skin='terminal'] .hud-player__skin {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+[data-ui-skin='terminal'] .hud-player > .terminal-icon {
+  position: absolute;
+  left: 3.6%;
+  top: 28%;
+  width: 11.2%;
+  height: 50%;
+}
+[data-ui-skin='terminal'] .hud-player__screen {
+  position: absolute;
+  left: 16.1%;
+  top: 35%;
+  width: 36.3%;
+  height: 40%;
+  padding: 2px 3px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+[data-ui-skin='terminal'] .hud-player__title { font-size: 12px; line-height: 16px; color: #c5d58e; text-shadow: 0 0 2px #869d4355; }
+[data-ui-skin='terminal'] .hud-player__time { color: #b4c789; font-size: 10px; line-height: 12px; }
+[data-ui-skin='terminal'] .hud-player__controls,
+[data-ui-skin='terminal'] .hud-player__readonly {
+  display: flex;
+  position: absolute;
+  left: 55.2%;
+  top: 33%;
+  width: 15.8%;
+  height: 44%;
+  gap: 6.3%;
+  align-items: center;
+}
+[data-ui-skin='terminal'] .hud-player__readonly { opacity: .35; pointer-events: none; }
+[data-ui-skin='terminal'] .hud-player__readonly > span { flex: 1; text-align: center; color: #292b22; font-size: 13px; }
+[data-ui-skin='terminal'] .hud-player__transport,
+[data-ui-skin='terminal'] .hud-player__video {
+  flex: 1;
+  width: auto;
+  height: 100%;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+}
+[data-ui-skin='terminal'] .hud-player__transport span {
+  color: #292b24;
+  font-size: 15px;
+  font-weight: bold;
+  text-shadow: 0 1px 1px #ddd5b9aa, 0 -1px #1116;
+}
+[data-ui-skin='terminal'] .hud-player__video {
+  position: absolute;
+  left: 72.1%;
+  top: 33%;
+  width: 7.6%;
+  height: 44%;
+}
+[data-ui-skin='terminal'] .hud-player__video .terminal-icon { width: 30px; height: 30px; }
+[data-ui-skin='terminal'] .hud-player__video[aria-pressed='true'] { background: #93a95b22; }
+[data-ui-skin='terminal'] .hud-player__video-symbol { display: none; }
+[data-ui-skin='terminal'] .hud-player__volume {
+  display: block;
+  position: absolute;
+  left: 82.9%;
+  top: 30.3%;
+  width: 11.2%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+.hud-player__volume img { display: block; width: 100%; height: 100%; pointer-events: none; }
+.hud-player__volume input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; }
+[data-ui-skin='terminal'] .hud-player__volume:focus-within { outline: 2px solid #d3dda3; outline-offset: 2px; }
+[data-ui-skin='terminal'] .hud-player__volume[data-muted='true'] { filter: saturate(.4); }
+[data-ui-skin='terminal'] .hud-player__progress {
+  display: block;
+  width: 100%;
+  height: 2px;
+  margin-top: 2px;
+  border: 0;
+  appearance: none;
+  background: #333b27;
+}
+.hud-player__progress::-webkit-progress-bar { background: #333b27; }
+.hud-player__progress::-webkit-progress-value { background: #a7b76f; }
+.hud-player__progress::-moz-progress-bar { background: #a7b76f; }
+
+[data-ui-skin='terminal'] .hud-dock { gap: 7px; padding-left: 11px; padding-right: 11px; }
+[data-ui-skin='terminal'] .hud-dock__button {
+  position: relative;
+  width: 42px;
+  height: 44px;
+  border: 0;
+  border-radius: 3px;
+  background: #736d5e url('/ui/terminal/transport-button-v2.png') center / 100% 100% no-repeat;
+  background-blend-mode: multiply;
+  box-shadow: 1px 2px 3px #0006;
+}
+[data-ui-skin='terminal'] .hud-dock__button > svg { display: none; }
+[data-ui-skin='terminal'] .hud-dock__button:is(:hover, :focus-visible)::before {
+  content: attr(title);
+  position: absolute;
+  right: 48px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 7px;
+  background: #272a20ed;
+  border: 1px solid #797a61;
+  color: #dedbc7;
+  white-space: nowrap;
+  font: 11px monospace;
+  pointer-events: none;
+}
+[data-ui-skin='terminal'] .hud-dock__button::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #151b11;
+}
+[data-ui-skin='terminal'] .hud-dock__button[aria-pressed='true']::after { background: #b4c17d; box-shadow: 0 0 3px #9aa96877; }
+[data-ui-skin='terminal'] .hud-dock__button[aria-label='Unmute']::after { background: #c39076; box-shadow: none; }
+[data-ui-skin='terminal'] .hud-dock__divider { background: #66695777; }
+[data-ui-skin='terminal'] .hud-dock__button:hover,
+[data-ui-skin='terminal'] .hud-player__transport:hover { filter: brightness(1.12); }
+[data-ui-skin='terminal'] .hud-dock__button:active,
+[data-ui-skin='terminal'] .hud-player__transport:active { box-shadow: inset 1px 1px 3px #0008; }
+
+[data-ui-skin='terminal'] .hud-chat {
+  min-height: 40px;
+  width: min(400px, calc(100vw - 32px)) !important;
+  border-width: 6px;
+  border-image-width: 6px;
+  padding: 0 2px;
+  transition: box-shadow 150ms ease, border-color 150ms ease;
+}
+[data-ui-skin='terminal'] .hud-chat input[type='text'] {
+  min-width: 0;
+  padding: 3px 8px;
+  font-size: 12px;
+  background: #11150f;
+  color: var(--terminal-ink);
+  box-shadow: inset 1px 1px 2px #0008;
+}
+[data-ui-skin='terminal'] .hud-chat input::placeholder { color: #adae98; }
+[data-ui-skin='terminal'] .hud-chat > button { padding: 3px 6px; color: #c0c2a9; }
+[data-ui-skin='terminal'] .hud-chat > div { padding-top: 3px; padding-bottom: 3px; color: #b4b99a; }
+[data-ui-skin='terminal'] .hud-chat[data-focused='true'] { box-shadow: 0 0 0 1px #a7b378, 1px 3px 4px #0005; }
+[data-ui-skin='terminal'] .hud-chat[data-drag-over='true'] { box-shadow: 0 0 0 2px #b8c985, 1px 3px 4px #0005; }
+
+[data-ui-skin='terminal'] .hud-panel { background: #21261fed; border-color: #696e56; backdrop-filter: blur(5px); }
+[data-ui-skin='terminal'] .hud-panel__header { background: linear-gradient(#474b3c, #2b3027); border-bottom-color: #6d7353; }
+[data-ui-skin='terminal'] .hud-panel__header button[data-active='true'] { color: #d3dbac; }
+[data-ui-skin='terminal'] :is(button, a, input):focus-visible { outline: 2px solid #d3dda3; outline-offset: 3px; }
+[data-ui-skin='terminal'] .hud-chat input:focus-visible { outline: 1px solid #b1be7e; outline-offset: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-ui-skin='terminal'] .terminal-icon .terminal-icon__poster { display: block !important; }
+  [data-ui-skin='terminal'] .terminal-icon .terminal-icon__motion { display: none !important; }
+  [data-ui-skin='terminal'] :is(.hud-dock__button, .hud-player__transport, .hud-chat, .hud-panel) { transition: none; }
+}
+
+@media (max-width: 640px) {
+  .hud-preview-controls { top: 112px; bottom: auto; }
+}
+
+@media (max-width: 480px) {
+  [data-ui-skin='terminal'] .hud-player__screen { padding: 0 2px; }
+  [data-ui-skin='terminal'] .hud-player__title { font-size: 11px; line-height: 13px; }
+  [data-ui-skin='terminal'] .hud-player__time { font-size: 9px; line-height: 10px; }
+  [data-ui-skin='terminal'] .hud-player__progress { margin-top: 1px; }
+  [data-ui-skin='terminal'] .hud-player__transport:active { transform: translateY(1px); background: #0002; }
+}

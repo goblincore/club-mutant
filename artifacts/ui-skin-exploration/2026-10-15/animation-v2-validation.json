@@ -1,0 +1,56 @@
+[
+  {
+    "icon": "flower",
+    "frames": 24,
+    "distinctFrames": 24,
+    "bytes": 24224
+  },
+  {
+    "icon": "playlist",
+    "frames": 24,
+    "distinctFrames": 24,
+    "bytes": 22612
+  },
+  {
+    "icon": "settings",
+    "frames": 24,
+    "distinctFrames": 24,
+    "bytes": 31420
+  },
+  {
+    "icon": "chat",
+    "frames": 24,
+    "distinctFrames": 24,
+    "bytes": 17474
+  },
+  {
+    "icon": "audio",
+    "frames": 24,
+    "distinctFrames": 24,
+    "bytes": 19626
+  },
+  {
+    "icon": "audio-muted",
+    "frames": 24,
+    "distinctFrames": 24,
+    "bytes": 15758
+  },
+  {
+    "icon": "exit",
+    "frames": 24,
+    "distinctFrames": 24,
+    "bytes": 15406
+  },
+  {
+    "icon": "video",
+    "frames": 24,
+    "distinctFrames": 24,
+    "bytes": 17732
+  },
+  {
+    "icon": "share",
+    "frames": 24,
+    "distinctFrames": 24,
+    "bytes": 22962
+  }
+]

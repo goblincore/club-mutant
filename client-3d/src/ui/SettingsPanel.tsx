@@ -60,9 +60,26 @@ export function SettingsPanel() {
   const muted = useSettingsStore((s) => s.muted)
   const toggleMuted = useSettingsStore((s) => s.toggleMuted)
   const renderScale = useSettingsStore((s) => s.renderScale)
+  const hudSkin = useSettingsStore((s) => s.hudSkin)
+  const setHudSkin = useSettingsStore((s) => s.setHudSkin)
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 font-mono">
+      <div>
+        <h3 className="text-white/80 text-[11px] uppercase tracking-wider mb-2 border-b border-white/10 pb-1">Interface</h3>
+        <div className="flex gap-1" role="group" aria-label="Interface skin">
+          {(['original', 'terminal'] as const).map((skin) => (
+            <button
+              key={skin}
+              onClick={() => setHudSkin(skin)}
+              aria-pressed={hudSkin === skin}
+              className={`flex-1 py-2 border rounded text-[11px] transition-colors ${hudSkin === skin ? 'border-white/40 bg-white/10 text-white' : 'border-white/10 text-white/60 hover:text-white'}`}
+            >
+              {skin === 'original' ? 'Original' : 'CRT terminal preview'}
+            </button>
+          ))}
+        </div>
+      </div>
       <div>
         <h3 className="text-white/80 text-[11px] uppercase tracking-wider mb-2 border-b border-white/10 pb-1">Audio</h3>
         <label className="flex items-center gap-2 text-[13px] text-white">
